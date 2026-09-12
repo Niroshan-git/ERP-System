@@ -1,0 +1,436 @@
+<title>Ceylon Stack Playbook v3 — Sep 2026</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300..900;1,300..900&family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root{
+    --sapphire:#21407A; --sapphire-tint:#E7ECF6; --sapphire-strong:#16264A;
+    --cinnamon:#A85C31; --cinnamon-tint:#F3E4D8;
+    --tea:#3D7A56; --tea-tint:#E1EEE5;
+    --turmeric:#B87A1E; --turmeric-tint:#F6E9D2;
+    --terracotta:#AD4034; --terracotta-tint:#F5E1DE;
+    --bg:#F2F4F9; --surface:#FFFFFF; --surface-alt:#E9EDF4; --border:#D6DDE8;
+    --ink:#181E2B; --ink-soft:#525C70; --ink-faint:#7C8598;
+    --accent:#21407A; --code-bg:#0F1420;
+    --shadow: 0 1px 2px rgba(20,28,50,.06), 0 8px 24px rgba(20,28,50,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#10131A; --surface:#161A23; --surface-alt:#1D2230; --border:#2A3142;
+      --ink:#E9EDF6; --ink-soft:#A6B0C4; --ink-faint:#78829A;
+      --accent:#6E93D8; --sapphire:#6E93D8; --sapphire-tint:#1C2A47;
+      --cinnamon:#D89566; --cinnamon-tint:#3A2A1E;
+      --tea:#6FBE90; --tea-tint:#1C3226;
+      --turmeric:#E3AA52; --turmeric-tint:#3A2E18;
+      --terracotta:#E17A6B; --terracotta-tint:#3B2320;
+      --code-bg:#0A0D14;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#10131A; --surface:#161A23; --surface-alt:#1D2230; --border:#2A3142;
+    --ink:#E9EDF6; --ink-soft:#A6B0C4; --ink-faint:#78829A;
+    --accent:#6E93D8; --sapphire:#6E93D8; --sapphire-tint:#1C2A47;
+    --cinnamon:#D89566; --cinnamon-tint:#3A2A1E;
+    --tea:#6FBE90; --tea-tint:#1C3226;
+    --turmeric:#E3AA52; --turmeric-tint:#3A2E18;
+    --terracotta:#E17A6B; --terracotta-tint:#3B2320;
+    --code-bg:#0A0D14;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth; color-scheme:light dark;}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:"IBM Plex Sans",ui-sans-serif,sans-serif; font-size:15.5px; line-height:1.6;}
+  h1,h2,h3,h4{font-family:"Archivo",sans-serif; text-wrap:balance; margin:0 0 8px;}
+  p{margin:0 0 14px; max-width:70ch; color:var(--ink-soft);}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;}
+  a{color:var(--accent);}
+  ul,ol{margin:0 0 14px; padding-left:1.2em;}
+  li{margin-bottom:6px; color:var(--ink-soft);}
+  table{border-collapse:collapse; width:100%; font-size:.9rem; margin-bottom:16px;}
+  th,td{text-align:left; padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:top;}
+  th{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); font-weight:500;}
+
+  /* ---- shell / topbar ---- */
+  .topbar{
+    position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:12px;
+    padding:12px 18px; background:var(--surface); border-bottom:1px solid var(--border);
+  }
+  .topbar .brand{display:flex; align-items:center; gap:10px; font-family:"Fraunces",serif; font-weight:600; font-size:1.15rem;}
+  .topbar .tag{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-faint); letter-spacing:.05em; margin-left:auto;}
+  .menu-btn{display:none; border:1px solid var(--border); background:var(--surface-alt); border-radius:8px; padding:7px 10px; font-family:"IBM Plex Sans",sans-serif; font-size:13px; color:var(--ink); cursor:pointer;}
+
+  .shell{display:flex; align-items:flex-start; max-width:1320px; margin:0 auto;}
+  .sidebar{
+    width:272px; flex:none; position:sticky; top:57px; align-self:flex-start;
+    max-height:calc(100vh - 57px); overflow-y:auto; padding:22px 14px 60px;
+    border-right:1px solid var(--border);
+  }
+  .sidebar .grp{margin-bottom:20px;}
+  .sidebar .grp-title{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); padding:0 10px; margin-bottom:6px;}
+  .sidebar a{display:block; padding:6px 10px; border-radius:7px; color:var(--ink-soft); text-decoration:none; font-size:13.5px;}
+  .sidebar a:hover{background:var(--surface-alt); color:var(--ink);}
+  .sidebar a.sub{padding-left:20px; font-size:12.8px; color:var(--ink-faint);}
+  .sidebar a.sub:hover{color:var(--ink-soft);}
+
+  main.content{flex:1; min-width:0; padding:36px 40px 100px; max-width:900px;}
+  section{margin-bottom:58px; scroll-margin-top:74px;}
+  section > .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--sapphire); display:block; margin-bottom:8px;}
+  section > h2{font-size:1.65rem; margin-bottom:10px;}
+  section > .lede{font-size:1.02rem; color:var(--ink-soft); max-width:66ch; margin-bottom:24px;}
+  h3.sub-h{font-size:1.18rem; margin-top:30px; padding-top:22px; border-top:1px solid var(--border);}
+  h3.sub-h:first-of-type{border-top:none; padding-top:0; margin-top:16px;}
+  h4{font-size:.98rem; margin-top:18px;}
+
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow); margin-bottom:16px;}
+  .card + .card{margin-top:12px;}
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  @media (max-width:760px){.grid-2,.grid-3{grid-template-columns:1fr;}}
+
+  .pill{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:.74rem; font-weight:600; margin:0 6px 6px 0;}
+  .pill.sapphire{background:var(--sapphire-tint); color:var(--sapphire);}
+  .pill.cinnamon{background:var(--cinnamon-tint); color:var(--cinnamon);}
+  .pill.tea{background:var(--tea-tint); color:var(--tea);}
+  .pill.turmeric{background:var(--turmeric-tint); color:var(--turmeric);}
+  .pill.terracotta{background:var(--terracotta-tint); color:var(--terracotta);}
+
+  .industry-card h4{margin-top:0; font-family:"Archivo",sans-serif; font-size:1.05rem;}
+  .industry-card .modules{margin-bottom:10px;}
+  .industry-card .pain{font-size:.88rem; color:var(--ink-faint); border-top:1px dashed var(--border); padding-top:10px; margin-top:10px;}
+  .industry-card .pain strong{color:var(--ink-soft);}
+
+  .agent-card{display:grid; grid-template-columns:180px 1fr; gap:20px; align-items:start;}
+  .agent-card .name{font-family:"Archivo",sans-serif; font-weight:700; font-size:1.02rem;}
+  .agent-card .role{font-size:.8rem; color:var(--ink-faint); margin-bottom:10px;}
+  @media (max-width:600px){.agent-card{grid-template-columns:1fr;}}
+
+  .quote{font-family:"Fraunces",serif; font-style:italic; font-size:1.15rem; color:var(--ink); border-left:3px solid var(--sapphire); padding:4px 0 4px 18px; margin:14px 0;}
+  .codeblock{background:var(--code-bg); color:#D7E1F5; border-radius:10px; padding:14px 16px; font-family:"IBM Plex Mono",monospace; font-size:.82rem; overflow-x:auto; margin-bottom:16px;}
+  .callout{border-radius:12px; padding:14px 18px; margin-bottom:16px; font-size:.9rem;}
+  .callout.warn{background:var(--turmeric-tint); color:var(--turmeric);}
+  .callout.warn p, .callout.warn strong{color:inherit;}
+  .callout.info{background:var(--sapphire-tint); color:var(--sapphire);}
+  .callout.info p{color:inherit;}
+
+  .phase{display:flex; gap:14px; margin-bottom:14px; align-items:flex-start;}
+  .phase-num{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--sapphire); background:var(--sapphire-tint); width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:none;}
+  .phase h4{margin:2px 0 4px;}
+
+  footer{padding:30px 40px 60px; color:var(--ink-faint); font-size:.8rem; border-top:1px solid var(--border);}
+
+  @media (max-width:640px){
+    .topbar .tag{display:none;}
+  }
+  @media (max-width:900px){
+    .menu-btn{display:inline-block;}
+    .sidebar{position:fixed; top:53px; left:0; bottom:0; z-index:30; background:var(--bg); transform:translateX(-102%); transition:transform .18s ease; width:80vw; max-width:320px; box-shadow:var(--shadow);}
+    .sidebar.open{transform:translateX(0);}
+    main.content{padding:26px 20px 80px;}
+  }
+</style>
+
+<div class="topbar">
+  <button class="menu-btn" id="menuBtn" aria-label="Toggle navigation">☰ Menu</button>
+  <div class="brand">
+    <svg width="24" height="24" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <polygon points="32,5 55,23 45,50 32,60 19,50 9,23" fill="var(--sapphire)"/>
+      <polygon points="32,5 55,23 9,23" fill="#ffffff" opacity="0.28"/>
+    </svg>
+    Ceylon Stack
+  </div>
+  <span class="tag">PLATFORM &amp; MARKET PLAYBOOK</span>
+</div>
+
+<div class="shell">
+  <nav class="sidebar" id="sidebar">
+    <div class="grp">
+      <div class="grp-title">Overview</div>
+      <a href="#overview">What is Ceylon Stack</a>
+      <a href="#architecture">Architecture</a>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Feature Pack</div>
+      <a href="#core-modules">Core Modules</a>
+      <a href="#hr-payroll" class="sub">HR &amp; Payroll (add-on)</a>
+      <a href="#platform-capabilities" class="sub">Platform Capabilities</a>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Industries &amp; Fit</div>
+      <a href="#ind-apparel" class="sub">Apparel &amp; Textiles</a>
+      <a href="#ind-agro" class="sub">Tea, Rubber &amp; Coconut</a>
+      <a href="#ind-food" class="sub">Food &amp; Beverage</a>
+      <a href="#ind-engineering" class="sub">Engineering &amp; Fabrication</a>
+      <a href="#ind-ceramics" class="sub">Ceramics &amp; Porcelain</a>
+      <a href="#ind-gem" class="sub">Gem, Jewelry &amp; Handicrafts</a>
+      <a href="#ind-construction" class="sub">Construction Materials</a>
+      <a href="#ind-trading" class="sub">Distribution &amp; Retail</a>
+    </div>
+    <div class="grp">
+      <div class="grp-title">MCP Server &amp; Agents</div>
+      <a href="#mcp-architecture">Tool Architecture</a>
+      <a href="#agent-roster">Agent Roster</a>
+      <a href="#agent-data-policy" class="sub">Client Data &amp; AI Policy</a>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Building Around It</div>
+      <a href="#build-around">Extension Points</a>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Policy</div>
+      <a href="#licensing">Licensing (GPL-3.0)</a>
+      <a href="#underneath">"What's Underneath" Answer</a>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Sri Lanka Market</div>
+      <a href="#market-offer">The Offer</a>
+      <a href="#packaging" class="sub">Packaging &amp; Pricing</a>
+      <a href="#gtm">Go-To-Market</a>
+      <a href="#objections" class="sub">Objection Handling</a>
+    </div>
+  </nav>
+
+  <main class="content">
+
+    <section id="overview">
+      <span class="eyebrow">01 — Overview</span>
+      <h2>What Ceylon Stack Is</h2>
+      <p class="lede">A smart factory ERP platform for Sri Lankan manufacturers. It takes ERPNext — open-source business management software that acts as the central nervous system of a company — and layers on the real-time MES/OEE and AI capabilities that neither ERPNext nor SAP B1 ship with out of the box.</p>
+      <p>ERPNext helps companies stay on top of operations: tracking inventory, managing finances, handling projects, and keeping customers happy. Unlike most traditional ERPs that are expensive, rigid, and hard to customize, ERPNext is open-source, cloud-ready, and flexible. You get enterprise-grade power without the usual complications, licensing fees, or vendor lock-in. You own your data and can extend the system freely.</p>
+      <p>Ceylon Stack sits in the practical gap between spreadsheets (free but don’t scale) and full SAP B1 / NetSuite implementations (powerful but too costly and slow for most Sri Lankan manufacturing SMEs). We keep the proven ERPNext core, adapt it to how local factories actually work, add live machine and floor data, and put a clear AI layer on top that can answer “what is happening on the floor right now” in plain language.</p>
+      <div class="callout info"><p><strong>Positioning line:</strong> "Ceylon Stack — the smart factory platform for manufacturers who need more than a spreadsheet and less than an SAP rollout."</p></div>
+      <div class="callout warn"><p style="margin:0;"><strong>Current status (Sep 2026):</strong> ERPNext core is live on Hetzner CX23. MES layer, custom <code>smart_factory</code> app, and frontend are in early development. MCP agents are design-stage only — do not pitch them as available until Phase 0–1 of the agent plan are complete.</p></div>
+    </section>
+
+    <section id="architecture">
+      <span class="eyebrow">02 — Architecture</span>
+      <h2>The Headless Stack</h2>
+      <p class="lede">One rule underpins everything below: ERPNext/Frappe core is never modified. Everything custom talks to it only through its REST API.</p>
+      <div class="codeblock">Shop floor / IoT  →  MES (mes-service)  →  ERPNext core (+ smart_factory app)  →  Frontend + MCP Agents
+   sensors,            MQTT → OEE calc         unmodified core,           dashboards, AI agents,
+   simulator            → writes to ERPNext     custom DocTypes            client-facing reports
+   (Hetzner CX23 host)</div>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Why headless</h4>
+          <p style="margin-bottom:0;">A client that only calls an API is not a derivative work under GPL-3.0. That's what makes <code>smart_factory</code>, <code>mcp-server</code>, <code>mes-service</code>, and <code>frontend</code> genuinely proprietary, sellable IP — separate from ERPNext's own license.</p>
+        </div>
+        <div class="card">
+          <h4>Repo layout</h4>
+          <p style="margin-bottom:0;"><code>apps/smart_factory</code> · <code>apps/mcp-server</code> · <code>apps/mes-service</code> · <code>apps/frontend</code> — one monorepo, detailed in <code>README.md</code> and <code>docs/architecture.md</code>.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="core-modules">
+      <span class="eyebrow">03 — Feature Pack</span>
+      <h2>What's Inside ERPNext</h2>
+      <p class="lede">ERPNext ships a complete suite of business tools — Accounting, Inventory, Manufacturing, Selling, Buying, CRM, Projects, Assets, Quality, and more — all built-in and ready to use. There are no hidden modules behind paywalls. The list below is the practical inventory you should use when scoping any client conversation.</p>
+
+      <h3 class="sub-h">Accounting</h3>
+      <p>Chart of Accounts, Journals, General Ledger, an Immutable Ledger mode. Full receivables/payables cycle (invoices, credit/debit notes, payment reconciliation). Bank reconciliation, multi-currency with FX revaluation, budgeting with variance reporting, P&amp;L / Balance Sheet / Cash Flow reports, period closing controls.</p>
+
+      <h3 class="sub-h">Selling &amp; Buying</h3>
+      <p>Quotation → Sales Order → Delivery Note → Sales Invoice, with partial fulfilment, returns, blanket orders, drop-shipping. Pricing Rules, Price Lists, Loyalty Programs. On the buy side: Material Request → RFQ → Supplier Quotation → Purchase Order → Purchase Receipt/Invoice, with Supplier Scorecards.</p>
+
+      <h3 class="sub-h">Stock (Inventory)</h3>
+      <p>Item master with variants/attributes, multi-warehouse, FIFO/Moving Average valuation. Serial number and batch tracking with full traceability reporting, Pick Lists, Putaway Rules, Landed Cost Vouchers, Quality Inspection tied to receipt.</p>
+
+      <h3 class="sub-h">Manufacturing</h3>
+      <p>Multi-level BOM, Routing, Workstations. Production Plans with MRP and capacity planning. Work Orders → Job Cards, a live Plant Floor view, downtime tracking, subcontracting as a linked module. Reports: Work Order Summary, BOM Explorer, downtime analysis, production forecasting.</p>
+
+      <h3 class="sub-h">Assets, Projects, CRM, Quality, Support, POS, Website</h3>
+      <p><strong>Assets:</strong> category/location setup, multiple depreciation methods, maintenance and disposal tracking. <strong>Projects:</strong> tasks, timesheets billable to invoices, project profitability. <strong>CRM:</strong> lead → opportunity → quotation pipeline, campaigns, pipeline analytics. <strong>Quality:</strong> Quality Goals/Procedures, Non-Conformance, Quality Review — process-level QMS. <strong>Support:</strong> issue tracking with SLAs, warranty claims. <strong>POS:</strong> terminal profiles, end-of-day consolidation. <strong>Website:</strong> storefront, product listings, customer/supplier portal.</p>
+
+      <h3 class="sub-h" id="hr-payroll">HR &amp; Payroll — separate app (Frappe HR)</h3>
+      <div class="callout warn"><p style="margin:0;"><strong>Not bundled into core ERPNext</strong> — Frappe HR (<code>frappe/hrms</code>) is a companion open-source app installed alongside it. Say this clearly if a client asks "does it do payroll" — yes, but it's a second install, worth pricing/scoping separately.</p></div>
+      <p>Attendance &amp; shifts, leave management, appraisals, recruitment (requisition → offer), employee lifecycle, full payroll (salary structures, slips, income tax), gratuity/loans, expense claims.</p>
+
+      <h3 class="sub-h" id="platform-capabilities">Platform Capabilities</h3>
+      <p>Role-based permissions down to field level, Custom Fields and Client Scripts (no core edits needed), document Workflows with approval states, Auto Repeat for recurring documents, a Print Format Builder (this is how Ceylon Stack branding gets onto every invoice/report), integrations (payment gateways, Shopify/WooCommerce, Google), and regional tax packs for India/UAE/Italy/France/South Africa.</p>
+      <div class="callout warn"><p style="margin:0;"><strong>Sri Lanka tax note:</strong> There is no built-in Sri Lanka tax pack. VAT / SVAT / WHT handling must be delivered as a <code>smart_factory</code> customization for every Sri Lankan client. Treat this as a standard implementation item, not an optional toggle.</p></div>
+    </section>
+
+    <section id="ind-apparel">
+      <span class="eyebrow">04 — Industries &amp; Fit</span>
+      <h2>Where This Fits in the Sri Lankan Market</h2>
+      <p class="lede">Eight segments grounded in Sri Lanka's actual manufacturing base — not a generic "works for any industry" claim. Each maps to real ERPNext modules already in the feature pack above.</p>
+
+      <div class="card industry-card">
+        <h4>Apparel &amp; Textiles</h4>
+        <div class="modules"><span class="pill sapphire">Manufacturing</span><span class="pill sapphire">Stock</span><span class="pill sapphire">Quality</span><span class="pill sapphire">Selling</span><span class="pill sapphire">Projects</span></div>
+        <p style="margin-bottom:0;">Sri Lanka's largest manufactured export sector — and it goes well past the big three (Brandix/MAS/Hirdaramani) into a large subcontractor/SME tier this pitch actually targets. BOM per style-color-size, Work Orders per cutting/sewing line, buyer PO tracking, export invoicing.</p>
+        <div class="pain"><strong>Pain solved:</strong> style-wise costing, sewing-line efficiency (OEE fits directly), AQL-style inspection records for buyer audits.</div>
+      </div>
+
+      <div class="card industry-card" id="ind-agro">
+        <h4>Tea, Rubber &amp; Coconut Processing</h4>
+        <div class="modules"><span class="pill sapphire">Manufacturing</span><span class="pill sapphire">Stock</span><span class="pill sapphire">Quality</span><span class="pill sapphire">Assets</span><span class="pill sapphire">Accounting</span></div>
+        <p style="margin-bottom:0;">The classic Ceylon export industries. Processing modeled as BOM (green leaf → made tea, latex → sheet rubber), batch/lot tracked by estate and harvest date, FX-heavy accounting for export sales.</p>
+        <div class="pain"><strong>Pain solved:</strong> estate-to-shipment batch traceability (increasingly a hard requirement for EU buyers under deforestation-linked sourcing rules), yield/wastage tracking, grading records.</div>
+      </div>
+
+      <div class="card industry-card" id="ind-food">
+        <h4>Food &amp; Beverage Manufacturing</h4>
+        <div class="modules"><span class="pill sapphire">Manufacturing</span><span class="pill sapphire">Stock</span><span class="pill sapphire">Quality</span><span class="pill sapphire">Assets</span></div>
+        <p style="margin-bottom:0;">Spices, coconut-derived products, confectionery. Batch/expiry-tracked stock, food-safety inspection records, multi-UOM (kg / bag / container) for a retail-vs-wholesale price structure.</p>
+        <div class="pain"><strong>Pain solved:</strong> shelf-life and batch recall capability, cold-storage asset uptime.</div>
+      </div>
+
+      <div class="card industry-card" id="ind-engineering">
+        <h4>Engineering &amp; Fabrication Workshops</h4>
+        <div class="modules"><span class="pill sapphire">Manufacturing</span><span class="pill sapphire">Projects</span><span class="pill sapphire">Assets</span></div>
+        <p style="margin-bottom:0;">Smaller made-to-order job-shops (metalwork, rubber/plastics moulding, light engineering). Job-Card-centric Work Orders, per-job costing, machine maintenance scheduling.</p>
+        <div class="pain"><strong>Pain solved:</strong> fast, accurate quoting from real job costs; machine downtime/OEE for aging equipment.</div>
+      </div>
+
+      <div class="card industry-card" id="ind-ceramics">
+        <h4>Ceramics &amp; Porcelain</h4>
+        <div class="modules"><span class="pill sapphire">Manufacturing</span><span class="pill sapphire">Quality</span><span class="pill sapphire">Assets</span></div>
+        <p style="margin-bottom:0;">A notable Sri Lankan export niche (tableware, porcelain). Heavy on defect/breakage tracking and kiln-cycle scheduling.</p>
+        <div class="pain"><strong>Pain solved:</strong> kiln downtime is a direct OEE story — arguably the single best live demo for this vertical.</div>
+      </div>
+
+      <div class="card industry-card" id="ind-gem">
+        <h4>Gem, Jewelry &amp; Handicrafts</h4>
+        <div class="modules"><span class="pill sapphire">Stock</span><span class="pill sapphire">Selling</span><span class="pill sapphire">CRM</span></div>
+        <p style="margin-bottom:0;">Sri Lanka's sapphire trade and artisan handicraft exporters. High-value serialized inventory (each stone/piece as a Serial Number), retail counter POS, lighter on Manufacturing (per-piece Job Cards rather than full BOM runs).</p>
+        <div class="pain"><strong>Pain solved:</strong> provenance/serial tracking on individual high-value pieces, retail + wholesale in one system.</div>
+      </div>
+
+      <div class="card industry-card" id="ind-construction">
+        <h4>Construction Materials</h4>
+        <div class="modules"><span class="pill sapphire">Manufacturing</span><span class="pill sapphire">Assets</span><span class="pill sapphire">Projects</span></div>
+        <p style="margin-bottom:0;">Cement, tile, and aggregate producers. Heavy plant-asset maintenance, and Projects module reuse for contractor-facing clients.</p>
+        <div class="pain"><strong>Pain solved:</strong> plant uptime tracking, project-linked material costing.</div>
+      </div>
+
+      <div class="card industry-card" id="ind-trading">
+        <h4>Distribution &amp; Retail (non-manufacturing)</h4>
+        <div class="modules"><span class="pill cinnamon">Buying</span><span class="pill cinnamon">Selling</span><span class="pill cinnamon">Stock</span><span class="pill cinnamon">POS</span><span class="pill cinnamon">Accounting</span></div>
+        <p style="margin-bottom:0;">Not manufacturing, but a natural lighter offer — "Ceylon Stack Lite" — for wholesalers/retailers, using the same core minus Manufacturing/MES.</p>
+        <div class="pain"><strong>Pain solved:</strong> a lower-friction, lower-price entry product and cross-sell path into the manufacturing offer later.</div>
+      </div>
+    </section>
+
+    <section id="mcp-architecture">
+      <span class="eyebrow">05 — MCP Server &amp; Agents</span>
+      <h2>Tool Architecture</h2>
+      <p class="lede">One MCP server, many scoped agents on top of it — not one bespoke server per industry. Detailed phasing lives in <code>docs/mcp-agents-plan.md</code>; this is the architecture that plan feeds into.</p>
+      <div class="grid-2">
+        <div class="card"><h4>Tool groups</h4>
+          <p style="margin-bottom:0;"><strong>Read/reporting</strong> — Work Orders, Job Cards, OEE, Item/BOM lookups. <strong>Write/action</strong> — create Job Card, update status, log downtime — gated more carefully. <strong>Discovery</strong> — list DocTypes/fields, useful mid-build.</p>
+        </div>
+        <div class="card"><h4>Scoping, not trust</h4>
+          <p style="margin-bottom:0;">Each agent gets a scoped ERPNext API key/role, not blanket access. Permission boundaries live at the tool/API layer — never enforced only by an agent's own judgment, since this eventually touches real client data.</p>
+        </div>
+      </div>
+      <div class="callout warn"><p style="margin:0;"><strong>Sequencing reminder:</strong> none of this exists yet. Per <code>docs/mcp-agents-plan.md</code>, Phase 0 (a full walkthrough of the live ERPNext instance) hasn't run. Design the roster below now; don't build or pitch it as live until Phase 0–1 are actually done.</p></div>
+    </section>
+
+    <section id="agent-roster">
+      <h2>Agent Roster</h2>
+      <p class="lede">Two industry-specialist agents to start — the two biggest verticals above — plus cross-cutting functional agents that work regardless of industry. Deliberately not one agent per industry on day one; that's premature before a single client is live.</p>
+
+      <div class="card agent-card">
+        <div><div class="name">Manufacturing Floor Agent</div><div class="role">Base / cross-industry</div><span class="pill sapphire">Read</span><span class="pill turmeric">Limited write</span></div>
+        <div><p style="margin-bottom:6px;"><strong>Skill scope:</strong> Work Order &amp; Job Card status, OEE, downtime reasons — the default agent for any manufacturing client regardless of vertical.</p><p style="margin-bottom:0;"><strong>Example prompt:</strong> <span class="mono">"Which machines on Line 3 are down right now, and since when?"</span></p></div>
+      </div>
+      <div class="card agent-card">
+        <div><div class="name">Apparel &amp; Textile Specialist</div><div class="role">Industry-specific</div><span class="pill sapphire">Read</span><span class="pill cinnamon">Domain vocab</span></div>
+        <div><p style="margin-bottom:6px;"><strong>Skill scope:</strong> style/color/size BOM handling, buyer PO and AQL-inspection language, sewing-line efficiency framing.</p><p style="margin-bottom:0;"><strong>Example prompt:</strong> <span class="mono">"What's our cost per unit on style JK-2201 this run vs. last?"</span></p></div>
+      </div>
+      <div class="card agent-card">
+        <div><div class="name">Agro-Processing Specialist</div><div class="role">Industry-specific (tea / rubber / coconut)</div><span class="pill sapphire">Read</span><span class="pill cinnamon">Domain vocab</span></div>
+        <div><p style="margin-bottom:6px;"><strong>Skill scope:</strong> estate/batch traceability, yield and wastage reporting, export-documentation framing.</p><p style="margin-bottom:0;"><strong>Example prompt:</strong> <span class="mono">"Trace batch RB-0417 back to the estate lot it came from."</span></p></div>
+      </div>
+      <div class="card agent-card">
+        <div><div class="name">Quality &amp; Compliance Agent</div><div class="role">Cross-industry</div><span class="pill sapphire">Read</span></div>
+        <div><p style="margin-bottom:6px;"><strong>Skill scope:</strong> Quality Inspection / Non-Conformance / Quality Review data — the agent a buyer-facing audit or a food-safety check would actually query.</p><p style="margin-bottom:0;"><strong>Example prompt:</strong> <span class="mono">"Show every Non-Conformance logged against Supplier X this quarter."</span></p></div>
+      </div>
+      <div class="card agent-card">
+        <div><div class="name">Finance &amp; Reporting Agent</div><div class="role">Cross-industry</div><span class="pill sapphire">Read</span><span class="pill terracotta">Restricted</span></div>
+        <div><p style="margin-bottom:6px;"><strong>Skill scope:</strong> P&amp;L, variance, receivables aging — read-only, most restricted write access of the roster given the sensitivity of financial data.</p><p style="margin-bottom:0;"><strong>Example prompt:</strong> <span class="mono">"Why did COGS jump 8% this month vs. plan?"</span></p></div>
+      </div>
+      <div class="card agent-card">
+        <div><div class="name">Inventory &amp; Procurement Agent</div><div class="role">Cross-industry</div><span class="pill sapphire">Read</span><span class="pill turmeric">Limited write</span></div>
+        <div><p style="margin-bottom:6px;"><strong>Skill scope:</strong> reorder-point alerts, Supplier Scorecards, stock aging.</p><p style="margin-bottom:0;"><strong>Example prompt:</strong> <span class="mono">"Which raw materials will run out before the next scheduled PO lands?"</span></p></div>
+      </div>
+
+      <h3 class="sub-h" id="agent-data-policy">Client Data &amp; AI Policy</h3>
+      <div class="callout warn"><p style="margin:0;"><strong>Flag before this gets built, not after:</strong> once agents read live client data (batch records, costs, supplier terms) into an AI request, that's client data leaving their system into whatever model serves the agent. Before any agent goes live with a real client, decide and document: which model/provider processes it, whether it's used for any training, and get that into the client agreement — this is a real compliance question the moment "AI part" moves from pitch to production, not an afterthought.</p></div>
+    </section>
+
+    <section id="build-around">
+      <span class="eyebrow">06 — Building Around It</span>
+      <h2>Extension Points</h2>
+      <div class="grid-3">
+        <div class="card"><h4>smart_factory app</h4><p style="margin-bottom:0;">Machine, Sensor Reading, OEE fields on Job Card, Sri Lanka tax fields, industry-specific fields (buyer compliance for apparel, estate/batch for agro).</p></div>
+        <div class="card"><h4>mes-service</h4><p style="margin-bottom:0;">OEE engine reused across every industry — only the dimension labels change (sewing line vs. kiln vs. processing batch).</p></div>
+        <div class="card"><h4>Industry starter kits</h4><p style="margin-bottom:0;">Pre-built BOM templates, Item Groups, and Print Formats per vertical — a sellable accelerator once 2–3 real clients validate the shape.</p></div>
+      </div>
+      <p>Longer-term: Frappe's multi-site support means one Hetzner-class server can host isolated UAT + Live sites per client without provisioning new hardware per deal — the path to serving multiple clients without linear infrastructure cost (see <code>PLAN.md</code> → Multi-Client / Commercial Notes).</p>
+    </section>
+
+    <section id="licensing">
+      <span class="eyebrow">07 — Policy</span>
+      <h2>Licensing (GPL-3.0)</h2>
+      <p>ERPNext is fully open-source under GPL-3.0. There are no licensing fees, no locked modules, and no vendor lock-in — you own your data and can customize freely. Because it is GPL-3.0 (not AGPL), the source-disclosure obligation is triggered by <em>distributing</em> a modified copy, not by hosting it as a service. When Ceylon Stack is delivered as hosted SaaS (the client logs into your instance and never receives a copy to self-host), that obligation is most likely never triggered. The custom layers — <code>smart_factory</code>, <code>mcp-server</code>, <code>mes-service</code>, and <code>frontend</code> — remain proprietary as long as they only communicate with ERPNext through its REST API. This is the entire reason the headless architecture exists.</p>
+
+      <h3 class="sub-h" id="underneath">The "What's Underneath" Answer</h3>
+      <div class="quote">"Ceylon Stack is built on ERPNext, a mature open-source ERP used by tens of thousands of companies worldwide. It gives us a complete, battle-tested core for accounting, inventory, manufacturing and more — with no licensing fees and full ownership of the data. We have adapted it for how Sri Lankan manufacturers actually work and layered on the real-time factory floor visibility and AI capabilities that ERPNext does not ship out of the box."</div>
+      <p style="margin-bottom:0;">Lead with Ceylon Stack in all marketing. Use this answer only when someone asks directly what sits underneath — never claim the ERP core was built in-house.</p>
+    </section>
+
+    <section id="market-offer">
+      <span class="eyebrow">08 — Sri Lanka Market</span>
+      <h2>The Offer</h2>
+      <p class="lede">Not "ERP for everyone" — a specific answer to a specific gap Sri Lankan manufacturing SMEs actually sit in.</p>
+      <table>
+        <thead><tr><th>Segment</th><th>Currently uses</th><th>Ceylon Stack's pitch</th></tr></thead>
+        <tbody>
+          <tr><td>Small manufacturer, 10–50 staff</td><td>Excel + WhatsApp</td><td>Real inventory/costing without a 6-month SAP rollout</td></tr>
+          <tr><td>Mid-size exporter (apparel, agro)</td><td>Legacy/local software, manual buyer compliance</td><td>Traceability &amp; audit-ready records buyers now require</td></tr>
+          <tr><td>Growing job-shop (engineering, ceramics)</td><td>Paper job cards</td><td>Real machine OEE and accurate per-job costing</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub-h" id="packaging">Packaging &amp; Pricing Shape</h3>
+      <div class="grid-3">
+        <div class="card"><h4>Starter</h4><p style="margin-bottom:0;">Core ERPNext (Accounting/Stock/Selling/Buying) rebranded, hosted. No MES/OEE. Entry price point, incl. "Ceylon Stack Lite" for non-manufacturers.</p></div>
+        <div class="card"><h4>Smart Factory</h4><p style="margin-bottom:0;">Starter + Manufacturing + MES/OEE layer. The core Ceylon Stack pitch.</p></div>
+        <div class="card"><h4>Smart Factory + AI</h4><p style="margin-bottom:0;">Adds the agent layer once Phase 0–2 of the MCP plan is actually delivered — priced as a premium tier, not bundled in by default.</p></div>
+      </div>
+      <p>Revenue shape stays as already set in <code>PLAN.md</code>: one-time setup/customization fee + a monthly hosting/support retainer per client — recurring revenue, not a one-off sale.</p>
+
+      <h3 class="sub-h" id="gtm">Go-To-Market</h3>
+      <p>The fastest channel is the one already open: existing SAP B1/Odoo/Acumatica client relationships and network from ERP consulting work, where Ceylon Stack is the answer for prospects who can't justify SAP B1's cost — not a competitor to those relationships, a downstream offer from them. Secondary channels: LinkedIn (existing presence), Sri Lankan manufacturing/export industry associations, and the credibility signals already in place (SAP B1/Acumatica/PL-300 certifications, Maven Analytics recognition) used to open conversations, not as the product's own claim.</p>
+
+      <h3 class="sub-h" id="objections">Objection Handling</h3>
+      <table>
+        <thead><tr><th>Objection</th><th>Answer</th></tr></thead>
+        <tbody>
+          <tr><td>"Why not just keep using Excel?"</td><td>Works until multiple people/machines need the same numbers at once — that's the exact point this replaces spreadsheets, not before.</td></tr>
+          <tr><td>"Why not SAP B1, since you're SAP-certified?"</td><td>Right tool for a different budget/timeline. Ceylon Stack is the answer when SAP B1's cost and rollout time don't fit — not a downgrade, a fit decision.</td></tr>
+          <tr><td>"Is my data safe on shared/hosted infrastructure?"</td><td>Each client gets an isolated Frappe site/database, not shared tables — say this plainly, and back it up in the contract once multi-tenancy is actually built.</td></tr>
+          <tr><td>"What about local support?"</td><td>Built and supported in Sri Lanka, for Sri Lankan manufacturing operations — a genuine advantage over an offshore SaaS vendor.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  </main>
+</div>
+
+<footer>Ceylon Stack Playbook v3 — internal reference, not for external distribution as-is (see Licensing). Updated Sep 2026 with official ERPNext introduction language, current status, Sri Lanka tax clarification, and Hetzner hosting note. Sources: official ERPNext docs, <code>docs/erpnext-full-reference.md</code>, <code>DESIGN.md</code>, <code>PLAN.md</code>, and <code>docs/mcp-agents-plan.md</code>.</footer>
+
+<script>
+(function(){
+  var btn = document.getElementById('menuBtn');
+  var sidebar = document.getElementById('sidebar');
+  if(!btn || !sidebar) return;
+  btn.addEventListener('click', function(){ sidebar.classList.toggle('open'); });
+  sidebar.querySelectorAll('a').forEach(function(a){
+    a.addEventListener('click', function(){ sidebar.classList.remove('open'); });
+  });
+})();
+</script>

@@ -104,6 +104,159 @@ User noticed `smart_factory` had no presence in the app-switcher grid — expect
 - `frontend` and `websocket` containers briefly crash-looped after `up -d` (nginx: `host not found in upstream "backend:8000"`; websocket: `getaddrinfo EAI_AGAIN redis-queue`) — a boot-order race where they started before `backend`/`redis-queue` were ready. Fixed with `docker compose -f pwd.yml restart frontend websocket` once the rest of the stack was healthy. All 8 containers confirmed up afterward; site verified serving (HTTP 200) with branding intact.
 - **Follow-up not yet done:** add `restart: unless-stopped` to `pwd.yml` services so this doesn't require a manual fix on every future reboot.
 
+## DevOps Claude Code subagent + deploy skill (2026-09-12)
+
+Followed up on the "MCP server & agents" plan in `docs/mcp-agents-plan.md` /
+`docs/ceylon-stack-playbook.html`. That plan's client-facing agent roster
+(Manufacturing Floor Agent, Apparel Specialist, etc.) is explicitly gated
+behind Phase 0 (a full ERPNext walkthrough) and Phase 1 (the MCP tool
+surface) — neither is done, so those stay design-only for now, not built.
+
+What's genuinely unblocked and useful today is dev-tooling: a **Claude Code
+subagent**, not a product feature, scoped to server administration and
+GitHub repo hygiene for this project specifically.
+
+- Added `.claude/agents/devops.md` — a project-level subagent covering the
+  Hetzner server (SSH, `docker compose -f pwd.yml`, `bench` commands) and
+  the GitHub repo workflow (git safety protocol, `gh` CLI for PRs/issues).
+  Bakes in the hard-won infra gotchas from this log (frontend/backend
+  filesystem split, editable-install restart requirement, boot-order
+  crash-loop, SSH heredoc placement, IPython console piping) so they don't
+  need rediscovering on the next server task. Explicitly scoped out of
+  DocType/business-logic design and out of the gated MCP/agent-roster work.
+- Added `.claude/skills/deploy-smart-factory/SKILL.md` — the step-by-step
+  docker cp + restart sequence for pushing a `smart_factory` code change to
+  the live site, called out as a stopgap until a proper custom Docker image
+  build replaces it.
+- Added the six client-facing roster agents from the playbook as Claude
+  Code subagents too (`manufacturing-floor`, `apparel-textile`,
+  `agro-processing`, `quality-compliance`, `finance-reporting`,
+  `inventory-procurement`) — each one plainly states it currently has no
+  scoped API key or MCP server to work through (Phase 1 not built) and no
+  real master data to query yet (Phase 0 not run), rather than pretending
+  either gap is solved.
+
+## Full agent roster: development, UI/UX, and implementation teams (2026-09-12)
+
+Extended the same "Claude Code subagent" pattern across the whole project,
+not just ERPNext/ops, at the user's request for a full team:
+
+- **Development:** `frappe-dev` (smart_factory DocTypes/hooks/server
+  scripts), `frontend-dev` (Next.js dashboard, API-only per the headless
+  rule), `mes-dev` (FastAPI MES/OEE service, unbuilt so far — README only),
+  `mcp-dev` (MCP server, hard-gated on Phase 0's `docs/erp-inventory.md`
+  existing before it's allowed to start Phase 1 tool-building), `qa-tester`
+  (verification across all four apps), `code-reviewer` (architecture/
+  secrets/correctness review before anything ships).
+- **UI/UX:** `product-designer` (in-product surfaces — Desk rebrand +
+  Next.js dashboard, mobile-first) and `brand-designer` (marketing/pitch
+  materials — the playbook, brand docs, positioning claims), split so
+  product usability and marketing claims don't get conflated.
+- **Implementation:** `erp-functional-consultant` — the non-code ERP
+  rollout role (module config, manufacturing master data, Sri Lanka VAT/tax
+  gap, training/go-live docs) and explicitly the one now responsible for
+  finally running the overdue Phase 0 walkthrough (`docs/erp-inventory.md`
+  doesn't exist yet).
+
+All fifteen agents (`devops` + 6 roster + 9 here) live in `.claude/agents/`,
+each scoped to one part of the stack, each honest in its own file about
+what's actually built vs. still ahead so none of them start fabricating
+progress that hasn't happened.
+
+## Real brand asset swap — Desk rebrand (2026-09-12)
+
+The `smart_factory`/Website Settings/Navbar Settings branding pass above was
+done with placeholder/AI-drafted assets from `docs/brand/`. The user added
+the real, approved asset package at `Ceylon-Stack-Brand-Package/` (root of
+repo, local-only per this task's scope — not synced into `docs/brand/` or
+`apps/frontend`) and asked for the live Desk to be updated to use it,
+replacing the placeholders. Followed the package's own `README.txt` usage
+guidance ("ERP header: horizontal. Collapsed sidebar: mark. Login/splash:
+stacked.").
+
+- **Website Settings** (`app_logo`, `favicon`, `splash_image`): uploaded via
+  the same `bench --site frontend console` + `frappe.utils.file_manager.save_file`
+  scripting technique as the original placeholder pass (no simple CLI upload
+  path exists for image fields). Source files:
+  - `app_logo` → `03-PNG/ceylon-stack-mark-original-1024.png` → stored as
+    `/files/ceylon-stack-mark-original-1024b0d7f0.png`
+  - `favicon` — **first attempt used `05-Web/favicon.ico` directly and was
+    wrong**: that ready-made ICO is built from `favicon.svg`, which has a
+    hardcoded opaque `<rect fill="#FFFFFF">` background — it's the "white
+    app tile" variant meant for platforms that apply their own icon mask
+    (per the package's own `README.txt`), not a raw browser favicon. Against
+    a light browser tab bar it rendered as an invisible white square (user
+    caught this from a screenshot). **Fix:** built a proper transparent
+    favicon locally with Pillow instead — padded
+    `03-PNG/ceylon-stack-mark-original-1024.png` (confirmed genuinely
+    transparent, RGBA with alpha=0 background) to a square canvas and saved
+    a multi-size ICO (16/32/48/64/128/256). No ImageMagick/`rsvg-convert`/
+    `cairosvg` were available locally or found needed, since Pillow alone
+    could rasterize-resize the existing transparent PNG and pack a
+    multi-size `.ico`. Uploaded and swapped onto `Website Settings.favicon`,
+    replacing the bad file — final live value is
+    `/files/favicon-transparent97eb86.ico`. Verified post-fix by fetching
+    the live URL and checking it in Pillow: RGBA mode, 256x256 (6 embedded
+    sizes), corner pixel alpha=0 (transparent), ~49% opaque pixel coverage
+    matching the mark's actual shape — not just an eyeballed screenshot
+    check. The old opaque `/files/faviconcc7d46.ico` File record was left
+    in place (unattached, harmless) rather than deleted, since Website
+    Settings no longer references it.
+  - `splash_image` → `03-PNG/ceylon-stack-stacked-original-1600.png` (per
+    package guidance: login/splash = stacked layout) → stored as
+    `/files/ceylon-stack-stacked-original-1600207b56.png`
+- **Navbar Settings** `app_logo` → switched from the square mark (previous
+  placeholder pass) to the horizontal lockup per package guidance ("ERP
+  header: horizontal"): `03-PNG/ceylon-stack-horizontal-white-1600.png` →
+  stored as `/files/ceylon-stack-horizontal-white-16003c4a18.png`.
+  **Judgment call:** picked the **white** treatment, not **original**, for
+  this slot specifically — the navbar background is a fixed sapphire
+  (`#21407a` light theme / `#17325e` dark theme, hardcoded in
+  `ceylon_stack_desk.css`'s `--navbar-bg`), and the horizontal-original
+  treatment's wordmark text is near-black navy (`#081B30`-ish), which
+  measured as very low contrast against sapphire when sampled pixel-by-pixel.
+  White gives guaranteed full contrast in both Desk themes; navy treatment
+  was also ruled out for the same reason (its ink is even darker than
+  sapphire). Package guidance itself allows this ("Dark surfaces: dark or
+  white treatment").
+- **`smart_factory` app (live-only, container code, not in this repo)** —
+  `smart_factory/boot.py`'s `set_ceylon_stack_branding()` had a hardcoded
+  `CEYLON_STACK_LOGO = "/files/app-logo-512f047e3.png"` constant (feeds the
+  app-switcher tile / sidebar subtitle logo via `bootinfo.app_data`).
+  Updated it to the new mark file
+  (`/files/ceylon-stack-mark-original-1024b0d7f0.png`) directly inside
+  `frappe_docker-backend-1` via `sed`, then restarted
+  `backend queue-short queue-long scheduler websocket` per the
+  `deploy-smart-factory` skill (Python-only change — no `public/css`/`public/js`
+  touched this time, so no `frontend` `docker cp` was needed; confirmed the
+  already-deployed CSS/JS on `frontend` still serves fine at HTTP 200).
+  `ceylon_stack_desk.css` was checked for hardcoded logo references
+  (`background-image`/`url()`) — it only sets CSS custom-property colors, no
+  logo swap needed there.
+- **`Desktop Icon` "Framework" record** (`smart_factory`'s app-switcher
+  tile) — `logo_url` updated to the same new mark file via
+  `frappe.db.set_value` (same core-guard-bypass technique as the original
+  branding pass, since this is a standard-ish record path already used for
+  Dashboard Chart colors).
+- **Verification:** all 8 containers up post-restart, no frontend/websocket
+  boot-order crash-loop this time. `curl -I` against the site root and each
+  of the new `/files/...` URLs (including the corrected favicon after its
+  fix) plus the existing `/assets/smart_factory/css/...` and `.../js/...`
+  all returned HTTP 200. Re-read `Website Settings`, `Navbar Settings`, and the `Desktop Icon`
+  record back from the DB to confirm the new URLs stuck. Ran
+  `set_ceylon_stack_branding()` against a synthetic `bootinfo` dict in
+  console to confirm it now emits the new logo URL for `frappe`/`erpnext`/
+  `smart_factory` app entries.
+- **Explicitly out of scope for this pass** (per the task): `docs/brand.md`,
+  `DESIGN.md`, and `apps/frontend` were not touched — they still reference
+  the old placeholder assets and are a separate follow-up if/when the
+  frontend and docs are brought in line with the real package.
+- **Not yet done / flagged, not skipped silently:** the login page itself
+  (not just the post-login splash) and print-format/letterhead branding
+  still use default ERPNext styling — same known gap called out in the
+  original branding pass, unchanged by this task since it was scoped to
+  "live Desk" branding fields already wired up, not new surfaces.
+
 ## Not Yet Done (see PLAN.md for full context)
 
 - `smart_factory` exists and does the full Desk branding pass (navbar/sidebar/app-switcher/buttons); it does not yet contain any actual Manufacturing/OEE business logic — that's still 100% ahead, per `PLAN.md`.
