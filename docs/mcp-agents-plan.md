@@ -91,10 +91,51 @@ data into ERPNext and a working frontend dashboard in front of a client —
 an agent layer doesn't help close a first deal. (a) is worth building now
 specifically because it speeds up everything else between here and October.
 
+## Phase 3 — Remote Access (not started)
+
+**Status (2026-09-12):** `apps/mcp-server` exists and is verified working —
+see `apps/mcp-server/README.md` for the current tool list. It runs as a
+**local stdio process** only: Claude Code/Desktop launches it as a
+subprocess on the developer's own machine, using the local Python install
+and the local `apps/mcp-server/.env` (Administrator API key). It is **not**
+reachable from claude.ai (web), the mobile app, or any other device —
+there's no server listening anywhere for those to reach.
+
+Making it reachable from "anywhere" is a real, separate step, not a config
+flag:
+
+- **Transport**: the `mcp` SDK's `MCPServer` supports `streamable-http` (and
+  `sse`) in addition to `stdio` — switching transport is the easy part.
+- **Hosting**: the server would need to run somewhere with a public
+  address — the Hetzner box is the obvious candidate since it already
+  hosts ERPNext, but that's additional load/attack-surface on a 2 vCPU/4GB
+  instance already running the full stack.
+- **Auth is the hard part, and non-optional**: today's server holds an
+  **Administrator**-level ERPNext API key. Exposing it over a public HTTP
+  endpoint with only that key as protection means anyone who finds the URL
+  has full ERPNext access. A public remote server must not be the raw
+  dev-tier server — it needs to be (or sit in front of) the **Phase 2(b)
+  client-scoped tier** (role/DocType allow-list, lower-privilege API user),
+  plus its own access control in front (OAuth token verification — the SDK
+  already has `token_verifier`/`auth_server_provider` hooks for this — or
+  at minimum a dedicated gateway, never the bare Administrator key on the
+  open internet).
+- **Sequencing implication**: Phase 3 therefore depends on Phase 2(b)
+  existing first (or being built alongside it), which in turn depends on a
+  real client role to design the scoping against. Don't jump straight from
+  "local dev tool works" to "expose it publicly" without that scoping step
+  in between.
+
+Not started. No hosting, transport, or auth decisions have been made yet —
+this section exists so "can I reach this from anywhere" has a documented
+answer (no, not yet, here's what it would take) rather than being
+re-litigated from scratch next time it comes up.
+
 ## Sequencing
 
 1. Phase 0 walkthrough — this week, blocks the rest
-2. Scaffold `apps/mcp-server` (Python) with 3–5 read-only tools first
-3. Validate against the real dev instance
-4. Add write/action tools once read tools are solid
+2. Scaffold `apps/mcp-server` (Python) with 3–5 read-only tools first — **done** (2026-09-12), see `apps/mcp-server/README.md`
+3. Validate against the real dev instance — **done**, verified live against the Hetzner instance
+4. Add write/action tools once read tools are solid — still blocked on Phase 0 (`docs/erp-inventory.md` doesn't exist yet)
 5. Revisit Phase 2(b) only once there's a real client conversation asking for it
+6. Revisit Phase 3 (remote access) only once Phase 2(b) exists — see above
