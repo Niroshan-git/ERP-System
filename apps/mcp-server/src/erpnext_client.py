@@ -13,7 +13,10 @@ from typing import Any
 
 import httpx
 
-from .config import Config
+try:
+    from .config import Config
+except ImportError:  # running as a script, not part of the `src` package
+    from config import Config
 
 
 class ERPNextError(RuntimeError):
