@@ -98,6 +98,28 @@ Type scale: 12 (caption) · 14 (label) · 16 (body) · 20 (h3) · 28 (h2) · 40+
 - **No apology copy** — errors say what broke and what to do next. No
   "Oops!", no exclamation marks on a stoppage.
 
+## 5a. The "What's Underneath" Answer
+
+If a client, partner, or investor asks what's under the hood — this is the
+answer, verbatim, every time (don't let it drift person to person):
+
+> "Ceylon Stack is built on ERPNext, an open-source ERP platform used by
+> 30,000+ companies worldwide. We've made it compatible with how Sri
+> Lankan manufacturers actually work, and layered on the real-time factory
+> floor and automation/AI capabilities that ERPNext doesn't have out of
+> the box."
+
+Rules for using it:
+- Lead with Ceylon Stack in marketing/decks — this line is for when
+  someone asks directly, not the headline pitch.
+- The "30,000+ companies" figure is Frappe's own published number
+  (frappe.io/erpnext) — verifiable, don't inflate it or add a country
+  count that isn't published anywhere.
+- Never claim the ERP core (accounting, inventory, manufacturing engine)
+  was built in-house. What *is* honestly Ceylon Stack's own: the Sri
+  Lanka fit, the MES/OEE real-time layer, and the automation/AI layer —
+  say that part with full confidence, because it's true.
+
 ## 6. Applying It — Rollout Order
 
 1. **ERPNext Desk (now):** Website Settings → App Name = "Ceylon Stack",

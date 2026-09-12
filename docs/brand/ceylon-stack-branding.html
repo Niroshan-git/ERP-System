@@ -1,0 +1,383 @@
+<title>Ceylon Stack</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300..900;1,300..900&family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root{
+    --sapphire:#21407A; --sapphire-strong:#16264A; --sapphire-tint:#E7ECF6; --sapphire-line:#B9C6E2;
+    --cinnamon:#A85C31; --cinnamon-tint:#F3E4D8;
+    --tea:#3D7A56; --tea-tint:#E1EEE5;
+    --turmeric:#B87A1E; --turmeric-tint:#F6E9D2;
+    --terracotta:#AD4034; --terracotta-tint:#F5E1DE;
+
+    --bg:#F2F4F9;
+    --surface:#FFFFFF;
+    --surface-alt:#E9EDF4;
+    --border:#D6DDE8;
+    --ink:#181E2B;
+    --ink-soft:#525C70;
+    --ink-faint:#7C8598;
+    --accent:#21407A;
+    --accent-tint:#E7ECF6;
+    --shadow: 0 1px 2px rgba(20,28,50,.06), 0 8px 24px rgba(20,28,50,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#10131A; --surface:#161A23; --surface-alt:#1D2230; --border:#2A3142;
+      --ink:#E9EDF6; --ink-soft:#A6B0C4; --ink-faint:#78829A;
+      --accent:#6E93D8; --accent-tint:#1C2A47;
+      --sapphire:#6E93D8; --sapphire-tint:#1C2A47; --sapphire-line:#33456E;
+      --cinnamon:#D89566; --cinnamon-tint:#3A2A1E;
+      --tea:#6FBE90; --tea-tint:#1C3226;
+      --turmeric:#E3AA52; --turmeric-tint:#3A2E18;
+      --terracotta:#E17A6B; --terracotta-tint:#3B2320;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#10131A; --surface:#161A23; --surface-alt:#1D2230; --border:#2A3142;
+    --ink:#E9EDF6; --ink-soft:#A6B0C4; --ink-faint:#78829A;
+    --accent:#6E93D8; --accent-tint:#1C2A47;
+    --sapphire:#6E93D8; --sapphire-tint:#1C2A47; --sapphire-line:#33456E;
+    --cinnamon:#D89566; --cinnamon-tint:#3A2A1E;
+    --tea:#6FBE90; --tea-tint:#1C3226;
+    --turmeric:#E3AA52; --turmeric-tint:#3A2E18;
+    --terracotta:#E17A6B; --terracotta-tint:#3B2320;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box;}
+  html{color-scheme:light dark;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size:16px; line-height:1.55;
+    padding-inline:20px;
+  }
+  .wrap{max-width:920px; margin:0 auto; padding-block:56px 80px;}
+  section{margin-block-end:64px;}
+  h1,h2,h3{font-family:"Archivo", ui-sans-serif, sans-serif; text-wrap:balance; margin:0;}
+  .eyebrow{
+    font-family:"IBM Plex Mono", ui-monospace, monospace; font-size:12.5px; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--ink-faint); margin-block-end:10px; display:block;
+  }
+  h2{font-size:1.5rem; font-weight:700; color:var(--ink); margin-block-end:6px;}
+  .lede{color:var(--ink-soft); font-size:1rem; max-width:62ch; margin-block-end:28px;}
+  p{max-width:65ch;}
+  code, .mono{font-family:"IBM Plex Mono", ui-monospace, monospace;}
+  .tabnum{font-variant-numeric:tabular-nums;}
+
+  /* ---- hero ---- */
+  .hero{
+    background:linear-gradient(165deg, var(--sapphire) 0%, var(--sapphire-strong, var(--sapphire)) 62%, #0F1E3B 100%);
+    border-radius:20px; padding:52px 40px; color:#F4F7FD; margin-block-end:56px;
+    display:flex; flex-direction:column; gap:22px; position:relative; overflow:hidden;
+  }
+  :root[data-theme="light"] .hero, :root:not([data-theme="dark"]) .hero{
+    background:linear-gradient(165deg,#2A4C89 0%, #1D3868 60%, #0F2140 100%);
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .hero{ background:linear-gradient(165deg,#2F4A7C 0%,#1B2C4C 65%,#0B1220 100%); } }
+  :root[data-theme="dark"] .hero{ background:linear-gradient(165deg,#2F4A7C 0%,#1B2C4C 65%,#0B1220 100%); }
+  .hero-top{display:flex; align-items:center; gap:16px;}
+  .mark{flex:none; display:block;}
+  .wordmark{font-family:"Fraunces", serif; font-weight:600; font-size:2.5rem; letter-spacing:-0.01em; color:#fff;}
+  .tagline{font-family:"Fraunces", serif; font-style:italic; font-weight:400; font-size:1.35rem; color:#DCE6F7; max-width:36ch; text-wrap:balance;}
+  .hero-desc{color:#C7D5EE; max-width:58ch; font-size:.98rem;}
+  .hero-meta{
+    display:flex; gap:18px; flex-wrap:wrap; font-family:"IBM Plex Mono",monospace; font-size:12px;
+    color:#9FB3D9; letter-spacing:.03em; border-top:1px solid rgba(255,255,255,.14); padding-top:16px; margin-top:6px;
+  }
+
+  /* ---- logo section ---- */
+  .lockups{display:flex; gap:16px; flex-wrap:wrap;}
+  .swatch-card{
+    flex:1 1 200px; border-radius:14px; padding:28px 22px; display:flex; flex-direction:column;
+    align-items:flex-start; gap:16px; min-height:150px; justify-content:center;
+  }
+  .on-light{background:#fff; border:1px solid var(--border);}
+  .on-dark{background:#12172A;}
+  .on-dark .wordmark-sm, .on-dark .wordmark-stack{color:#fff;}
+  .wordmark-sm{font-family:"Fraunces",serif; font-weight:600; font-size:1.5rem; color:var(--ink);}
+  .lockup-row{display:flex; align-items:center; gap:12px;}
+  .lockup-stack{display:flex; flex-direction:column; align-items:flex-start; gap:8px;}
+  .icon-only-grid{display:flex; gap:10px; align-items:center;}
+  .icon-chip{width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center;}
+  .icon-chip.light{background:#fff; border:1px solid var(--border);}
+  .icon-chip.dark{background:#12172A;}
+  .icon-chip.tint{background:var(--sapphire-tint);}
+  .clearspace-note{font-size:.85rem; color:var(--ink-soft); margin-top:14px;}
+
+  /* ---- color grid ---- */
+  .color-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px;}
+  .color-card{border-radius:14px; overflow:hidden; border:1px solid var(--border); background:var(--surface); box-shadow:var(--shadow);}
+  .color-swatch{height:74px;}
+  .color-info{padding:12px 14px 14px;}
+  .color-name{font-weight:600; font-size:.92rem;}
+  .color-role{color:var(--ink-soft); font-size:.8rem; margin-block:2px 6px;}
+  .color-hex{font-family:"IBM Plex Mono",monospace; font-size:.78rem; color:var(--ink-faint);}
+  .status-row{display:flex; gap:14px; flex-wrap:wrap; margin-top:18px;}
+  .status-card{flex:1 1 160px; border-radius:12px; padding:16px; border:1px solid var(--border);}
+
+  /* ---- type specimen ---- */
+  .type-block{border-top:1px solid var(--border); padding-block:22px;}
+  .type-block:first-of-type{border-top:none; padding-top:0;}
+  .type-label{display:flex; justify-content:space-between; align-items:baseline; margin-block-end:10px; flex-wrap:wrap; gap:6px;}
+  .type-role{font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-faint);}
+  .type-face{font-size:.85rem; color:var(--ink-soft);}
+  .specimen-display{font-family:"Fraunces",serif; font-weight:500; font-size:2.1rem; line-height:1.15; text-wrap:balance;}
+  .specimen-ui{font-family:"Archivo",sans-serif; font-weight:700; font-size:1.5rem;}
+  .specimen-body{font-family:"IBM Plex Sans",sans-serif; font-size:1.02rem; color:var(--ink-soft); max-width:60ch;}
+  .specimen-mono{font-family:"IBM Plex Mono",monospace; font-size:.92rem; background:var(--surface-alt); padding:12px 14px; border-radius:8px; display:inline-block;}
+  .scale-list{display:flex; flex-wrap:wrap; gap:22px; margin-top:16px; font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--ink-faint);}
+
+  /* ---- applied UI preview ---- */
+  .app-preview{
+    background:var(--surface); border:1px solid var(--border); border-radius:16px; padding:24px;
+    box-shadow:var(--shadow);
+  }
+  .app-preview-head{display:flex; justify-content:space-between; align-items:center; margin-block-end:18px; flex-wrap:wrap; gap:10px;}
+  .app-title{font-family:"Archivo",sans-serif; font-weight:700; font-size:1.05rem;}
+  .app-sub{font-family:"IBM Plex Mono",monospace; font-size:11.5px; color:var(--ink-faint);}
+  .kpi-row{display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:12px; margin-block-end:18px;}
+  .kpi-tile{background:var(--surface-alt); border-radius:12px; padding:16px;}
+  .kpi-label{font-size:.78rem; color:var(--ink-soft); margin-block-end:6px;}
+  .kpi-value{font-family:"Archivo",sans-serif; font-weight:800; font-size:1.7rem; font-variant-numeric:tabular-nums;}
+  .kpi-value.good{color:var(--tea);}
+  .kpi-delta{font-size:.76rem; margin-top:4px; color:var(--ink-faint);}
+  table{width:100%; border-collapse:collapse; font-size:.88rem;}
+  th{text-align:left; font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); font-weight:500; padding-block:8px; border-bottom:1px solid var(--border);}
+  td{padding-block:11px; border-bottom:1px solid var(--border); vertical-align:middle;}
+  .pill{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:.76rem; font-weight:600;}
+  .dot{width:7px; height:7px; border-radius:50%; display:inline-block;}
+  .pill.good{background:var(--tea-tint); color:var(--tea);}
+  .pill.good .dot{background:var(--tea);}
+  .pill.warn{background:var(--turmeric-tint); color:var(--turmeric);}
+  .pill.warn .dot{background:var(--turmeric);}
+  .pill.bad{background:var(--terracotta-tint); color:var(--terracotta);}
+  .pill.bad .dot{background:var(--terracotta);}
+  .table-scroll{overflow-x:auto;}
+  .id-cell{font-family:"IBM Plex Mono",monospace; font-size:.82rem; color:var(--ink-soft);}
+  .btn{
+    font-family:"IBM Plex Sans",sans-serif; font-weight:600; font-size:.85rem; border-radius:9px; padding:9px 16px;
+    border:1px solid transparent; cursor:pointer; display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn-primary{background:var(--accent); color:#fff;}
+  .btn-ghost{background:transparent; border-color:var(--border); color:var(--ink);}
+  .btn-row{display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;}
+
+  /* ---- voice list ---- */
+  .voice-list{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; margin-top:8px;}
+  .voice-item{padding:16px 18px; border-radius:12px; background:var(--surface); border:1px solid var(--border);}
+  .voice-item .k{font-family:"IBM Plex Mono",monospace; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--sapphire);}
+  .voice-item p{margin:6px 0 0; font-size:.92rem; color:var(--ink-soft);}
+
+  /* ---- apply steps ---- */
+  .steps{display:flex; flex-direction:column; gap:14px; margin-top:8px;}
+  .step{display:flex; gap:14px; align-items:flex-start;}
+  .step-num{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--sapphire); background:var(--sapphire-tint); width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex:none; margin-top:2px;}
+  .step p{margin:0; font-size:.94rem; color:var(--ink-soft);}
+  .step strong{color:var(--ink);}
+
+  footer{border-top:1px solid var(--border); padding-top:20px; font-size:.8rem; color:var(--ink-faint); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;}
+
+  @media (max-width:560px){
+    .hero{padding:34px 22px;}
+    .wordmark{font-size:1.9rem;}
+    .tagline{font-size:1.1rem;}
+    .specimen-display{font-size:1.5rem;}
+  }
+</style>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="hero-top">
+      <svg class="mark" width="46" height="46" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <polygon points="32,5 55,23 45,50 32,60 19,50 9,23" fill="#EAF0FB"/>
+        <polygon points="32,5 55,23 9,23" fill="#ffffff" opacity="0.55"/>
+        <line x1="12.5" y1="27.5" x2="51.5" y2="27.5" stroke="#1B2C4C" stroke-width="1.6" opacity="0.55"/>
+        <line x1="17" y1="41.5" x2="47" y2="41.5" stroke="#1B2C4C" stroke-width="1.6" opacity="0.4"/>
+      </svg>
+      <span class="wordmark">Ceylon Stack</span>
+    </div>
+    <div class="tagline">Every layer of the factory, on one stack.</div>
+    <p class="hero-desc">Brand identity for the headless Smart Factory platform: ERPNext at the core, a real-time MES/IoT layer, and a mobile dashboard — built in Sri Lanka, for manufacturers who've outgrown spreadsheets and can't afford SAP.</p>
+    <div class="hero-meta">
+      <span>BRAND IDENTITY · V1</span>
+      <span>SEP 2026</span>
+      <span>NEXT: APPLY TO ERPNEXT DESK + FRONTEND</span>
+    </div>
+  </div>
+
+  <section>
+    <span class="eyebrow">01 — Naming &amp; Positioning</span>
+    <h2>Why "Ceylon Stack"</h2>
+    <p class="lede">Two words doing two jobs.</p>
+    <p><strong>Ceylon</strong> is the name the world already trusts this island for — tea, cinnamon, sapphires: goods good enough to export under their own name. It signals origin and quality without needing a slogan, and it reads as trustworthy to a Sri Lankan factory owner who's wary of yet another overseas SaaS logging into their production floor.</p>
+    <p><strong>Stack</strong> is literal: this is genuinely a full technology stack — shop floor sensors, an MES layer, ERPNext at the core, analytics on top — sold and supported as one product, not a single app. It also does double duty as the visual idea behind the mark below: a stack of layers, cut like a gemstone.</p>
+    <p><strong>Positioning line (for decks, the frontend footer, the pitch):</strong> <em>"Ceylon Stack — the smart factory platform for manufacturers who need more than a spreadsheet and less than an SAP rollout."</em></p>
+  </section>
+
+  <section>
+    <span class="eyebrow">02 — Mark &amp; Lockups</span>
+    <h2>The gem-stack mark</h2>
+    <p class="lede">A gemstone in profile, cut into three bands — the shop floor, the MES layer, and ERPNext, faceted into one stone. Legible down to favicon size; works as a single ink color.</p>
+    <div class="lockups">
+      <div class="swatch-card on-light">
+        <div class="lockup-row">
+          <svg width="40" height="40" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <polygon points="32,5 55,23 45,50 32,60 19,50 9,23" fill="#21407A"/>
+            <polygon points="32,5 55,23 9,23" fill="#ffffff" opacity="0.28"/>
+            <line x1="12.5" y1="27.5" x2="51.5" y2="27.5" stroke="#F2F4F9" stroke-width="1.6" opacity="0.7"/>
+            <line x1="17" y1="41.5" x2="47" y2="41.5" stroke="#F2F4F9" stroke-width="1.6" opacity="0.5"/>
+          </svg>
+          <span class="wordmark-sm">Ceylon Stack</span>
+        </div>
+      </div>
+      <div class="swatch-card on-dark">
+        <div class="lockup-stack">
+          <svg width="34" height="34" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <polygon points="32,5 55,23 45,50 32,60 19,50 9,23" fill="#EAF0FB"/>
+            <polygon points="32,5 55,23 9,23" fill="#ffffff" opacity="0.55"/>
+            <line x1="12.5" y1="27.5" x2="51.5" y2="27.5" stroke="#12172A" stroke-width="1.6" opacity="0.55"/>
+            <line x1="17" y1="41.5" x2="47" y2="41.5" stroke="#12172A" stroke-width="1.6" opacity="0.4"/>
+          </svg>
+          <span class="wordmark-sm">Ceylon Stack</span>
+        </div>
+      </div>
+      <div class="swatch-card on-light">
+        <span class="type-role" style="margin-bottom:4px;">MARK ALONE — DOWN TO 16PX</span>
+        <div class="icon-only-grid">
+          <div class="icon-chip light"><svg width="26" height="26" viewBox="0 0 64 64"><polygon points="32,5 55,23 45,50 32,60 19,50 9,23" fill="#21407A"/></svg></div>
+          <div class="icon-chip dark"><svg width="26" height="26" viewBox="0 0 64 64"><polygon points="32,5 55,23 45,50 32,60 19,50 9,23" fill="#EAF0FB"/></svg></div>
+          <div class="icon-chip tint"><svg width="22" height="22" viewBox="0 0 64 64"><polygon points="32,5 55,23 45,50 32,60 19,50 9,23" fill="#21407A"/></svg></div>
+          <div class="icon-chip light"><svg width="16" height="16" viewBox="0 0 64 64"><polygon points="32,5 55,23 45,50 32,60 19,50 9,23" fill="#21407A"/></svg></div>
+        </div>
+        <p class="clearspace-note">Clear space: half the mark's height on every side. Never stretch off-ratio, never recolor per-band — one ink only.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">03 — Color</span>
+    <h2>A palette drawn from the export ledger, not a color picker</h2>
+    <p class="lede">Sapphire for the brand, then three working colors that already mean something on this island before they mean "success/warning/error" in a dashboard: tea, turmeric, terracotta.</p>
+    <div class="color-grid">
+      <div class="color-card">
+        <div class="color-swatch" style="background:#21407A;"></div>
+        <div class="color-info"><div class="color-name">Sapphire</div><div class="color-role">Brand primary · nav, links, focus</div><div class="color-hex">#21407A</div></div>
+      </div>
+      <div class="color-card">
+        <div class="color-swatch" style="background:#A85C31;"></div>
+        <div class="color-info"><div class="color-name">Cinnamon</div><div class="color-role">Secondary accent · highlights, CTAs</div><div class="color-hex">#A85C31</div></div>
+      </div>
+      <div class="color-card">
+        <div class="color-swatch" style="background:#F2F4F9; border-bottom:1px solid #D6DDE8;"></div>
+        <div class="color-info"><div class="color-name">Paper</div><div class="color-role">Light background</div><div class="color-hex">#F2F4F9</div></div>
+      </div>
+      <div class="color-card">
+        <div class="color-swatch" style="background:#181E2B;"></div>
+        <div class="color-info"><div class="color-name">Graphite</div><div class="color-role">Ink · dark surfaces</div><div class="color-hex">#181E2B</div></div>
+      </div>
+    </div>
+
+    <div class="status-row">
+      <div class="status-card" style="background:var(--tea-tint);">
+        <span class="pill good"><span class="dot"></span>Running</span>
+        <p style="margin:10px 0 0; font-size:.85rem; color:var(--ink-soft);">Tea · <span class="color-hex">#3D7A56</span> — machine/OK states, positive deltas</p>
+      </div>
+      <div class="status-card" style="background:var(--turmeric-tint);">
+        <span class="pill warn"><span class="dot"></span>Attention</span>
+        <p style="margin:10px 0 0; font-size:.85rem; color:var(--ink-soft);">Turmeric · <span class="color-hex">#B87A1E</span> — degraded, needs a look</p>
+      </div>
+      <div class="status-card" style="background:var(--terracotta-tint);">
+        <span class="pill bad"><span class="dot"></span>Down</span>
+        <p style="margin:10px 0 0; font-size:.85rem; color:var(--ink-soft);">Terracotta · <span class="color-hex">#AD4034</span> — stoppage, breach, error</p>
+      </div>
+    </div>
+    <p style="margin-top:16px; font-size:.88rem; color:var(--ink-faint);">Rule: sapphire and cinnamon are brand colors and never used for status. Status is always tea / turmeric / terracotta, and always paired with a label or icon — never color alone, per accessibility guidance for factory-floor dashboards (worn out eyes, low light, possible color-vision deficiency on the floor).</p>
+  </section>
+
+  <section>
+    <span class="eyebrow">04 — Typography</span>
+    <h2>Three faces, three jobs</h2>
+
+    <div class="type-block">
+      <div class="type-label"><span class="type-role">Display — brand voice, marketing headlines</span><span class="type-face">Fraunces</span></div>
+      <div class="specimen-display">Factory intelligence, built on the island's own name.</div>
+    </div>
+    <div class="type-block">
+      <div class="type-label"><span class="type-role">UI — dashboard headings, KPI labels</span><span class="type-face">Archivo</span></div>
+      <div class="specimen-ui">Line 3 · Extruder OEE</div>
+    </div>
+    <div class="type-block">
+      <div class="type-label"><span class="type-role">Body &amp; data — paragraphs, tables, IDs</span><span class="type-face">IBM Plex Sans / Plex Mono</span></div>
+      <p class="specimen-body">Job Card <span class="mono">JC-2026-00418</span> logged a downtime event at 14:22 — spindle overheat on Line 3. OEE for the shift dropped to 71.4%, driven mostly by the Performance factor.</p>
+      <span class="specimen-mono">WO-2026-1042 &nbsp;·&nbsp; OEE <span class="tabnum">71.4%</span> &nbsp;·&nbsp; DOWNTIME <span class="tabnum">00:18:32</span></span>
+    </div>
+    <div class="scale-list">
+      <span>12 / caption</span><span>14 / label</span><span>16 / body</span><span>20 / h3</span><span>28 / h2</span><span>40+ / display</span>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">05 — Applied</span>
+    <h2>How this reads on the actual dashboard</h2>
+    <p class="lede">Not the final screen design — just the tokens above, load-bearing on the components the frontend will actually need.</p>
+    <div class="app-preview">
+      <div class="app-preview-head">
+        <div>
+          <div class="app-title">Line 3 — Injection Moulding</div>
+          <div class="app-sub">SHIFT B · UPDATED 2 MIN AGO</div>
+        </div>
+        <span class="pill good"><span class="dot"></span>Running</span>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-tile"><div class="kpi-label">OEE (shift)</div><div class="kpi-value good tabnum">86.2%</div><div class="kpi-delta">▲ 3.1 pts vs. last shift</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Machines running</div><div class="kpi-value tabnum">7 / 8</div><div class="kpi-delta">1 down — see below</div></div>
+        <div class="kpi-tile"><div class="kpi-label">Open work orders</div><div class="kpi-value tabnum">14</div><div class="kpi-delta">3 due today</div></div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Job Card</th><th>Machine</th><th>Status</th><th>OEE</th></tr></thead>
+          <tbody>
+            <tr><td class="id-cell">JC-2026-00415</td><td>Extruder 02</td><td><span class="pill good"><span class="dot"></span>Running</span></td><td class="tabnum">91.0%</td></tr>
+            <tr><td class="id-cell">JC-2026-00417</td><td>Press 04</td><td><span class="pill warn"><span class="dot"></span>Attention</span></td><td class="tabnum">64.8%</td></tr>
+            <tr><td class="id-cell">JC-2026-00418</td><td>Extruder 03</td><td><span class="pill bad"><span class="dot"></span>Down</span></td><td class="tabnum">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary">Create Job Card</button>
+        <button class="btn btn-ghost">Export shift report</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">06 — Voice</span>
+    <h2>How Ceylon Stack talks</h2>
+    <div class="voice-list">
+      <div class="voice-item"><span class="k">Direct, not cute</span><p>"Machine down since 14:22" — not "Uh oh, looks like something's wrong!"</p></div>
+      <div class="voice-item"><span class="k">Name real things</span><p>Job Card, Work Order, OEE — the terms the floor and the ERP both already use. Never invent softer synonyms.</p></div>
+      <div class="voice-item"><span class="k">Numbers first</span><p>Lead with the figure, then the verdict: "71.4% — below target" reads faster than a sentence explaining it.</p></div>
+      <div class="voice-item"><span class="k">No apology copy</span><p>Errors say what broke and what to do next. No "Oops!", no exclamation marks on a stoppage.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <span class="eyebrow">07 — Applying It</span>
+    <h2>Rollout, in order</h2>
+    <div class="steps">
+      <div class="step"><span class="step-num">1</span><p><strong>ERPNext Desk (this week):</strong> Website Settings → set App Name to "Ceylon Stack", upload the mark as App Logo + Favicon. This rebrands the login screen and browser tab immediately, no core edit involved.</p></div>
+      <div class="step"><span class="step-num">2</span><p><strong>Full Desk color pass:</strong> once <code>smart_factory</code> exists, add an <code>app_include_css</code> hook to inject the sapphire/cinnamon tokens into Desk's theme — a supported customization point, not a core edit.</p></div>
+      <div class="step"><span class="step-num">3</span><p><strong>Frontend:</strong> drop the tokens above straight into <code>apps/frontend</code>'s Tailwind/CSS config before any screen gets built, so every component starts on-brand instead of getting retrofitted later.</p></div>
+      <div class="step"><span class="step-num">4</span><p><strong>Docs &amp; decks:</strong> swap "Smart Factory on ERPNext" for "Ceylon Stack" in the pitch deck and any client-facing doc; keep "Smart Factory on ERPNext" as the internal/technical description where it's useful to be explicit about the stack.</p></div>
+    </div>
+  </section>
+
+  <footer>
+    <span>Ceylon Stack — Brand Identity v1</span>
+    <span>Prepared for the client/marketing push, Oct 2026</span>
+  </footer>
+
+</div>
