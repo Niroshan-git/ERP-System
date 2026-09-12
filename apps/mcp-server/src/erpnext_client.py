@@ -31,6 +31,7 @@ class ERPNextClient:
             headers={
                 "Authorization": f"token {config.api_key}:{config.api_secret}",
                 "Accept": "application/json",
+                "Content-Type": "application/json",
             },
             timeout=30.0,
         )
