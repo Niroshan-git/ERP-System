@@ -1,0 +1,53 @@
+/* Ceylon Stack Desk theme overrides.
+   Loaded after ERPNext/Frappe's own CSS via app_include_css, so these
+   variable redefinitions win the cascade without touching any core file.
+   Tokens match DESIGN.md / docs/brand.md. */
+
+:root,
+[data-theme="light"] {
+	--primary: #21407a; /* sapphire */
+	--primary-color: #21407a;
+	--brand-color: #21407a;
+	--navbar-bg: #21407a;
+	--surface-menu-bar: #f2f4f9;
+	--sidebar-hover-color: #e9edf4;
+	--sidebar-active-color: #d6dde8;
+	--sidebar-border-color: #d6dde8;
+}
+
+[data-theme="dark"] {
+	--primary: #6e93d8; /* sapphire, dark-mode variant */
+	--primary-color: #6e93d8;
+	--brand-color: #6e93d8;
+	--navbar-bg: #17325e;
+	--surface-menu-bar: #181e2b;
+	--sidebar-hover-color: #232a3a;
+	--sidebar-active-color: #2c3548;
+	--sidebar-border-color: #2c3548;
+}
+
+/* Navbar text/icons need to stay readable against the sapphire background
+   regardless of theme, since --navbar-bg is now a fixed brand color rather
+   than a neutral surface tone. */
+.navbar,
+.navbar .navbar-home,
+.navbar a,
+.navbar .icon {
+	color: #f2f4f9 !important;
+}
+
+/* App/workspace switcher tiles (frappe/public/js/frappe/ui/desktop_icon.html,
+   .desktop-icon > .icon-caption > .icon-title): long labels like "ERPNext
+   Settings" or "Subcontracting" get clipped with an ellipsis in the stock
+   fixed-width tile. Let the caption wrap to two lines instead of truncating. */
+.desktop-icon .icon-caption {
+	width: 100%;
+}
+.desktop-icon .icon-title {
+	white-space: normal !important;
+	overflow: visible !important;
+	text-overflow: unset !important;
+	max-width: none !important;
+	line-height: 1.2;
+	word-break: break-word;
+}
