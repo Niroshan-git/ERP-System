@@ -275,3 +275,64 @@ stacked.").
 - **2026-09-12 — GitHub populated, MIT license dropped, `smart_factory` deferred:** Pushed the actual monorepo content to `Niroshan-git/ERP-System` for the first time (previously created but empty apart from an auto-added LICENSE). Removed that MIT LICENSE since it doesn't fit a product meant to be sold/whitelabeled, not open-sourced. Started rebranding ERPNext Desk per `DESIGN.md` §6, but explicitly decided to do every settings-only change first (Website Settings, Navbar Settings, Dashboard Chart colors) and hold off creating the `smart_factory` app until that's done and asked for directly — the app is real infrastructure (bench app, install, hooks) and shouldn't be created as a side effect of a theming request.
 - **2026-09-12 — Sidebar "ERPNext" label confirmed to need `smart_factory`, still deferred:** Traced the sidebar app-switcher "ERPNext" text to `erpnext/hooks.py` app metadata (not a settings field). Asked directly whether to create `smart_factory` now to fix it via a `boot_session` hook — user chose to keep deferring, opting instead for the smaller data-only fix of renaming the `Administrator` user's display name to "Ceylon Stack". The sidebar app-switcher label remains the one confirmed item that needs the app; everything else so far has been settings-only.
 - **2026-09-12 — `smart_factory` created, full Desk branding pass done:** After the same "ERPNext" sidebar text was raised a third time, asked one more time for explicit confirmation scoped narrowly to this fix — user approved. Created and installed `smart_factory`, wired `boot_session` + `app_include_css` + `app_include_js` hooks covering navbar, sidebar, app-switcher, and button/link colors. Discovered and fixed two real infrastructure gotchas along the way (frontend/backend container filesystem split for static assets; running gunicorn workers not picking up a live `pip install -e`) — both documented above since they'll bite again on the next custom-app change unless the manual steps are repeated or a proper custom image build replaces the quick-start compose setup.
+
+## `pwd.yml` was silently single-site only — found and fixed 2026-09-13
+
+Built `ceylon_services` (the app for gym/salon/hardware/supermarket
+clients — Desk branding reused from `smart_factory`, plus an allow-listed
+lightweight Workspace set instead of the full ERPNext module surface) and
+created a real second site, `gym-demo`, to prove the multi-tenant model
+end to end. It did not, at first — three real bugs found, in order:
+
+1. **Workspace hiding looked broken but wasn't** — `Workspace.is_hidden`
+   was correctly set, but Administrator (and anyone with the "Workspace
+   Manager" role) is hardcoded in Frappe core
+   (`frappe/desk/desktop.py::get_workspaces()`:
+   `has_access or not page.is_hidden`) to always see every workspace
+   regardless of `is_hidden`. Fixed by testing with a properly-scoped
+   non-admin user instead — **any real client's day-to-day login must not
+   be Administrator**, or the whole lightweight-workspace mechanism is
+   silently inert for them. `ceylon_services/install.py` also moved from
+   a single-item deny-list to an explicit allow-list (hides everything
+   not named, so future ERPNext workspaces default to hidden), and now
+   clears the cache in the same call.
+2. **A hosts-file edit doesn't scale.** Replaced with
+   `infra/scripts/add-nip-io-alias.sh`: nip.io's free wildcard DNS +
+   a `sites/` symlink gives any site a real, working URL
+   (`http://<site>.<ip-with-dashes>.nip.io:8080`) with zero client-side
+   config.
+3. **The big one: `gym-demo` was never actually reachable over HTTP at
+   all**, and every earlier "verified working via curl" claim in this
+   session was a false positive. `pwd.yml`'s quick-start hardcodes the
+   `frontend` (nginx) container's `FRAPPE_SITE_NAME_HEADER` env var to the
+   literal string `frontend` — and Frappe's site resolution
+   (`frappe/app.py::init_request`) checks that header **before** the
+   actual `Host` header. Every request through nginx, regardless of
+   hostname or the nip.io alias, was silently being served by `frontend`
+   the entire time (confirmed: logging in as Administrator via the
+   `gym-demo` URL returned full_name "Ceylon Stack" — the rename that
+   only ever happened on `frontend`). **Fix:** set
+   `FRAPPE_SITE_NAME_HEADER: $host` (this is `frappe_docker`'s own
+   documented multi-tenancy setting) and recreate the `frontend`
+   container. Confirmed the fix by logging in as a real gym-demo-only
+   user through the real external URL and by confirming Administrator's
+   full_name differs correctly per site.
+   - **Recreating `frontend` wiped `smart_factory`/`ceylon_services`
+     again** — same filesystem-split gotcha from the original branding
+     pass, redone (docker cp both apps' folders + recreate both
+     `assets/<app>` symlinks).
+   - **This one change also broke direct-IP access** (`62.238.22.161:8080`
+     alone, with no matching site folder, started 404ing) — fixed with
+     one more symlink, `sites/62.238.22.161 -> sites/frontend`, so the
+     bare IP keeps working as a `frontend` alias exactly as before.
+   - `infra/docker/pwd.yml` now holds a checked-in copy of the corrected
+     live compose file specifically so this fix isn't lost if the server
+     is ever rebuilt — see that file's own README section.
+
+Multi-site hosting is now confirmed to actually work end-to-end: `frontend`
+(manufacturing pilot, `smart_factory`) and `gym-demo` (service-client
+demo, `ceylon_services`, lightweight workspace set) are genuinely
+isolated, both independently reachable, both verified via real
+authenticated HTTP sessions rather than just HTTP-200/curl checks (the
+exact kind of check that gave a false "it works" signal earlier in this
+same session).
