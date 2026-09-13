@@ -120,3 +120,32 @@ This mirrors the Notion page "Smart Factory on ERPNext – Weekly Implementation
 - **Multi-tenancy:** Frappe supports multiple isolated "sites" (each with its own database) on one shared bench — this is the path to serving multiple clients without provisioning a new server per client. Use separate UAT and Live sites per client (e.g. `clientname-uat.domain.com` and `clientname.domain.com`).
 - **Free-tier hosting is for prototyping only.** Once a real paying client is involved, move to paid hosting with backups and support — a client's production data shouldn't sit on infrastructure with no backup guarantee.
 - **Pricing shape:** one-time setup/customization fee (covers deployment + the `smart_factory` app work) + a modest monthly hosting/support retainer per client (recurring revenue).
+
+---
+
+## Product Portfolio (added 2026-09-13)
+
+Ceylon Stack isn't only a manufacturing ERP — it's a whitelabel product
+line built on Frappe's whole app ecosystem, not just ERPNext. Full
+architecture/reasoning: `project_product_portfolio_plan` memory. Every
+product below installs unmodified alongside ERPNext on a client's site
+(same bench, same database) and is curated through `ceylon_services`'
+per-app allow-list mechanism — no new integration layer per product.
+
+| Bundle | Apps installed | Verticals | Status |
+|---|---|---|---|
+| Core lightweight | ERPNext + `ceylon_services` | gym, salon, hardware store, supermarket | Shipped |
+| + HR add-on | above + `hrms` (Frappe HR) | any of the above with staff to schedule/pay; also offered to `smart_factory` manufacturing sites | Shipped 2026-09-13 — payroll → GL posting verified live |
+| + CRM add-on | above + `crm` | sales-pipeline-heavy (wholesale, member acquisition) | Future — overlaps native ERPNext CRM workspace, needs a per-client fit call |
+| + Helpdesk add-on | above + `helpdesk` | support-ticket-heavy (multi-branch retail, e-commerce) | Future |
+| + Insights add-on | above + `insights` | any tier wanting BI dashboards without custom `apps/frontend` work | Future |
+
+**Explicitly not pursuing:** Lending (microfinance-specific, no client
+demand) and Learning/LMS (defer until a training-heavy client appears).
+
+**License note:** HRMS and Lending are GPL-3.0; CRM, Helpdesk, Insights,
+and LMS are AGPL-3.0 (confirmed against `github.com/frappe/*` directly).
+Neither creates an obligation here since every app is installed
+unmodified, same as ERPNext itself — the headless/no-core-edits argument
+above already covers this; AGPL only bites if the code itself is modified
+and re-served.

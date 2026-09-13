@@ -11,6 +11,6 @@ CEYLON_STACK_LOGO = "/files/ceylon-stack-mark-original-1024b0d7f0.png"
 
 def set_ceylon_stack_branding(bootinfo):
 	for app in bootinfo.get("app_data") or []:
-		if app.get("app_name") in ("frappe", "erpnext", "ceylon_services"):
+		if app.get("app_name") in ("frappe", "erpnext", "ceylon_services", "hrms"):
 			app["app_title"] = CEYLON_STACK_TITLE
 			app["app_logo_url"] = CEYLON_STACK_LOGO

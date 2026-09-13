@@ -336,3 +336,82 @@ isolated, both independently reachable, both verified via real
 authenticated HTTP sessions rather than just HTTP-200/curl checks (the
 exact kind of check that gave a false "it works" signal earlier in this
 same session).
+
+## 2026-09-13 (later) — `gym-demo`'s Setup Wizard was never completed
+
+The "Not permitted" dialog kept reappearing (even at `/desk/setup-wizard`
+itself) for `owner@gym-demo.test` no matter what roles were granted,
+because `gym-demo` never had a Company created on it — `bench new-site
+--install-app erpnext` does not run the Setup Wizard. An incomplete-setup
+site redirects every user to `/desk/setup-wizard`, and that page itself
+requires Administrator-level access, so a scoped non-admin user was
+permanently stuck. **Fix:** ran
+`frappe.desk.page.setup_wizard.setup_wizard.setup_complete()` directly via
+`bench console` as Administrator, creating Company "Demo Gym" (LKR,
+Sri Lanka, FY2026). Re-verified via real authenticated HTTP login through
+the actual external nip.io URL, plus a fresh check that the workspace
+allow-list state was untouched by the setup completion.
+
+## 2026-09-13 (later still) — Product Portfolio: Frappe HR added as Ceylon Stack's second product
+
+Decided to whitelabel more of Frappe's own official apps under Ceylon
+Stack rather than treat this as a one-ERP product — see the
+`project_product_portfolio_plan` memory for the full bundle strategy
+(HR now, CRM/Helpdesk/Insights named as future products, Lending/LMS
+explicitly out of scope). Built and verified the first one, Frappe HR:
+
+- `ceylon_services/install.py`'s single flat `ALLOWED_WORKSPACES` set
+  became `ALLOWED_WORKSPACES_BY_APP`, keyed by app name, so the same
+  install/migrate hook curates workspaces for whichever Ceylon Stack
+  product apps are actually installed on a site — no redeploy needed
+  per app combination, only once per newly-supported app.
+- Piloted on a throwaway site (`verify-hr-test`): installed `hrms`
+  (`--branch version-16`, matching the deployed ERPNext v16.34.2),
+  discovered live that HRMS creates **nine** separate sub-workspaces
+  (HR Setup, Payroll, Leaves, Shift & Attendance, Tax & Benefits,
+  Expenses, Recruitment, Tenure, Performance) rather than one "HR"
+  workspace as first assumed — allow-listed the first six (day-to-day
+  essentials for a small business) and left the hiring/training/appraisal
+  tier hidden as a maturity-stage feature set a 5-10 person client won't
+  need yet.
+- **Proved the payroll-to-finance interconnection for real, not just from
+  documentation**: created an Employee, a Salary Structure, a Salary
+  Structure Assignment, and a Payroll Entry end to end; submitting the
+  resulting Salary Slip and running the Payroll Entry's accrual step
+  produced a real, balanced Journal Entry (Debit "Salary" 50,000 / Credit
+  "Payroll Payable" 50,000) with matching GL Entries — confirming Frappe
+  HR's payroll genuinely posts into ERPNext's General Ledger natively,
+  with no custom sync code needed. Along the way, fixed several
+  first-time-setup gaps a fresh company needs before payroll will run at
+  all (Payroll Payable account's `account_type` must be "Payable", a
+  Holiday List Assignment must exist for the company, the Basic salary
+  component needs a company-mapped GL account) — worth knowing for any
+  future client's HR onboarding checklist.
+- **Permission sweep** (same method as the original 146-doctype ERPNext
+  sweep): of 70 doctypes linked from the six allow-listed HR workspaces,
+  `HR Manager` alone left 15 blocked. Root cause was the same "Manager
+  role ≠ User role" pattern already known from Sales/Stock/Purchase —
+  `HR User` was also needed (unblocks Overtime Slip, Shift Assignment
+  Tool), plus `Expense Approver` (Employee Advance, surprisingly not
+  covered by HR Manager at all). The rest (Account, Journal Entry,
+  Payment Entry, etc.) are already covered by the existing Accounts
+  Manager/User bundle every `ceylon_services` client gets; the remaining
+  handful (Vehicle/Driver/Fleet Management, Travel Request) are
+  correctly left restricted — niche fleet-tracking features, not
+  relevant to this tier.
+- Rolled the same `hrms` install + role bundle onto the real `gym-demo`
+  site (not just the throwaway one). Hit one real regression along the
+  way: after `bench get-app`/`install-app hrms`, the already-running
+  gunicorn workers threw `ModuleNotFoundError: No module named 'hrms'`
+  on every request (including login) until `backend`/`frontend`/queue/
+  scheduler/websocket containers were restarted — newly pip-installed
+  apps aren't importable by already-running worker processes.
+  **New standing step for any future `install-app` on the live
+  server: restart the affected containers afterward.** Also had to redo
+  the by-now-familiar frontend asset-symlink dance for `hrms` itself.
+- **Re-verified for real**: real HTTP login as `owner@gym-demo.test`
+  through the actual nip.io URL, the authenticated `get_workspaces` API
+  call returning exactly the intended 18-workspace set (12 original +
+  6 HR) with nothing from Manufacturing/Assets/Recruitment/Tenure/
+  Performance leaking through, the compiled `hrms` JS/CSS bundles
+  serving with real 200s, and `frontend` unaffected throughout.
