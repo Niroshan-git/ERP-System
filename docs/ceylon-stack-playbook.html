@@ -1,4 +1,4 @@
-<title>Ceylon Stack Playbook</title>
+<title>Ceylon Stack Playbook v3 — Sep 2026</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300..900;1,300..900&family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
@@ -195,9 +195,11 @@
     <section id="overview">
       <span class="eyebrow">01 — Overview</span>
       <h2>What Ceylon Stack Is</h2>
-      <p class="lede">A smart factory ERP platform for Sri Lankan manufacturers, built on ERPNext's proven open-core, with a real-time MES/OEE layer and an AI agent layer neither ERPNext nor SAP B1 ship with.</p>
-      <p>Ceylon Stack exists in the gap between a spreadsheet (free, but doesn't scale past a few people) and SAP B1 / Oracle NetSuite (scales, but costs and implementation time most Sri Lankan manufacturing SMEs can't justify). The ERP core — accounting, inventory, manufacturing, procurement — is ERPNext, used by 30,000+ companies worldwide. What's actually Ceylon Stack's own work: making it fit how Sri Lankan factories run, wiring up real machine/floor data, and putting an AI layer on top that can answer "what's happening on the floor right now" in plain language.</p>
+      <p class="lede">A smart factory ERP platform for Sri Lankan manufacturers. It takes ERPNext — open-source business management software that acts as the central nervous system of a company — and layers on the real-time MES/OEE and AI capabilities that neither ERPNext nor SAP B1 ship with out of the box.</p>
+      <p>ERPNext helps companies stay on top of operations: tracking inventory, managing finances, handling projects, and keeping customers happy. Unlike most traditional ERPs that are expensive, rigid, and hard to customize, ERPNext is open-source, cloud-ready, and flexible. You get enterprise-grade power without the usual complications, licensing fees, or vendor lock-in. You own your data and can extend the system freely.</p>
+      <p>Ceylon Stack sits in the practical gap between spreadsheets (free but don’t scale) and full SAP B1 / NetSuite implementations (powerful but too costly and slow for most Sri Lankan manufacturing SMEs). We keep the proven ERPNext core, adapt it to how local factories actually work, add live machine and floor data, and put a clear AI layer on top that can answer “what is happening on the floor right now” in plain language.</p>
       <div class="callout info"><p><strong>Positioning line:</strong> "Ceylon Stack — the smart factory platform for manufacturers who need more than a spreadsheet and less than an SAP rollout."</p></div>
+      <div class="callout warn"><p style="margin:0;"><strong>Current status (Sep 2026):</strong> ERPNext core is live on Hetzner CX23. MES layer, custom <code>smart_factory</code> app, and frontend are in early development. MCP agents are design-stage only — do not pitch them as available until Phase 0–1 of the agent plan are complete.</p></div>
     </section>
 
     <section id="architecture">
@@ -206,7 +208,8 @@
       <p class="lede">One rule underpins everything below: ERPNext/Frappe core is never modified. Everything custom talks to it only through its REST API.</p>
       <div class="codeblock">Shop floor / IoT  →  MES (mes-service)  →  ERPNext core (+ smart_factory app)  →  Frontend + MCP Agents
    sensors,            MQTT → OEE calc         unmodified core,           dashboards, AI agents,
-   simulator            → writes to ERPNext     custom DocTypes            client-facing reports</div>
+   simulator            → writes to ERPNext     custom DocTypes            client-facing reports
+   (Hetzner CX23 host)</div>
       <div class="grid-2">
         <div class="card">
           <h4>Why headless</h4>
@@ -222,7 +225,7 @@
     <section id="core-modules">
       <span class="eyebrow">03 — Feature Pack</span>
       <h2>What's Inside ERPNext</h2>
-      <p class="lede">The full module inventory — condensed from <code>docs/erpnext-full-reference.md</code>. Use this as the master feature list when scoping any client conversation.</p>
+      <p class="lede">ERPNext ships a complete suite of business tools — Accounting, Inventory, Manufacturing, Selling, Buying, CRM, Projects, Assets, Quality, and more — all built-in and ready to use. There are no hidden modules behind paywalls. The list below is the practical inventory you should use when scoping any client conversation.</p>
 
       <h3 class="sub-h">Accounting</h3>
       <p>Chart of Accounts, Journals, General Ledger, an Immutable Ledger mode. Full receivables/payables cycle (invoices, credit/debit notes, payment reconciliation). Bank reconciliation, multi-currency with FX revaluation, budgeting with variance reporting, P&amp;L / Balance Sheet / Cash Flow reports, period closing controls.</p>
@@ -244,7 +247,8 @@
       <p>Attendance &amp; shifts, leave management, appraisals, recruitment (requisition → offer), employee lifecycle, full payroll (salary structures, slips, income tax), gratuity/loans, expense claims.</p>
 
       <h3 class="sub-h" id="platform-capabilities">Platform Capabilities</h3>
-      <p>Role-based permissions down to field level, Custom Fields and Client Scripts (no core edits needed), document Workflows with approval states, Auto Repeat for recurring documents, a Print Format Builder (this is how Ceylon Stack branding gets onto every invoice/report), integrations (payment gateways, Shopify/WooCommerce, Google), and regional tax packs for India/UAE/Italy/France/South Africa — <strong>Sri Lanka has no built-in pack</strong>, meaning VAT/SVAT handling is a real <code>smart_factory</code> customization task, not a toggle.</p>
+      <p>Role-based permissions down to field level, Custom Fields and Client Scripts (no core edits needed), document Workflows with approval states, Auto Repeat for recurring documents, a Print Format Builder (this is how Ceylon Stack branding gets onto every invoice/report), integrations (payment gateways, Shopify/WooCommerce, Google), and regional tax packs for India/UAE/Italy/France/South Africa.</p>
+      <div class="callout warn"><p style="margin:0;"><strong>Sri Lanka tax note:</strong> There is no built-in Sri Lanka tax pack. VAT / SVAT / WHT handling must be delivered as a <code>smart_factory</code> customization for every Sri Lankan client. Treat this as a standard implementation item, not an optional toggle.</p></div>
     </section>
 
     <section id="ind-apparel">
@@ -371,11 +375,11 @@
     <section id="licensing">
       <span class="eyebrow">07 — Policy</span>
       <h2>Licensing (GPL-3.0)</h2>
-      <p>ERPNext is GPL-3.0, not AGPL — its source-disclosure obligation triggers on <em>distributing</em> a copy, not on hosting it as a service. Ceylon Stack delivered as hosted SaaS (client logs into your instance, never receives a copy to self-host) most likely never triggers that obligation at all. <code>smart_factory</code>, <code>mcp-server</code>, <code>mes-service</code>, and <code>frontend</code> stay proprietary as long as they only talk to ERPNext over its API — the entire reason the headless architecture exists.</p>
+      <p>ERPNext is fully open-source under GPL-3.0. There are no licensing fees, no locked modules, and no vendor lock-in — you own your data and can customize freely. Because it is GPL-3.0 (not AGPL), the source-disclosure obligation is triggered by <em>distributing</em> a modified copy, not by hosting it as a service. When Ceylon Stack is delivered as hosted SaaS (the client logs into your instance and never receives a copy to self-host), that obligation is most likely never triggered. The custom layers — <code>smart_factory</code>, <code>mcp-server</code>, <code>mes-service</code>, and <code>frontend</code> — remain proprietary as long as they only communicate with ERPNext through its REST API. This is the entire reason the headless architecture exists.</p>
 
       <h3 class="sub-h" id="underneath">The "What's Underneath" Answer</h3>
-      <div class="quote">"Ceylon Stack is built on ERPNext, an open-source ERP platform used by 30,000+ companies worldwide. We've made it compatible with how Sri Lankan manufacturers actually work, and layered on the real-time factory floor and automation/AI capabilities that ERPNext doesn't have out of the box."</div>
-      <p style="margin-bottom:0;">Lead with Ceylon Stack in marketing; this is the answer for when someone asks directly — never a claim that the ERP core was built in-house.</p>
+      <div class="quote">"Ceylon Stack is built on ERPNext, a mature open-source ERP used by tens of thousands of companies worldwide. It gives us a complete, battle-tested core for accounting, inventory, manufacturing and more — with no licensing fees and full ownership of the data. We have adapted it for how Sri Lankan manufacturers actually work and layered on the real-time factory floor visibility and AI capabilities that ERPNext does not ship out of the box."</div>
+      <p style="margin-bottom:0;">Lead with Ceylon Stack in all marketing. Use this answer only when someone asks directly what sits underneath — never claim the ERP core was built in-house.</p>
     </section>
 
     <section id="market-offer">
@@ -417,7 +421,7 @@
   </main>
 </div>
 
-<footer>Ceylon Stack Playbook — internal reference, not for external distribution as-is (see Licensing). Generated from <code>docs/erpnext-full-reference.md</code>, <code>DESIGN.md</code>, <code>PLAN.md</code>, and <code>docs/mcp-agents-plan.md</code>.</footer>
+<footer>Ceylon Stack Playbook v3 — internal reference, not for external distribution as-is (see Licensing). Updated Sep 2026 with official ERPNext introduction language, current status, Sri Lanka tax clarification, and Hetzner hosting note. Sources: official ERPNext docs, <code>docs/erpnext-full-reference.md</code>, <code>DESIGN.md</code>, <code>PLAN.md</code>, and <code>docs/mcp-agents-plan.md</code>.</footer>
 
 <script>
 (function(){
