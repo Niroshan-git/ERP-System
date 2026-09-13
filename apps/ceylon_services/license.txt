@@ -1,0 +1,11 @@
+Proprietary License
+
+Copyright (c) 2026 Ceylon Stack. All rights reserved.
+
+This source code is part of a proprietary product built on top of the
+GPL-3.0-licensed ERPNext/Frappe framework. It is not licensed for
+redistribution, modification, or reuse outside of Ceylon Stack's own
+deployments unless a separate written agreement says otherwise.
+
+This app does not modify ERPNext/Frappe core; it installs alongside it
+using standard Frappe app hooks.
