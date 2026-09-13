@@ -18,9 +18,14 @@ app_include_js = "/assets/ceylon_services/js/ceylon_services_desk.js"
 # hook mechanism, same visual identity) — see ceylon_services/boot.py.
 boot_session = "ceylon_services.boot.set_ceylon_stack_branding"
 
-# Migrate
+# Installation
 # ------------------
-# Runs on every `bench migrate`, not just install, so it self-heals if
-# ERPNext's own workspace sync ever re-asserts standard Workspace defaults.
-# See ceylon_services/install.py.
+# `bench install-app` does NOT run after_migrate hooks (verified directly:
+# installing on a real test site left Workspace.is_hidden at 0 until a
+# separate `bench migrate` was run) — so after_install covers the real
+# onboarding path (install this app, done), and after_migrate below covers
+# self-healing on every later migrate in case ERPNext's own workspace sync
+# ever re-asserts standard Workspace defaults. Both point at the same
+# idempotent function. See ceylon_services/install.py.
+after_install = "ceylon_services.install.hide_manufacturing_workspace"
 after_migrate = "ceylon_services.install.hide_manufacturing_workspace"
