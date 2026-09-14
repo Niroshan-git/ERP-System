@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   Box,
   Boxes,
@@ -35,6 +35,7 @@ import {
   UsersRound,
   Wallet,
   Workflow,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -57,13 +58,11 @@ type NavGroupDef = {
   items: (NavItem | SoonItem)[];
 };
 
+// Dashboard is a single, always-flat top-level link (no subsection to expand/collapse
+// and no rail flyout) — every other entry below is a real group.
+const DASHBOARD_ITEM: NavItem = { href: "/", label: "Dashboard", icon: LayoutDashboard };
+
 const NAV_GROUPS: NavGroupDef[] = [
-  {
-    id: "dashboard",
-    label: "Dashboard",
-    icon: LayoutDashboard,
-    items: [{ href: "/", label: "Sales Dashboard", icon: LayoutDashboard }],
-  },
   {
     id: "cycle",
     label: "Sales cycle",
@@ -211,11 +210,15 @@ function writeStoredState(state: StoredState) {
 export function Sidebar() {
   const pathname = usePathname();
   const stored = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  // Ephemeral, not persisted — which group's floating flyout (rail/collapsed mode only)
+  // is currently open. Mirrors the concept file's single shared `#cs-nav-flyout` panel.
+  const [openFlyoutId, setOpenFlyoutId] = useState<string | null>(null);
 
   const activeGroupId = findActiveGroupId(pathname);
   const expanded = new Set(stored.expanded);
   if (activeGroupId) expanded.add(activeGroupId);
   const collapsed = stored.collapsed;
+  const flyoutGroup = collapsed ? NAV_GROUPS.find((g) => g.id === openFlyoutId) : undefined;
 
   function toggleGroup(id: string) {
     // Toggle against the merged (visible) set, not just the persisted one — a group
@@ -229,20 +232,20 @@ export function Sidebar() {
   }
 
   function toggleCollapsed() {
+    setOpenFlyoutId(null);
     writeStoredState({ expanded: stored.expanded, collapsed: !stored.collapsed });
   }
 
   function handleRailGroupClick(id: string) {
-    // In rail (icon-only) mode, clicking a group icon just expands the group and
-    // un-collapses the rail, rather than a hover-flyout popover.
-    const next = new Set(expanded);
-    next.add(id);
-    writeStoredState({ expanded: [...next], collapsed: false });
+    // In rail (icon-only) mode, clicking a group icon shows that group's pages in a
+    // floating flyout next to the rail — same interaction as the concept file's
+    // showFly()/closeFly() (clicking the same icon again closes it).
+    setOpenFlyoutId((current) => (current === id ? null : id));
   }
 
   return (
     <aside
-      className={`flex shrink-0 flex-col bg-graphite-900 text-white transition-[width] ${
+      className={`relative flex shrink-0 flex-col bg-graphite-900 text-white transition-[width] ${
         collapsed ? "w-14" : "w-56"
       }`}
     >
@@ -256,17 +259,22 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 py-2">
-        {NAV_GROUPS.map((group) => (
-          <NavGroupSection
-            key={group.id}
-            group={group}
-            pathname={pathname}
-            collapsed={collapsed}
-            isExpanded={expanded.has(group.id)}
-            onToggle={() => toggleGroup(group.id)}
-            onRailClick={() => handleRailGroupClick(group.id)}
-          />
-        ))}
+        <DashboardLink pathname={pathname} collapsed={collapsed} />
+
+        <div className="mt-3 border-t border-white/10 pt-3">
+          {NAV_GROUPS.map((group) => (
+            <NavGroupSection
+              key={group.id}
+              group={group}
+              pathname={pathname}
+              collapsed={collapsed}
+              isExpanded={expanded.has(group.id)}
+              isFlyoutOpen={openFlyoutId === group.id}
+              onToggle={() => toggleGroup(group.id)}
+              onRailClick={() => handleRailGroupClick(group.id)}
+            />
+          ))}
+        </div>
 
         {!collapsed && (
           <>
@@ -291,7 +299,97 @@ export function Sidebar() {
           {!collapsed && <span>Collapse</span>}
         </button>
       </div>
+
+      {flyoutGroup && (
+        <>
+          {/* Click-outside-to-close backdrop — simpler and more robust here than a
+              document click-listener + ref-exclusion dance. */}
+          <button
+            type="button"
+            aria-label="Close section menu"
+            className="fixed inset-0 z-10 cursor-default"
+            onClick={() => setOpenFlyoutId(null)}
+          />
+          <div className="fixed left-16 top-20 z-20 w-64 rounded-lg border border-white/10 bg-graphite-900 p-3 shadow-2xl">
+            <div className="mb-2 flex items-center justify-between gap-2 px-1">
+              <span className="text-sm font-semibold text-white">{flyoutGroup.label}</span>
+              <button
+                type="button"
+                onClick={() => setOpenFlyoutId(null)}
+                aria-label="Close section menu"
+                className="grid h-7 w-7 place-items-center rounded text-white/50 hover:bg-white/10 hover:text-white"
+              >
+                <X size={15} />
+              </button>
+            </div>
+            <ul>
+              {flyoutGroup.items.map((item) => {
+                const ItemIcon = item.icon;
+                if ("soon" in item) {
+                  return (
+                    <li key={item.label}>
+                      <span className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-white/30">
+                        <ItemIcon size={16} className="shrink-0" />
+                        <span className="flex-1 truncate">{item.label}</span>
+                        <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/40">
+                          Soon
+                        </span>
+                      </span>
+                    </li>
+                  );
+                }
+                const active = isItemActive(pathname, item.href);
+                return (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={() => setOpenFlyoutId(null)}
+                      className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${
+                        active ? "bg-white/10 font-medium text-white" : "text-white/70 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <ItemIcon size={16} className={`shrink-0 ${active ? "text-signal" : ""}`} />
+                      <span className="truncate">{item.label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </>
+      )}
     </aside>
+  );
+}
+
+function DashboardLink({ pathname, collapsed }: { pathname: string; collapsed: boolean }) {
+  const Icon = DASHBOARD_ITEM.icon;
+  const active = isItemActive(pathname, DASHBOARD_ITEM.href);
+
+  if (collapsed) {
+    return (
+      <Link
+        href={DASHBOARD_ITEM.href}
+        title={DASHBOARD_ITEM.label}
+        className={`flex items-center justify-center rounded px-2 py-2 ${
+          active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+        }`}
+      >
+        <Icon size={18} className={active ? "text-signal" : ""} />
+      </Link>
+    );
+  }
+
+  return (
+    <Link
+      href={DASHBOARD_ITEM.href}
+      className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${
+        active ? "bg-white/10 font-medium text-white" : "text-white/70 hover:bg-white/5 hover:text-white"
+      }`}
+    >
+      <Icon size={16} className={`shrink-0 ${active ? "text-signal" : ""}`} />
+      <span className="truncate">{DASHBOARD_ITEM.label}</span>
+    </Link>
   );
 }
 
@@ -300,6 +398,7 @@ function NavGroupSection({
   pathname,
   collapsed,
   isExpanded,
+  isFlyoutOpen,
   onToggle,
   onRailClick,
 }: {
@@ -307,6 +406,7 @@ function NavGroupSection({
   pathname: string;
   collapsed: boolean;
   isExpanded: boolean;
+  isFlyoutOpen: boolean;
   onToggle: () => void;
   onRailClick: () => void;
 }) {
@@ -320,11 +420,14 @@ function NavGroupSection({
           type="button"
           onClick={onRailClick}
           title={group.label}
+          aria-expanded={isFlyoutOpen}
           className={`flex w-full items-center justify-center rounded px-2 py-2 ${
-            groupHasActiveItem ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
+            groupHasActiveItem || isFlyoutOpen
+              ? "bg-white/10 text-white"
+              : "text-white/60 hover:bg-white/5 hover:text-white"
           }`}
         >
-          <GroupIcon size={18} />
+          <GroupIcon size={18} className={groupHasActiveItem ? "text-signal" : ""} />
         </button>
       </div>
     );
@@ -343,7 +446,9 @@ function NavGroupSection({
       </button>
 
       {isExpanded && (
-        <ul>
+        // Indented and set off with a rule so sub-items read as nested under the group
+        // header rather than sitting flush at the same level — not just a plain list.
+        <ul className="ml-3 space-y-0.5 border-l border-white/10 pl-2">
           {group.items.map((item) => {
             const ItemIcon = item.icon;
 
