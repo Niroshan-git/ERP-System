@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { LineChart } from "@/components/LineChart";
+import { DocTabs } from "@/components/DocTabs";
+import { SalesFlowDiagram } from "@/components/SalesFlowDiagram";
 import { runReport } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
 import { getSellingNumberCards } from "@/lib/sellingDashboard";
@@ -43,10 +45,8 @@ export default async function HomePage() {
     }
   }
 
-  return (
+  const overviewTab = (
     <div>
-      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Selling" }]} />
-
       <div className="mb-6 rounded-xl border border-border bg-surface p-4">
         <h2 className="mb-4 text-sm font-semibold text-graphite-900">Sales Order Trends</h2>
         {chartValues.length > 0 ? (
@@ -92,6 +92,19 @@ export default async function HomePage() {
           </div>
         ))}
       </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Selling" }]} />
+
+      <DocTabs
+        tabs={[
+          { id: "overview", label: "Overview", content: overviewTab },
+          { id: "sales-flow", label: "Sales Flow", content: <SalesFlowDiagram /> },
+        ]}
+      />
     </div>
   );
 }
