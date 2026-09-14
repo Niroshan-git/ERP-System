@@ -3,12 +3,14 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { DataTable } from "@/components/DataTable";
 import { StatusPill } from "@/components/StatusPill";
 import { ProgressBar } from "@/components/ProgressBar";
 import { salesOrderStatus } from "@/lib/erpStatus";
+import type { ColumnDef } from "@/lib/tableColumns";
 import type { DocStatus } from "@/lib/docStatus";
 
-type SalesOrderRow = {
+export type SalesOrderRow = {
   name: string;
   customer: string;
   status: string;
@@ -17,9 +19,54 @@ type SalesOrderRow = {
   grand_total: number;
   per_delivered: number;
   per_billed: number;
+  transaction_date?: string;
+  company?: string;
+  currency?: string;
+  territory?: string;
+  owner?: string;
 };
 
 type BulkResult = { message: string };
+
+const columns: ColumnDef<SalesOrderRow>[] = [
+  { key: "customer", label: "Customer", core: true, render: (o) => <span className="text-graphite-900">{o.customer}</span> },
+  {
+    key: "status",
+    label: "Status",
+    core: true,
+    render: (o) => {
+      const status = salesOrderStatus(o);
+      return <StatusPill label={status.label} tone={status.tone} />;
+    },
+  },
+  {
+    key: "delivery_date",
+    label: "Delivery date",
+    render: (o) => <span className="font-mono text-graphite-500">{o.delivery_date || "—"}</span>,
+  },
+  {
+    key: "grand_total",
+    label: "Grand total",
+    render: (o) => <span className="font-mono tabular-nums text-graphite-900">{o.grand_total.toFixed(2)}</span>,
+  },
+  { key: "per_delivered", label: "% Delivered", render: (o) => <ProgressBar value={o.per_delivered} /> },
+  { key: "per_billed", label: "% Amount billed", render: (o) => <ProgressBar value={o.per_billed} /> },
+  {
+    key: "name",
+    label: "ID",
+    core: true,
+    render: (o) => (
+      <Link href={`/sales/orders/${encodeURIComponent(o.name)}`} className="font-mono text-signal hover:underline">
+        {o.name}
+      </Link>
+    ),
+  },
+  { key: "transaction_date", label: "Date", defaultVisible: false, render: (o) => <span className="font-mono text-graphite-500">{o.transaction_date || "—"}</span> },
+  { key: "company", label: "Company", defaultVisible: false, render: (o) => o.company || "—" },
+  { key: "currency", label: "Currency", defaultVisible: false, render: (o) => o.currency || "—" },
+  { key: "territory", label: "Territory", defaultVisible: false, render: (o) => o.territory || "—" },
+  { key: "owner", label: "Owner", defaultVisible: false, render: (o) => o.owner || "—" },
+];
 
 /**
  * Row-selection + bulk "Actions" menu on the Sales Order list — ERPNext's own list view
@@ -115,68 +162,18 @@ export function SalesOrderBulkTable({
         </div>
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b border-border bg-canvas text-graphite-500">
-              <th className="w-10 px-4 py-2.5">
-                <input type="checkbox" checked={allSelected} onChange={toggleAll} aria-label="Select all" />
-              </th>
-              <th className="px-4 py-2.5 font-semibold">Customer</th>
-              <th className="px-4 py-2.5 font-semibold">Status</th>
-              <th className="px-4 py-2.5 font-semibold">Delivery date</th>
-              <th className="px-4 py-2.5 font-semibold">Grand total</th>
-              <th className="px-4 py-2.5 font-semibold">% Delivered</th>
-              <th className="px-4 py-2.5 font-semibold">% Amount billed</th>
-              <th className="px-4 py-2.5 font-semibold">ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {orders.map((o) => {
-              const status = salesOrderStatus(o);
-              return (
-                <tr key={o.name} className="border-b border-border last:border-0 hover:bg-canvas/60">
-                  <td className="px-4 py-2.5">
-                    <input
-                      type="checkbox"
-                      checked={selected.has(o.name)}
-                      onChange={() => toggleOne(o.name)}
-                      aria-label={`Select ${o.name}`}
-                    />
-                  </td>
-                  <td className="px-4 py-2.5 text-graphite-900">{o.customer}</td>
-                  <td className="px-4 py-2.5">
-                    <StatusPill label={status.label} tone={status.tone} />
-                  </td>
-                  <td className="px-4 py-2.5 font-mono text-graphite-500">{o.delivery_date || "—"}</td>
-                  <td className="px-4 py-2.5 font-mono tabular-nums text-graphite-900">{o.grand_total.toFixed(2)}</td>
-                  <td className="px-4 py-2.5">
-                    <ProgressBar value={o.per_delivered} />
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <ProgressBar value={o.per_billed} />
-                  </td>
-                  <td className="px-4 py-2.5">
-                    <Link
-                      href={`/sales/orders/${encodeURIComponent(o.name)}`}
-                      className="font-mono text-signal hover:underline"
-                    >
-                      {o.name}
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-            {orders.length === 0 && (
-              <tr>
-                <td colSpan={8} className="px-4 py-6 text-center text-graphite-500">
-                  No sales orders match these filters.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <DataTable
+        tableId="orders"
+        columns={columns}
+        rows={orders}
+        emptyLabel="No sales orders match these filters."
+        selectable={{
+          selectedKeys: selected,
+          onToggleOne: toggleOne,
+          onToggleAll: toggleAll,
+          allSelected,
+        }}
+      />
     </div>
   );
 }

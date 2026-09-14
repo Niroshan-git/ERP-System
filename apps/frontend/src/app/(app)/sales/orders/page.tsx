@@ -2,21 +2,9 @@ import Link from "next/link";
 import { listDocs } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
 import { ListFilterBar, type FilterFieldConfig } from "@/components/ListFilterBar";
-import { SalesOrderBulkTable } from "@/components/SalesOrderBulkTable";
-import type { DocStatus } from "@/lib/docStatus";
+import { SalesOrderBulkTable, type SalesOrderRow } from "@/components/SalesOrderBulkTable";
 import { bulkCloseSalesOrdersAction, bulkReopenSalesOrdersAction } from "./actions";
 import { bulkCreateSalesInvoicesFromOrdersAction } from "../invoices/actions";
-
-type SalesOrderRow = {
-  name: string;
-  customer: string;
-  status: string;
-  docstatus: DocStatus;
-  delivery_date?: string;
-  grand_total: number;
-  per_delivered: number;
-  per_billed: number;
-};
 
 const DELIVERY_STATUS_OPTIONS = ["Not Delivered", "Fully Delivered", "Partly Delivered", "Closed", "Not Applicable"];
 const BILLING_STATUS_OPTIONS = ["Not Billed", "Fully Billed", "Partly Billed", "Closed"];
@@ -66,6 +54,11 @@ export default async function SalesOrdersPage({ searchParams }: { searchParams: 
         "grand_total",
         "per_delivered",
         "per_billed",
+        "transaction_date",
+        "company",
+        "currency",
+        "territory",
+        "owner",
       ],
       filters: filters.length > 0 ? filters : undefined,
       limit: 200,
