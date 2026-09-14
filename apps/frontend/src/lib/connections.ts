@@ -1,0 +1,91 @@
+import "server-only";
+import { listDocs } from "@/lib/erpnext";
+
+export type Connection = {
+  label: string;
+  href: string;
+  docs: string[];
+  /**
+   * The subset of `docs` that are actually Submitted (docstatus 1). ERPNext only refuses
+   * to cancel a document over a link to a *submitted* referencing document — confirmed by
+   * reading `check_if_doc_is_linked`/`get_linked_docs` in `frappe/model/delete_doc.py` on
+   * the live server (`method == "Cancel"` only counts links where
+   * `DocStatus(item.docstatus).is_submitted()`). A Draft Sales Invoice linked to a Sales
+   * Order does NOT block cancelling that order; only a Submitted one does. Optional
+   * because the manually-built upstream `Connection` entries (source Quotation/Sales
+   * Order shown on a detail page) don't populate this — only downstream, ERPNext-style
+   * cancel-blocking needs it.
+   */
+  submittedDocs?: string[];
+};
+
+type ConnectionConfig = {
+  label: string;
+  /** The doctype we actually list — permission is checked against this, not the child table. */
+  parentDoctype: string;
+  /** The child-table doctype carrying the back-reference field, used only inside the filter tuple. */
+  childDoctype: string;
+  filterField: string;
+  hrefBase: string;
+};
+
+/**
+ * ERPNext's own "Connections" tab reads a static dashboard config per doctype
+ * (frappe.get_meta / *_dashboard.js). We don't have that metadata over REST,
+ * so this is a hand-built equivalent for just the doctypes this app has —
+ * one connection per document generation ahead (Quotation -> Sales Order,
+ * Sales Order -> Sales Invoice). Add a row here whenever a new doctype gains
+ * a "create from" action.
+ *
+ * IMPORTANT: query the *parent* doctype with a child-table filter tuple
+ * (`[childDoctype, field, "=", value]`), not the child doctype directly.
+ * Frappe rejects a direct list query against an `istable=1` doctype even
+ * when the caller can read the parent fine — confirmed live: the service
+ * account 403s on `GET /api/resource/Sales Order Item` but the parent-table
+ * query below works and returns the right result.
+ */
+const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
+  Quotation: [
+    {
+      label: "Sales Order",
+      parentDoctype: "Sales Order",
+      childDoctype: "Sales Order Item",
+      filterField: "prevdoc_docname",
+      hrefBase: "/sales/orders",
+    },
+  ],
+  "Sales Order": [
+    {
+      label: "Sales Invoice",
+      parentDoctype: "Sales Invoice",
+      childDoctype: "Sales Invoice Item",
+      filterField: "sales_order",
+      hrefBase: "/sales/invoices",
+    },
+  ],
+  "Sales Invoice": [],
+};
+
+export async function getConnections(doctype: string, name: string): Promise<Connection[]> {
+  const configs = CONNECTION_CONFIG[doctype] ?? [];
+
+  const results = await Promise.all(
+    configs.map(async (config): Promise<Connection | null> => {
+      try {
+        const rows = await listDocs<{ name: string; docstatus: number }>(config.parentDoctype, {
+          fields: ["name", "docstatus"],
+          filters: [[config.childDoctype, config.filterField, "=", name]],
+          limit: 500,
+        });
+        const docs = Array.from(new Set(rows.map((r) => r.name))).sort();
+        const submittedDocs = Array.from(new Set(rows.filter((r) => r.docstatus === 1).map((r) => r.name))).sort();
+        return { label: config.label, href: config.hrefBase, docs, submittedDocs };
+      } catch {
+        // A 403 here means "can't tell", not "there are none" — omit rather than lie.
+        return null;
+      }
+    }),
+  );
+
+  return results.filter((r): r is Connection => r !== null);
+}

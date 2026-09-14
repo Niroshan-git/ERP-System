@@ -1,68 +1,42 @@
 @import "tailwindcss";
 
 /*
- * Ceylon Stack design tokens.
- * Source of truth: /DESIGN.md and /docs/brand.md at the repo root.
- * Keep this block in sync with those files — don't hand-pick colors
- * outside this set for anything client-facing.
+ * Ceylon Stack app UI design tokens.
+ * Source of truth: /docs/brand/package/ceylon-stack-frontend-design.md
+ * (see /DESIGN.md for why this differs from the brand/marketing tokens).
+ * Keep this block in sync with that doc — don't hand-pick colors outside
+ * this set.
  */
 :root {
-  --sapphire: #21407a;
-  --cinnamon: #a85c31;
-  --tea: #3d7a56;
-  --turmeric: #b87a1e;
-  --terracotta: #ad4034;
-
-  --bg: #f2f4f9;
+  --graphite-900: #12161c;
+  --graphite-500: #5b6470;
   --surface: #ffffff;
-  --surface-alt: #e9edf4;
-  --border: #d6dde8;
-  --ink: #181e2b;
-  --ink-soft: #525c70;
-  --ink-faint: #7c8598;
-}
+  --canvas: #f3f5f4;
+  --signal: #2e6f5e;
+  --alert: #c4531d;
+  --success: #3c7a4f;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --sapphire: #6e93d8;
-    --cinnamon: #d89566;
-    --tea: #6fbe90;
-    --turmeric: #e3aa52;
-    --terracotta: #e17a6b;
-
-    --bg: #10131a;
-    --surface: #161a23;
-    --surface-alt: #1d2230;
-    --border: #2a3142;
-    --ink: #e9edf6;
-    --ink-soft: #a6b0c4;
-    --ink-faint: #78829a;
-  }
+  /* Not in the design doc's palette table — derived from graphite-900 so
+     dividers stay inside the defined neutral, not a hand-picked gray. */
+  --border: color-mix(in srgb, var(--graphite-900) 14%, var(--surface));
 }
 
 @theme inline {
-  --color-sapphire: var(--sapphire);
-  --color-cinnamon: var(--cinnamon);
-  --color-tea: var(--tea);
-  --color-turmeric: var(--turmeric);
-  --color-terracotta: var(--terracotta);
-
-  --color-bg: var(--bg);
+  --color-graphite-900: var(--graphite-900);
+  --color-graphite-500: var(--graphite-500);
   --color-surface: var(--surface);
-  --color-surface-alt: var(--surface-alt);
+  --color-canvas: var(--canvas);
+  --color-signal: var(--signal);
+  --color-alert: var(--alert);
+  --color-success: var(--success);
   --color-border: var(--border);
-  --color-ink: var(--ink);
-  --color-ink-soft: var(--ink-soft);
-  --color-ink-faint: var(--ink-faint);
 
-  --font-display: var(--font-fraunces);
-  --font-ui: var(--font-archivo);
   --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-plex-mono);
 }
 
 body {
-  background: var(--bg);
-  color: var(--ink);
+  background: var(--canvas);
+  color: var(--graphite-900);
   font-family: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
 }

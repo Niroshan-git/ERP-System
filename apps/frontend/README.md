@@ -1,22 +1,104 @@
 # frontend
 
-Next.js app (App Router, TypeScript, Tailwind v4), deployed on Vercel
-(`PLAN.md` Week 7–8). Mobile-first dashboard: live machine status cards, OEE
-gauges, active Work Orders/Job Cards list, downtime log. Authenticates
-against ERPNext via API key/token; pulls data from the ERPNext REST API and
-from `mes-service` / Postgres. PWA-installable (stretch).
+Next.js app (App Router, TypeScript, Tailwind v4) that replaces ERPNext's own
+Desk UI for end users. Talks to ERPNext purely through its REST API — no
+Desk, no core edits — per the headless architecture in the root `CLAUDE.md`.
 
-## Branding
+## Design system
 
-Ceylon Stack design tokens live in `src/app/globals.css` (`:root` +
-`prefers-color-scheme: dark` blocks, mapped into Tailwind via `@theme
-inline`) — mirrors `/DESIGN.md` and `/docs/brand.md` at the repo root.
-Fonts (Fraunces / Archivo / IBM Plex Sans / IBM Plex Mono) are loaded via
-`next/font/google` in `src/app/layout.tsx`. Logo/favicon assets are in
-`public/brand/`, copied from `docs/brand/`.
+The app UI follows `docs/brand/package/ceylon-stack-frontend-design.md`
+(industrial-functional: graphite neutrals, one teal `signal` accent, IBM
+Plex Sans for all UI text, IBM Plex Mono reserved for machine-readable data —
+IDs, quantities, timestamps). This supersedes `/DESIGN.md`'s
+Fraunces/Archivo/sapphire-cinnamon system for this app specifically —
+`/DESIGN.md` still governs brand identity, logo, voice, and marketing
+material. Tokens live in `src/app/globals.css`; fonts load via
+`next/font/google` in `src/app/layout.tsx`. If the frontend design doc ever
+changes, update `globals.css` to match.
 
-If the tokens in `DESIGN.md` ever change, update `globals.css` to match —
-don't hand-pick colors outside that set.
+## Auth model (read this before changing anything auth-related)
+
+**Service-account proxy**, chosen deliberately over full per-user ERPNext
+sessions to ship fast:
+
+- A user logs in with their own ERPNext email/password on `/login`. That
+  credential is checked once against Frappe's own `/api/method/login` — this
+  authenticates the *person*, nothing more.
+- On success, the app issues its **own** signed, httpOnly session cookie
+  (`lib/session.ts`, HMAC-SHA256 via Web Crypto, `SESSION_SECRET` in
+  `.env.local`) — independent of ERPNext's session/sid.
+- All ERPNext data calls (`lib/erpnext.ts`) run server-side as one dedicated
+  ERPNext user — `frontend-integration@ceylonstack.local` — using an API
+  key/secret (`ERPNEXT_API_KEY` / `ERPNEXT_API_SECRET` in `.env.local`,
+  never sent to the browser). That user's roles started scoped to exactly
+  what each phase needed (`Sales User` + `Item Manager` for Customer/Item/
+  Quotation/Sales Order) and grew as real gaps were hit — `Accounts User`
+  was added once Sales Invoice screens went live and 403'd (an accounting
+  doctype, not covered by the Selling-module roles). Current roles:
+  `Sales User`, `Item Manager`, `Accounts User`. If a future doctype 403s,
+  `components/AccessDeniedNotice.tsx` is what renders instead of a crash —
+  the fix is always the same: an ERPNext admin grants the missing role via
+  Desk → User → Role Profile, a live-server change, not a code change.
+- **Known limitation:** ERPNext's own per-user role/permission rules are
+  **not** enforced yet — every logged-in person effectively has the
+  integration account's access, gated only by what this app's UI exposes.
+  Fine for an internal MVP; revisit before it matters who can see/edit what
+  (e.g. one sales rep's customers hidden from another). Upgrading to full
+  per-user sessions means handling Frappe's session+CSRF-token handshake
+  server-side — a deliberately deferred, more-plumbing option.
+- `src/middleware.ts` gates every route except `/login` and `/api/*` behind
+  a valid session cookie.
+
+## What's built
+
+- Login (`/login`) — the logo-reveal animation, email/password against
+  ERPNext.
+- App shell (`src/app/(app)/layout.tsx`) — sidebar grouped Sales / Items &
+  Pricing / Setup (mirroring ERPNext's own Selling workspace), Manufacturing
+  greyed "coming soon" + topbar (user name, logout). The notification bell
+  is a visual placeholder only — real Notification Log data needs per-user
+  ERPNext identity (see the auth limitation above), so it's left inert
+  rather than shipped showing the wrong person's notifications.
+- **Customer, Item** (Phase 1): list + create + edit.
+- **9 Selling-module masters** (Phase 2): Customer Group, Territory, Item
+  Group, Price List, Sales Person, Sales Partner, Contact, Address,
+  Campaign — same list/create/edit shape, built on shared
+  `components/MasterTable.tsx` + `MasterForm.tsx` + `lib/masterActions.ts`
+  instead of copy-pasting Customer/Item nine times.
+- **Quotation, Sales Order, Sales Invoice** (Phase 3): full child-table
+  line-item editing (`components/LineItemsEditor.tsx`) and the
+  Draft→Submitted→Cancelled workflow (`lib/docStatus.ts`,
+  `components/DocActionBar.tsx`). `lib/salesDefaults.ts` resolves
+  company/currency/price-list/accounting defaults the way Desk does
+  client-side — deliberately simplified for this single-currency (LKR)
+  business (conversion_rate always 1, no exchange-rate lookups, no Price
+  List/Pricing Rule resolution — line rate defaults to the Item's own
+  `standard_rate`, editable per line; a resolved fallback warehouse is
+  applied to every Sales Order line too, since not every item has a
+  per-company default warehouse configured in ERPNext — see `getSellingDefaults`).
+- **Tab layout + Connections** (mirrors ERPNext's own Desk form):
+  `components/DocTabs.tsx` gives Quotation/Sales Order/Sales Invoice
+  detail pages the same Details / Address & Contact / Terms / More Info /
+  Connections tabs, plus a breadcrumb (`components/Breadcrumb.tsx`).
+  `lib/connections.ts` shows linked documents (Quotation → the Sales
+  Order made from it, Sales Order → its Sales Invoice) and powers "Create
+  Sales Order"/"Create Sales Invoice" actions that carry items and
+  references across — each guarded server-side against creating a
+  duplicate if one already exists, not just hidden in the UI.
+- Link fields throughout (Customer Group, Territory, Item Group, UOM, etc.)
+  render as `<select>`s populated from ERPNext when the service account can
+  read them, falling back to a plain text input otherwise
+  (`lib/linkOptions.ts`).
+
+## Not yet done
+
+- Tax/discount handling on any sales document — line rate is the whole
+  story right now.
+- Real-time notifications (needs per-user ERPNext sessions)
+- `mes-service` / machine-status dashboard (the original placeholder
+  homepage content — will come back once Manufacturing starts)
+- PWA manifest / installability
+- Optional stretch: a Three.js digital-twin view of the factory floor
 
 ## Getting started
 
@@ -25,14 +107,8 @@ npm install
 npm run dev
 ```
 
-Runs at http://localhost:3000. `src/app/page.tsx` is currently a static,
-on-brand placeholder (KPI tiles, status pills, a Job Card table) standing in
-for the real dashboard until ERPNext API integration starts.
-
-## Not yet done
-
-- ERPNext REST API client / auth
-- `mes-service` data integration
-- Real dashboard screens (machine status, OEE gauges, downtime log)
-- PWA manifest / installability
-- Optional stretch: a Three.js digital-twin view of the factory floor
+Runs at http://localhost:3000. Needs `.env.local` (see
+`.env.local.example`) with `ERPNEXT_URL`, `ERPNEXT_API_KEY`,
+`ERPNEXT_API_SECRET`, and `SESSION_SECRET` set — ask whoever set up the
+integration user for the API key/secret, or create a new one via ERPNext
+Desk → User → API Access.
