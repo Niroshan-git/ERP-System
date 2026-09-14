@@ -17,6 +17,7 @@ import { getSellingDefaults } from "@/lib/salesDefaults";
 import { listItemOptions } from "@/lib/actions/itemLookup";
 import { fetchLinkOptions } from "@/lib/linkOptions";
 import { getConnections } from "@/lib/connections";
+import { getRelationshipMap } from "@/lib/relationshipMap";
 import type { DocStatus } from "@/lib/docStatus";
 import { quotationStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
@@ -83,10 +84,11 @@ export default async function QuotationDetailPage({
     />
   );
 
-  const [connections, timeline, session] = await Promise.all([
+  const [connections, timeline, session, relationshipMap] = await Promise.all([
     getConnections("Quotation", doc.name),
     buildTimeline("Quotation", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
+    getRelationshipMap("Quotation", doc.name),
   ]);
   // Show "Create Sales Order" whenever any line still has qty left to order —
   // ERPNext natively supports multiple partial Sales Orders against one Quotation
@@ -145,6 +147,7 @@ export default async function QuotationDetailPage({
           ? { label: "Create Sales Order", href: `/sales/quotations/${encodeURIComponent(doc.name)}/create-order` }
           : undefined
       }
+      relationshipMap={relationshipMap}
     />
   );
 

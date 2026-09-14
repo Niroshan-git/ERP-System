@@ -18,6 +18,7 @@ import { getSellingDefaults } from "@/lib/salesDefaults";
 import { listItemOptions } from "@/lib/actions/itemLookup";
 import { fetchLinkOptions } from "@/lib/linkOptions";
 import { getConnections, type Connection } from "@/lib/connections";
+import { getRelationshipMap } from "@/lib/relationshipMap";
 import type { DocStatus } from "@/lib/docStatus";
 import { deliveryNoteStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
@@ -101,11 +102,12 @@ export default async function DeliveryNoteDetailPage({
   const sourceSalesOrders = Array.from(
     new Set(doc.items.map((item) => item.against_sales_order).filter((v): v is string => Boolean(v))),
   );
-  const [downstreamConnections, timeline, session, invoicedByRef] = await Promise.all([
+  const [downstreamConnections, timeline, session, invoicedByRef, relationshipMap] = await Promise.all([
     getConnections("Delivery Note", doc.name),
     buildTimeline("Delivery Note", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
     getInvoicedQtyByDnDetail(doc.name),
+    getRelationshipMap("Delivery Note", doc.name),
   ]);
   const connections: Connection[] = [
     { label: "Sales Order", href: "/sales/orders", docs: sourceSalesOrders },
@@ -170,6 +172,7 @@ export default async function DeliveryNoteDetailPage({
           ? { label: "Create Sales Invoice", href: `/sales/delivery-notes/${encodeURIComponent(doc.name)}/create-invoice` }
           : undefined
       }
+      relationshipMap={relationshipMap}
     />
   );
 

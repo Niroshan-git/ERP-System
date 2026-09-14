@@ -18,6 +18,7 @@ import { getSellingDefaults } from "@/lib/salesDefaults";
 import { listItemOptions } from "@/lib/actions/itemLookup";
 import { fetchLinkOptions } from "@/lib/linkOptions";
 import { getConnections, type Connection } from "@/lib/connections";
+import { getRelationshipMap } from "@/lib/relationshipMap";
 import type { DocStatus } from "@/lib/docStatus";
 import { salesInvoiceStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
@@ -135,17 +136,18 @@ export default async function SalesInvoiceDetailPage({
   const sourceDeliveryNotes = Array.from(
     new Set(doc.items.map((item) => item.delivery_note).filter((v): v is string => Boolean(v))),
   );
-  const [downstreamConnections, timeline, session] = await Promise.all([
+  const [downstreamConnections, timeline, session, relationshipMap] = await Promise.all([
     getConnections("Sales Invoice", doc.name),
     buildTimeline("Sales Invoice", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
+    getRelationshipMap("Sales Invoice", doc.name),
   ]);
   const connections: Connection[] = [
     { label: "Sales Order", href: "/sales/orders", docs: sourceSalesOrders },
     { label: "Delivery Note", href: "/sales/delivery-notes", docs: sourceDeliveryNotes },
     ...downstreamConnections,
   ];
-  const connectionsTab = <ConnectionsPanel connections={connections} />;
+  const connectionsTab = <ConnectionsPanel connections={connections} relationshipMap={relationshipMap} />;
   const commentsTab = (
     <ActivityTimeline
       currentUserFullName={session?.fullName ?? ""}

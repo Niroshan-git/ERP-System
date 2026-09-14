@@ -17,6 +17,7 @@ import { getSellingDefaults } from "@/lib/salesDefaults";
 import { listItemOptions } from "@/lib/actions/itemLookup";
 import { fetchLinkOptions } from "@/lib/linkOptions";
 import { getConnections, type Connection } from "@/lib/connections";
+import { getRelationshipMap } from "@/lib/relationshipMap";
 import type { DocStatus } from "@/lib/docStatus";
 import { salesOrderStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
@@ -103,11 +104,12 @@ export default async function SalesOrderDetailPage({
   const sourceQuotations = Array.from(
     new Set(doc.items.map((item) => item.prevdoc_docname).filter((v): v is string => Boolean(v))),
   );
-  const [downstreamConnections, timeline, session, billedByRef] = await Promise.all([
+  const [downstreamConnections, timeline, session, billedByRef, relationshipMap] = await Promise.all([
     getConnections("Sales Order", doc.name),
     buildTimeline("Sales Order", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
     getBilledQtyBySoDetail(doc.name),
+    getRelationshipMap("Sales Order", doc.name),
   ]);
   const connections: Connection[] = [
     { label: "Quotation", href: "/sales/quotations", docs: sourceQuotations },
@@ -178,6 +180,7 @@ export default async function SalesOrderDetailPage({
           ? [{ label: "Create Sales Invoice", href: `/sales/orders/${encodeURIComponent(doc.name)}/create-invoice` }]
           : []),
       ]}
+      relationshipMap={relationshipMap}
     />
   );
 

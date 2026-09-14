@@ -1,0 +1,103 @@
+/* Classic "pure CSS org chart" connector-line technique — robust at any branch count
+   without JS measurement, since every line is positioned as a percentage of its own <li>
+   rather than a computed pixel offset. Structure: .tree > ul > li (the single root),
+   each li optionally containing a nested ul of its own children li's. */
+
+.tree,
+.tree ul,
+.tree li {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+.tree {
+  display: flex;
+  justify-content: center;
+  padding: 4px 4px 0;
+  overflow-x: auto;
+}
+
+.tree ul {
+  display: flex;
+  justify-content: center;
+  padding-top: 28px;
+}
+
+.tree li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 10px 0;
+}
+
+/* Half-width connector lines joining a node to its siblings */
+.tree li::before,
+.tree li::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 28px;
+  border-top: 1px solid var(--border);
+}
+
+.tree li::after {
+  right: auto;
+  left: 50%;
+  border-left: 1px solid var(--border);
+}
+
+.tree li:only-child::after,
+.tree li:only-child::before {
+  display: none;
+}
+
+.tree li:only-child {
+  padding-top: 0;
+}
+
+.tree li:first-child::before,
+.tree li:last-child::after {
+  border: 0 none;
+}
+
+.tree li:last-child::before {
+  border-right: 1px solid var(--border);
+  border-radius: 0 6px 0 0;
+}
+
+.tree li:first-child::after {
+  border-radius: 6px 0 0 0;
+}
+
+/* Stem connecting a <ul> of children up to its parent node */
+.tree ul::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 28px;
+  border-left: 1px solid var(--border);
+}
+
+/* The outermost <ul> is the single root — no lines above it */
+.tree > ul {
+  padding-top: 0;
+}
+
+.tree > ul::before {
+  display: none;
+}
+
+.tree > ul > li {
+  padding-top: 0;
+}
+
+.tree > ul > li::before,
+.tree > ul > li::after {
+  display: none;
+}
