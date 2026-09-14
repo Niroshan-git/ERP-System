@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { LineChart } from "@/components/LineChart";
 import { DocTabs } from "@/components/DocTabs";
-import { SalesFlowDiagram } from "@/components/SalesFlowDiagram";
+import { SalesFlowMap } from "@/components/SalesFlowMap";
 import { runReport } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
 import { getSellingNumberCards } from "@/lib/sellingDashboard";
@@ -102,7 +102,7 @@ export default async function HomePage() {
       <DocTabs
         tabs={[
           { id: "overview", label: "Overview", content: overviewTab },
-          { id: "sales-flow", label: "Sales Flow", content: <SalesFlowDiagram /> },
+          { id: "sales-flow", label: "Sales Flow", content: <SalesFlowMap /> },
         ]}
       />
     </div>
