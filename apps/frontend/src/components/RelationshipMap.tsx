@@ -16,7 +16,7 @@ function NodeCard({ node }: { node: RelationshipNode }) {
   return (
     <Link
       href={node.href}
-      className={`flex w-44 flex-col gap-1.5 rounded-md border bg-white px-3 py-2 text-left shadow-sm transition hover:border-signal ${
+      className={`flex w-44 flex-col gap-1.5 rounded-md border bg-surface px-3 py-2 text-left shadow-sm transition hover:border-signal ${
         node.isCurrent ? "border-signal ring-1 ring-signal" : "border-border"
       }`}
     >

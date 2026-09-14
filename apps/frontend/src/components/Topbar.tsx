@@ -2,6 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { FullscreenToggle } from "@/components/FullscreenToggle";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export function Topbar({ fullName }: { fullName: string }) {
   const router = useRouter();
@@ -19,6 +21,11 @@ export function Topbar({ fullName }: { fullName: string }) {
     <header className="flex items-center justify-between border-b border-border bg-surface px-6 py-3">
       <div />
       <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1">
+          <FullscreenToggle />
+          <ThemeToggle />
+        </div>
+
         {/* Bell icon reserved for Notification Log — needs per-user ERPNext sessions
             (Phase 2) to show the right person's notifications under the service-account
             model this MVP uses, so it's left as a placeholder rather than shipped wrong. */}

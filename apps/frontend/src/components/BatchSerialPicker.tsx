@@ -157,7 +157,7 @@ export function BatchSerialPicker({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-graphite-900/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4">
       <div className="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-surface p-4 shadow-lg">
         <div className="mb-3 flex items-start justify-between gap-4">
           <div>

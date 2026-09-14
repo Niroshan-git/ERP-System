@@ -27,10 +27,19 @@ export const metadata: Metadata = {
   },
 };
 
+// Runs before hydration so a saved dark-mode preference applies on first paint instead
+// of flashing the light theme first — reads the same localStorage key lib/theme.ts uses.
+// No stored value means "follow system preference", which globals.css's own
+// prefers-color-scheme media query already handles without this script's help.
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("ceylonstack.theme.v1");if(t==="dark"||t==="light"){document.documentElement.setAttribute("data-theme",t);}}catch(e){}})();`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}>
-      <body className="min-h-full bg-canvas text-graphite-900">{children}</body>
+      <body className="min-h-full bg-canvas text-graphite-900">
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        {children}
+      </body>
     </html>
   );
 }

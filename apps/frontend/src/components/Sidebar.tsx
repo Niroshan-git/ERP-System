@@ -277,7 +277,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`relative flex h-full shrink-0 flex-col overflow-hidden bg-graphite-900 text-white transition-[width] ${
+      className={`relative flex h-full shrink-0 flex-col overflow-hidden bg-ink text-white transition-[width] ${
         collapsed ? "w-14" : "w-56"
       }`}
     >
@@ -352,7 +352,7 @@ export function Sidebar() {
             className="fixed inset-0 z-10 cursor-default"
             onClick={() => setOpenFlyoutId(null)}
           />
-          <div className="fixed left-16 top-20 z-20 w-64 rounded-lg border border-white/10 bg-graphite-900 p-3 shadow-2xl">
+          <div className="fixed left-16 top-20 z-20 w-64 rounded-lg border border-white/10 bg-ink p-3 shadow-2xl">
             <div className="mb-2 flex items-center justify-between gap-2 px-1">
               <span className="text-sm font-semibold text-white">{flyoutGroup.label}</span>
               <button

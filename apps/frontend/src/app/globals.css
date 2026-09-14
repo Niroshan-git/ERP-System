@@ -19,6 +19,37 @@
   /* Not in the design doc's palette table — derived from graphite-900 so
      dividers stay inside the defined neutral, not a hand-picked gray. */
   --border: color-mix(in srgb, var(--graphite-900) 14%, var(--surface));
+
+  /* Fixed near-black, independent of theme — the Sidebar rail and modal backdrops are
+     always dark chrome by design (see Sidebar.tsx), not "foreground text on a light
+     page" like --graphite-900 above, so they read off this instead and don't flip when
+     --graphite-900 gets redefined for dark mode below. */
+  --ink: #12161c;
+}
+
+/* System preference (no explicit choice made yet) — guarded so an explicit light pick
+   (data-theme="light") always wins even if the OS is set to dark. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --graphite-900: #e8eaed;
+    --graphite-500: #9aa3af;
+    --surface: #1a1f27;
+    --canvas: #0e1116;
+    --signal: #4f9c86;
+    --alert: #e0812f;
+    --success: #5cae76;
+  }
+}
+
+/* Explicit user choice via the theme toggle — wins over system preference either way. */
+:root[data-theme="dark"] {
+  --graphite-900: #e8eaed;
+  --graphite-500: #9aa3af;
+  --surface: #1a1f27;
+  --canvas: #0e1116;
+  --signal: #4f9c86;
+  --alert: #e0812f;
+  --success: #5cae76;
 }
 
 @theme inline {
@@ -30,6 +61,7 @@
   --color-alert: var(--alert);
   --color-success: var(--success);
   --color-border: var(--border);
+  --color-ink: var(--ink);
 
   --font-sans: var(--font-plex-sans);
   --font-mono: var(--font-plex-mono);
