@@ -12,6 +12,7 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocTabs } from "@/components/DocTabs";
 import { ConnectionsPanel } from "@/components/ConnectionsPanel";
 import { SavedBanner } from "@/components/SavedBanner";
+import { SourceDocumentBanner } from "@/components/SourceDocumentBanner";
 import { ErpNextError, getDoc } from "@/lib/erpnext";
 import { getSellingDefaults } from "@/lib/salesDefaults";
 import { listItemOptions } from "@/lib/actions/itemLookup";
@@ -361,6 +362,7 @@ export default async function SalesOrderDetailPage({
     <div>
       {breadcrumb}
       <SavedBanner show={saved === "1"} />
+      <SourceDocumentBanner sources={[{ label: "Quotation", href: "/sales/quotations", docs: sourceQuotations }]} />
       {header}
       <DocTabs
         tabs={[

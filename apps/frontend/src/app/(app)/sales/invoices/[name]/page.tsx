@@ -13,6 +13,7 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocTabs } from "@/components/DocTabs";
 import { ConnectionsPanel } from "@/components/ConnectionsPanel";
 import { SavedBanner } from "@/components/SavedBanner";
+import { SourceDocumentBanner } from "@/components/SourceDocumentBanner";
 import { ErpNextError, getDoc } from "@/lib/erpnext";
 import { getSellingDefaults } from "@/lib/salesDefaults";
 import { listItemOptions } from "@/lib/actions/itemLookup";
@@ -41,7 +42,7 @@ type SalesInvoiceDoc = {
   owner: string;
   modified: string;
   modified_by: string;
-  items: (LineItemRow & { sales_order?: string })[];
+  items: (LineItemRow & { sales_order?: string; delivery_note?: string })[];
   customer_address?: string;
   contact_person?: string;
   shipping_address_name?: string;
@@ -122,11 +123,18 @@ export default async function SalesInvoiceDetailPage({
     </div>
   );
 
-  // Upstream reference (the Sales Order this invoice was made from, if any) — read
-  // directly off this doc's own items, matching ERPNext's own dashboard config
-  // (sales_invoice_dashboard.py: `"internal_links": {"Sales Order": ["items", "sales_order"]}`).
+  // Upstream references (the Sales Order and/or Delivery Note this invoice was made from,
+  // if any) — read directly off this doc's own items, matching ERPNext's own dashboard
+  // config (sales_invoice_dashboard.py: `"internal_links": {"Sales Order": ["items",
+  // "sales_order"], "Delivery Note": ["items", "delivery_note"]}`). An invoice billed off a
+  // Delivery Note carries both fields on the same line (delivery-notes/actions.ts's
+  // buildInvoiceItemFromDeliveryNote sets `sales_order`/`so_detail` through too, when the
+  // source Delivery Note line has them), so both can legitimately be present at once.
   const sourceSalesOrders = Array.from(
     new Set(doc.items.map((item) => item.sales_order).filter((v): v is string => Boolean(v))),
+  );
+  const sourceDeliveryNotes = Array.from(
+    new Set(doc.items.map((item) => item.delivery_note).filter((v): v is string => Boolean(v))),
   );
   const [downstreamConnections, timeline, session] = await Promise.all([
     getConnections("Sales Invoice", doc.name),
@@ -135,6 +143,7 @@ export default async function SalesInvoiceDetailPage({
   ]);
   const connections: Connection[] = [
     { label: "Sales Order", href: "/sales/orders", docs: sourceSalesOrders },
+    { label: "Delivery Note", href: "/sales/delivery-notes", docs: sourceDeliveryNotes },
     ...downstreamConnections,
   ];
   const connectionsTab = <ConnectionsPanel connections={connections} />;
@@ -310,6 +319,12 @@ export default async function SalesInvoiceDetailPage({
     <div>
       {breadcrumb}
       <SavedBanner show={saved === "1"} />
+      <SourceDocumentBanner
+        sources={[
+          { label: "Sales Order", href: "/sales/orders", docs: sourceSalesOrders },
+          { label: "Delivery Note", href: "/sales/delivery-notes", docs: sourceDeliveryNotes },
+        ]}
+      />
       {header}
       <DocTabs
         tabs={[

@@ -13,6 +13,7 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocTabs } from "@/components/DocTabs";
 import { ConnectionsPanel } from "@/components/ConnectionsPanel";
 import { SavedBanner } from "@/components/SavedBanner";
+import { SourceDocumentBanner } from "@/components/SourceDocumentBanner";
 import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
 import { getSellingDefaults } from "@/lib/salesDefaults";
 import { listItemOptions } from "@/lib/actions/itemLookup";
@@ -362,6 +363,7 @@ export default async function DeliveryNoteDetailPage({
     <div>
       {breadcrumb}
       <SavedBanner show={saved === "1"} />
+      <SourceDocumentBanner sources={[{ label: "Sales Order", href: "/sales/orders", docs: sourceSalesOrders }]} />
       {header}
       <DocTabs
         tabs={[
