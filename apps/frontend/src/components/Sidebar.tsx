@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useSyncExternalStore } from "react";
+import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Box,
   Boxes,
@@ -213,6 +213,10 @@ export function Sidebar() {
   // Ephemeral, not persisted — which group's floating flyout (rail/collapsed mode only)
   // is currently open. Mirrors the concept file's single shared `#cs-nav-flyout` panel.
   const [openFlyoutId, setOpenFlyoutId] = useState<string | null>(null);
+  const navRef = useRef<HTMLElement>(null);
+  // Bumped on every window resize purely to force a re-render, which re-runs the
+  // deps-less fit effect below — the effect itself never reads this value.
+  const [, forceRemeasure] = useState(0);
 
   const activeGroupId = findActiveGroupId(pathname);
   const expanded = new Set(stored.expanded);
@@ -225,10 +229,11 @@ export function Sidebar() {
     // that's force-expanded because it contains the active route still shows as "open"
     // here, so toggling it "closed" correctly records that preference for next time
     // (it'll simply keep re-appearing expanded as long as its route stays active).
-    const next = new Set(expanded);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    writeStoredState({ expanded: [...next], collapsed: stored.collapsed });
+    const isOpen = expanded.has(id);
+    // Opening a group moves it to the end of stored.expanded, so the fit-check effect
+    // below always collapses the *oldest*-opened group first, not this one.
+    const next = isOpen ? stored.expanded.filter((x) => x !== id) : [...stored.expanded.filter((x) => x !== id), id];
+    writeStoredState({ expanded: next, collapsed: stored.collapsed });
   }
 
   function toggleCollapsed() {
@@ -242,6 +247,33 @@ export function Sidebar() {
     // showFly()/closeFly() (clicking the same icon again closes it).
     setOpenFlyoutId((current) => (current === id ? null : id));
   }
+
+  // No scrollbar in the nav pane, by design — instead, whenever the expanded groups
+  // together take more vertical space than the sidebar has (a short browser window, or
+  // several groups opened at once), the oldest-opened group that ISN'T the one containing
+  // the active route auto-collapses to make room. Runs via useLayoutEffect (before paint)
+  // so an overflowing frame is never actually shown; re-collapsing one group at a time
+  // through stored.expanded re-renders this effect again, converging until it fits or
+  // only the active group is left open. A window resize alone (no expand/collapse click)
+  // still needs to re-trigger this, hence the forceRemeasure listener below — this effect
+  // deliberately has no dependency array so it re-checks after every render.
+  useLayoutEffect(() => {
+    if (collapsed) return; // rail mode has no expandable sub-lists to collapse
+    const el = navRef.current;
+    if (!el) return;
+    if (el.scrollHeight <= el.clientHeight) return;
+    const collapsible = stored.expanded.find((id) => id !== activeGroupId);
+    if (!collapsible) return; // nothing left we're allowed to collapse
+    writeStoredState({ expanded: stored.expanded.filter((id) => id !== collapsible), collapsed: stored.collapsed });
+  });
+
+  useLayoutEffect(() => {
+    function onResize() {
+      forceRemeasure((t) => t + 1);
+    }
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   return (
     <aside
@@ -282,7 +314,7 @@ export function Sidebar() {
         )}
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 py-2">
+      <nav ref={navRef} className="flex-1 overflow-hidden px-2 py-2">
         <DashboardLink pathname={pathname} collapsed={collapsed} />
 
         <div className="mt-3 border-t border-white/10 pt-3">
