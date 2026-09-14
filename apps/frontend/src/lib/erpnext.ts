@@ -150,6 +150,21 @@ export async function callMethod(method: string, args: Record<string, unknown>):
   });
 }
 
+/**
+ * Sibling to callMethod() above, for whitelisted methods whose return value we actually
+ * need (e.g. `get_auto_data`'s available-batches/serials list, `add_serial_batch_ledgers`'s
+ * created bundle doc) — same request shape as runReport() below, just generic over the
+ * response's `message` payload instead of runReport's fixed report-result shape. Additive:
+ * callMethod's own signature/behavior is untouched, since existing call sites depend on it.
+ */
+export async function callMethodWithResult<T>(method: string, args: Record<string, unknown>): Promise<T> {
+  const data = await erpnextFetch(`/api/method/${method}`, {
+    method: "POST",
+    body: JSON.stringify(args),
+  });
+  return data.message as T;
+}
+
 export type ReportColumn = {
   label: string;
   fieldname: string;

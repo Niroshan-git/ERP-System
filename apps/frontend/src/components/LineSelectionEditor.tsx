@@ -1,6 +1,8 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { BatchSerialPicker, type BatchSerialEntry } from "@/components/BatchSerialPicker";
+import { StockBadge } from "@/components/StockBadge";
 
 export type SelectableLineRow = {
   /** The source child-table row's own `name` (Quotation Item's/Sales Order Item's docname) —
@@ -20,6 +22,17 @@ export type SelectableLineRow = {
    * CopyFromQuotationPanel's multi-quotation selection. Unset for the single-source Phase 1
    * routes, which don't need it. */
   sourceLabel?: string;
+  /**
+   * Delivery-Note-only (Sales-Order -> Delivery-Note create-delivery flow, Phase 2C/2D) —
+   * the target warehouse (this app's single per-document default, see salesDefaults.ts) and
+   * the source Item's own batch/serial flags, resolved server-side by the page before this
+   * component ever renders. Undefined for every other LineSelectionEditor call site
+   * (create-invoice from Sales Order/Delivery Note, Copy From Quotation), which don't move
+   * stock and so never show the picker/stock badge below.
+   */
+  warehouse?: string;
+  has_batch_no?: boolean;
+  has_serial_no?: boolean;
 };
 
 /** One selected row, qty > 0 only — returned to the caller in "confirm" mode. */
@@ -35,7 +48,13 @@ export type ConfirmedLineRow = {
    * CopyFromQuotationPanel's multi-quotation selection) knows which source each
    * confirmed row actually came from. */
   sourceLabel?: string;
+  /** The confirmed BatchSerialPicker selection for this row, if any — see SelectableLineRow. */
+  batchSerialEntries?: BatchSerialEntry[];
 };
+
+function batchSerialTotal(entries?: BatchSerialEntry[]): number {
+  return (entries ?? []).reduce((s, e) => s + (e.qty || 0), 0);
+}
 
 type SelectionState = { error?: string } | undefined;
 
@@ -94,10 +113,20 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
   const [qtys, setQtys] = useState<Record<string, number>>(
     Object.fromEntries(rows.map((r) => [r.reference, Math.max(r.remainingQty, 0)])),
   );
+  const [batchSerial, setBatchSerial] = useState<Record<string, BatchSerialEntry[]>>({});
+  const [pickerRef, setPickerRef] = useState<string | null>(null);
 
   function updateQty(reference: string, value: number, max: number) {
     const clamped = Math.min(Math.max(value, 0), max);
     setQtys((prev) => ({ ...prev, [reference]: clamped }));
+    // A changed qty invalidates any already-confirmed batch/serial selection for this row —
+    // its total no longer matches, so force a re-pick rather than submitting a stale total.
+    setBatchSerial((prev) => {
+      if (!(reference in prev)) return prev;
+      const next = { ...prev };
+      delete next[reference];
+      return next;
+    });
   }
 
   const selection: ConfirmedLineRow[] = rows
@@ -109,10 +138,12 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
       rate: r.rate,
       sourceLabel: r.sourceLabel,
       qty: qtys[r.reference] ?? 0,
+      batchSerialEntries: batchSerial[r.reference],
     }))
     .filter((r) => r.qty > 0);
 
   const total = selection.reduce((sum, r) => sum + r.qty * r.rate, 0);
+  const pickerRow = pickerRef ? rows.find((r) => r.reference === pickerRef) : undefined;
 
   const table = (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface">
@@ -138,6 +169,26 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
                   {row.sourceLabel && (
                     <div className="font-mono text-xs text-graphite-500">from {row.sourceLabel}</div>
                   )}
+                  {(row.has_batch_no || row.has_serial_no) && row.warehouse && !fulfilled && (qtys[row.reference] ?? 0) > 0 && (
+                    <div className="mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setPickerRef(row.reference)}
+                        className="text-xs font-medium text-signal hover:underline"
+                      >
+                        {batchSerial[row.reference]?.length ? "Edit batch/serial selection" : "Select batch/serial"}
+                      </button>
+                      {batchSerial[row.reference]?.length ? (
+                        <p className="mt-0.5 text-xs text-graphite-500">
+                          {row.has_batch_no
+                            ? `${batchSerial[row.reference].length} batch${batchSerial[row.reference].length > 1 ? "es" : ""} selected (${batchSerialTotal(batchSerial[row.reference])} of ${qtys[row.reference] ?? 0})`
+                            : `${batchSerial[row.reference].length} of ${qtys[row.reference] ?? 0} serials selected`}
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 text-xs text-alert">Batch/serial not yet selected</p>
+                      )}
+                    </div>
+                  )}
                 </td>
                 <td className="px-3 py-2 font-mono tabular-nums text-graphite-500">{row.originalQty}</td>
                 <td className="px-3 py-2 font-mono tabular-nums text-graphite-500">{remaining}</td>
@@ -155,6 +206,13 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
                     />
                     <span className="font-mono text-xs text-graphite-500">{row.uom}</span>
                   </div>
+                  {row.warehouse && (
+                    <StockBadge
+                      itemCode={row.item_code}
+                      warehouse={row.warehouse}
+                      requestedQty={batchSerialTotal(batchSerial[row.reference]) || qtys[row.reference] || 0}
+                    />
+                  )}
                 </td>
                 <td className="px-3 py-2 font-mono tabular-nums text-graphite-500">{row.rate.toFixed(2)}</td>
               </tr>
@@ -191,6 +249,21 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
     </>
   );
 
+  const picker = pickerRow && (
+    <BatchSerialPicker
+      open
+      onClose={() => setPickerRef(null)}
+      onConfirm={(entries) => setBatchSerial((prev) => ({ ...prev, [pickerRow.reference]: entries }))}
+      itemCode={pickerRow.item_code}
+      itemName={pickerRow.item_name}
+      warehouse={pickerRow.warehouse ?? ""}
+      qty={qtys[pickerRow.reference] ?? 0}
+      hasBatchNo={Boolean(pickerRow.has_batch_no)}
+      hasSerialNo={Boolean(pickerRow.has_serial_no)}
+      initialEntries={batchSerial[pickerRow.reference]}
+    />
+  );
+
   if (isConfirmMode) {
     // No <form> here — this renders inside the caller's own <form> (SalesOrderForm), and
     // HTML doesn't allow nested <form> elements.
@@ -198,6 +271,7 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
       <div className="max-w-3xl space-y-4">
         {table}
         {footer}
+        {picker}
       </div>
     );
   }
@@ -207,11 +281,12 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
       <input
         type="hidden"
         name="items"
-        value={JSON.stringify(selection.map(({ reference, qty }) => ({ reference, qty })))}
+        value={JSON.stringify(selection.map(({ reference, qty, batchSerialEntries }) => ({ reference, qty, batchSerialEntries })))}
         readOnly
       />
       {table}
       {footer}
+      {picker}
     </form>
   );
 }

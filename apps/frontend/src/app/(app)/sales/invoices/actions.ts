@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { cancelDoc, createDoc, ErpNextError, getDoc, submitDoc, updateDoc } from "@/lib/erpnext";
 import { getSellingDefaults, type SellingDefaults } from "@/lib/salesDefaults";
 import { parseLineRows, parseLineSelectionRows, type LineSelectionInput } from "@/lib/lineRows";
-import { getBilledQtyBySoDetail } from "@/lib/fulfillment";
+import { getBilledQtyBySoDetail, getInvoicedQtyByDnDetail } from "@/lib/fulfillment";
 
 export type FormState = { error?: string } | undefined;
 
@@ -360,6 +360,183 @@ export async function bulkCreateSalesInvoicesFromOrdersAction(names: string[]): 
   revalidatePath("/sales/orders");
   const skippedNote = skipped.length > 0 ? ` Skipped ${skipped.length} (${skipped.join(", ")}).` : "";
   return { message: `Created ${created} sales invoice(s).${skippedNote}` };
+}
+
+type DeliveryNoteItemForInvoice = {
+  name: string;
+  item_code: string;
+  item_name: string;
+  qty: number;
+  uom: string;
+  rate: number;
+  /** Present when this Delivery Note line was itself created from a Sales Order line (see
+   * delivery-notes/actions.ts's createDeliveryNoteFromSalesOrderAction) — carried through
+   * onto the resulting Sales Invoice line below so the ultimate source Sales Order's own
+   * billed-qty bookkeeping keeps working even when the invoice is raised from the Delivery
+   * Note rather than the Sales Order directly. */
+  so_detail?: string;
+  against_sales_order?: string;
+};
+
+type DeliveryNoteForInvoice = {
+  name: string;
+  customer: string;
+  company: string;
+  currency: string;
+  selling_price_list: string;
+  price_list_currency: string;
+  items: DeliveryNoteItemForInvoice[];
+  customer_address?: string;
+  contact_person?: string;
+  shipping_address_name?: string;
+  territory?: string;
+  customer_group?: string;
+  tc_name?: string;
+  terms?: string;
+  title?: string;
+  po_no?: string;
+  po_date?: string;
+};
+
+/** Builds one Sales Invoice Item row sourced from a Delivery Note line. `dn_detail` is set
+ * alongside `delivery_note` so ERPNext's own invoiced-qty query (see
+ * lib/fulfillment.ts's getInvoicedQtyByDnDetail, which mirrors ERPNext's real
+ * `delivery_note.py::get_invoiced_qty_map`) actually picks this invoice up next time.
+ * `sales_order`/`so_detail` are carried through too, when the source Delivery Note line
+ * has them — this exactly matches ERPNext's own `delivery_note.py::make_sales_invoice`
+ * field_map (`so_detail -> so_detail`, `against_sales_order -> sales_order`, confirmed by
+ * reading that file on the live server), so a Sales Order that was fulfilled via a
+ * Delivery Note still shows the resulting invoice under its own Connections tab and still
+ * has an accurate remaining-to-invoice total. */
+function buildInvoiceItemFromDeliveryNote(
+  item: DeliveryNoteItemForInvoice,
+  qty: number,
+  defaults: SellingDefaults,
+  deliveryNoteName: string,
+) {
+  return {
+    item_code: item.item_code,
+    item_name: item.item_name,
+    qty,
+    uom: item.uom,
+    rate: item.rate,
+    conversion_factor: 1,
+    income_account: defaults.defaultIncomeAccount,
+    cost_center: defaults.defaultCostCenter,
+    delivery_note: deliveryNoteName,
+    dn_detail: item.name,
+    ...(item.so_detail && item.against_sales_order
+      ? { sales_order: item.against_sales_order, so_detail: item.so_detail }
+      : {}),
+  };
+}
+
+/**
+ * Core "Create Sales Invoice from Delivery Note" logic — the Delivery-Note equivalent of
+ * createSalesInvoiceFromOrder above. Delivery Note Item has no stored billed-qty field at
+ * all (only `billed_amt`, a Currency amount — confirmed by reading the live DocType JSON),
+ * so remaining-to-invoice per line always comes from the live-summed
+ * getInvoicedQtyByDnDetail query, same as the Sales-Order case's getBilledQtyBySoDetail.
+ *
+ * Item data (item_code/item_name/uom/rate) is always re-derived from the Delivery Note
+ * itself, never trusted from a client-supplied selection payload. Multiple partial
+ * invoices against the same Delivery Note are legal as long as no single line is ever
+ * over-invoiced — same partial-fulfillment shape as every other create-from-source action
+ * in this app.
+ */
+async function createSalesInvoiceFromDeliveryNote(
+  deliveryNoteName: string,
+  selection: LineSelectionInput[],
+): Promise<{ name: string } | { error: string }> {
+  let deliveryNote: DeliveryNoteForInvoice;
+  try {
+    deliveryNote = await getDoc<DeliveryNoteForInvoice>("Delivery Note", deliveryNoteName);
+  } catch {
+    return { error: "Could not load the source delivery note." };
+  }
+
+  const defaults = await getSellingDefaults(deliveryNote.company);
+  if (!defaults.debitToAccount) {
+    return { error: "Company has no default receivable account configured in ERPNext." };
+  }
+  if (!defaults.defaultIncomeAccount || !defaults.defaultCostCenter) {
+    return { error: "Company has no default income account or cost center configured in ERPNext." };
+  }
+
+  const invoicedByRef = await getInvoicedQtyByDnDetail(deliveryNoteName);
+
+  const invoiceItems: ReturnType<typeof buildInvoiceItemFromDeliveryNote>[] = [];
+  for (const sel of selection) {
+    const item = deliveryNote.items.find((i) => i.name === sel.reference);
+    if (!item) {
+      return { error: "One of the selected lines no longer exists on this delivery note — reload and try again." };
+    }
+    const remaining = item.qty - (invoicedByRef[item.name] ?? 0);
+    if (sel.qty > remaining + 1e-6) {
+      return { error: `${item.item_code}: requested ${sel.qty} but only ${remaining} remains to invoice.` };
+    }
+    invoiceItems.push(buildInvoiceItemFromDeliveryNote(item, sel.qty, defaults, deliveryNoteName));
+  }
+
+  if (invoiceItems.length === 0) {
+    return { error: `Nothing left to invoice on ${deliveryNoteName}.` };
+  }
+
+  const fields = {
+    naming_series: "ACC-SINV-.YYYY.-",
+    customer: deliveryNote.customer,
+    posting_date: new Date().toISOString().slice(0, 10),
+    company: deliveryNote.company,
+    currency: deliveryNote.currency,
+    conversion_rate: 1,
+    selling_price_list: deliveryNote.selling_price_list,
+    price_list_currency: deliveryNote.price_list_currency,
+    plc_conversion_rate: 1,
+    debit_to: defaults.debitToAccount,
+    customer_address: deliveryNote.customer_address,
+    contact_person: deliveryNote.contact_person,
+    shipping_address_name: deliveryNote.shipping_address_name,
+    territory: deliveryNote.territory,
+    customer_group: deliveryNote.customer_group,
+    tc_name: deliveryNote.tc_name,
+    terms: deliveryNote.terms,
+    title: deliveryNote.title,
+    po_no: deliveryNote.po_no,
+    po_date: deliveryNote.po_date,
+    items: invoiceItems,
+  };
+
+  try {
+    const doc = await createDoc<{ name: string }>("Sales Invoice", fields);
+    return { name: doc.name };
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+}
+
+/**
+ * "Create Sales Invoice" from a Submitted Delivery Note — the target of the
+ * /sales/delivery-notes/[name]/create-invoice line-selection step (LineSelectionEditor).
+ * Sales Invoice now has two creation entry points: from Sales Order directly (unchanged,
+ * above) and from Delivery Note (this one) — matching ERPNext's own native support for
+ * billing off of either document.
+ */
+export async function createSalesInvoiceFromDeliveryNoteAction(
+  deliveryNoteName: string,
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const selection = parseLineSelectionRows(formData, "items");
+  if (selection.length === 0) {
+    return { error: "Select at least one item and quantity to invoice." };
+  }
+
+  const result = await createSalesInvoiceFromDeliveryNote(deliveryNoteName, selection);
+  if ("error" in result) return { error: result.error };
+
+  revalidatePath("/sales/invoices");
+  revalidatePath(`/sales/delivery-notes/${encodeURIComponent(deliveryNoteName)}`);
+  redirect(`/sales/invoices/${encodeURIComponent(result.name)}`);
 }
 
 /** Bound to `(name)`; useActionState calls the bound function with (state, formData) which are unused here. */

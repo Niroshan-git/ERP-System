@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 import { getItemLineDefaults, type ItemOption } from "@/lib/actions/itemLookup";
+import { BatchSerialPicker, type BatchSerialEntry } from "@/components/BatchSerialPicker";
+import { StockBadge } from "@/components/StockBadge";
 
 export type LineRow = {
   item_code: string;
@@ -19,12 +21,30 @@ export type LineRow = {
    */
   quotation_item?: string;
   source_quotation?: string;
+  /**
+   * Delivery-Note-only fields (Phase 2C/2D) — populated only when `defaultWarehouse` is
+   * passed in below (i.e. only by DeliveryNoteForm; Quotation/Sales Order/Sales Invoice
+   * never move stock so never set these). `warehouse` mirrors the uniform per-document
+   * default this app applies server-side (see salesDefaults.ts); `has_batch_no`/
+   * `has_serial_no` come from the resolved Item's own master flags; `batchSerialEntries`
+   * is the confirmed BatchSerialPicker selection for this line, attached via the two-step
+   * add_serial_batch_ledgers flow after the document itself is created — never sent as
+   * part of the initial createDoc payload.
+   */
+  warehouse?: string;
+  has_batch_no?: boolean;
+  has_serial_no?: boolean;
+  batchSerialEntries?: BatchSerialEntry[];
 };
 
 const emptyRow: LineRow = { item_code: "", item_name: "", qty: 1, uom: "", rate: 0 };
 
+function batchSerialTotal(row: LineRow): number {
+  return (row.batchSerialEntries ?? []).reduce((s, e) => s + (e.qty || 0), 0);
+}
+
 /**
- * Editable Item child-table for Quotation/Sales Order/Sales Invoice. Submits
+ * Editable Item child-table for Quotation/Sales Order/Sales Invoice/Delivery Note. Submits
  * as a single hidden JSON field (`fieldName`) — the server action on the
  * other end parses it into ERPNext's `items` child-table rows. The rate
  * shown here is a starting point (Item.standard_rate, see itemLookup.ts) —
@@ -36,14 +56,27 @@ export function LineItemsEditor({
   itemOptions,
   initialRows,
   currency,
+  defaultWarehouse,
 }: {
   fieldName: string;
   itemOptions: ItemOption[];
   initialRows?: LineRow[];
   currency: string;
+  /**
+   * Set only by DeliveryNoteForm — the company's default warehouse, applied to every line
+   * automatically (this app doesn't expose per-line warehouse picking, see the
+   * WarehouseRequired note in salesDefaults.ts). Its presence is also what turns on the
+   * batch/serial picker button and the live Bin stock badge below (Phase 2C/2D) — Delivery
+   * Note is the only doctype in this app that actually moves stock.
+   */
+  defaultWarehouse?: string;
 }) {
-  const [rows, setRows] = useState<LineRow[]>(initialRows?.length ? initialRows : [emptyRow]);
+  const [rows, setRows] = useState<LineRow[]>(() => {
+    const base = initialRows?.length ? initialRows : [emptyRow];
+    return defaultWarehouse ? base.map((r) => ({ ...r, warehouse: r.warehouse ?? defaultWarehouse })) : base;
+  });
   const [isPending, startTransition] = useTransition();
+  const [pickerIndex, setPickerIndex] = useState<number | null>(null);
 
   function updateRow(index: number, patch: Partial<LineRow>) {
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
@@ -54,27 +87,37 @@ export function LineItemsEditor({
     setRows((prev) =>
       prev.map((row, i) => {
         if (i !== index) return row;
+        const itemSwapped = itemCode !== row.item_code;
         // Swapping the item invalidates any Quotation-line tag this row carried — it no
         // longer represents that source line and must not be sent as if it still did.
-        const swapped = Boolean(row.quotation_item) && itemCode !== row.item_code;
+        const swapped = Boolean(row.quotation_item) && itemSwapped;
         return {
           ...row,
           item_code: itemCode,
           item_name: option?.name ?? "",
           ...(swapped ? { quotation_item: undefined, source_quotation: undefined } : {}),
+          // A swapped item is a different item master — its batch/serial flags and any
+          // already-picked batch/serial selection no longer apply.
+          ...(itemSwapped ? { has_batch_no: undefined, has_serial_no: undefined, batchSerialEntries: undefined } : {}),
         };
       }),
     );
     startTransition(async () => {
       const defaults = await getItemLineDefaults(itemCode);
       if (defaults) {
-        updateRow(index, { item_name: defaults.item_name, uom: defaults.uom, rate: defaults.rate });
+        updateRow(index, {
+          item_name: defaults.item_name,
+          uom: defaults.uom,
+          rate: defaults.rate,
+          has_batch_no: defaults.has_batch_no,
+          has_serial_no: defaults.has_serial_no,
+        });
       }
     });
   }
 
   function addRow() {
-    setRows((prev) => [...prev, emptyRow]);
+    setRows((prev) => [...prev, defaultWarehouse ? { ...emptyRow, warehouse: defaultWarehouse } : emptyRow]);
   }
 
   function removeRow(index: number) {
@@ -82,6 +125,7 @@ export function LineItemsEditor({
   }
 
   const total = rows.reduce((sum, row) => sum + row.qty * row.rate, 0);
+  const activePicker = pickerIndex !== null ? rows[pickerIndex] : undefined;
 
   return (
     <div>
@@ -120,6 +164,27 @@ export function LineItemsEditor({
                       linked to {row.source_quotation}
                     </p>
                   )}
+                  {defaultWarehouse && (row.has_batch_no || row.has_serial_no) && row.warehouse && (
+                    <div className="mt-1">
+                      <button
+                        type="button"
+                        onClick={() => setPickerIndex(index)}
+                        disabled={row.qty <= 0}
+                        className="text-xs font-medium text-signal hover:underline disabled:opacity-40"
+                      >
+                        {row.batchSerialEntries?.length ? "Edit batch/serial selection" : "Select batch/serial"}
+                      </button>
+                      {row.batchSerialEntries?.length ? (
+                        <p className="mt-0.5 text-xs text-graphite-500">
+                          {row.has_batch_no
+                            ? `${row.batchSerialEntries.length} batch${row.batchSerialEntries.length > 1 ? "es" : ""} selected (${batchSerialTotal(row)} of ${row.qty})`
+                            : `${row.batchSerialEntries.length} of ${row.qty} serials selected`}
+                        </p>
+                      ) : (
+                        row.qty > 0 && <p className="mt-0.5 text-xs text-alert">Batch/serial not yet selected</p>
+                      )}
+                    </div>
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <input
@@ -127,9 +192,20 @@ export function LineItemsEditor({
                     min="0"
                     step="any"
                     value={row.qty}
-                    onChange={(e) => updateRow(index, { qty: Number(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const qty = Number(e.target.value) || 0;
+                      // A changed qty invalidates any already-confirmed batch/serial
+                      // selection — its total no longer matches, so force a re-pick rather
+                      // than silently submitting a stale, now-wrong allocation.
+                      updateRow(index, { qty, ...(row.batchSerialEntries ? { batchSerialEntries: undefined } : {}) });
+                    }}
                     className="w-20 rounded-md border border-border px-2 py-1.5 font-mono text-sm tabular-nums focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
                   />
+                  {defaultWarehouse && (
+                    <div className="mt-1">
+                      <StockBadge itemCode={row.item_code} warehouse={row.warehouse} requestedQty={batchSerialTotal(row) || row.qty} />
+                    </div>
+                  )}
                 </td>
                 <td className="px-3 py-2 font-mono text-graphite-500">{row.uom || "—"}</td>
                 <td className="px-3 py-2">
@@ -174,6 +250,21 @@ export function LineItemsEditor({
         Rate defaults to the item&apos;s standard selling rate and is editable per line. ERPNext computes the saved
         total (including any taxes) on save — this estimate excludes taxes.
       </p>
+
+      {activePicker && pickerIndex !== null && (
+        <BatchSerialPicker
+          open
+          onClose={() => setPickerIndex(null)}
+          onConfirm={(entries) => updateRow(pickerIndex, { batchSerialEntries: entries })}
+          itemCode={activePicker.item_code}
+          itemName={activePicker.item_name}
+          warehouse={activePicker.warehouse ?? ""}
+          qty={activePicker.qty}
+          hasBatchNo={Boolean(activePicker.has_batch_no)}
+          hasSerialNo={Boolean(activePicker.has_serial_no)}
+          initialEntries={activePicker.batchSerialEntries}
+        />
+      )}
     </div>
   );
 }

@@ -2,9 +2,24 @@
 
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+/**
+ * Pre-existing, unrelated to Delivery Note/batch-serial work — `useSearchParams()` requires
+ * a Suspense boundary around whatever component calls it or `next build` fails the static
+ * prerender of this page entirely (confirmed: this broke `npm run build` even on a clean
+ * checkout of this branch, before any of this session's changes). Split out into its own
+ * component so LoginPage itself can provide that boundary.
+ */
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");

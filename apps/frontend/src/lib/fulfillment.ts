@@ -90,3 +90,41 @@ export async function getBilledQtyBySoDetail(salesOrderName: string): Promise<Re
   }
   return billed;
 }
+
+type DnInvoiceItemRow = { dn_detail?: string; qty: number };
+type SalesInvoiceForDnBilling = { name: string; items: DnInvoiceItemRow[] };
+
+/**
+ * How much of each Delivery Note line has actually been invoiced — the Delivery-Note
+ * equivalent of getBilledQtyBySoDetail above. Delivery Note Item has no stored qty-based
+ * billing field at all (only `billed_amt`, a Currency amount — confirmed by reading the
+ * live DocType JSON), so this is a live-summed query, same shape as the Sales Order case.
+ *
+ * This exactly mirrors ERPNext's own `delivery_note.py::get_invoiced_qty_map` (read
+ * directly on the live server): filter Submitted Sales Invoice Item rows by
+ * `delivery_note == deliveryNoteName`, sum `qty` grouped by `dn_detail`. Implemented here
+ * via the same two-step child-table-filter-then-fetch technique as
+ * getBilledQtyBySoDetail (no raw SQL/joins available over REST).
+ */
+export async function getInvoicedQtyByDnDetail(deliveryNoteName: string): Promise<Record<string, number>> {
+  const invoices = await listDocs<{ name: string; docstatus: number }>("Sales Invoice", {
+    fields: ["name", "docstatus"],
+    filters: [["Sales Invoice Item", "delivery_note", "=", deliveryNoteName]],
+    limit: 500,
+  });
+  const submittedNames = Array.from(new Set(invoices.filter((d) => d.docstatus === 1).map((d) => d.name)));
+
+  const docs = await Promise.all(
+    submittedNames.map((invName) => getDoc<SalesInvoiceForDnBilling>("Sales Invoice", invName).catch(() => null)),
+  );
+
+  const invoiced: Record<string, number> = {};
+  for (const doc of docs) {
+    if (!doc) continue; // a 403/404 here means "can't tell" — omit rather than lie.
+    for (const item of doc.items) {
+      if (!item.dn_detail) continue;
+      invoiced[item.dn_detail] = (invoiced[item.dn_detail] ?? 0) + Number(item.qty || 0);
+    }
+  }
+  return invoiced;
+}

@@ -4,34 +4,51 @@ import { DocActionBar } from "@/components/DocActionBar";
 
 type DocActionState = { error?: string } | undefined;
 
+type CreateAction =
+  | { label: string; action: (state: DocActionState, formData: FormData) => Promise<DocActionState> }
+  /** Link variant — used when "Create X" needs an intermediate step (e.g. line
+   * selection for partial fulfillment) rather than a single-click submit. */
+  | { label: string; href: string };
+
 export function ConnectionsPanel({
   connections,
   createAction,
+  createActions,
 }: {
   connections: Connection[];
-  createAction?:
-    | { label: string; action: (state: DocActionState, formData: FormData) => Promise<DocActionState> }
-    /** Link variant — used when "Create X" needs an intermediate step (e.g. line
-     * selection for partial fulfillment) rather than a single-click submit. */
-    | { label: string; href: string };
+  /** Single creation entry point — kept for backwards compatibility with existing callers
+   * (Quotation, Sales Invoice) that only ever offer one "Create X" action. */
+  createAction?: CreateAction;
+  /** Multiple creation entry points shown side by side — needed once a doctype gains more
+   * than one downstream document it can create (Sales Order -> Delivery Note AND Sales
+   * Order -> Sales Invoice). Takes precedence over `createAction` if both are given. */
+  createActions?: CreateAction[];
 }) {
-  if (connections.length === 0 && !createAction) {
+  const actions = createActions ?? (createAction ? [createAction] : []);
+
+  if (connections.length === 0 && actions.length === 0) {
     return <p className="text-sm text-graphite-500">No linked documents.</p>;
   }
 
   return (
     <div className="space-y-6">
-      {createAction &&
-        ("href" in createAction ? (
-          <Link
-            href={createAction.href}
-            className="inline-block rounded-md bg-signal px-4 py-2 text-sm font-medium text-white hover:bg-signal/90"
-          >
-            {createAction.label}
-          </Link>
-        ) : (
-          <DocActionBar action={createAction.action} label={createAction.label} pendingLabel="Creating…" />
-        ))}
+      {actions.length > 0 && (
+        <div className="flex flex-wrap gap-3">
+          {actions.map((action) =>
+            "href" in action ? (
+              <Link
+                key={action.label}
+                href={action.href}
+                className="inline-block rounded-md bg-signal px-4 py-2 text-sm font-medium text-white hover:bg-signal/90"
+              >
+                {action.label}
+              </Link>
+            ) : (
+              <DocActionBar key={action.label} action={action.action} label={action.label} pendingLabel="Creating…" />
+            ),
+          )}
+        </div>
+      )}
 
       {connections.map((connection) => (
         <div key={connection.label}>

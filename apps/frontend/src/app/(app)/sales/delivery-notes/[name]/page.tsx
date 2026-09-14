@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
-import { SalesOrderForm } from "@/components/SalesOrderForm";
+import { AccessDeniedNotice } from "@/components/AccessDeniedNotice";
+import { DeliveryNoteForm } from "@/components/DeliveryNoteForm";
 import { ActivityTimeline } from "@/components/ActivityTimeline";
 import { AddressContactFields } from "@/components/AddressContactFields";
 import { TermsFields } from "@/components/TermsFields";
@@ -12,45 +13,36 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocTabs } from "@/components/DocTabs";
 import { ConnectionsPanel } from "@/components/ConnectionsPanel";
 import { SavedBanner } from "@/components/SavedBanner";
-import { ErpNextError, getDoc } from "@/lib/erpnext";
+import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
 import { getSellingDefaults } from "@/lib/salesDefaults";
 import { listItemOptions } from "@/lib/actions/itemLookup";
 import { fetchLinkOptions } from "@/lib/linkOptions";
 import { getConnections, type Connection } from "@/lib/connections";
 import type { DocStatus } from "@/lib/docStatus";
-import { salesOrderStatus } from "@/lib/erpStatus";
+import { deliveryNoteStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
-import { getBilledQtyBySoDetail } from "@/lib/fulfillment";
-import { cancelSalesOrderAction, submitSalesOrderAction, updateSalesOrderAction } from "../actions";
+import { getInvoicedQtyByDnDetail } from "@/lib/fulfillment";
+import { cancelDeliveryNoteAction, submitDeliveryNoteAction, updateDeliveryNoteAction } from "../actions";
 
-type SalesOrderDoc = {
+type DeliveryNoteDoc = {
   name: string;
   customer: string;
-  transaction_date: string;
-  delivery_date?: string;
-  order_type: string;
+  posting_date: string;
   company: string;
   currency: string;
   selling_price_list: string;
   grand_total: number;
   docstatus: DocStatus;
   status: string;
-  per_delivered: number;
   per_billed: number;
+  is_return?: 0 | 1;
   creation: string;
   owner: string;
   modified: string;
   modified_by: string;
-  items: (LineItemRow & {
-    name: string;
-    prevdoc_docname?: string;
-    quotation_item?: string;
-    /** Real, live stored Float field (confirmed via the live DocType JSON) — see the
-     * hasRemainingToDeliver comment below. */
-    delivered_qty?: number;
-  })[];
+  items: (LineItemRow & { name: string; against_sales_order?: string; warehouse?: string })[];
   customer_address?: string;
   contact_person?: string;
   shipping_address_name?: string;
@@ -58,7 +50,6 @@ type SalesOrderDoc = {
   customer_group?: string;
   address_display?: string;
   contact_display?: string;
-  payment_terms_template?: string;
   tc_name?: string;
   terms?: string;
   title?: string;
@@ -66,7 +57,7 @@ type SalesOrderDoc = {
   po_date?: string;
 };
 
-export default async function SalesOrderDetailPage({
+export default async function DeliveryNoteDetailPage({
   params,
   searchParams,
 }: {
@@ -76,11 +67,19 @@ export default async function SalesOrderDetailPage({
   const { name } = await params;
   const { saved } = await searchParams;
 
-  let doc: SalesOrderDoc;
+  let doc: DeliveryNoteDoc;
   try {
-    doc = await getDoc<SalesOrderDoc>("Sales Order", decodeURIComponent(name));
+    doc = await getDoc<DeliveryNoteDoc>("Delivery Note", decodeURIComponent(name));
   } catch (e) {
     if (e instanceof ErpNextError && e.status === 404) notFound();
+    if (e instanceof ErpNextError && e.status === 403) {
+      return (
+        <div>
+          <h1 className="mb-4 text-2xl font-medium text-graphite-900">{decodeURIComponent(name)}</h1>
+          <AccessDeniedNotice what="this delivery note" />
+        </div>
+      );
+    }
     throw e;
   }
 
@@ -88,48 +87,40 @@ export default async function SalesOrderDetailPage({
     <Breadcrumb
       items={[
         { label: "Home", href: "/" },
-        { label: "Selling", href: "/sales/orders" },
-        { label: "Sales Order", href: "/sales/orders" },
+        { label: "Selling", href: "/sales/delivery-notes" },
+        { label: "Delivery Note", href: "/sales/delivery-notes" },
         { label: doc.customer },
       ]}
     />
   );
 
-  // Upstream reference (the Quotation this order was made from, if any) — read directly
-  // off this doc's own items, exactly how ERPNext's own dashboard does it
-  // (sales_order_dashboard.py: `"internal_links": {"Quotation": ["items", "prevdoc_docname"]}`).
-  // Works even in Draft, unlike the downstream query below, since it's not a separate
-  // permission-checked lookup — the data is already part of the document we fetched.
-  const sourceQuotations = Array.from(
-    new Set(doc.items.map((item) => item.prevdoc_docname).filter((v): v is string => Boolean(v))),
+  // Upstream reference (the Sales Order this delivery note was made from, if any) — read
+  // directly off this doc's own items, same technique the Sales Order detail page already
+  // uses for its own upstream Quotation reference (works even in Draft, since it's part of
+  // the document we already fetched, not a separate permission-checked query).
+  const sourceSalesOrders = Array.from(
+    new Set(doc.items.map((item) => item.against_sales_order).filter((v): v is string => Boolean(v))),
   );
-  const [downstreamConnections, timeline, session, billedByRef] = await Promise.all([
-    getConnections("Sales Order", doc.name),
-    buildTimeline("Sales Order", doc.name, doc),
+  const [downstreamConnections, timeline, session, invoicedByRef] = await Promise.all([
+    getConnections("Delivery Note", doc.name),
+    buildTimeline("Delivery Note", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
-    getBilledQtyBySoDetail(doc.name),
+    getInvoicedQtyByDnDetail(doc.name),
   ]);
   const connections: Connection[] = [
-    { label: "Quotation", href: "/sales/quotations", docs: sourceQuotations },
+    { label: "Sales Order", href: "/sales/orders", docs: sourceSalesOrders },
     ...downstreamConnections,
   ];
-  // Show "Create Sales Invoice" whenever any line still has qty left to invoice —
-  // ERPNext natively supports multiple partial Sales Invoices against one Sales Order
-  // (see docs/ceylon-stack-sales-scenarios.md), so "already has a Sales Invoice" is no
-  // longer the gate. See lib/fulfillment.ts for why billed qty is a live computed query,
-  // not a stored field read.
-  const hasRemainingToInvoice = doc.items.some((item) => item.qty - (billedByRef[item.name] ?? 0) > 1e-6);
-  // Show "Create Delivery Note" whenever any line still has qty left to deliver —
-  // `delivered_qty` is a real, live stored field ERPNext itself maintains (unlike
-  // billedByRef above, no live-summed query is needed here). Mirrors
-  // hasRemainingToInvoice's shape.
-  const hasRemainingToDeliver = doc.items.some((item) => item.qty - (item.delivered_qty ?? 0) > 1e-6);
-  // ERPNext only refuses to cancel over a *submitted* linked Sales Invoice (draft ones
-  // don't block it — see the submittedDocs doc comment in lib/connections.ts). Same
-  // check the server action runs for real; this just tells the user why up front instead
-  // of letting them click Cancel and hit a rejection.
+  // Show "Create Sales Invoice" whenever any line still has qty left to invoice — same
+  // multiple-partial-invoices shape as Sales Order's own create-invoice gate. See
+  // lib/fulfillment.ts's getInvoicedQtyByDnDetail for why this is a live computed query,
+  // not a stored field read (Delivery Note Item has no stored billed-qty field at all).
+  const hasRemainingToInvoice = doc.items.some((item) => item.qty - (invoicedByRef[item.name] ?? 0) > 1e-6);
+  // Same cancel-blocking rule as Sales Order/Quotation: ERPNext only refuses to cancel over
+  // a *submitted* linked Sales Invoice. The server action re-checks this for real; this is
+  // just so the user sees why up front instead of hitting a rejection after clicking Cancel.
   const blockingInvoices = connections.find((c) => c.label === "Sales Invoice")?.submittedDocs ?? [];
-  const status = salesOrderStatus(doc);
+  const status = deliveryNoteStatus(doc);
 
   const header = (
     <div className="mb-4 flex items-center justify-between">
@@ -140,7 +131,11 @@ export default async function SalesOrderDetailPage({
         </div>
       </div>
       {doc.docstatus === 0 && (
-        <DocActionBar action={submitSalesOrderAction.bind(null, doc.name)} label="Submit" pendingLabel="Submitting…" />
+        <DocActionBar
+          action={submitDeliveryNoteAction.bind(null, doc.name)}
+          label="Submit"
+          pendingLabel="Submitting…"
+        />
       )}
       {doc.docstatus === 1 &&
         (blockingInvoices.length > 0 ? (
@@ -158,7 +153,7 @@ export default async function SalesOrderDetailPage({
           </p>
         ) : (
           <DocActionBar
-            action={cancelSalesOrderAction.bind(null, doc.name)}
+            action={cancelDeliveryNoteAction.bind(null, doc.name)}
             label="Cancel"
             pendingLabel="Cancelling…"
             variant="danger"
@@ -170,14 +165,11 @@ export default async function SalesOrderDetailPage({
   const connectionsTab = (
     <ConnectionsPanel
       connections={connections}
-      createActions={[
-        ...(doc.docstatus === 1 && hasRemainingToDeliver
-          ? [{ label: "Create Delivery Note", href: `/sales/orders/${encodeURIComponent(doc.name)}/create-delivery` }]
-          : []),
-        ...(doc.docstatus === 1 && hasRemainingToInvoice
-          ? [{ label: "Create Sales Invoice", href: `/sales/orders/${encodeURIComponent(doc.name)}/create-invoice` }]
-          : []),
-      ]}
+      createAction={
+        doc.docstatus === 1 && hasRemainingToInvoice
+          ? { label: "Create Sales Invoice", href: `/sales/delivery-notes/${encodeURIComponent(doc.name)}/create-invoice` }
+          : undefined
+      }
     />
   );
 
@@ -185,7 +177,12 @@ export default async function SalesOrderDetailPage({
     <ActivityTimeline
       currentUserFullName={session?.fullName ?? ""}
       entries={timeline}
-      postComment={postCommentAction.bind(null, "Sales Order", doc.name, `/sales/orders/${encodeURIComponent(doc.name)}`)}
+      postComment={postCommentAction.bind(
+        null,
+        "Delivery Note",
+        doc.name,
+        `/sales/delivery-notes/${encodeURIComponent(doc.name)}`,
+      )}
     />
   );
 
@@ -195,7 +192,7 @@ export default async function SalesOrderDetailPage({
   let moreInfoTab: React.ReactNode;
 
   if (doc.docstatus === 0) {
-    const [defaults, itemOptions, customers, addresses, contacts, territories, customerGroups, paymentTermsTemplates, termsTemplates] =
+    const [defaults, itemOptions, customers, addresses, contacts, territories, customerGroups, paymentTermsTemplates, termsTemplates, itemFlags] =
       await Promise.all([
         getSellingDefaults(doc.company),
         listItemOptions(),
@@ -206,35 +203,43 @@ export default async function SalesOrderDetailPage({
         fetchLinkOptions("Customer Group"),
         fetchLinkOptions("Payment Terms Template"),
         fetchLinkOptions("Terms and Conditions"),
+        // has_batch_no/has_serial_no are Item master flags, not Delivery Note Item fields —
+        // fetched here so a Draft's already-saved lines still show the batch/serial picker
+        // button on reload, not just right after picking an item client-side.
+        listDocs<{ name: string; has_batch_no?: 0 | 1; has_serial_no?: 0 | 1 }>("Item", {
+          fields: ["name", "has_batch_no", "has_serial_no"],
+          filters: [["name", "in", Array.from(new Set(doc.items.map((i) => i.item_code)))]],
+          limit: 500,
+        }).catch(() => []),
       ]);
+    const flagsByItem = Object.fromEntries(itemFlags.map((i) => [i.name, i]));
 
     detailsTab = (
-      <SalesOrderForm
-        action={updateSalesOrderAction.bind(null, doc.name)}
+      <DeliveryNoteForm
+        action={updateDeliveryNoteAction.bind(null, doc.name)}
         itemOptions={itemOptions}
         customers={customers}
         companies={defaults.companies}
         currency={defaults.currency}
         sellingPriceList={defaults.sellingPriceList}
+        defaultWarehouse={defaults.defaultWarehouse}
         initial={{
           customer: doc.customer,
-          transaction_date: doc.transaction_date,
-          delivery_date: doc.delivery_date,
-          order_type: doc.order_type,
+          posting_date: doc.posting_date,
           company: doc.company,
-          // quotation_item/prevdoc_docname (source_quotation here) round-trip through the edit
-          // form too, not just at initial creation — otherwise re-saving a Draft that came from
-          // either the dedicated create-order flow or "Copy From Quotation" would silently drop
-          // its real ERPNext linkage back to the source Quotation the moment it's edited once.
           items: doc.items.map((i) => ({
             item_code: i.item_code,
             item_name: i.item_name,
             qty: i.qty,
             uom: i.uom,
             rate: i.rate,
-            ...(i.quotation_item && i.prevdoc_docname
-              ? { quotation_item: i.quotation_item, source_quotation: i.prevdoc_docname }
-              : {}),
+            warehouse: i.warehouse,
+            has_batch_no: Boolean(flagsByItem[i.item_code]?.has_batch_no),
+            has_serial_no: Boolean(flagsByItem[i.item_code]?.has_serial_no),
+            // Not re-populated here: an already-attached bundle's own entries aren't
+            // fetched back into the picker on reload (out of scope for this pass — see the
+            // Phase 2C report). Re-opening the picker for an already-bundled line would
+            // start from a fresh FIFO suggestion, not the previously-confirmed selection.
           })),
         }}
       />
@@ -242,7 +247,7 @@ export default async function SalesOrderDetailPage({
 
     addressContactTab = (
       <AddressContactFields
-        formId="sales-order-form"
+        formId="delivery-note-form"
         addresses={addresses}
         contacts={contacts}
         territories={territories}
@@ -259,11 +264,10 @@ export default async function SalesOrderDetailPage({
 
     termsTab = (
       <TermsFields
-        formId="sales-order-form"
+        formId="delivery-note-form"
         paymentTermsTemplates={paymentTermsTemplates}
         termsTemplates={termsTemplates}
         initial={{
-          payment_terms_template: doc.payment_terms_template,
           tc_name: doc.tc_name,
           terms: doc.terms,
         }}
@@ -279,7 +283,7 @@ export default async function SalesOrderDetailPage({
           <input
             id="title"
             name="title"
-            form="sales-order-form"
+            form="delivery-note-form"
             defaultValue={doc.title}
             className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
           />
@@ -292,7 +296,7 @@ export default async function SalesOrderDetailPage({
             <input
               id="po_no"
               name="po_no"
-              form="sales-order-form"
+              form="delivery-note-form"
               defaultValue={doc.po_no}
               className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
             />
@@ -305,7 +309,7 @@ export default async function SalesOrderDetailPage({
               type="date"
               id="po_date"
               name="po_date"
-              form="sales-order-form"
+              form="delivery-note-form"
               defaultValue={doc.po_date}
               className="w-full rounded-md border border-border px-3 py-2 font-mono text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
             />
@@ -318,9 +322,7 @@ export default async function SalesOrderDetailPage({
       <div>
         <dl className="mb-4 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
           <DocField label="Customer" value={doc.customer} />
-          <DocField label="Date" value={doc.transaction_date} mono />
-          <DocField label="Delivery date" value={doc.delivery_date || "—"} mono />
-          <DocField label="Order type" value={doc.order_type} />
+          <DocField label="Posting date" value={doc.posting_date} mono />
           <DocField label="Company" value={doc.company} />
           <DocField label="Grand total" value={`${doc.grand_total.toFixed(2)} ${doc.currency}`} mono />
         </dl>
@@ -342,7 +344,6 @@ export default async function SalesOrderDetailPage({
 
     termsTab = (
       <dl className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
-        <DocField label="Payment terms template" value={doc.payment_terms_template || "—"} />
         <DocField label="Terms and conditions template" value={doc.tc_name || "—"} />
         <DocField label="Terms" value={doc.terms || "—"} />
       </dl>

@@ -36,6 +36,11 @@ export async function createItemAction(_prevState: FormState, formData: FormData
       is_stock_item: formData.get("is_stock_item") ? 1 : 0,
       standard_rate: standardRateRaw ? Number(standardRateRaw) : undefined,
       description: String(formData.get("description") ?? "").trim() || undefined,
+      has_batch_no: formData.get("has_batch_no") ? 1 : 0,
+      has_serial_no: formData.get("has_serial_no") ? 1 : 0,
+      has_expiry_date: formData.get("has_expiry_date") ? 1 : 0,
+      batch_number_series: String(formData.get("batch_number_series") ?? "").trim() || undefined,
+      serial_no_series: String(formData.get("serial_no_series") ?? "").trim() || undefined,
     });
     name = doc.name;
   } catch (e) {
@@ -67,6 +72,11 @@ export async function updateItemAction(
       disabled: formData.get("disabled") ? 1 : 0,
       standard_rate: standardRateRaw ? Number(standardRateRaw) : undefined,
       description: String(formData.get("description") ?? "").trim() || undefined,
+      has_batch_no: formData.get("has_batch_no") ? 1 : 0,
+      has_serial_no: formData.get("has_serial_no") ? 1 : 0,
+      has_expiry_date: formData.get("has_expiry_date") ? 1 : 0,
+      batch_number_series: String(formData.get("batch_number_series") ?? "").trim() || undefined,
+      serial_no_series: String(formData.get("serial_no_series") ?? "").trim() || undefined,
     });
   } catch (e) {
     return { error: humanizeError(e) };

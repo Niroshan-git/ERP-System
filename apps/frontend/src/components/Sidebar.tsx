@@ -9,6 +9,7 @@ const salesLinks = [
   { href: "/sales/items", label: "Items" },
   { href: "/sales/quotations", label: "Quotations" },
   { href: "/sales/orders", label: "Sales Orders" },
+  { href: "/sales/delivery-notes", label: "Delivery Notes" },
   { href: "/sales/invoices", label: "Sales Invoices" },
 ];
 

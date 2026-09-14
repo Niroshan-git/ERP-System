@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import type { FormState } from "@/app/(app)/sales/items/actions";
 
 export function ItemForm({
@@ -21,10 +21,19 @@ export function ItemForm({
     disabled?: 0 | 1;
     standard_rate?: number;
     description?: string;
+    has_batch_no?: 0 | 1;
+    has_serial_no?: 0 | 1;
+    has_expiry_date?: 0 | 1;
+    batch_number_series?: string;
+    serial_no_series?: string;
   };
 }) {
   const [state, formAction, isPending] = useActionState<FormState, FormData>(action, undefined);
   const isEdit = Boolean(initial);
+  // Client-side conditional rendering only — batch_number_series/serial_no_series are only
+  // meaningful once has_batch_no/has_serial_no are actually checked (see items/actions.ts).
+  const [hasBatchNo, setHasBatchNo] = useState(Boolean(initial?.has_batch_no));
+  const [hasSerialNo, setHasSerialNo] = useState(Boolean(initial?.has_serial_no));
 
   return (
     <form action={formAction} className="max-w-xl space-y-4">
@@ -98,6 +107,72 @@ export function ItemForm({
             <input type="checkbox" name="disabled" defaultChecked={Boolean(initial?.disabled)} />
             Disabled
           </label>
+        )}
+      </div>
+
+      {/*
+       * Batch/serial tracking flags — prerequisite plumbing for a later Delivery Note
+       * batch/serial picker (not built yet, see PLAN's Phase 2C). `create_new_batch` and
+       * `shelf_life_in_days` (both real Item fields too) aren't exposed here — out of
+       * scope for this pass, which only wires up what a later picker needs to know
+       * whether to appear at all (has_batch_no/has_serial_no/has_expiry_date) plus the
+       * naming-series companions ERPNext needs to actually create new batches/serials.
+       */}
+      <div className="space-y-3 rounded-md border border-border p-3">
+        <p className="text-sm font-medium text-graphite-900">Batch &amp; serial tracking</p>
+        <div className="flex flex-wrap gap-6">
+          <label className="flex items-center gap-2 text-sm text-graphite-900">
+            <input
+              type="checkbox"
+              name="has_batch_no"
+              checked={hasBatchNo}
+              onChange={(e) => setHasBatchNo(e.target.checked)}
+            />
+            Has batch no
+          </label>
+          <label className="flex items-center gap-2 text-sm text-graphite-900">
+            <input
+              type="checkbox"
+              name="has_serial_no"
+              checked={hasSerialNo}
+              onChange={(e) => setHasSerialNo(e.target.checked)}
+            />
+            Has serial no
+          </label>
+          <label className="flex items-center gap-2 text-sm text-graphite-900">
+            <input type="checkbox" name="has_expiry_date" defaultChecked={Boolean(initial?.has_expiry_date)} />
+            Has expiry date
+          </label>
+        </div>
+
+        {hasBatchNo && (
+          <div>
+            <label htmlFor="batch_number_series" className="mb-1 block text-sm font-medium text-graphite-900">
+              Batch number series
+            </label>
+            <input
+              id="batch_number_series"
+              name="batch_number_series"
+              placeholder="e.g. BATCH-.####"
+              defaultValue={initial?.batch_number_series}
+              className="w-full rounded-md border border-border px-3 py-2 font-mono text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
+            />
+          </div>
+        )}
+
+        {hasSerialNo && (
+          <div>
+            <label htmlFor="serial_no_series" className="mb-1 block text-sm font-medium text-graphite-900">
+              Serial no series
+            </label>
+            <input
+              id="serial_no_series"
+              name="serial_no_series"
+              placeholder="e.g. SR-.####"
+              defaultValue={initial?.serial_no_series}
+              className="w-full rounded-md border border-border px-3 py-2 font-mono text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
+            />
+          </div>
         )}
       </div>
 

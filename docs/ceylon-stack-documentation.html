@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ceylon Stack Documentation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300..900;1,300..900&family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+  :root{
+    --sapphire:#21407A; --sapphire-tint:#E7ECF6; --sapphire-strong:#16264A;
+    --cinnamon:#A85C31; --cinnamon-tint:#F3E4D8;
+    --tea:#3D7A56; --tea-tint:#E1EEE5;
+    --turmeric:#B87A1E; --turmeric-tint:#F6E9D2;
+    --terracotta:#AD4034; --terracotta-tint:#F5E1DE;
+    --bg:#F2F4F9; --surface:#FFFFFF; --surface-alt:#E9EDF4; --border:#D6DDE8;
+    --ink:#181E2B; --ink-soft:#525C70; --ink-faint:#7C8598;
+    --accent:#21407A; --code-bg:#0F1420;
+    --shadow: 0 1px 2px rgba(20,28,50,.06), 0 8px 24px rgba(20,28,50,.06);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#10131A; --surface:#161A23; --surface-alt:#1D2230; --border:#2A3142;
+      --ink:#E9EDF6; --ink-soft:#A6B0C4; --ink-faint:#78829A;
+      --accent:#6E93D8; --sapphire:#6E93D8; --sapphire-tint:#1C2A47;
+      --cinnamon:#D89566; --cinnamon-tint:#3A2A1E;
+      --tea:#6FBE90; --tea-tint:#1C3226;
+      --turmeric:#E3AA52; --turmeric-tint:#3A2E18;
+      --terracotta:#E17A6B; --terracotta-tint:#3B2320;
+      --code-bg:#0A0D14;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#10131A; --surface:#161A23; --surface-alt:#1D2230; --border:#2A3142;
+    --ink:#E9EDF6; --ink-soft:#A6B0C4; --ink-faint:#78829A;
+    --accent:#6E93D8; --sapphire:#6E93D8; --sapphire-tint:#1C2A47;
+    --cinnamon:#D89566; --cinnamon-tint:#3A2A1E;
+    --tea:#6FBE90; --tea-tint:#1C3226;
+    --turmeric:#E3AA52; --turmeric-tint:#3A2E18;
+    --terracotta:#E17A6B; --terracotta-tint:#3B2320;
+    --code-bg:#0A0D14;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 12px 28px rgba(0,0,0,.35);
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth; color-scheme:light dark;}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:"IBM Plex Sans",ui-sans-serif,sans-serif; font-size:15.5px; line-height:1.6;}
+  h1,h2,h3,h4{font-family:"Archivo",sans-serif; text-wrap:balance; margin:0 0 8px;}
+  p{margin:0 0 14px; max-width:70ch; color:var(--ink-soft);}
+  code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;}
+  a{color:var(--accent);}
+  ul,ol{margin:0 0 14px; padding-left:1.2em;}
+  li{margin-bottom:6px; color:var(--ink-soft);}
+  table{border-collapse:collapse; width:100%; font-size:.9rem; margin-bottom:16px;}
+  th,td{text-align:left; padding:9px 10px; border-bottom:1px solid var(--border); vertical-align:top;}
+  th{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-faint); font-weight:500;}
+
+  /* ---- shell / topbar ---- */
+  .topbar{
+    position:sticky; top:0; z-index:20; display:flex; align-items:center; gap:12px;
+    padding:12px 18px; background:var(--surface); border-bottom:1px solid var(--border);
+  }
+  .topbar .brand{display:flex; align-items:center; gap:10px; font-family:"Fraunces",serif; font-weight:600; font-size:1.15rem;}
+  .topbar .tag{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--ink-faint); letter-spacing:.05em; margin-left:auto;}
+  .menu-btn{display:none; border:1px solid var(--border); background:var(--surface-alt); border-radius:8px; padding:7px 10px; font-family:"IBM Plex Sans",sans-serif; font-size:13px; color:var(--ink); cursor:pointer;}
+
+  .shell{display:flex; align-items:flex-start; max-width:1320px; margin:0 auto;}
+  .sidebar{
+    width:272px; flex:none; position:sticky; top:57px; align-self:flex-start;
+    max-height:calc(100vh - 57px); overflow-y:auto; padding:22px 14px 60px;
+    border-right:1px solid var(--border);
+  }
+  .sidebar .grp{margin-bottom:20px;}
+  .sidebar .grp-title{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); padding:0 10px; margin-bottom:6px;}
+  .sidebar a{display:block; padding:6px 10px; border-radius:7px; color:var(--ink-soft); text-decoration:none; font-size:13.5px;}
+  .sidebar a:hover{background:var(--surface-alt); color:var(--ink);}
+  .sidebar a.sub{padding-left:20px; font-size:12.8px; color:var(--ink-faint);}
+  .sidebar a.sub:hover{color:var(--ink-soft);}
+
+  main.content{flex:1; min-width:0; padding:36px 40px 100px; max-width:900px;}
+  section{margin-bottom:58px; scroll-margin-top:74px;}
+  section > .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--sapphire); display:block; margin-bottom:8px;}
+  section > h2{font-size:1.65rem; margin-bottom:10px;}
+  section > .lede{font-size:1.02rem; color:var(--ink-soft); max-width:66ch; margin-bottom:24px;}
+  h3.sub-h{font-size:1.18rem; margin-top:30px; padding-top:22px; border-top:1px solid var(--border); display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  h3.sub-h:first-of-type{border-top:none; padding-top:0; margin-top:16px;}
+  h4{font-size:.98rem; margin-top:18px;}
+
+  .card{background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px 22px; box-shadow:var(--shadow); margin-bottom:16px;}
+  .card + .card{margin-top:12px;}
+  .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  @media (max-width:760px){.grid-2,.grid-3{grid-template-columns:1fr;}}
+
+  .pill{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:.74rem; font-weight:600; margin:0 6px 6px 0; white-space:nowrap;}
+  .pill.sapphire{background:var(--sapphire-tint); color:var(--sapphire);}
+  .pill.cinnamon{background:var(--cinnamon-tint); color:var(--cinnamon);}
+  .pill.tea{background:var(--tea-tint); color:var(--tea);}
+  .pill.turmeric{background:var(--turmeric-tint); color:var(--turmeric);}
+  .pill.terracotta{background:var(--terracotta-tint); color:var(--terracotta);}
+  .dot{width:6px; height:6px; border-radius:50%; display:inline-block; background:currentColor;}
+
+  /* status badges used next to every feature heading */
+  .status{display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; font-family:"IBM Plex Mono",monospace; font-size:.68rem; font-weight:500; letter-spacing:.04em; text-transform:uppercase; flex:none;}
+  .status.live{background:var(--tea-tint); color:var(--tea);}
+  .status.building{background:var(--turmeric-tint); color:var(--turmeric);}
+  .status.planned{background:var(--surface-alt); color:var(--ink-faint); border:1px solid var(--border);}
+
+  .feat-list{list-style:none; margin:0 0 14px; padding:0;}
+  .feat-list li{display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--border); color:var(--ink-soft);}
+  .feat-list li:last-child{border-bottom:none;}
+  .feat-list .status{margin-top:1px;}
+  .feat-list strong{color:var(--ink); font-weight:600;}
+
+  .quote{font-family:"Fraunces",serif; font-style:italic; font-size:1.1rem; color:var(--ink); border-left:3px solid var(--sapphire); padding:4px 0 4px 18px; margin:14px 0;}
+  .codeblock{background:var(--code-bg); color:#D7E1F5; border-radius:10px; padding:14px 16px; font-family:"IBM Plex Mono",monospace; font-size:.82rem; overflow-x:auto; margin-bottom:16px; white-space:pre;}
+  .callout{border-radius:12px; padding:14px 18px; margin-bottom:16px; font-size:.9rem;}
+  .callout p{margin:0; color:inherit;}
+  .callout p + p{margin-top:8px;}
+  .callout.warn{background:var(--turmeric-tint); color:var(--turmeric);}
+  .callout.info{background:var(--sapphire-tint); color:var(--sapphire);}
+  .callout.good{background:var(--tea-tint); color:var(--tea);}
+
+  .legend-row{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;}
+
+  footer{padding:30px 40px 60px; color:var(--ink-faint); font-size:.8rem; border-top:1px solid var(--border); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;}
+
+  @media (max-width:640px){
+    .topbar .tag{display:none;}
+  }
+  @media (max-width:900px){
+    .menu-btn{display:inline-block;}
+    .sidebar{position:fixed; top:53px; left:0; bottom:0; z-index:30; background:var(--bg); transform:translateX(-102%); transition:transform .18s ease; width:80vw; max-width:320px; box-shadow:var(--shadow);}
+    .sidebar.open{transform:translateX(0);}
+    main.content{padding:26px 20px 80px;}
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <button class="menu-btn" id="menuBtn" aria-label="Toggle navigation">☰ Menu</button>
+  <div class="brand">
+    <svg width="24" height="24" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <polygon points="32,5 55,23 45,50 32,60 19,50 9,23" fill="var(--sapphire)"/>
+      <polygon points="32,5 55,23 9,23" fill="#ffffff" opacity="0.28"/>
+    </svg>
+    Ceylon Stack
+  </div>
+  <span class="tag">PRODUCT DOCUMENTATION</span>
+</div>
+
+<div class="shell">
+  <nav class="sidebar" id="sidebar">
+    <div class="grp">
+      <div class="grp-title">Overview</div>
+      <a href="#overview">What is Ceylon Stack</a>
+      <a href="#how-to-read">How to read this page</a>
+      <a href="#architecture">Architecture</a>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Live Today</div>
+      <a href="#erpnext-core" class="sub">ERPNext Core &amp; Desk Branding</a>
+      <a href="#product-portfolio" class="sub">Product Portfolio &amp; Hosting</a>
+      <a href="#frontend-platform" class="sub">Ceylon Stack Frontend — Platform</a>
+      <a href="#frontend-sales" class="sub">Sales Documents</a>
+      <a href="#frontend-fulfillment" class="sub">Partial Fulfillment &amp; Copy From</a>
+      <a href="#frontend-ops" class="sub">Reports, Bulk Actions &amp; Settings</a>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Upcoming</div>
+      <a href="#roadmap-sales" class="sub">Sales Module — Next Phases</a>
+      <a href="#roadmap-manufacturing" class="sub">Manufacturing &amp; OEE</a>
+      <a href="#roadmap-agents" class="sub">AI Agents (MCP)</a>
+      <a href="#roadmap-portfolio" class="sub">Product Portfolio — Next</a>
+      <a href="#roadmap-platform" class="sub">Platform Hardening</a>
+    </div>
+    <div class="grp">
+      <div class="grp-title">Reference</div>
+      <a href="#licensing">Licensing (GPL-3.0)</a>
+      <a href="#changelog">Changelog &amp; Sources</a>
+    </div>
+  </nav>
+
+  <main class="content">
+
+    <section id="overview">
+      <span class="eyebrow">01 — Overview</span>
+      <h2>What Ceylon Stack Is</h2>
+      <p class="lede">A business platform for Sri Lankan manufacturers and service businesses, built on ERPNext — open-source, enterprise-grade business software — with a purpose-built client dashboard and a real-time factory floor layer on top.</p>
+      <p>ERPNext helps a company stay on top of operations: inventory, finance, sales, purchasing, projects, and more — all built in, with no paywalled modules. Ceylon Stack takes that proven core, keeps it completely unmodified, and adds a custom-built client-facing dashboard plus (once the manufacturing layer ships) live machine and shop-floor data — the parts ERPNext doesn't ship out of the box.</p>
+      <div class="callout info"><p><strong>Positioning line:</strong> "Ceylon Stack — the smart factory platform for manufacturers who need more than a spreadsheet and less than an SAP rollout."</p></div>
+      <p>This page documents the product itself — what's actually built and running today, and what's next. For the full market pitch (industries, packaging, go-to-market) see the internal playbook; for brand assets and visual identity see the brand package — both referenced in <a href="#changelog">Changelog &amp; Sources</a> below.</p>
+    </section>
+
+    <section id="how-to-read">
+      <span class="eyebrow">02 — Overview</span>
+      <h2>How to Read This Page</h2>
+      <p class="lede">Every feature below is labeled with one of three statuses. Nothing here is marketing copy — a "Live" label means it is running against the real ERPNext instance today, not a mockup.</p>
+      <div class="legend-row">
+        <span class="status live"><span class="dot"></span>Live</span>
+        <span class="status building"><span class="dot"></span>Building</span>
+        <span class="status planned"><span class="dot"></span>Planned</span>
+      </div>
+      <p style="margin-bottom:0;"><strong>Live</strong> — shipped and verified against the real ERPNext instance. <strong>Building</strong> — actively in development, partially working. <strong>Planned</strong> — scoped and sequenced, not started.</p>
+      <div class="callout warn"><p><strong>This build is not yet public.</strong> Everything documented here runs on a private pilot instance (Hetzner-hosted) used for internal development and demos. This page itself is prepared ahead of a real domain — publish only once that's ready, per the "Once domain is ok we'll publish" note this doc was built against.</p></div>
+    </section>
+
+    <section id="architecture">
+      <span class="eyebrow">03 — Overview</span>
+      <h2>The Headless Stack</h2>
+      <p class="lede">One rule underpins everything below: ERPNext/Frappe core is never modified. Everything custom talks to it only through its REST API.</p>
+      <div class="codeblock">Shop floor / IoT  →  MES (mes-service)  →  ERPNext core (+ custom apps)  →  Frontend
+   sensors, simulator     MQTT → OEE calc       unmodified core,           Next.js dashboard,
+   (planned)                → writes to ERPNext   custom DocTypes            client-facing UI</div>
+      <div class="grid-2">
+        <div class="card">
+          <h4>Why headless</h4>
+          <p style="margin-bottom:0;">A client that only calls an API is not a derivative work under GPL-3.0. That's what makes the custom apps and frontend genuinely proprietary, sellable IP — separate from ERPNext's own license.</p>
+        </div>
+        <div class="card">
+          <h4>Repo layout</h4>
+          <p style="margin-bottom:0;"><code>apps/smart_factory</code> · <code>apps/ceylon_services</code> · <code>apps/mcp-server</code> · <code>apps/mes-service</code> · <code>apps/frontend</code> — one monorepo, one folder per service.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="erpnext-core">
+      <span class="eyebrow">04 — Live Today</span>
+      <h2>ERPNext Core &amp; Desk Branding <span class="status live"><span class="dot"></span>Live</span></h2>
+      <p class="lede">The ERP core itself, fully rebranded, hosted on a Hetzner Cloud server in Helsinki (Docker: ERPNext + MariaDB + Redis).</p>
+      <ul class="feat-list">
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Full Desk chrome rebrand</strong> — navbar, sidebar, app-switcher label, splash screen, favicon, login/loading branding all replaced with real Ceylon Stack logo assets and color tokens, via a custom Frappe app's <code>boot_session</code>/<code>app_include_css</code>/<code>app_include_js</code> hooks — no ERPNext core file touched.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Full accounting &amp; operations core</strong> — Chart of Accounts, General Ledger, Selling, Buying, Stock, Projects, Assets, Quality, Support, POS, and Website modules all ship with ERPNext itself and are available out of the box.</div></li>
+        <li><span class="status planned"><span class="dot"></span>Planned</span><div><strong>Login page &amp; print-format branding</strong> — authenticated Desk chrome is done; the public login screen and invoice/quotation print formats/letterheads still use default ERPNext styling.</div></li>
+      </ul>
+    </section>
+
+    <section id="product-portfolio">
+      <span class="eyebrow">05 — Live Today</span>
+      <h2>Product Portfolio &amp; Multi-Tenant Hosting <span class="status live"><span class="dot"></span>Live</span></h2>
+      <p class="lede">Ceylon Stack isn't scoped to one ERP install — it's a whitelabeled portfolio of Frappe's own official apps, each client hosted on their own isolated site.</p>
+      <ul class="feat-list">
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Genuine multi-tenancy</strong> — each client gets an isolated Frappe site/database on the same server (proven with a real second live site alongside the manufacturing pilot), reachable at its own URL with zero client-side configuration.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Lightweight workspace curation per client type</strong> — a manufacturing client sees the full ERPNext module surface; a service-business client (gym/salon/retail-style) sees an allow-listed, simplified workspace set instead of every ERPNext module — same core, different presentation.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Frappe HR</strong> — the second whitelabeled product on top of the ERP core: attendance, leave, payroll, recruitment, and employee lifecycle. Payroll's posting into ERPNext's own General Ledger has been verified end to end with real Journal Entries and GL Entries, not just configured — no custom sync code needed.</div></li>
+      </ul>
+    </section>
+
+    <section id="frontend-platform">
+      <span class="eyebrow">06 — Live Today</span>
+      <h2>Ceylon Stack Frontend — Platform <span class="status live"><span class="dot"></span>Live</span></h2>
+      <p class="lede">A Next.js dashboard that replaces ERPNext's own Desk UI for day-to-day users, talking to ERPNext purely through its REST API.</p>
+      <ul class="feat-list">
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Login &amp; app shell</strong> — email/password login, a sidebar grouped the way ERPNext's own Selling workspace is organized (Sales / Items &amp; Pricing / Setup), and a Selling workspace home page.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Customer &amp; Item, plus 9 Selling-module masters</strong> — Customer Group, Territory, Item Group, Price List, Sales Person, Sales Partner, Contact, Address, Campaign — full list/create/edit for every one.</div></li>
+        <li><span class="status building"><span class="dot"></span>Building</span><div><strong>Per-user permissions</strong> — every logged-in person currently shares one service account's ERPNext access, gated only by what the UI exposes; ERPNext's own per-user role rules aren't enforced yet at the data layer.</div></li>
+      </ul>
+    </section>
+
+    <section id="frontend-sales">
+      <span class="eyebrow">07 — Live Today</span>
+      <h2>Sales Documents <span class="status live"><span class="dot"></span>Live</span></h2>
+      <p class="lede">The core Quotation → Sales Order → Sales Invoice flow, matching ERPNext's real document lifecycle rather than a simplified rebuild.</p>
+      <ul class="feat-list">
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Quotation, Sales Order, Sales Invoice</strong> — full child-table line-item editing, and the real Draft → Submitted → Cancelled workflow ERPNext itself enforces.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Tab layout &amp; Connections</strong> — Details / Address &amp; Contact / Terms / More Info / Connections tabs on every sales document, mirroring ERPNext Desk's own form layout, with real linked-document tracking between Quotation → Sales Order → Sales Invoice.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Comments &amp; Activity</strong> — a tabbed history view on each document, matching ERPNext's own audit trail.</div></li>
+        <li><span class="status planned"><span class="dot"></span>Planned</span><div><strong>Real Pricing Rule &amp; discounts</strong> — line rate today is a flat lookup of the Item's own standard rate; no customer-specific/quantity-tier pricing or document-level discount field yet. See <a href="#roadmap-sales">Sales Module — Next Phases</a>.</div></li>
+      </ul>
+    </section>
+
+    <section id="frontend-fulfillment">
+      <span class="eyebrow">08 — Live Today</span>
+      <h2>Partial Fulfillment &amp; Copy From Quotation <span class="status live"><span class="dot"></span>Live</span></h2>
+      <p class="lede">The most recent and most structurally significant piece of the Sales module: real partial-document tracking, plus a SAP B1-style "Copy From" flow for building one Sales Order out of several Quotations.</p>
+      <ul class="feat-list">
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Multiple partial Sales Orders from one Quotation</strong> — accept a Quotation line by line and in partial quantities, using ERPNext's own real remaining-quantity tracking rather than a simplified one-shot copy. A second, different partial order against the same Quotation for the remaining lines is fully supported.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Multiple partial Sales Invoices from one Sales Order</strong> — same real remaining-quantity model applied one document later in the chain.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Copy From Quotation</strong> — from a new Sales Order, select one or more of the customer's open Quotations (checkbox multi-select), choose which lines and quantities to bring across, and apply them to the order being drafted — the same "Copy From" pattern SAP B1 offers, and a scenario ERPNext doesn't support natively (an ERPNext Sales Order normally links to a single source Quotation). Copied lines carry the real ERPNext linkage back to their source Quotation line, so they show up under that Quotation's own Connections tab and count against its real remaining quantity, the same as a document built the standard way.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Cross-company protection</strong> — the Copy From picker only offers Quotations belonging to the Sales Order's own Company, preventing the ERPNext-level validation error a cross-company copy would otherwise cause at save time.</div></li>
+      </ul>
+    </section>
+
+    <section id="frontend-ops">
+      <span class="eyebrow">09 — Live Today</span>
+      <h2>Reports, Bulk Actions &amp; Settings <span class="status live"><span class="dot"></span>Live</span></h2>
+      <ul class="feat-list">
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Reports hub</strong> — the majority of ERPNext's native Selling-module reports rendered directly in the dashboard, run through ERPNext's own report engine rather than reimplemented.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Bulk Sales Order actions</strong> — close/reopen in bulk from the list view, matching ERPNext Desk's own list actions.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Selling Settings</strong> — the dashboard-side view of ERPNext's own Selling Settings doctype.</div></li>
+      </ul>
+    </section>
+
+    <section id="roadmap-sales">
+      <span class="eyebrow">10 — Upcoming</span>
+      <h2>Sales Module — Next Phases <span class="status planned"><span class="dot"></span>Planned</span></h2>
+      <p class="lede">Three remaining phases of the current Sales-module plan, sequenced to close the gap against ERPNext's own native scenario coverage (Quotation → Sales Order → Delivery Note → Sales Invoice → Payment).</p>
+      <div class="grid-3">
+        <div class="card"><h4>Delivery Note</h4><p style="margin-bottom:0;">A new document surface for the missing link in the chain — Sales Order → Delivery Note → Sales Invoice — using the same partial-quantity selection model already live for Sales Orders and Invoices.</p></div>
+        <div class="card"><h4>Quotation Lifecycle</h4><p style="margin-bottom:0;">"Set as Lost" with a Lost Reason, and Amend-after-cancel across Quotation, Sales Order, and Sales Invoice — creating a new linked draft from a cancelled document instead of starting over.</p></div>
+        <div class="card"><h4>Pricing Rule &amp; Discounts</h4><p style="margin-bottom:0;">Real customer-specific and quantity-tier pricing via ERPNext's own Pricing Rule engine, plus a document-level discount field on every sales document.</p></div>
+      </div>
+    </section>
+
+    <section id="roadmap-manufacturing">
+      <span class="eyebrow">11 — Upcoming</span>
+      <h2>Manufacturing &amp; OEE (Smart Factory) <span class="status building"><span class="dot"></span>Building</span></h2>
+      <p class="lede">The layer that gives Ceylon Stack its name — live machine and shop-floor visibility on top of ERPNext's Manufacturing module.</p>
+      <ul class="feat-list">
+        <li><span class="status building"><span class="dot"></span>Building</span><div><strong>Manufacturing master data</strong> — real Items, BOMs, Work Orders, and Job Cards created in ERPNext as the foundation for OEE calculation; the Ideal Cycle Time formula has been derived and corrected against this real data.</div></li>
+        <li><span class="status planned"><span class="dot"></span>Planned</span><div><strong>MES / OEE service</strong> — a separate FastAPI service ingesting machine/sensor data (MQTT), calculating OEE, and pushing status back into ERPNext via its REST API — not started.</div></li>
+        <li><span class="status planned"><span class="dot"></span>Planned</span><div><strong>Manufacturing dashboard in the frontend</strong> — currently shown as a greyed "coming soon" entry in the sidebar.</div></li>
+      </ul>
+    </section>
+
+    <section id="roadmap-agents">
+      <span class="eyebrow">12 — Upcoming</span>
+      <h2>AI Agents (MCP) <span class="status planned"><span class="dot"></span>Planned</span></h2>
+      <p class="lede">An MCP server exposing scoped ERPNext tools, with a roster of specialist agents (Manufacturing Floor, Apparel &amp; Textile, Agro-Processing, Quality &amp; Compliance, Finance &amp; Reporting, Inventory &amp; Procurement) on top of it — designed, not yet built.</p>
+      <div class="callout warn"><p><strong>Sequencing:</strong> gated behind a full walkthrough of the live ERPNext instance (not yet run) and the MCP tool-server build itself (not started). The agent roster is fully specified so it's ready to build once those two steps land — it should not be pitched as available before then.</p></div>
+    </section>
+
+    <section id="roadmap-portfolio">
+      <span class="eyebrow">13 — Upcoming</span>
+      <h2>Product Portfolio — Next <span class="status planned"><span class="dot"></span>Planned</span></h2>
+      <p class="lede">Frappe HR proved the whitelabel-more-apps model works. The same pattern is scoped for further official Frappe apps as future Ceylon Stack products.</p>
+      <div class="grid-3">
+        <div class="card"><h4>CRM</h4><p style="margin-bottom:0;">Lead/opportunity pipeline ahead of the Quotation stage already live today.</p></div>
+        <div class="card"><h4>Helpdesk</h4><p style="margin-bottom:0;">Customer-facing support ticketing, separate from ERPNext's built-in Support module.</p></div>
+        <div class="card"><h4>Insights</h4><p style="margin-bottom:0;">Self-serve BI/reporting across whichever apps a client has installed.</p></div>
+      </div>
+    </section>
+
+    <section id="roadmap-platform">
+      <span class="eyebrow">14 — Upcoming</span>
+      <h2>Platform Hardening <span class="status planned"><span class="dot"></span>Planned</span></h2>
+      <ul class="feat-list">
+        <li><span class="status planned"><span class="dot"></span>Planned</span><div><strong>Full per-user ERPNext sessions</strong> — replacing the current single-service-account proxy so ERPNext's own permission rules apply per logged-in person, not just per what the UI exposes.</div></li>
+        <li><span class="status planned"><span class="dot"></span>Planned</span><div><strong>Custom Docker image build</strong> — today's custom-app deployment relies on manual container file copies that don't survive certain container recreations; a proper baked image is needed before this is production-safe for real client traffic.</div></li>
+        <li><span class="status planned"><span class="dot"></span>Planned</span><div><strong>Sri Lanka tax pack</strong> — VAT/SVAT/WHT handling, which ERPNext does not ship a regional pack for, delivered as a standard implementation customization per client.</div></li>
+        <li><span class="status planned"><span class="dot"></span>Planned</span><div><strong>Mobile / PWA support</strong> — installable app support for the frontend dashboard.</div></li>
+      </ul>
+    </section>
+
+    <section id="licensing">
+      <span class="eyebrow">15 — Reference</span>
+      <h2>Licensing (GPL-3.0)</h2>
+      <p>ERPNext is fully open-source under GPL-3.0 — no licensing fees, no locked modules, no vendor lock-in. Because it's GPL-3.0 (not AGPL), the source-disclosure obligation is triggered by <em>distributing</em> a modified copy, not by hosting it as a service — when Ceylon Stack is delivered as hosted SaaS, that obligation is most likely never triggered. The custom layers — the Frappe apps and the frontend — stay proprietary as long as they only ever communicate with ERPNext through its REST API. That's the entire reason the headless architecture in <a href="#architecture">Architecture</a> exists.</p>
+      <div class="quote">"Ceylon Stack is built on ERPNext, a mature open-source ERP used by tens of thousands of companies worldwide — a complete, battle-tested core with no licensing fees and full ownership of the data — with a purpose-built dashboard and factory-floor layer on top that ERPNext doesn't ship out of the box."</div>
+    </section>
+
+    <section id="changelog">
+      <span class="eyebrow">16 — Reference</span>
+      <h2>Changelog &amp; Sources</h2>
+      <p class="lede">This page is a living document — update it as features ship or the roadmap shifts, rather than letting it drift out of date.</p>
+      <table>
+        <thead><tr><th>Date</th><th>Update</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">2026-09-14</td><td>First version. Documents the Sales module (Quotation/Sales Order/Sales Invoice, partial fulfillment, Copy From Quotation), the ERPNext/Desk rebrand, the Frappe HR product, and multi-tenant hosting as Live; Delivery Note, Quotation lifecycle, Pricing Rule &amp; discounts, Manufacturing/OEE, and MCP Agents as the roadmap.</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-bottom:0;">Sources: <code>PROGRESS.md</code>, <code>PLAN.md</code>, <code>apps/frontend/README.md</code>, <code>docs/ceylon-stack-sales-scenarios.md</code>, <code>docs/ceylon-stack-playbook.html</code> (full market pitch), and <code>docs/brand/ceylon-stack-branding.html</code> (visual identity reference this page's styling is drawn from).</p>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <span>Ceylon Stack — Product Documentation</span>
+  <span>Private build reference, prepared ahead of public domain publish · Last updated 2026-09-14</span>
+</footer>
+
+<script>
+(function(){
+  var btn = document.getElementById('menuBtn');
+  var sidebar = document.getElementById('sidebar');
+  if(!btn || !sidebar) return;
+  btn.addEventListener('click', function(){ sidebar.classList.toggle('open'); });
+  sidebar.querySelectorAll('a').forEach(function(a){
+    a.addEventListener('click', function(){ sidebar.classList.remove('open'); });
+  });
+})();
+</script>
+
+</body>
+</html>

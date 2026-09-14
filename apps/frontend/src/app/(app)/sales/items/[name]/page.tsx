@@ -14,6 +14,11 @@ type ItemDoc = {
   disabled: 0 | 1;
   standard_rate: number;
   description?: string;
+  has_batch_no?: 0 | 1;
+  has_serial_no?: 0 | 1;
+  has_expiry_date?: 0 | 1;
+  batch_number_series?: string;
+  serial_no_series?: string;
 };
 
 export default async function EditItemPage({ params }: { params: Promise<{ name: string }> }) {

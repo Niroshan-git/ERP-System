@@ -92,3 +92,35 @@ const SALES_INVOICE_STATUS_TONE: Record<string, StatusTone> = {
 export function salesInvoiceStatus(doc: { status: string }): StatusDisplay {
   return { label: doc.status, tone: SALES_INVOICE_STATUS_TONE[doc.status] ?? "neutral" };
 }
+
+/**
+ * Mirrors `delivery_note_list.js`'s `get_indicator` (confirmed on the live server, function
+ * body read directly, not guessed):
+ * ```
+ * is_return && status=="Return"   -> "Return"            (gray)
+ * status=="Closed"                -> "Closed"             (green)
+ * status=="Return Issued"         -> "Return Issued"      (grey)
+ * per_billed == 0                 -> "To Bill"            (orange)
+ * 0 < per_billed < 100            -> "Partially Billed"   (yellow)
+ * per_billed == 100               -> "Completed"          (green)
+ * ```
+ * Delivery Note has no `delivery_date`/`per_delivered` of its own (those are Sales Order
+ * Item concepts) — this doc's live-relevant fields are `per_billed` and `is_return`
+ * instead, so unlike `salesOrderStatus` there's no date-driven "Overdue" override here.
+ * Draft/Cancelled short-circuit the same way `salesOrderStatus` does.
+ */
+export function deliveryNoteStatus(doc: {
+  status: string;
+  docstatus: DocStatus;
+  per_billed: number;
+  is_return?: 0 | 1;
+}): StatusDisplay {
+  if (doc.docstatus === 0) return { label: "Draft", tone: "neutral" };
+  if (doc.docstatus === 2) return { label: "Cancelled", tone: "alert" };
+  if (doc.is_return && doc.status === "Return") return { label: "Return", tone: "neutral" };
+  if (doc.status === "Closed") return { label: "Closed", tone: "success" };
+  if (doc.status === "Return Issued") return { label: "Return Issued", tone: "neutral" };
+  if (doc.per_billed === 0) return { label: "To Bill", tone: "alert" };
+  if (doc.per_billed < 100) return { label: "Partially Billed", tone: "alert" };
+  return { label: "Completed", tone: "success" };
+}

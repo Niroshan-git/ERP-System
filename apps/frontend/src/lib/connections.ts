@@ -62,8 +62,30 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
       filterField: "sales_order",
       hrefBase: "/sales/invoices",
     },
+    {
+      label: "Delivery Note",
+      parentDoctype: "Delivery Note",
+      childDoctype: "Delivery Note Item",
+      filterField: "against_sales_order",
+      hrefBase: "/sales/delivery-notes",
+    },
   ],
   "Sales Invoice": [],
+  "Delivery Note": [
+    {
+      label: "Sales Invoice",
+      parentDoctype: "Sales Invoice",
+      childDoctype: "Sales Invoice Item",
+      // Live-verified 2026-09-14: `dn_detail` on Sales Invoice Item is the specific
+      // Delivery Note Item ROW's own name (e.g. "6v43m4ifmm"), not the parent Delivery
+      // Note's name — filtering on it here always returned zero results even for real
+      // Submitted invoices. `delivery_note` is the field that actually holds the parent
+      // Delivery Note's name (matches getInvoicedQtyByDnDetail in lib/fulfillment.ts,
+      // which already used the correct field).
+      filterField: "delivery_note",
+      hrefBase: "/sales/invoices",
+    },
+  ],
 };
 
 export async function getConnections(doctype: string, name: string): Promise<Connection[]> {
