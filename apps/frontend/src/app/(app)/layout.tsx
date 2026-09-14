@@ -11,11 +11,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const fullName = session?.fullName ?? "";
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Topbar fullName={fullName} />
-        <main className="min-w-0 flex-1 px-6 py-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-y-auto px-6 py-6">{children}</main>
       </div>
     </div>
   );

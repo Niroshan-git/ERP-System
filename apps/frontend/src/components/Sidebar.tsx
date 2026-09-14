@@ -245,17 +245,41 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`relative flex shrink-0 flex-col bg-graphite-900 text-white transition-[width] ${
+      className={`relative flex h-full shrink-0 flex-col overflow-hidden bg-graphite-900 text-white transition-[width] ${
         collapsed ? "w-14" : "w-56"
       }`}
     >
-      <div className="flex items-center gap-2 px-4 py-4">
-        <Link href="/" className="flex min-w-0 items-center gap-2">
-          <Image src="/brand/logo-mark-reverse.svg" alt="" width={22} height={22} className="shrink-0" />
+      <div className="px-4 py-4">
+        <div className="flex items-center justify-between gap-2">
+          <Link href="/" className="flex min-w-0 items-center gap-2">
+            <Image src="/brand/logo-mark-reverse.svg" alt="" width={22} height={22} className="shrink-0" />
+            {!collapsed && (
+              <span className="truncate text-sm font-semibold tracking-tight">Ceylon Stack</span>
+            )}
+          </Link>
+          {/* Collapse toggle sits at the nav header's right edge, next to the Ceylon Stack
+              mark, rather than as a separate row at the very bottom of the sidebar. */}
           {!collapsed && (
-            <span className="truncate text-sm font-semibold tracking-tight">Ceylon Stack</span>
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              aria-label="Collapse sidebar"
+              className="shrink-0 rounded p-1 text-white/50 hover:bg-white/10 hover:text-white"
+            >
+              <PanelLeftClose size={16} />
+            </button>
           )}
-        </Link>
+        </div>
+        {collapsed && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label="Expand sidebar"
+            className="mt-2 flex w-full items-center justify-center rounded p-1.5 text-white/50 hover:bg-white/10 hover:text-white"
+          >
+            <PanelLeftOpen size={16} />
+          </button>
+        )}
       </div>
 
       <nav className="flex-1 overflow-y-auto px-2 py-2">
@@ -285,20 +309,6 @@ export function Sidebar() {
           </>
         )}
       </nav>
-
-      <div className="border-t border-white/10 px-2 py-2">
-        <button
-          type="button"
-          onClick={toggleCollapsed}
-          className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-white/60 hover:bg-white/5 hover:text-white ${
-            collapsed ? "justify-center" : ""
-          }`}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-          {!collapsed && <span>Collapse</span>}
-        </button>
-      </div>
 
       {flyoutGroup && (
         <>
