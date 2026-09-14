@@ -1,10 +1,20 @@
 # DESIGN.md — Ceylon Stack Brand & UI/UX
 
-**Status: approved.** This is the design system for the product — everything
-client-facing (ERPNext Desk branding, `apps/frontend`, decks, docs) should
-draw from this file. Live interactive version (logo lockups, color swatches,
-type specimens, applied dashboard preview): see the published brand page —
-link kept in `docs/brand.md` alongside the copy-paste token values for code.
+**Status: approved** for brand identity — naming, logo/mark, voice & tone,
+and everything marketing-facing (decks, docs, the "What's Underneath"
+answer). Live interactive version (logo lockups, color swatches, type
+specimens): see the published brand page — link kept in `docs/brand.md`
+alongside the copy-paste token values for code.
+
+**Superseded for `apps/frontend` itself:** the product UI (the actual
+working app — Sales, Manufacturing, etc.) follows
+`docs/brand/package/ceylon-stack-frontend-design.md` instead of the color
+(§3) and typography (§4) tokens below. That doc is the industrial-functional
+system (graphite neutrals, one teal accent, IBM Plex Sans/Mono only) built
+for a screen people scan for hours a day — the Fraunces/Archivo/
+sapphire-cinnamon system below reads as a marketing/brand-identity system,
+which is what it's for now. ERPNext Desk branding (§6.1) and marketing
+docs/decks still draw from this file's tokens as written.
 
 ## 1. Naming & Positioning
 

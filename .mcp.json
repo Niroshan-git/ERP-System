@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "ceylon-stack": {
+      "command": "python",
+      "args": ["D:\\_07_ERP\\ERP System\\apps\\mcp-server\\src\\server.py"]
+    }
+  }
+}

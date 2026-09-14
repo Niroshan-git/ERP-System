@@ -415,3 +415,69 @@ explicitly out of scope). Built and verified the first one, Frappe HR:
   6 HR) with nothing from Manufacturing/Assets/Recruitment/Tenure/
   Performance leaking through, the compiled `hrms` JS/CSS bundles
   serving with real 200s, and `frontend` unaffected throughout.
+
+## 2026-09-13 (later still) — `apps/frontend` build: Phases 1-3 (Sales module)
+
+Started replacing ERPNext's own Desk UI with the real Next.js frontend,
+per the headless architecture — see `apps/frontend/README.md` for the
+living reference (kept current with what's built); this entry is the
+narrative log.
+
+- **Auth model** (user's explicit choice over full per-user sessions):
+  service-account proxy. Real ERPNext login authenticates the person via
+  Frappe's own `/api/method/login`; the app then issues its own signed
+  httpOnly session cookie, and all ERPNext data calls run server-side
+  through one dedicated user, `frontend-integration@ceylonstack.local`.
+- **Design system reconciled**: `docs/brand/package/ceylon-stack-frontend-design.md`
+  (graphite neutrals, one teal accent, IBM Plex Sans/Mono) now supersedes
+  root `DESIGN.md`'s Fraunces/Archivo/sapphire-cinnamon system for
+  `apps/frontend` specifically — `DESIGN.md` still governs brand
+  identity/marketing.
+- **Phase 1** (Customer, Item) and **Phase 2** (9 Selling-module masters:
+  Customer Group, Territory, Item Group, Price List, Sales Person, Sales
+  Partner, Contact, Address, Campaign) shipped — Phase 2 built on shared
+  `MasterTable`/`MasterForm` components instead of copy-pasting the
+  pattern nine times.
+- **Phase 3**: Quotation, Sales Order, Sales Invoice — child-table line
+  items, Draft→Submitted→Cancelled workflow, `lib/salesDefaults.ts`
+  resolving company/currency/price-list/accounting defaults the way
+  Desk does client-side. Then, per the user seeing ERPNext's own Sales
+  Order "Connections" tab: added the same tab layout (Details/Address &
+  Contact/Terms/More Info/Connections) plus "Create Sales Order from
+  Quotation" and "Create Sales Invoice from Sales Order" actions that
+  carry items and references across documents.
+- **`frontend-integration` user's roles, evolving as gaps were hit**
+  (started with `Sales User` + `Item Manager` for Customer/Item/Quotation/
+  Sales Order; `Accounts User` added later the same day once Sales
+  Invoice screens were built and hit 403 — that's an accounting doctype,
+  not covered by the Selling-module roles). Same "Manager/User role
+  granularity" pattern already logged above for HR/Sales/Stock/Purchase.
+- **Two real bugs the user caught by actually using the UI** (not found
+  by testing alone):
+  1. **WarehouseRequired** on "Create Sales Order" — ERPNext auto-fills a
+     stock item's line warehouse from the Item's per-company default,
+     but "Ceylon Stack (Demo)" company had none configured for the item
+     in question (unlike "Ceylon Stack", which worked and masked the gap
+     during earlier testing). Fixed with a resolved company-level
+     fallback warehouse in `getSellingDefaults()`, applied uniformly to
+     every Sales Order line — same pattern as the existing income-
+     account/cost-center fallback.
+  2. **Duplicate Sales Orders** — "Create Sales Order" had no guard
+     against being clicked twice; a Quotation ended up with two
+     identical Draft Sales Orders. Fixed at both the action level (now
+     refuses if a linked document already exists) and the UI (button
+     hides once one exists). The two duplicates were deleted at the
+     user's confirmation.
+- **Frappe REST gotcha worth remembering**: a service account that can
+  read a parent doctype fine still 403s querying its child table
+  directly (`GET /api/resource/Sales Order Item`). Fix: query the
+  *parent* doctype with a 4-element child-table filter tuple instead
+  (`filters=[["Sales Order Item","prevdoc_docname","=",value]]` against
+  `/api/resource/Sales Order`) — checks permission on the parent, works.
+- **Observed anomaly, not explained**: mid-session, two already-cancelled
+  test documents were found reverted to their pre-cancel state, as if
+  the site had been restored from a backup taken between those two
+  points. Frappe normally makes cancelled docs immutable. Re-cancelling
+  them stuck on retry. No code bug found; flagged to the user in case an
+  automated backup/restore is running on the Hetzner box they're not
+  aware of — worth checking first if strange data reversions recur.

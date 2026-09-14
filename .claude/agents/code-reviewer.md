@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: Use to review a diff or a set of changes across any part of the monorepo before it's committed or deployed — correctness, security, and adherence to this project's architecture rules (no ERPNext core edits, no secrets, headless boundary). Use proactively after any agent finishes non-trivial code changes.
+description: Use to review a diff or a set of changes across any part of the monorepo before it's committed or deployed — correctness, security, and adherence to this project's architecture rules (no ERPNext core edits, no secrets, headless boundary). Use proactively after any agent finishes non-trivial code changes. Not for a holistic security/infra audit of the live server or supply chain — see security-specialist for that.
 tools: Read, Grep, Glob, Bash
 model: sonnet
 ---

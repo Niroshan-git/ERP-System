@@ -143,9 +143,32 @@ per-app allow-list mechanism — no new integration layer per product.
 **Explicitly not pursuing:** Lending (microfinance-specific, no client
 demand) and Learning/LMS (defer until a training-heavy client appears).
 
-**License note:** HRMS and Lending are GPL-3.0; CRM, Helpdesk, Insights,
-and LMS are AGPL-3.0 (confirmed against `github.com/frappe/*` directly).
-Neither creates an obligation here since every app is installed
-unmodified, same as ERPNext itself — the headless/no-core-edits argument
-above already covers this; AGPL only bites if the code itself is modified
-and re-served.
+**License note — CORRECTED 2026-09-13, previous version of this note was wrong:**
+HRMS and Lending are GPL-3.0 (verified). CRM, Helpdesk, and Insights are
+AGPL-3.0 (verified against github.com/frappe/crm, /helpdesk, /insights
+directly — LMS not yet independently checked, treat as AGPL-3.0 until
+confirmed otherwise).
+
+The previous claim that "neither creates an obligation" for the AGPL apps
+was incorrect. AGPL's entire point versus GPL is that it does NOT require
+modification to trigger an obligation: AGPLv3 §13 requires that anyone
+interacting with the software **over a network** — i.e. any hosted/SaaS
+use, modified or not — be prominently offered the corresponding source.
+GPL-3.0 (ERPNext, HRMS) has no such clause; hosting it as SaaS with no
+distribution triggers nothing. AGPL-3.0 (CRM, Helpdesk, Insights) does.
+
+Practical fix, cheap since these apps are unmodified: before any `crm`,
+`helpdesk`, or `insights` bundle goes live for a real client, add a
+visible "Source Code" link/notice in that site's UI (footer or About
+page) pointing to the exact unmodified upstream repo
+(github.com/frappe/crm etc.) — since it's unmodified, the corresponding
+source already exists publicly; the obligation is to *offer* it
+prominently, not to publish anything new. Skipping this step is the
+actual non-compliance risk, not the mere act of hosting the app. If
+`ceylon_services` or any custom Frappe app ever patches/forks
+CRM/Helpdesk/Insights code directly (not just installs it unmodified),
+that modified version must be published to users under AGPL — that's the
+one thing that would actually be expensive to fix after the fact, so it's
+worth deciding now: unmodified installs only for these three, all
+Ceylon-specific customization stays in `ceylon_services` (a separate,
+proprietary app) exactly as already planned.
