@@ -600,3 +600,69 @@ narrative log.
   them stuck on retry. No code bug found; flagged to the user in case an
   automated backup/restore is running on the Hetzner box they're not
   aware of — worth checking first if strange data reversions recur.
+
+## 2026-09-16 — Buying core cycle: full live E2E QA pass (first real verification)
+
+Prior to this, Buying's code existed and its Reports hub had been spot-checked, but the
+core transactional chain had never been driven end-to-end against the live Hetzner
+instance — no dedicated Buying entry existed in this file, and `QA_LOG.md` only had the
+Inventory/Stock entry. This package closed that gap: `qa-tester` ran a full live E2E pass
+(no code written by `qa-tester` — Read/Grep/Glob/Bash only), replicating each `actions.ts`
+file's exact payload shape via direct ERPNext REST calls, same method the Stock module QA
+pass used (Next.js server actions can't be driven from plain curl).
+
+**Chain tested live**: Supplier (create/edit/fetch) → Material Request (submit) → Request
+for Quotation (submit) → Supplier Quotation (submit) → Purchase Order (submit) → Purchase
+Receipt with a **partial** quantity (submit) → Purchase Invoice (submit) → `Bin` stock
+impact → error cases → full cleanup.
+
+**Result: PASS, no code fixes required.** Every payload shape read from the six Buying
+`actions.ts` files matched live ERPNext behavior on the first attempt — unlike the Stock
+module's `s_warehouse` bug, nothing broke here. Specifics:
+- `MAT-MR-2026-00004` → `PUR-RFQ-2026-00004` → `PUR-SQTN-2026-00004` →
+  `PUR-ORD-2026-00014` → `MAT-PRE-2026-00002` (partial: 12 of 20 on one line, 0 of 10 on
+  the other) → `ACC-PINV-2026-00008`.
+- Partial-fulfillment tracking confirmed correct: PO `received_qty`/`per_received`
+  (12/30 → 40.0%) and `billed_amt`/`per_billed` (1260/27100 → 4.65%) both matched expected
+  math exactly.
+- `Bin.actual_qty` for `ELE-USBC-CABLE` / `Stores - CS`: **44.0 before → 56.0 after** the
+  partial Purchase Receipt (+12, exact match), **back to 44.0** after cleanup cancellation.
+- Error cases: missing-mandatory-field correctly returned `417 MandatoryError`;
+  cancelling a Purchase Order still referenced by a submitted Purchase Invoice correctly
+  returned `417 LinkExistsError` from ERPNext itself — confirms the frontend's own
+  proactive guard in `cancelPurchaseOrderAction` (`purchase-orders/actions.ts`) is backed
+  by real server-side enforcement, not just an optimistic UI check.
+- No 403s anywhere — `frontend-integration`'s existing role set already covers every
+  Buying doctype touched (Supplier, Material Request, Request for Quotation, Supplier
+  Quotation, Purchase Order, Purchase Receipt, Purchase Invoice, Bin); unlike Stock, no
+  role addition was needed.
+- `lib/buyingDefaults.ts`'s `defaultPayableAccount`/`defaultExpenseAccount`/
+  `defaultCostCenter` — previously only an inferred assumption, per that file's own
+  comment — is now live-confirmed correct (both companies have these fields populated,
+  and Purchase Invoice submit succeeded using them).
+- ERPNext's live PO status after a partial receipt is `"To Receive and Bill"`, not a
+  separate "Partly Received" label — `lib/erpStatus.ts`'s `purchaseOrderStatus`
+  independently derives the same label from `per_received`/`per_billed` and matched
+  exactly; no fix needed.
+
+**One real gap identified, not a functional defect**: there is no direct Material
+Request → Purchase Order action in the frontend
+(`buying/material-requests/[name]/page.tsx`'s Connections tab only offers "Create RFQ";
+`purchase-orders/actions.ts` only has `createPurchaseOrderFromSupplierQuotationAction`).
+The only path from a submitted Material Request to a Purchase Order is the 3-hop chain
+MR → RFQ → Supplier Quotation → PO, which is not optional. This isn't required by the
+binding core flow (`AGENT_OPERATING_GUIDE.md` §8 / `DEVELOPMENT_SYSTEM_RULES.md` §5 name
+only PO → PR → PI as the flow that must stay strong), so it was left as-is — flagged here
+for a future product decision (document the 3-hop requirement explicitly, or add a
+direct MR→PO shortcut later) rather than fixed under this QA-only package.
+
+**Cleanup**: all six submitted test documents cancelled in reverse dependency order
+(`ACC-PINV-2026-00008`, `MAT-PRE-2026-00002`, `PUR-ORD-2026-00014`, `PUR-SQTN-2026-00004`,
+`PUR-RFQ-2026-00004`, `MAT-MR-2026-00004`); deletion attempts correctly blocked by
+`417 LinkExistsError` (GL Entry / cross-document links) — expected ERPNext audit-trail
+behavior, same as the Inventory QA pass. The test Supplier (`QA Test Supplier Buying`,
+never submittable, still link-referenced) was disabled instead of deleted. Bin quantities
+confirmed back at pre-QA baseline.
+
+Buying core cycle now meets the Definition of Ready (`AGENT_OPERATING_GUIDE.md` §8) and
+is accepted. See `QA_LOG.md` for the compact QA record.
