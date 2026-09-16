@@ -881,3 +881,72 @@ scope: `.claude/agents/mcp-dev.md`'s "Current reality" section still says Manufa
 tools are out of scope regardless of Phase 0 — stale now, needs a future
 documentation-alignment pass (already separately noted in `docs/erp-inventory.md`).
 
+## 2026-09-16 — MCP Phase 1: second business-specific tool, `get_work_order_detail`
+
+Added `get_work_order_detail(work_order_name)` to `apps/mcp-server`, extending Phase 1's
+first tool (`get_manufacturing_overview`, above) to a single-record lookup. Same
+constraints as before: dev-tier, read-only, stdio-only, no write/action tools, no
+ERPNext/Frappe core or Manufacturing frontend touched, one package/one session per
+`docs/controls/AGENT_USAGE_POLICY.md`.
+
+Given a Work Order name, returns: its header (status, company, production_item,
+item_name, qty, produced_qty, process_loss_qty, planned_start_date, planned_end_date,
+bom_no); its Job Cards (name, operation, workstation, status, for_quantity,
+total_completed_qty, expected/actual start/end dates), ordered by creation, bounded to
+50; Quality readiness — the production item's `quality_inspection_template` plus up to 5
+`Quality Inspection` records filtered by `item_code` (Quality Inspection links to Job
+Card, not directly to Work Order, per `docs/erp-inventory.md`'s schema notes, so this is
+item-level readiness, not a true Work-Order-level check — documented in the tool's own
+returned `note`); a `gaps` array; and a `source` note. Validates `work_order_name` is
+non-empty and returns a clean `{"error": ...}` dict rather than an unhandled exception
+for an empty name or a Work Order that doesn't exist. Field names and the Job Card
+`PO-JOB.#####` naming series came directly from live `get_doctype_fields` calls against
+Work Order, Job Card, and Quality Inspection (via the existing dev-tier MCP tools), not
+from `docs/erp-inventory.md` alone.
+
+**Verified live against the Hetzner instance**: called the tool function directly
+(same bypass-the-running-session approach as the first tool, with HTTP-method
+interception added this time to positively confirm zero non-GET requests across the
+whole run). Tested `MFG-WO-2026-00002` (In Process — returned its 2 real Job Cards,
+`PO-JOB00001` Completed and `PO-JOB00002` Open, with real quantities/dates), `-00004`
+(Completed — 0 Job Cards, correctly empty `job_cards` and a `gaps` entry naming it),
+`-00001` (Cancelled, same shape), a nonexistent Work Order name (clean error dict, no
+crash), and an empty string (clean validation error, no request issued). The
+`Steel Bracket Assembly - Final QC` template resolved correctly for the reference item
+across all cases. 13 HTTP requests total across the run, 0 non-GET.
+
+**Real ERPNext behavior surfaced, not a bug in this tool**: for `-00004` and `-00001`
+(terminal-status Work Orders), `planned_end_date` — confirmed via live
+`get_doctype_fields` to genuinely be defined on the Work Order doctype — was entirely
+absent as a key from the REST response, not merely `null`. `erpnext_client.get_doc()`
+does no client-side filtering (confirmed by reading it), so this is ERPNext's own REST
+layer omitting the key for these records; root cause not investigated further
+(out of scope for this package). The tool's `gaps` array flags this per-record as "field
+ERPNext omitted from the response," not as schema drift, since the field is defined.
+
+`apps/mcp-server/README.md` updated with the new tool's description and verification
+note. No `QA_LOG.md` entry — internal dev tooling, not a Sales/Stock/Buying core flow,
+same rationale as the first Phase 1 tool. `docs/ceylon-stack-documentation.html` and
+Notion not touched — no product-facing status changed and the implementation plan (MCP
+Phase 1) didn't change beyond what was already planned.
+
+**`code-reviewer` pass**: one blocking finding, fixed. The initial `gaps` message for
+the `planned_end_date` omission above (see "Real ERPNext behavior surfaced") originally
+read "possible ERPNext version drift" — reviewer correctly flagged this as misleading
+since the field genuinely exists on the doctype and the omission is reproducible for
+every terminal-status Work Order, not intermittent drift; reworded to state plainly that
+ERPNext omitted a defined field from this record's response, without asserting a false
+cause. Re-verified live after the fix; behavior otherwise unchanged. One additional
+small fix applied proactively (non-blocking per review): the `quality_readiness.note`
+key is now present in both the with- and without-`production_item` branches, so callers
+don't need to `.get()` defensively for a key that's normally always there.
+
+Also flagged by review, **not acted on, for the founder's attention**: `server.py` and
+`erpnext_client.py` still show as uncommitted working-tree changes covering *both*
+Phase 1 tools (`get_manufacturing_overview` was never actually committed after its own
+prior closeout entry above, despite that entry recording a completed review). Per
+`docs/controls/AGENT_USAGE_POLICY.md` §8 and this file's Package Closure Rules, these
+should land as two separate commits (one per tool/package) rather than one combined
+commit, to keep history and review responsibility per-package. This session did not
+commit anything (commit was not requested) — noted here so whoever does commit next
+splits them accordingly rather than assuming this is one package.

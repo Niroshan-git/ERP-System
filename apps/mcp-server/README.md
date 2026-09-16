@@ -111,6 +111,38 @@ Cards, 1 Quality Inspection Template), real recent Work Orders
 `Steel Bracket Assembly - Final QC` template correctly resolved for
 `FG-STEEL-BRACKET-ASSY`. All requests made were `GET` — no write calls.
 
+- **`get_work_order_detail(work_order_name)`** — **dev-tier, read-only**,
+  second business-specific tool (Phase 1). Given a Work Order name, returns
+  its header (status, company, production_item, item_name, qty,
+  produced_qty, process_loss_qty, planned_start_date, planned_end_date,
+  bom_no), its Job Cards (name, operation, workstation, status,
+  for_quantity, total_completed_qty, expected/actual start/end dates,
+  ordered by creation, bounded to 50), Quality readiness (the production
+  item's `quality_inspection_template`, plus up to 5 `Quality Inspection`
+  records filtered by `item_code` — Quality Inspection links to Job Card,
+  not directly to Work Order, so this is item-level, not Work-Order-level,
+  matching per `docs/erp-inventory.md`'s schema notes), a `gaps` array, and
+  a `source` note. Validates `work_order_name` is non-empty and returns a
+  clean `{"error": ...}` dict (not an unhandled exception) for an empty
+  name or a Work Order that doesn't exist.
+
+  Verified end-to-end against the live instance (2026-09-16) against
+  `MFG-WO-2026-00002` (In Process — returned its 2 real Job Cards,
+  `PO-JOB00001`/`PO-JOB00002`, with real statuses/quantities), `-00004`
+  (Completed — 0 Job Cards, correctly empty) and `-00001` (Cancelled), a
+  nonexistent name, and an empty string. The
+  `Steel Bracket Assembly - Final QC` template resolved correctly. All
+  requests issued were `GET` — confirmed via HTTP-method interception, zero
+  writes.
+
+  One real ERPNext quirk surfaced during verification, not a bug in this
+  tool: for Completed/Cancelled Work Orders, `planned_end_date` — a field
+  genuinely defined on the Work Order doctype — is entirely absent from the
+  REST response (not just `null`). The tool's `gaps` array flags this as
+  "ERPNext omitted this field from the response" rather than asserting
+  schema drift, since the field *is* defined; root cause on the ERPNext
+  side wasn't investigated further (out of this package's scope).
+
 ## What's deliberately not built yet
 
 Phase 0 (`docs/erp-inventory.md`) is complete, which unblocked the

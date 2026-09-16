@@ -32,6 +32,39 @@ DEFAULT_LIST_LIMIT = 100
 MAX_LIST_LIMIT = 2000
 MAX_DOCTYPE_PAGE = 500
 RECENT_RECORDS_LIMIT = 5
+WORK_ORDER_JOB_CARDS_LIMIT = 50
+QUALITY_INSPECTIONS_LIMIT = 5
+
+# Header fields returned by get_work_order_detail, per docs/erp-inventory.md's
+# confirmed Work Order schema (live-verified via get_doctype_fields, not guessed).
+WORK_ORDER_DETAIL_FIELDS = [
+    "name",
+    "status",
+    "company",
+    "production_item",
+    "item_name",
+    "qty",
+    "produced_qty",
+    "process_loss_qty",
+    "planned_start_date",
+    "planned_end_date",
+    "bom_no",
+]
+
+# Job Card fields, per docs/erp-inventory.md's naming-series correction
+# (PO-JOB.#####, not JC-.YYYY.-) and live-verified schema.
+JOB_CARD_DETAIL_FIELDS = [
+    "name",
+    "operation",
+    "workstation",
+    "status",
+    "for_quantity",
+    "total_completed_qty",
+    "expected_start_date",
+    "expected_end_date",
+    "actual_start_date",
+    "actual_end_date",
+]
 
 # The one finished good on the live instance today (per docs/erp-inventory.md,
 # Phase 0 walkthrough) - the readiness check needs a concrete item to check
@@ -198,6 +231,106 @@ async def get_manufacturing_overview() -> dict[str, Any]:
         "counts": counts,
         "recent_work_orders": recent_work_orders,
         "recent_job_cards": recent_job_cards,
+        "quality_readiness": quality_readiness,
+        "gaps": gaps,
+        "source": (
+            "Dev-tier read-only data from live ERPNext (Administrator API key), "
+            "not a client-scoped agent - see apps/mcp-server/README.md."
+        ),
+    }
+
+
+@mcp.tool()
+async def get_work_order_detail(work_order_name: str) -> dict[str, Any]:
+    """Compact, read-only detail for a single Work Order: header fields, its Job
+    Cards, and Quality readiness.
+
+    Dev-tier reporting tool, extending get_manufacturing_overview to a single
+    record. Returns the Work Order header (status, production item, qty,
+    planned/actual dates, BOM), its Job Cards ordered by creation, whether the
+    production item has a Quality Inspection Template attached, and a bounded
+    list of Quality Inspection records found for that item. Not a client-scoped
+    agent - see apps/mcp-server/README.md's "Two-tier access model".
+    """
+    name = (work_order_name or "").strip()
+    if not name:
+        return {"error": "work_order_name is required and cannot be empty."}
+
+    try:
+        doc = await _client.get_doc("Work Order", name)
+    except ERPNextError as exc:
+        return {
+            "error": f"Work Order '{name}' could not be read: {exc}",
+            "work_order_name": name,
+        }
+
+    work_order = {field: doc.get(field) for field in WORK_ORDER_DETAIL_FIELDS}
+    missing_fields = [f for f in WORK_ORDER_DETAIL_FIELDS if f not in doc]
+
+    job_cards = await _client.get_list(
+        "Job Card",
+        filters={"work_order": name},
+        fields=JOB_CARD_DETAIL_FIELDS,
+        limit=WORK_ORDER_JOB_CARDS_LIMIT,
+        order_by="creation asc",
+    )
+
+    production_item = work_order.get("production_item")
+    quality_readiness: dict[str, Any] = {"production_item": production_item}
+    if production_item:
+        try:
+            item = await _client.get_doc("Item", production_item)
+            template = item.get("quality_inspection_template")
+            quality_readiness["item_quality_inspection_template"] = template
+        except ERPNextError as exc:
+            quality_readiness["item_quality_inspection_template"] = None
+            quality_readiness["item_lookup_error"] = (
+                f"Could not read Item {production_item}: {exc}"
+            )
+
+        quality_readiness["quality_inspections_found"] = await _client.get_list(
+            "Quality Inspection",
+            filters={"item_code": production_item},
+            fields=["name", "status", "inspection_type", "reference_type", "reference_name"],
+            limit=QUALITY_INSPECTIONS_LIMIT,
+            order_by="creation desc",
+        )
+        quality_readiness["note"] = (
+            "Quality Inspection links to Job Card (reference_type/reference_name), "
+            "not directly to Work Order - checked by production item (item_code) match only."
+        )
+    else:
+        quality_readiness["item_quality_inspection_template"] = None
+        quality_readiness["quality_inspections_found"] = []
+        quality_readiness["note"] = (
+            "Work Order has no production_item set - quality readiness could not be checked."
+        )
+
+    gaps: list[str] = []
+    if not work_order.get("bom_no"):
+        gaps.append(f"Work Order {name} has no bom_no set.")
+    if not job_cards:
+        gaps.append(f"No Job Cards found for Work Order {name}.")
+    if production_item and not quality_readiness.get("item_quality_inspection_template"):
+        gaps.append(
+            f"Production item {production_item} has no quality_inspection_template set."
+        )
+    if missing_fields:
+        # These fields ARE defined on the Work Order doctype (confirmed via
+        # get_doctype_fields) but ERPNext's REST response omitted the key
+        # entirely rather than returning null - observed live for terminal
+        # (Completed/Cancelled) Work Orders, e.g. planned_end_date. Not
+        # necessarily an error or schema drift; flagged so a caller knows the
+        # value is unknown rather than confirmed-empty.
+        gaps.append(
+            "Fields ERPNext omitted from this Work Order's API response "
+            f"(defined on the doctype, but not returned for this record): "
+            f"{', '.join(missing_fields)}."
+        )
+
+    return {
+        "work_order": work_order,
+        "job_cards": job_cards,
         "quality_readiness": quality_readiness,
         "gaps": gaps,
         "source": (
