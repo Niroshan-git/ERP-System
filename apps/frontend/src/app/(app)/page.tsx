@@ -1,110 +1,94 @@
 import Link from "next/link";
+import { ShoppingCart, ShoppingBag, Factory } from "lucide-react";
 import { Breadcrumb } from "@/components/Breadcrumb";
-import { LineChart } from "@/components/LineChart";
-import { DocTabs } from "@/components/DocTabs";
-import { SalesFlowMap } from "@/components/SalesFlowMap";
-import { runReport } from "@/lib/erpnext";
-import { fetchLinkOptions } from "@/lib/linkOptions";
-import { getSellingNumberCards } from "@/lib/sellingDashboard";
-import { SELLING_WORKSPACE_CARDS } from "@/lib/sellingWorkspace";
 
 /**
- * Landing page for the app — replicates ERPNext's real "Selling" Workspace (the page
- * that opens after login in the live Desk instance this project is modeled on), read
- * from the live server's `selling.json` workspace definition rather than guessed.
- * See lib/sellingDashboard.ts and lib/sellingWorkspace.ts for how each piece maps to a
- * real ERPNext Dashboard Chart / Number Card / workspace link.
+ * Root landing page — a neutral module picker, not any one module's dashboard.
+ *
+ * Until Phase 2 of the Buying + multi-module nav plan, "/" *was* the Selling
+ * workspace home page (moved verbatim to app/(app)/sales/page.tsx). Now it's a
+ * lightweight, server-rendered switcher: each card links to a module's own home
+ * page. No ERPNext data is fetched here — that lives in each module's own page.
  */
 
-function formatCurrencyCard(amount: number): string {
-  if (Math.abs(amount) >= 1000) return `Rs ${(amount / 1000).toFixed(2)} K`;
-  return `Rs ${amount.toFixed(2)}`;
-}
+type ModuleCard = {
+  id: string;
+  label: string;
+  description: string;
+  href?: string;
+  icon: typeof ShoppingCart;
+  soon?: true;
+};
 
-export default async function HomePage() {
-  const [companies, fiscalYears, cards] = await Promise.all([
-    fetchLinkOptions("Company"),
-    fetchLinkOptions("Fiscal Year"),
-    getSellingNumberCards(),
-  ]);
+const MODULE_CARDS: ModuleCard[] = [
+  {
+    id: "sales",
+    label: "Selling",
+    description: "Quotations, Sales Orders, Delivery Notes, Invoices, Customers.",
+    href: "/sales",
+    icon: ShoppingCart,
+  },
+  {
+    id: "buying",
+    label: "Buying",
+    description: "Material Requests, RFQs, Purchase Orders, Receipts, Invoices, Suppliers.",
+    href: "/buying",
+    icon: ShoppingBag,
+  },
+  {
+    id: "manufacturing",
+    label: "Manufacturing",
+    description: "Work Orders, Job Cards, BOM, downtime, live OEE.",
+    icon: Factory,
+    soon: true,
+  },
+];
 
-  let chartLabels: string[] = [];
-  let chartValues: number[] = [];
-  if (companies?.[0] && fiscalYears?.[0]) {
-    try {
-      const { chart } = await runReport("Sales Order Trends", {
-        period: "Monthly",
-        based_on: "Item",
-        company: companies[0],
-        fiscal_year: fiscalYears[0],
-      });
-      chartLabels = chart?.data.labels ?? [];
-      chartValues = chart?.data.datasets[0]?.values ?? [];
-    } catch {
-      // Chart is a nice-to-have on the landing page — a report hiccup shouldn't 500 the home page.
-    }
-  }
-
-  const overviewTab = (
-    <div>
-      <div className="mb-6 rounded-xl border border-border bg-surface p-4">
-        <h2 className="mb-4 text-sm font-semibold text-graphite-900">Sales Order Trends</h2>
-        {chartValues.length > 0 ? (
-          <LineChart labels={chartLabels} values={chartValues} />
-        ) : (
-          <p className="py-8 text-center text-sm text-graphite-500">No chart data yet.</p>
-        )}
-      </div>
-
-      <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-sm text-graphite-500">Sales Orders</p>
-          <p className="mt-1 text-2xl font-medium text-graphite-900">{cards.salesOrdersCount}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-sm text-graphite-500">Total Sales Amount</p>
-          <p className="mt-1 text-2xl font-medium text-graphite-900">{formatCurrencyCard(cards.totalSalesAmount)}</p>
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-4">
-          <p className="text-sm text-graphite-500">Average Order Value</p>
-          <p className="mt-1 text-2xl font-medium text-graphite-900">{formatCurrencyCard(cards.averageOrderValue)}</p>
-        </div>
-      </div>
-
-      <h2 className="mb-3 text-base font-semibold text-graphite-900">Reports &amp; Masters</h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {SELLING_WORKSPACE_CARDS.map((card) => (
-          <div key={card.title} className="rounded-xl border border-border bg-surface p-4">
-            <h3 className="mb-2 text-sm font-semibold text-graphite-900">{card.title}</h3>
-            <ul className="space-y-1.5">
-              {card.links.map((link) => (
-                <li key={link.label} className="text-sm">
-                  {link.href ? (
-                    <Link href={link.href} className="text-signal hover:underline">
-                      {link.label}
-                    </Link>
-                  ) : (
-                    <span className="text-graphite-500">{link.label}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-
+export default function HomePage() {
   return (
     <div>
-      <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Selling" }]} />
+      <Breadcrumb items={[{ label: "Home" }]} />
 
-      <DocTabs
-        tabs={[
-          { id: "overview", label: "Overview", content: overviewTab },
-          { id: "sales-flow", label: "Sales Flow", content: <SalesFlowMap /> },
-        ]}
-      />
+      <h1 className="mb-1 text-lg font-semibold text-graphite-900">Ceylon Stack</h1>
+      <p className="mb-6 text-sm text-graphite-500">Choose a module to get started.</p>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {MODULE_CARDS.map((mod) => {
+          const Icon = mod.icon;
+          if (mod.soon || !mod.href) {
+            return (
+              <div
+                key={mod.id}
+                className="rounded-xl border border-border bg-surface p-5 opacity-50"
+                aria-disabled="true"
+              >
+                <div className="mb-3 flex items-center gap-2">
+                  <Icon size={20} className="text-graphite-500" />
+                  <h2 className="text-sm font-semibold text-graphite-900">{mod.label}</h2>
+                  <span className="ml-auto rounded bg-graphite-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-graphite-500">
+                    Coming soon
+                  </span>
+                </div>
+                <p className="text-sm text-graphite-500">{mod.description}</p>
+              </div>
+            );
+          }
+
+          return (
+            <Link
+              key={mod.id}
+              href={mod.href}
+              className="rounded-xl border border-border bg-surface p-5 transition hover:border-signal hover:shadow-sm"
+            >
+              <div className="mb-3 flex items-center gap-2">
+                <Icon size={20} className="text-signal" />
+                <h2 className="text-sm font-semibold text-graphite-900">{mod.label}</h2>
+              </div>
+              <p className="text-sm text-graphite-500">{mod.description}</p>
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }

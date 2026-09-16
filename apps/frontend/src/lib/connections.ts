@@ -100,6 +100,72 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
       hrefBase: "/sales/invoices",
     },
   ],
+  // Buying cycle, Phase 4 (Material Request -> Request for Quotation -> Supplier
+  // Quotation -> Purchase Order) — same "query the parent with a child-table filter tuple"
+  // shape as Sales above.
+  "Material Request": [
+    {
+      label: "Request for Quotation",
+      parentDoctype: "Request for Quotation",
+      childDoctype: "Request for Quotation Item",
+      filterField: "material_request",
+      hrefBase: "/buying/request-for-quotations",
+    },
+  ],
+  "Request for Quotation": [
+    {
+      label: "Supplier Quotation",
+      parentDoctype: "Supplier Quotation",
+      childDoctype: "Supplier Quotation Item",
+      filterField: "request_for_quotation",
+      hrefBase: "/buying/supplier-quotations",
+    },
+  ],
+  "Supplier Quotation": [
+    {
+      label: "Purchase Order",
+      parentDoctype: "Purchase Order",
+      childDoctype: "Purchase Order Item",
+      filterField: "supplier_quotation",
+      hrefBase: "/buying/purchase-orders",
+    },
+  ],
+  // Purchase Order / Purchase Receipt / Purchase Invoice — same "query the parent with a
+  // child-table filter tuple" shape as every entry above. `filterField` values here follow
+  // the live-verified field-name gotcha: Purchase Receipt Item's own back-reference to its
+  // source Purchase Order Item is `purchase_order_item`, but Purchase Invoice Item's
+  // back-references are `po_detail`/`pr_detail` (NOT `purchase_order_item`/
+  // `purchase_receipt_item`) — these three doctypes name the same concept inconsistently.
+  // The filter tuples below only need the *parent* Link field (`purchase_order`/
+  // `purchase_receipt`), not the child-row-id field, so that inconsistency doesn't actually
+  // surface here — it matters for the create-from-source actions instead (see
+  // purchase-receipts/actions.ts and purchase-invoices/actions.ts).
+  "Purchase Order": [
+    {
+      label: "Purchase Receipt",
+      parentDoctype: "Purchase Receipt",
+      childDoctype: "Purchase Receipt Item",
+      filterField: "purchase_order",
+      hrefBase: "/buying/purchase-receipts",
+    },
+    {
+      label: "Purchase Invoice",
+      parentDoctype: "Purchase Invoice",
+      childDoctype: "Purchase Invoice Item",
+      filterField: "purchase_order",
+      hrefBase: "/buying/purchase-invoices",
+    },
+  ],
+  "Purchase Receipt": [
+    {
+      label: "Purchase Invoice",
+      parentDoctype: "Purchase Invoice",
+      childDoctype: "Purchase Invoice Item",
+      filterField: "purchase_receipt",
+      hrefBase: "/buying/purchase-invoices",
+    },
+  ],
+  "Purchase Invoice": [],
 };
 
 export async function getConnections(doctype: string, name: string): Promise<Connection[]> {

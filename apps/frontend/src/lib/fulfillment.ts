@@ -128,3 +128,72 @@ export async function getInvoicedQtyByDnDetail(deliveryNoteName: string): Promis
   }
   return invoiced;
 }
+
+type PoInvoiceItemRow = { po_detail?: string; qty: number };
+type PurchaseInvoiceForPoBilling = { name: string; items: PoInvoiceItemRow[] };
+
+/**
+ * How much of each Purchase Order line has actually been billed — the Buying-cycle mirror
+ * of getBilledQtyBySoDetail. Purchase Order Item tracks `billed_amt` (a Currency amount),
+ * not a billed *quantity* field (confirmed via the live DocType JSON, see the Buying plan's
+ * field-name gotcha note) — so, same as the Sales Order case, "remaining qty to bill" is a
+ * live-summed query over Submitted Purchase Invoice Item rows, grouped by `po_detail` (the
+ * back-reference Purchase Invoice Item uses for its source Purchase Order Item — NOT
+ * `purchase_order_item`, which is Purchase Receipt Item's own, differently-named field).
+ */
+export async function getBilledQtyByPoDetail(purchaseOrderName: string): Promise<Record<string, number>> {
+  const invoices = await listDocs<{ name: string; docstatus: number }>("Purchase Invoice", {
+    fields: ["name", "docstatus"],
+    filters: [["Purchase Invoice Item", "purchase_order", "=", purchaseOrderName]],
+    limit: 500,
+  });
+  const submittedNames = Array.from(new Set(invoices.filter((d) => d.docstatus === 1).map((d) => d.name)));
+
+  const docs = await Promise.all(
+    submittedNames.map((invName) => getDoc<PurchaseInvoiceForPoBilling>("Purchase Invoice", invName).catch(() => null)),
+  );
+
+  const billed: Record<string, number> = {};
+  for (const doc of docs) {
+    if (!doc) continue; // a 403/404 here means "can't tell" — omit rather than lie.
+    for (const item of doc.items) {
+      if (!item.po_detail) continue;
+      billed[item.po_detail] = (billed[item.po_detail] ?? 0) + Number(item.qty || 0);
+    }
+  }
+  return billed;
+}
+
+type PrInvoiceItemRow = { pr_detail?: string; qty: number };
+type PurchaseInvoiceForPrBilling = { name: string; items: PrInvoiceItemRow[] };
+
+/**
+ * How much of each Purchase Receipt line has actually been billed — the Buying-cycle
+ * mirror of getInvoicedQtyByDnDetail. Purchase Receipt Item, like Delivery Note Item, has
+ * no stored billed-*qty* field (only `billed_amt`) — so this is a live-summed query over
+ * Submitted Purchase Invoice Item rows, grouped by `pr_detail` (NOT `purchase_receipt_item`
+ * — see the Buying plan's field-name gotcha note; that's Purchase Receipt Item's own
+ * distinct field name for its Purchase Order back-reference, unrelated to this one).
+ */
+export async function getBilledQtyByPrDetail(purchaseReceiptName: string): Promise<Record<string, number>> {
+  const invoices = await listDocs<{ name: string; docstatus: number }>("Purchase Invoice", {
+    fields: ["name", "docstatus"],
+    filters: [["Purchase Invoice Item", "purchase_receipt", "=", purchaseReceiptName]],
+    limit: 500,
+  });
+  const submittedNames = Array.from(new Set(invoices.filter((d) => d.docstatus === 1).map((d) => d.name)));
+
+  const docs = await Promise.all(
+    submittedNames.map((invName) => getDoc<PurchaseInvoiceForPrBilling>("Purchase Invoice", invName).catch(() => null)),
+  );
+
+  const billed: Record<string, number> = {};
+  for (const doc of docs) {
+    if (!doc) continue; // a 403/404 here means "can't tell" — omit rather than lie.
+    for (const item of doc.items) {
+      if (!item.pr_detail) continue;
+      billed[item.pr_detail] = (billed[item.pr_detail] ?? 0) + Number(item.qty || 0);
+    }
+  }
+  return billed;
+}

@@ -14,6 +14,11 @@ export type ColumnDef<T> = {
   /** For non-core columns: whether it's on by default the first time this table is opened
    * in a browser that has no saved preference yet. Defaults to true. */
   defaultVisible?: boolean;
+  /** Text alignment for both this column's `<th>` and every `<td>` in it — Currency/Float/
+   * Int/Percent columns (qty, rate, amount, grand_total, per_billed, etc.) should be
+   * "right" for scannability, matching normal data-table convention. Omit for left
+   * (the default) — text/link/status/date columns don't need to set this at all. */
+  align?: "left" | "right";
   render: (row: T) => ReactNode;
   /** Used only by ExportMenu (via DataTable) — when `render()` shows something other than
    * the raw field value (a StatusPill, a formatted amount, a computed value), provide this
@@ -22,7 +27,21 @@ export type ColumnDef<T> = {
   exportValue?: (row: T) => string | number;
 };
 
-export type TableId = "quotations" | "orders" | "pick-lists" | "delivery-notes" | "invoices" | "customers" | "items";
+export type TableId =
+  | "quotations"
+  | "orders"
+  | "pick-lists"
+  | "delivery-notes"
+  | "invoices"
+  | "customers"
+  | "items"
+  | "suppliers"
+  | "material-requests"
+  | "request-for-quotations"
+  | "supplier-quotations"
+  | "purchase-orders"
+  | "purchase-receipts"
+  | "purchase-invoices";
 
 const STORAGE_KEY = "ceylonstack.columns.v1";
 

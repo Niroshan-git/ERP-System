@@ -1,14 +1,23 @@
 import Link from "next/link";
-import { ClipboardList, FilePenLine, ReceiptText, Truck, type LucideIcon } from "lucide-react";
+import { ClipboardList, FilePenLine, PackageCheck, ReceiptText, ShoppingCart, Truck, type LucideIcon } from "lucide-react";
 import { StatusPill } from "@/components/StatusPill";
 import type { RelationshipNode } from "@/lib/relationshipMap";
 import styles from "./RelationshipMap.module.css";
 
+// Buying icons (Material Request/Purchase Order/Purchase Receipt) reuse the exact same
+// lucide-react icons Sidebar.tsx's BUYING_NAV_GROUPS already uses for each doctype, for
+// visual consistency across the app — see that file's own icon choices.
 const DOCTYPE_ICON: Record<string, LucideIcon> = {
   Quotation: FilePenLine,
   "Sales Order": ClipboardList,
   "Delivery Note": Truck,
   "Sales Invoice": ReceiptText,
+  "Material Request": ClipboardList,
+  "Request for Quotation": FilePenLine,
+  "Supplier Quotation": ReceiptText,
+  "Purchase Order": ShoppingCart,
+  "Purchase Receipt": PackageCheck,
+  "Purchase Invoice": ReceiptText,
 };
 
 function NodeCard({ node }: { node: RelationshipNode }) {

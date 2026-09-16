@@ -11,8 +11,10 @@ import {
   ChartNoAxesCombined,
   ChevronDown,
   ChevronRight,
+  ChevronsUpDown,
   ClipboardList,
   Contact,
+  Factory,
   FileMinus,
   FilePenLine,
   Handshake,
@@ -27,6 +29,8 @@ import {
   PanelLeftOpen,
   ReceiptText,
   Settings2,
+  ShoppingBag,
+  ShoppingCart,
   SlidersHorizontal,
   Tags,
   Truck,
@@ -35,6 +39,7 @@ import {
   Users,
   UsersRound,
   Wallet,
+  Warehouse,
   Workflow,
   X,
   type LucideIcon,
@@ -59,11 +64,20 @@ type NavGroupDef = {
   items: (NavItem | SoonItem)[];
 };
 
-// Dashboard is a single, always-flat top-level link (no subsection to expand/collapse
-// and no rail flyout) — every other entry below is a real group.
-const DASHBOARD_ITEM: NavItem = { href: "/", label: "Dashboard", icon: LayoutDashboard };
+// A module is a top-level, separately-addressable section of the app (Selling, Buying,
+// Manufacturing, ...) — each gets its own home page and its own Sidebar nav-group set.
+// `soon` marks a module that exists in the switcher but has no real route yet (greyed
+// out, unclickable), the module-level analog of a group's individual `SoonItem`.
+type ModuleDef = {
+  id: string;
+  label: string;
+  homeHref: string;
+  icon: LucideIcon;
+  groups: NavGroupDef[];
+  soon?: true;
+};
 
-const NAV_GROUPS: NavGroupDef[] = [
+const SALES_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "cycle",
     label: "Sales cycle",
@@ -134,99 +148,201 @@ const NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
-const DEFAULT_EXPANDED = ["cycle"];
-const STORAGE_KEY = "ceylonstack.sidebar.v1";
+// Phase 3 of the Buying + multi-module nav plan: the first real Buying nav group —
+// Suppliers master plus the shared Contacts/Addresses pages (those two are generic
+// Frappe doctypes, not Customer-exclusive, so Buying points at the same /sales/contacts
+// and /sales/addresses routes rather than forking its own copies). Material Requests,
+// RFQs, Purchase Orders, etc. land in later phases as those doctypes are built.
+// Phase 4 of the Buying + multi-module nav plan: all six Buying-cycle doctypes now have
+// real routes — Material Request -> Request for Quotation -> Supplier Quotation ->
+// Purchase Order -> Purchase Receipt -> Purchase Invoice, the full real chain order.
+// Ordered first, ahead of the "Suppliers & contacts" group, matching Sales' own group
+// ordering convention (cycle group before contacts/masters).
+const BUYING_NAV_GROUPS: NavGroupDef[] = [
+  {
+    id: "cycle",
+    label: "Buying cycle",
+    icon: Workflow,
+    items: [
+      { href: "/buying/material-requests", label: "Material Requests", icon: ClipboardList },
+      { href: "/buying/request-for-quotations", label: "RFQs", icon: FilePenLine },
+      { href: "/buying/supplier-quotations", label: "Supplier Quotations", icon: ReceiptText },
+      { href: "/buying/purchase-orders", label: "Purchase Orders", icon: ShoppingCart },
+      { href: "/buying/purchase-receipts", label: "Purchase Receipts", icon: PackageCheck },
+      { href: "/buying/purchase-invoices", label: "Purchase Invoices", icon: ReceiptText },
+    ],
+  },
+  {
+    id: "suppliers",
+    label: "Suppliers & contacts",
+    icon: Users,
+    items: [
+      { href: "/buying/suppliers", label: "Suppliers", icon: Warehouse },
+      { href: "/sales/contacts", label: "Contacts", icon: Contact },
+      { href: "/sales/addresses", label: "Addresses", icon: MapPin },
+    ],
+  },
+  {
+    id: "reports",
+    label: "Buying reports",
+    icon: ChartNoAxesCombined,
+    items: [{ href: "/buying/reports", label: "Buying Reports", icon: ChartNoAxesCombined }],
+  },
+];
 
-type StoredState = { expanded: string[]; collapsed: boolean };
+const MODULES: ModuleDef[] = [
+  { id: "sales", label: "Selling", homeHref: "/sales", icon: ShoppingCart, groups: SALES_NAV_GROUPS },
+  { id: "buying", label: "Buying", homeHref: "/buying", icon: ShoppingBag, groups: BUYING_NAV_GROUPS },
+  { id: "manufacturing", label: "Manufacturing", homeHref: "/manufacturing", icon: Factory, groups: [], soon: true },
+];
 
-const DEFAULT_STATE: StoredState = { expanded: DEFAULT_EXPANDED, collapsed: false };
+const DEFAULT_MODULE_ID = "sales";
 
-// "/" (Sales Dashboard) needs an exact match — pathname.startsWith("/") would otherwise
-// match every route in the app, since every path starts with "/".
+// "/sales" needs a plain prefix match, same as any other module home — no module's
+// homeHref is "/", so (unlike the old single-module Dashboard link) there's no exact-match
+// special case needed here anymore. Kept as a named helper because both group items and
+// module homeHrefs use it identically.
 function isItemActive(pathname: string, href: string): boolean {
-  return href === "/" ? pathname === "/" : pathname.startsWith(href);
+  return pathname.startsWith(href);
 }
 
-function findActiveGroupId(pathname: string): string | undefined {
-  return NAV_GROUPS.find((group) =>
+function findActiveGroupId(pathname: string, groups: NavGroupDef[]): string | undefined {
+  return groups.find((group) =>
     group.items.some((item) => "href" in item && isItemActive(pathname, item.href)),
   )?.id;
 }
 
-// Module-level pub-sub over localStorage, read via useSyncExternalStore rather than
-// useState+useEffect — same pattern as ReportsList.tsx's view-mode toggle: it lets the
-// server-rendered default (rail expanded, only "Sales cycle" open) and the client's
-// saved preference differ without a hydration mismatch or a setState-in-effect cascade.
-const listeners = new Set<() => void>();
+// Generic pub-sub-over-localStorage store, read via useSyncExternalStore rather than
+// useState+useEffect — same pattern the sidebar already used for its collapse/expand
+// state (and ReportsList.tsx's view-mode toggle), just factored once so the newly added
+// "last active module" store doesn't need its own copy-pasted listeners/cachedRaw/write
+// trio. Lets the server-rendered default and the client's saved preference differ
+// without a hydration mismatch or a setState-in-effect cascade.
+function createLocalStore<T>(key: string, defaultValue: T, sanitize: (parsed: unknown) => T) {
+  const listeners = new Set<() => void>();
+  let cachedRaw: string | null | undefined; // undefined = not read yet this session
+  let cachedState: T = defaultValue;
 
-let cachedRaw: string | null | undefined; // undefined = not read yet this session
-let cachedState: StoredState = DEFAULT_STATE;
-
-function getSnapshot(): StoredState {
-  let raw: string | null;
-  try {
-    raw = localStorage.getItem(STORAGE_KEY);
-  } catch {
-    return DEFAULT_STATE;
-  }
-  if (raw === cachedRaw) return cachedState;
-  cachedRaw = raw;
-  if (!raw) {
-    cachedState = DEFAULT_STATE;
+  function getSnapshot(): T {
+    let raw: string | null;
+    try {
+      raw = localStorage.getItem(key);
+    } catch {
+      return defaultValue;
+    }
+    if (raw === cachedRaw) return cachedState;
+    cachedRaw = raw;
+    if (!raw) {
+      cachedState = defaultValue;
+      return cachedState;
+    }
+    try {
+      cachedState = sanitize(JSON.parse(raw));
+    } catch {
+      cachedState = defaultValue;
+    }
     return cachedState;
   }
-  try {
-    const parsed = JSON.parse(raw);
-    cachedState = {
-      expanded: Array.isArray(parsed.expanded)
-        ? parsed.expanded.filter((id: unknown): id is string => typeof id === "string")
-        : DEFAULT_EXPANDED,
-      collapsed: Boolean(parsed.collapsed),
-    };
-  } catch {
-    cachedState = DEFAULT_STATE;
+
+  function getServerSnapshot(): T {
+    return defaultValue;
   }
-  return cachedState;
-}
 
-function getServerSnapshot(): StoredState {
-  return DEFAULT_STATE;
-}
-
-function subscribe(callback: () => void) {
-  listeners.add(callback);
-  return () => listeners.delete(callback);
-}
-
-function writeStoredState(state: StoredState) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    // localStorage unavailable (private window, blocked storage) — the click still
-    // notifies listeners below, so the toggle works for this render even if it won't persist.
+  function subscribe(callback: () => void) {
+    listeners.add(callback);
+    return () => listeners.delete(callback);
   }
-  cachedRaw = undefined; // force a re-read of localStorage on the next getSnapshot() call
-  listeners.forEach((l) => l());
+
+  function write(state: T) {
+    try {
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch {
+      // localStorage unavailable (private window, blocked storage) — the change still
+      // notifies listeners below, so it works for this render even if it won't persist.
+    }
+    cachedRaw = undefined; // force a re-read of localStorage on the next getSnapshot() call
+    listeners.forEach((l) => l());
+  }
+
+  return { getSnapshot, getServerSnapshot, subscribe, write };
 }
+
+// Sidebar UI state: which groups are expanded, and rail (collapsed) mode. `collapsed` is
+// one shared preference across every module; `expanded` holds entries prefixed
+// "<moduleId>:<groupId>" so identically-named group ids in different modules (e.g. if
+// Buying later grows its own "cycle" or "setup" group) don't bleed into each other's
+// stored expand-state. The group's own `id` field in NAV_GROUPS/MODULES stays a plain
+// short string for readability — only the persisted storage key gets prefixed.
+const SIDEBAR_STORAGE_KEY = "ceylonstack.sidebar.v1";
+type StoredState = { expanded: string[]; collapsed: boolean };
+const DEFAULT_STATE: StoredState = { expanded: [`${DEFAULT_MODULE_ID}:cycle`], collapsed: false };
+
+const sidebarStore = createLocalStore<StoredState>(SIDEBAR_STORAGE_KEY, DEFAULT_STATE, (parsed) => {
+  const obj = (parsed ?? {}) as { expanded?: unknown; collapsed?: unknown };
+  return {
+    expanded: Array.isArray(obj.expanded)
+      ? obj.expanded.filter((id): id is string => typeof id === "string")
+      : DEFAULT_STATE.expanded,
+    collapsed: Boolean(obj.collapsed),
+  };
+});
+
+// Separate, simpler store for "which module did the user last land in" — read as a
+// fallback by the active-module resolution below, and written both by the module
+// switcher and by directly navigating into a module's own routes.
+const ACTIVE_MODULE_STORAGE_KEY = "ceylonstack.activeModule.v1";
+const activeModuleStore = createLocalStore<string | null>(ACTIVE_MODULE_STORAGE_KEY, null, (parsed) =>
+  typeof parsed === "string" ? parsed : null,
+);
 
 export function Sidebar() {
   const pathname = usePathname();
-  const stored = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const stored = useSyncExternalStore(sidebarStore.subscribe, sidebarStore.getSnapshot, sidebarStore.getServerSnapshot);
+  const persistedModuleId = useSyncExternalStore(
+    activeModuleStore.subscribe,
+    activeModuleStore.getSnapshot,
+    activeModuleStore.getServerSnapshot,
+  );
   // Ephemeral, not persisted — which group's floating flyout (rail/collapsed mode only)
   // is currently open. Mirrors the concept file's single shared `#cs-nav-flyout` panel.
   const [openFlyoutId, setOpenFlyoutId] = useState<string | null>(null);
+  // Ephemeral, not persisted — whether the module-switcher dropdown is open.
+  const [moduleMenuOpen, setModuleMenuOpen] = useState(false);
   const navRef = useRef<HTMLElement>(null);
   // Bumped on every window resize purely to force a re-render, which re-runs the
   // deps-less fit effect below — the effect itself never reads this value.
   const [, forceRemeasure] = useState(0);
 
-  const activeGroupId = findActiveGroupId(pathname);
-  const expanded = new Set(stored.expanded);
+  // Active module: whichever module's homeHref the current route sits under (a real
+  // route always wins), falling back to the last module chosen via the switcher — or
+  // navigated into directly — and finally to Sales when nothing matches and nothing has
+  // been persisted yet (e.g. sitting on the "/" module-picker page on a fresh session).
+  const pathModule = MODULES.find((m) => !m.soon && isItemActive(pathname, m.homeHref));
+  const activeModule =
+    pathModule ??
+    MODULES.find((m) => m.id === persistedModuleId) ??
+    MODULES.find((m) => m.id === DEFAULT_MODULE_ID)!;
+
+  // Visiting a module's pages directly (not just via the switcher) should also update
+  // which module "/" and the sidebar fall back to next time.
+  useLayoutEffect(() => {
+    if (pathModule && pathModule.id !== persistedModuleId) {
+      activeModuleStore.write(pathModule.id);
+    }
+  }, [pathModule, persistedModuleId]);
+
+  const activeGroupId = findActiveGroupId(pathname, activeModule.groups);
+  const modulePrefix = `${activeModule.id}:`;
+  const moduleExpandedIds = stored.expanded
+    .filter((id) => id.startsWith(modulePrefix))
+    .map((id) => id.slice(modulePrefix.length));
+  const expanded = new Set(moduleExpandedIds);
   if (activeGroupId) expanded.add(activeGroupId);
   const collapsed = stored.collapsed;
-  const flyoutGroup = collapsed ? NAV_GROUPS.find((g) => g.id === openFlyoutId) : undefined;
+  const flyoutGroup = collapsed ? activeModule.groups.find((g) => g.id === openFlyoutId) : undefined;
 
   function toggleGroup(id: string) {
+    const prefixedId = `${modulePrefix}${id}`;
     // Toggle against the merged (visible) set, not just the persisted one — a group
     // that's force-expanded because it contains the active route still shows as "open"
     // here, so toggling it "closed" correctly records that preference for next time
@@ -234,20 +350,34 @@ export function Sidebar() {
     const isOpen = expanded.has(id);
     // Opening a group moves it to the end of stored.expanded, so the fit-check effect
     // below always collapses the *oldest*-opened group first, not this one.
-    const next = isOpen ? stored.expanded.filter((x) => x !== id) : [...stored.expanded.filter((x) => x !== id), id];
-    writeStoredState({ expanded: next, collapsed: stored.collapsed });
+    const next = isOpen
+      ? stored.expanded.filter((x) => x !== prefixedId)
+      : [...stored.expanded.filter((x) => x !== prefixedId), prefixedId];
+    sidebarStore.write({ expanded: next, collapsed: stored.collapsed });
   }
 
   function toggleCollapsed() {
     setOpenFlyoutId(null);
-    writeStoredState({ expanded: stored.expanded, collapsed: !stored.collapsed });
+    sidebarStore.write({ expanded: stored.expanded, collapsed: !stored.collapsed });
   }
 
   function handleRailGroupClick(id: string) {
     // In rail (icon-only) mode, clicking a group icon shows that group's pages in a
     // floating flyout next to the rail — same interaction as the concept file's
     // showFly()/closeFly() (clicking the same icon again closes it).
+    setModuleMenuOpen(false);
     setOpenFlyoutId((current) => (current === id ? null : id));
+  }
+
+  function toggleModuleMenu() {
+    setOpenFlyoutId(null);
+    setModuleMenuOpen((current) => !current);
+  }
+
+  function selectModule(id: string) {
+    setModuleMenuOpen(false);
+    setOpenFlyoutId(null);
+    activeModuleStore.write(id);
   }
 
   // No scrollbar in the nav pane, by design — instead, whenever the expanded groups
@@ -258,7 +388,8 @@ export function Sidebar() {
   // through stored.expanded re-renders this effect again, converging until it fits or
   // only the active group is left open. A window resize alone (no expand/collapse click)
   // still needs to re-trigger this, hence the forceRemeasure listener below — this effect
-  // deliberately has no dependency array so it re-checks after every render.
+  // deliberately has no dependency array so it re-checks after every render. It only ever
+  // looks at (and collapses within) the *active module's* own expanded groups.
   useLayoutEffect(() => {
     if (collapsed) return; // rail mode has no expandable sub-lists to collapse
     const el = navRef.current;
@@ -270,9 +401,12 @@ export function Sidebar() {
     // immediately close the section the user just opened (or the default-open one on first
     // load) the instant its content doesn't fit. Only groups opened *before* that one are
     // fair game to auto-collapse to make room.
-    const collapsible = stored.expanded.slice(0, -1).find((id) => id !== activeGroupId);
+    const collapsible = moduleExpandedIds.slice(0, -1).find((id) => id !== activeGroupId);
     if (!collapsible) return; // nothing left we're allowed to collapse
-    writeStoredState({ expanded: stored.expanded.filter((id) => id !== collapsible), collapsed: stored.collapsed });
+    sidebarStore.write({
+      expanded: stored.expanded.filter((id) => id !== `${modulePrefix}${collapsible}`),
+      collapsed: stored.collapsed,
+    });
   });
 
   useLayoutEffect(() => {
@@ -282,6 +416,13 @@ export function Sidebar() {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  const dashboardItem: NavItem = {
+    href: activeModule.homeHref,
+    label: `${activeModule.label} Home`,
+    icon: LayoutDashboard,
+  };
+  const ActiveModuleIcon = activeModule.icon;
 
   return (
     <aside
@@ -320,13 +461,40 @@ export function Sidebar() {
             <PanelLeftOpen size={16} />
           </button>
         )}
+
+        {/* Module switcher — sits right below the logo/collapse row so it reads as part
+            of the sidebar's header, not buried among the nav groups below. */}
+        {!collapsed ? (
+          <button
+            type="button"
+            onClick={toggleModuleMenu}
+            aria-haspopup="menu"
+            aria-expanded={moduleMenuOpen}
+            className="mt-3 flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-white/80 hover:bg-white/10"
+          >
+            <ActiveModuleIcon size={16} className="shrink-0 text-signal" />
+            <span className="flex-1 truncate text-left font-medium">{activeModule.label}</span>
+            <ChevronsUpDown size={14} className="shrink-0 text-white/40" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={toggleModuleMenu}
+            aria-haspopup="menu"
+            aria-expanded={moduleMenuOpen}
+            title="Switch module"
+            className="mt-2 flex w-full items-center justify-center rounded p-1.5 text-white/60 hover:bg-white/10 hover:text-white"
+          >
+            <ActiveModuleIcon size={16} />
+          </button>
+        )}
       </div>
 
       <nav ref={navRef} className="flex-1 overflow-hidden px-2 py-2">
-        <DashboardLink pathname={pathname} collapsed={collapsed} />
+        <DashboardLink item={dashboardItem} pathname={pathname} collapsed={collapsed} />
 
         <div className="mt-3 border-t border-white/10 pt-3">
-          {NAV_GROUPS.map((group) => (
+          {activeModule.groups.map((group) => (
             <NavGroupSection
               key={group.id}
               group={group}
@@ -338,17 +506,62 @@ export function Sidebar() {
               onRailClick={() => handleRailGroupClick(group.id)}
             />
           ))}
+          {activeModule.groups.length === 0 && !collapsed && (
+            <p className="px-2 py-1.5 text-sm text-white/30">Nothing here yet.</p>
+          )}
         </div>
-
-        {!collapsed && (
-          <>
-            <p className="mt-4 px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-white/30">
-              Manufacturing
-            </p>
-            <p className="px-2 py-1.5 text-sm text-white/30">Coming soon</p>
-          </>
-        )}
       </nav>
+
+      {moduleMenuOpen && (
+        <>
+          {/* Click-outside-to-close backdrop — same approach as the group flyout below. */}
+          <button
+            type="button"
+            aria-label="Close module menu"
+            className="fixed inset-0 z-10 cursor-default"
+            onClick={() => setModuleMenuOpen(false)}
+          />
+          <div
+            className={`fixed z-20 w-56 rounded-lg border border-white/10 bg-ink p-2 shadow-2xl ${
+              collapsed ? "left-16 top-16" : "left-4 top-16"
+            }`}
+          >
+            <ul>
+              {MODULES.map((mod) => {
+                const ModIcon = mod.icon;
+                if (mod.soon) {
+                  return (
+                    <li key={mod.id}>
+                      <span className="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-white/30">
+                        <ModIcon size={16} className="shrink-0" />
+                        <span className="flex-1 truncate">{mod.label}</span>
+                        <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white/40">
+                          Soon
+                        </span>
+                      </span>
+                    </li>
+                  );
+                }
+                const isActive = mod.id === activeModule.id;
+                return (
+                  <li key={mod.id}>
+                    <Link
+                      href={mod.homeHref}
+                      onClick={() => selectModule(mod.id)}
+                      className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${
+                        isActive ? "bg-white/10 font-medium text-white" : "text-white/70 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <ModIcon size={16} className={`shrink-0 ${isActive ? "text-signal" : ""}`} />
+                      <span className="truncate">{mod.label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        </>
+      )}
 
       {flyoutGroup && (
         <>
@@ -412,15 +625,23 @@ export function Sidebar() {
   );
 }
 
-function DashboardLink({ pathname, collapsed }: { pathname: string; collapsed: boolean }) {
-  const Icon = DASHBOARD_ITEM.icon;
-  const active = isItemActive(pathname, DASHBOARD_ITEM.href);
+function DashboardLink({
+  item,
+  pathname,
+  collapsed,
+}: {
+  item: NavItem;
+  pathname: string;
+  collapsed: boolean;
+}) {
+  const Icon = item.icon;
+  const active = isItemActive(pathname, item.href);
 
   if (collapsed) {
     return (
       <Link
-        href={DASHBOARD_ITEM.href}
-        title={DASHBOARD_ITEM.label}
+        href={item.href}
+        title={item.label}
         className={`flex items-center justify-center rounded px-2 py-2 ${
           active ? "bg-white/10 text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
         }`}
@@ -432,13 +653,13 @@ function DashboardLink({ pathname, collapsed }: { pathname: string; collapsed: b
 
   return (
     <Link
-      href={DASHBOARD_ITEM.href}
+      href={item.href}
       className={`flex items-center gap-2 rounded px-2 py-1.5 text-sm ${
         active ? "bg-white/10 font-medium text-white" : "text-white/70 hover:bg-white/5 hover:text-white"
       }`}
     >
       <Icon size={16} className={`shrink-0 ${active ? "text-signal" : ""}`} />
-      <span className="truncate">{DASHBOARD_ITEM.label}</span>
+      <span className="truncate">{item.label}</span>
     </Link>
   );
 }

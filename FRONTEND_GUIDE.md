@@ -110,11 +110,11 @@ apps/frontend/src/
 
 Build strictly in this order. Do not jump ahead.
 
-| Priority | Module              | Scope (Main features only)                                      | Status (2026-09-15)            |
+| Priority | Module              | Scope (Main features only)                                      | Status (2026-09-16)            |
 |----------|---------------------|--------------------------------------------------------------------|--------------------------------|
 | 1        | **Sales**           | Quotation → Sales Order → Delivery Note → Sales Invoice + Customers + Items + basic pricing | Core flow shipped and live-verified; Pick & Pack, partial fulfillment, discounts, quotation-lost also shipped |
-| 2        | **Manufacturing**   | Work Order, Job Card, simple BOM, downtime logging, live status / basic OEE | **Next** — OEE calc logic planned (M0 done), M1–M4 not started, frontend screens not started |
-| 3        | **Buying**          | Material Request → Purchase Order → Purchase Receipt → Purchase Invoice + Suppliers | Not started |
+| 2        | **Buying**          | Material Request → Request for Quotation → Supplier Quotation → Purchase Order → Purchase Receipt → Purchase Invoice + Suppliers | **Next** — reordered ahead of Manufacturing 2026-09-16; not started |
+| 3        | **Manufacturing**   | Work Order, Job Card, simple BOM, downtime logging, live status / basic OEE | OEE calc logic planned (M0 done), M1–M4 not started, frontend screens not started |
 | 4        | **Stock**           | Stock balance, basic movement, warehouse view (simplified)      | Not started |
 | 5        | **Accounting (Light)** | Payment Entry, outstanding invoices, simple receivables/payables | Not started |
 | 6        | **Dashboard**       | Operational KPIs, sales & production summary                    | Ahead of schedule — Sales Flow scene map, Reports hub, and Selling workspace home already shipped in parallel (guide explicitly allows this) |
@@ -243,9 +243,27 @@ The current architecture (Next.js → ERPNext REST API on Hetzner CX23) is suffi
 
 ---
 
-## 10. Manufacturing Module – Next Focus
+## 10. Buying Module – Next Focus
 
-When starting Manufacturing, reuse the exact same patterns as Sales:
+When starting Buying, reuse the exact same patterns as Sales — same list/detail/`actions.ts` triad, same generic components (`DataTable`, `MasterTable`, `MasterForm`, `ColumnPicker`, `ExportMenu`, `PaginationControls`, `ListFilterBar`, `DocActionBar`, `DocTabs`, `DocField`, `StatusPill`, `LineItemsEditor`, `LineSelectionEditor`, `AddressContactFields`, `TermsFields`, `DiscountFields` all carry over as-is; `lib/erpnext.ts` needs zero changes, every function is already doctype-parameterized):
+
+- `material-requests/` (list + new + [name])
+- `request-for-quotations/`
+- `supplier-quotations/` (create Purchase Order from here, mirroring Quotation → Sales Order)
+- `purchase-orders/` (mirrors `sales/orders/`, incl. create-receipt / create-invoice sub-routes, bulk close/reopen)
+- `purchase-receipts/` (mirrors `sales/delivery-notes/`)
+- `purchase-invoices/` (mirrors `sales/invoices/`)
+- `suppliers/` (master, bespoke form/table like Customers — not the generic `MasterTable`)
+
+**Every new field name, enum value, status-color rule, and whitelisted method path must be verified against the live ERPNext instance before being coded** — never assumed to match Sales' field names 1:1 (e.g. Purchase Order Item's partial-fulfillment fields are not guaranteed to be called `ordered_qty`/`so_detail` the way Sales Order Item's are). Use `mcp__ceylon-stack__get_doctype_fields`/`list_doctypes`, or read the live DocType JSON / `*_list.js`, the same way `lib/erpStatus.ts`'s comments document Sales having done.
+
+Treat Sales as the reference implementation for every rule in this guide when building Buying next.
+
+---
+
+## 11. Manufacturing Module – Following Module
+
+Once Buying's core flow ships, reuse the exact same patterns as Sales:
 
 - `work-orders/` (list + new + [name])
 - `job-cards/`
@@ -257,7 +275,7 @@ Manufacturing is the real product differentiator for Ceylon Stack. Keep forms fo
 
 ---
 
-## 11. Branding & UX
+## 12. Branding & UX
 
 - Follow `DESIGN.md` and `docs/brand.md` strictly.
 - Use only Ceylon Stack design tokens (Sapphire, Cinnamon, Tea, Turmeric, Terracotta, etc.).
@@ -267,19 +285,19 @@ Manufacturing is the real product differentiator for Ceylon Stack. Keep forms fo
 
 ---
 
-## 12. What Agents Must Not Do
+## 13. What Agents Must Not Do
 
 - Modify ERPNext core files.
 - Put business logic in the frontend that already exists in ERPNext.
 - Rebuild every ERPNext report or setup screen.
 - Create inconsistent folder or naming patterns (don't invent `getList()` when `listDocs()` already exists — extend, don't fork).
-- Add new modules before the previous priority module's core flow is stable (Manufacturing is next, not Buying/Stock).
+- Add new modules before the previous priority module's core flow is stable (Buying is next, not Manufacturing/Stock).
 - Hard-code colors or fonts outside the design tokens.
 - Expose the original ERPNext Desk to normal users.
 
 ---
 
-## 13. Immediate Action Checklist for Agents
+## 14. Immediate Action Checklist for Agents
 
 When working on the frontend, follow this order:
 
@@ -290,12 +308,12 @@ When working on the frontend, follow this order:
    - Ensure all new documents follow the same list/form pattern as Sales.
 4. **Align branches**
    - Keep `frontend` branch work clearly integrated or documented against `main`.
-5. **Start Manufacturing next** (§10), applying the exact same folder and component patterns as Sales.
+5. **Start Buying next** (§10), applying the exact same folder and component patterns as Sales; Manufacturing (§11) follows once Buying's core flow ships.
 6. **Update `PROGRESS.md`** after meaningful work, and invoke the `release-tracker` subagent once a phase is shipped and verified (per `CLAUDE.md` ground rules).
 
 ---
 
-## 14. Definition of Done (per document)
+## 15. Definition of Done (per document)
 
 A document (e.g. Sales Order) is considered done when:
 
@@ -311,7 +329,22 @@ A document (e.g. Sales Order) is considered done when:
 
 ---
 
-## 15. Reference Files
+## 16. Planned: Role-Based Module Access (not yet built)
+
+**Status as of 2026-09-16: design only, nothing below is implemented.** Captured here so the intent survives even though it's deliberately deferred past the Buying build — don't let it block Buying.
+
+Today there is zero role-based access anywhere in the frontend. `lib/session.ts`'s `SessionPayload` is just `{ email, fullName, exp }` — no role data — and every ERPNext data call goes through one shared "Frontend Integration" service-account API key/secret regardless of which human is logged in (see `AccessDeniedNotice.tsx`'s copy, which already points at this). The Sidebar has no per-module gating concept at all.
+
+The planned design, once picked up:
+- Extend `SessionPayload` to carry the logged-in user's ERPNext roles, fetched once at login — right after `verifyErpNextLogin` confirms their credentials, before the app-level session cookie is signed.
+- Gate each module entry in the Sidebar's module switcher (see §4/§9/§10's module structure) behind a required-role list, reusing the same role bundles already defined in `apps/ceylon_services/ceylon_services/provisioning.py`'s `CORE_ROLES` — e.g. Buying requires any of Purchase User/Purchase Manager/Purchase Master Manager/System Manager; Selling requires the Sales equivalents.
+- Default a user who lands on `/` (the module picker) to their first accessible module rather than showing every module as a choice.
+
+**Open problem this design does not solve:** role-gating what a user *sees* in navigation doesn't change what ERPNext data calls are actually scoped to, since there's still no per-user ERPNext session — everyone shares the one service-account identity for reads/writes. True per-user data scoping would need a separate, larger change (per-user Frappe sessions instead of one shared API key). Don't conflate the two when this gets picked up.
+
+---
+
+## 17. Reference Files
 
 | File | Purpose |
 |------|---------|

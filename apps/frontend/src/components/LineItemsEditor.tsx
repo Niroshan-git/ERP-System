@@ -5,6 +5,7 @@ import { getItemLineDefaults, type ItemOption } from "@/lib/actions/itemLookup";
 import { resolvePricingForLine, type PricingContext } from "@/lib/actions/pricingLookup";
 import { BatchSerialPicker, type BatchSerialEntry } from "@/components/BatchSerialPicker";
 import { StockBadge } from "@/components/StockBadge";
+import { formatAmount } from "@/lib/format";
 
 export type LineRow = {
   item_code: string;
@@ -22,6 +23,19 @@ export type LineRow = {
    */
   quotation_item?: string;
   source_quotation?: string;
+  /**
+   * Buying-only mirror of quotation_item/source_quotation above — set only when this row
+   * was copied from a specific Supplier Quotation Item row (via "Create Purchase Order" on
+   * the Supplier Quotation detail page) and still represents that same line, cleared by
+   * onItemChange below the same way the moment the user swaps the item. Both real, stored
+   * Purchase Order Item fields (confirmed via the live DocType JSON) —
+   * supplier_quotation_item's own field name already matches ERPNext's; source_supplier_quotation
+   * becomes `supplier_quotation` on save (see purchase-orders/actions.ts's
+   * parsePurchaseOrderItems), same rename shape source_quotation -> prevdoc_docname gets on
+   * the Sales side.
+   */
+  supplier_quotation_item?: string;
+  source_supplier_quotation?: string;
   /**
    * Delivery-Note-only fields (Phase 2C/2D) — populated only when `defaultWarehouse` is
    * passed in below (i.e. only by DeliveryNoteForm; Quotation/Sales Order/Sales Invoice
@@ -52,6 +66,12 @@ export type LineRow = {
   discount_percentage?: number;
   discount_amount?: number;
   pricing_rules?: string;
+  /**
+   * Buying-only (Material Request Item's own per-line `schedule_date`, "Required By" —
+   * confirmed via the live DocType JSON) — populated only when `showScheduleDate` below is
+   * set (i.e. only by MaterialRequestForm; no Sales doctype has a per-line schedule date).
+   */
+  schedule_date?: string;
 };
 
 const emptyRow: LineRow = { item_code: "", item_name: "", qty: 1, uom: "", rate: 0 };
@@ -69,7 +89,7 @@ function pricingRuleSummary(row: LineRow): string {
     return `Pricing Rule applied — ${row.discount_percentage}% off`;
   }
   if (row.discount_amount && row.discount_amount > 0) {
-    return `Pricing Rule applied — discount of ${row.discount_amount.toFixed(2)} per unit`;
+    return `Pricing Rule applied — discount of ${formatAmount(row.discount_amount)} per unit`;
   }
   return "Pricing Rule applied";
 }
@@ -89,6 +109,9 @@ export function LineItemsEditor({
   currency,
   defaultWarehouse,
   pricingContext,
+  showRate = true,
+  showScheduleDate = false,
+  defaultScheduleDate,
 }: {
   fieldName: string;
   itemOptions: ItemOption[];
@@ -111,9 +134,26 @@ export function LineItemsEditor({
    * for Delivery Note — out of scope for this phase (see PLAN.md Phase 4 notes).
    */
   pricingContext?: PricingContext;
+  /**
+   * Buying-only (Material Request has no rate/amount concept at all, confirmed via the
+   * live DocType JSON — item cost isn't known yet at request time) — hides the Rate/Amount
+   * columns and the running-total footer entirely rather than showing a meaningless 0.00.
+   * Every Sales caller (and Supplier Quotation, which genuinely does have a `rate`) leaves
+   * this at the default `true`.
+   */
+  showRate?: boolean;
+  /** Buying-only — adds an editable per-row "Required by" date column (Material Request
+   * Item's own `schedule_date`, distinct from the document header's own field of the same
+   * name). Left `false` for every Sales caller and for Supplier Quotation, neither of which
+   * has a per-line schedule date. */
+  showScheduleDate?: boolean;
+  /** Pre-fills new rows' schedule_date from the document header's own "Required By" date
+   * (still per-line editable) — only meaningful when `showScheduleDate` is set. */
+  defaultScheduleDate?: string;
 }) {
+  const scheduleDefaults = showScheduleDate && defaultScheduleDate ? { schedule_date: defaultScheduleDate } : {};
   const [rows, setRows] = useState<LineRow[]>(() => {
-    const base = initialRows?.length ? initialRows : [emptyRow];
+    const base = initialRows?.length ? initialRows : [{ ...emptyRow, ...scheduleDefaults }];
     return defaultWarehouse ? base.map((r) => ({ ...r, warehouse: r.warehouse ?? defaultWarehouse })) : base;
   });
   const [isPending, startTransition] = useTransition();
@@ -162,14 +202,19 @@ export function LineItemsEditor({
       prev.map((row, i) => {
         if (i !== index) return row;
         const itemSwapped = itemCode !== row.item_code;
-        // Swapping the item invalidates any Quotation-line tag this row carried — it no
-        // longer represents that source line and must not be sent as if it still did.
+        // Swapping the item invalidates any Quotation-line (or Supplier-Quotation-line) tag
+        // this row carried — it no longer represents that source line and must not be sent
+        // as if it still did.
         const swapped = Boolean(row.quotation_item) && itemSwapped;
+        const swappedSupplierQuotation = Boolean(row.supplier_quotation_item) && itemSwapped;
         return {
           ...row,
           item_code: itemCode,
           item_name: option?.name ?? "",
           ...(swapped ? { quotation_item: undefined, source_quotation: undefined } : {}),
+          ...(swappedSupplierQuotation
+            ? { supplier_quotation_item: undefined, source_supplier_quotation: undefined }
+            : {}),
           // A swapped item is a different item master — its batch/serial flags and any
           // already-picked batch/serial selection no longer apply.
           ...(itemSwapped ? { has_batch_no: undefined, has_serial_no: undefined, batchSerialEntries: undefined } : {}),
@@ -227,7 +272,7 @@ export function LineItemsEditor({
   }, [pricingContext?.customer, pricingContext?.company, pricingContext?.transactionDate]);
 
   function addRow() {
-    setRows((prev) => [...prev, defaultWarehouse ? { ...emptyRow, warehouse: defaultWarehouse } : emptyRow]);
+    setRows((prev) => [...prev, { ...emptyRow, ...scheduleDefaults, ...(defaultWarehouse ? { warehouse: defaultWarehouse } : {}) }]);
   }
 
   function removeRow(index: number) {
@@ -246,10 +291,15 @@ export function LineItemsEditor({
           <thead>
             <tr className="border-b border-border bg-canvas text-graphite-500">
               <th className="px-3 py-2 font-semibold">Item</th>
-              <th className="px-3 py-2 font-semibold">Qty</th>
+              <th className="px-3 py-2 text-right font-semibold">Qty</th>
               <th className="px-3 py-2 font-semibold">UOM</th>
-              <th className="px-3 py-2 font-semibold">Rate</th>
-              <th className="px-3 py-2 font-semibold">Amount</th>
+              {showScheduleDate && <th className="px-3 py-2 font-semibold">Required by</th>}
+              {showRate && (
+                <>
+                  <th className="px-3 py-2 text-right font-semibold">Rate</th>
+                  <th className="px-3 py-2 text-right font-semibold">Amount</th>
+                </>
+              )}
               <th className="px-3 py-2" />
             </tr>
           </thead>
@@ -272,6 +322,11 @@ export function LineItemsEditor({
                   {row.quotation_item && (
                     <p className="mt-1 font-mono text-xs text-graphite-500">
                       linked to {row.source_quotation}
+                    </p>
+                  )}
+                  {row.supplier_quotation_item && (
+                    <p className="mt-1 font-mono text-xs text-graphite-500">
+                      linked to {row.source_supplier_quotation}
                     </p>
                   )}
                   {defaultWarehouse && (row.has_batch_no || row.has_serial_no) && row.warehouse && (
@@ -299,7 +354,7 @@ export function LineItemsEditor({
                     <p className="mt-1 text-xs text-signal">{pricingRuleSummary(row)}</p>
                   )}
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-3 py-2 text-right">
                   <input
                     type="number"
                     min="0"
@@ -315,20 +370,35 @@ export function LineItemsEditor({
                   )}
                 </td>
                 <td className="px-3 py-2 font-mono text-graphite-500">{row.uom || "—"}</td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={row.rate}
-                    disabled={pricingContext && hasPricingRule(row)}
-                    onChange={(e) => updateRow(index, { rate: Number(e.target.value) || 0 })}
-                    className="w-28 rounded-md border border-border px-2 py-1.5 font-mono text-sm tabular-nums focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal disabled:bg-canvas disabled:text-graphite-500"
-                  />
-                </td>
-                <td className="px-3 py-2 font-mono tabular-nums text-graphite-900">
-                  {(row.qty * row.rate).toFixed(2)}
-                </td>
+                {showScheduleDate && (
+                  <td className="px-3 py-2">
+                    <input
+                      type="date"
+                      required
+                      value={row.schedule_date ?? ""}
+                      onChange={(e) => updateRow(index, { schedule_date: e.target.value })}
+                      className="rounded-md border border-border px-2 py-1.5 font-mono text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
+                    />
+                  </td>
+                )}
+                {showRate && (
+                  <>
+                    <td className="px-3 py-2 text-right">
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={row.rate}
+                        disabled={pricingContext && hasPricingRule(row)}
+                        onChange={(e) => updateRow(index, { rate: Number(e.target.value) || 0 })}
+                        className="w-28 rounded-md border border-border px-2 py-1.5 font-mono text-sm tabular-nums focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal disabled:bg-canvas disabled:text-graphite-500"
+                      />
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-900">
+                      {formatAmount(row.qty * row.rate)}
+                    </td>
+                  </>
+                )}
                 <td className="px-3 py-2">
                   <button
                     type="button"
@@ -349,16 +419,20 @@ export function LineItemsEditor({
         <button type="button" onClick={addRow} className="text-sm font-medium text-signal hover:underline">
           + Add row
         </button>
-        <p className="font-mono text-sm tabular-nums text-graphite-500">
-          Estimated total: {total.toFixed(2)} {currency}
-          {isPending && " · loading item…"}
-        </p>
+        {showRate && (
+          <p className="font-mono text-sm tabular-nums text-graphite-500">
+            Estimated total: {formatAmount(total)} {currency}
+            {isPending && " · loading item…"}
+          </p>
+        )}
       </div>
-      <p className="mt-1 text-xs text-graphite-500">
-        {pricingContext
-          ? "Rate defaults to the item's standard selling rate, then any matching Pricing Rule is applied automatically (rate becomes read-only once one applies). ERPNext computes the saved total (including any taxes) on save — this estimate excludes taxes."
-          : "Rate defaults to the item's standard selling rate and is editable per line. ERPNext computes the saved total (including any taxes) on save — this estimate excludes taxes."}
-      </p>
+      {showRate && (
+        <p className="mt-1 text-xs text-graphite-500">
+          {pricingContext
+            ? "Rate defaults to the item's standard selling rate, then any matching Pricing Rule is applied automatically (rate becomes read-only once one applies). ERPNext computes the saved total (including any taxes) on save — this estimate excludes taxes."
+            : "Rate defaults to the item's standard selling rate and is editable per line. ERPNext computes the saved total (including any taxes) on save — this estimate excludes taxes."}
+        </p>
+      )}
 
       {activePicker && pickerIndex !== null && (
         <BatchSerialPicker
