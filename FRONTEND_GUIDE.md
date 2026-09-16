@@ -1,7 +1,7 @@
 # Ceylon Stack Frontend Guide
 
-**Version:** 1.1
-**Date:** September 2026
+**Version:** 1.2
+**Date:** September 2026 (updated 2026-09-16)
 **Audience:** Claude agents (`frontend-dev`, `product-designer`, `code-reviewer`, `qa-tester`) and developers working on `apps/frontend`
 **Goal:** Build a complete custom frontend so end users never see the original ERPNext Desk.
 
@@ -87,9 +87,9 @@ apps/frontend/src/
 │   │   │   ├── invoices/
 │   │   │   ├── customers/, items/, pick-lists/, price-lists/, ...
 │   │   ├── reports/                # Reports hub (17/18 live)
-│   │   ├── manufacturing/          # not started — next priority, see §4
-│   │   ├── buying/                 # not started
-│   │   └── stock/                  # not started
+│   │   ├── buying/                 # shipped — core cycle + Suppliers live-verified
+│   │   ├── stock/                  # building — reordered ahead of Manufacturing 2026-09-16, see §4/§10a
+│   │   └── manufacturing/          # not started — pushed behind Stock 2026-09-16, see §4
 ├── components/                    # 54 reusable UI components — see §7
 ├── lib/
 │   ├── erpnext.ts                 # ALL ERPNext API calls — see §5
@@ -113,9 +113,9 @@ Build strictly in this order. Do not jump ahead.
 | Priority | Module              | Scope (Main features only)                                      | Status (2026-09-16)            |
 |----------|---------------------|--------------------------------------------------------------------|--------------------------------|
 | 1        | **Sales**           | Quotation → Sales Order → Delivery Note → Sales Invoice + Customers + Items + basic pricing | Core flow shipped and live-verified; Pick & Pack, partial fulfillment, discounts, quotation-lost also shipped |
-| 2        | **Buying**          | Material Request → Request for Quotation → Supplier Quotation → Purchase Order → Purchase Receipt → Purchase Invoice + Suppliers | **Next** — reordered ahead of Manufacturing 2026-09-16; not started |
-| 3        | **Manufacturing**   | Work Order, Job Card, simple BOM, downtime logging, live status / basic OEE | OEE calc logic planned (M0 done), M1–M4 not started, frontend screens not started |
-| 4        | **Stock**           | Stock balance, basic movement, warehouse view (simplified)      | Not started |
+| 2        | **Buying**          | Material Request → Request for Quotation → Supplier Quotation → Purchase Order → Purchase Receipt → Purchase Invoice + Suppliers | Core flow (Material Request → ... → Purchase Invoice) + Suppliers shipped and live-verified |
+| 3        | **Stock**           | Stock balance (live, Bin-backed), Warehouses (simplified/flat), Stock Entry (Material Issue/Receipt/Transfer only) with Batch/Serial No tracking on lines | **Reordered ahead of Manufacturing 2026-09-16** — same precedent as Buying's own reorder; building now, see §10a |
+| 4        | **Manufacturing**   | Work Order, Job Card, simple BOM, downtime logging, live status / basic OEE | Pushed back behind Stock 2026-09-16 — OEE calc logic planned (M0 done), M1–M4 not started, frontend screens not started |
 | 5        | **Accounting (Light)** | Payment Entry, outstanding invoices, simple receivables/payables | Not started |
 | 6        | **Dashboard**       | Operational KPIs, sales & production summary                    | Ahead of schedule — Sales Flow scene map, Reports hub, and Selling workspace home already shipped in parallel (guide explicitly allows this) |
 
@@ -239,7 +239,7 @@ The current architecture (Next.js → ERPNext REST API on Hetzner CX23) is suffi
 1. Happy path is rock-solid: `Quotation → Sales Order → Delivery Note → Sales Invoice` — create → save → submit → cancel verified live on each.
 2. Secondary masters (Campaigns, Sales Partners, etc.) can stay lighter.
 3. Do not add more Sales screens beyond what's already shipped without a specific gap — see `docs/ceylon-stack-sales-scenarios.md` for the tracked scenario list (2 of 5 phases done as of 2026-09-14/15).
-4. Treat Sales as the reference implementation for every rule in this guide when building Manufacturing next.
+4. Treat Sales as the reference implementation for every rule in this guide when building Stock next.
 
 ---
 
@@ -261,9 +261,29 @@ Treat Sales as the reference implementation for every rule in this guide when bu
 
 ---
 
+## 10a. Stock Module – Current Focus
+
+**Reordered ahead of Manufacturing 2026-09-16** (same precedent as Buying's own reorder above — Manufacturing hasn't started, so Stock takes its slot rather than leaving the frontend idle waiting on Manufacturing's backend logic).
+
+**v1 scope**: the guide's original baseline — stock balance, basic movement, warehouse view (simplified) — **plus Batch and Serial No masters and batch/serial tracking on Stock Entry lines**. Explicitly excluded from v1: Stock Reconciliation, a full Stock Ledger view, complex valuation screens, and any Stock Entry `purpose` beyond Material Issue/Receipt/Transfer (Manufacture/Repack/Send to Subcontractor/Material Transfer for Manufacture are Manufacturing-scope, not Stock-scope).
+
+Routes: `warehouses/`, `stock-entries/`, `batches/`, `serial-nos/`, `stock-balance/`, `reports/`. Warehouse/Batch/Serial No use the generic `MasterTable`/`MasterForm` components (confirmed live: none of the three carry a docstatus, so no Submit/Cancel UI for them). Stock Entry is a real submittable document (`DocActionBar`, Draft→Submitted→Cancelled) with its own bespoke `StockEntryForm.tsx`, reusing the exact `BatchSerialPicker`/`getAutoBatchSerialData`/`addSerialBatchLedgers` helpers already built for Delivery Note — those helpers are doctype-agnostic (take `child_row.doctype`/`parenttype`/`doc.doctype` as params) and needed zero forking to work against Stock Entry Detail/Stock Entry instead.
+
+**Stock Balance list vs. report — deliberate, not duplicated**: `/stock/stock-balance` is backed by **`Bin`** (`listDocs("Bin", {...})`) — live *current* stock, the same doctype `getBinQty()`/`StockBadge` already read on Delivery Note lines. The Reports-hub "Stock Balance" entry instead calls `runReport("Stock Balance", filters)` — ERPNext's real query report, snapshotted *as of a date* from Stock Ledger Entry, with valuation columns Bin doesn't carry per-transaction. One answers "what do I have right now," the other "what did I have as of date X, with valuation." Don't collapse these into one screen.
+
+Every field name/enum value here was verified live against the ERPNext instance before building (`mcp__ceylon-stack__get_doctype_fields`) — same discipline §10 established for Buying:
+- `Warehouse` is a tree doctype (`is_group`/`parent_warehouse`/`lft`/`rgt`) but the list stays a flat table with a Parent column, no tree/indent UI, matching "simplified."
+- `Stock Entry`'s header carries `from_warehouse`/`to_warehouse` (defaults only); each `Stock Entry Detail` line carries its own `s_warehouse`/`t_warehouse`. `stock_entry_type` (a separate Link doctype) has records named identically to the `purpose` enum values ("Material Issue", "Material Receipt", "Material Transfer", ...) — set one from the other, don't treat them as independent inputs.
+- Stock Entry Detail supports both the legacy plain `batch_no`/`serial_no` fields and the newer `serial_and_batch_bundle` Link — this ERPNext version's `get_auto_data`/`add_serial_batch_ledgers` methods (already in use for Delivery Note) go through the bundle path, so Stock Entry uses the same mechanism, not the legacy fields.
+- Rate/valuation on Stock Entry Detail is not like Sales/Buying pricing — Material Issue/Transfer-out let ERPNext compute `basic_rate` from existing valuation (hide the Rate column), Material Receipt needs a rate input or `allow_zero_valuation_rate` to avoid a submit error.
+
+Treat Sales/Buying as the reference implementation for every other rule in this guide when building Stock.
+
+---
+
 ## 11. Manufacturing Module – Following Module
 
-Once Buying's core flow ships, reuse the exact same patterns as Sales:
+Once Stock's core flow ships, reuse the exact same patterns as Sales:
 
 - `work-orders/` (list + new + [name])
 - `job-cards/`
@@ -291,7 +311,7 @@ Manufacturing is the real product differentiator for Ceylon Stack. Keep forms fo
 - Put business logic in the frontend that already exists in ERPNext.
 - Rebuild every ERPNext report or setup screen.
 - Create inconsistent folder or naming patterns (don't invent `getList()` when `listDocs()` already exists — extend, don't fork).
-- Add new modules before the previous priority module's core flow is stable (Buying is next, not Manufacturing/Stock).
+- Add new modules before the previous priority module's core flow is stable (Stock is next, not Manufacturing).
 - Hard-code colors or fonts outside the design tokens.
 - Expose the original ERPNext Desk to normal users.
 
@@ -308,7 +328,7 @@ When working on the frontend, follow this order:
    - Ensure all new documents follow the same list/form pattern as Sales.
 4. **Align branches**
    - Keep `frontend` branch work clearly integrated or documented against `main`.
-5. **Start Buying next** (§10), applying the exact same folder and component patterns as Sales; Manufacturing (§11) follows once Buying's core flow ships.
+5. **Start Stock next** (§10a), applying the same patterns Buying (§10) established; Manufacturing (§11) follows once Stock's core flow ships.
 6. **Update `PROGRESS.md`** after meaningful work, and invoke the `release-tracker` subagent once a phase is shipped and verified (per `CLAUDE.md` ground rules).
 
 ---

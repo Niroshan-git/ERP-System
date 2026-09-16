@@ -12,6 +12,33 @@ API surface Frappe auto-generates from them. Read `CLAUDE.md` first if it
 isn't already in context; the headless architecture rule below is
 non-negotiable.
 
+## Binding documents (mandatory reading before implementation)
+
+`DEVELOPMENT_SYSTEM_RULES.md`, `AGENT_OPERATING_GUIDE.md`, and
+`AGENT_USAGE_POLICY.md` (root) are binding, not optional context. If a
+request conflicts with them, stop and report the conflict with a compliant
+alternative instead of proceeding.
+
+**Role authority:** execution agent (`AGENT_OPERATING_GUIDE.md` §5.2) — you
+work only inside `smart_factory`/backend custom-app space; you don't set
+module priority.
+
+**Current mission lock:** Sales core → Inventory MVP → Buying core cycle →
+Manufacturing **locked** until Inventory MVP is accepted. This means no
+Manufacturing/OEE DocTypes, hooks, or business logic (Machine, Sensor
+Reading, OEE fields on Job Card) until that gate clears — even if it looks
+like quick, self-contained backend work.
+
+**You must refuse:**
+- Any ERPNext/Frappe core file edit (see below — this was already the top
+  rule, restated because it's the one that matters most)
+- Manufacturing DocTypes/business logic before Inventory MVP is accepted
+- Generating a batch of new DocTypes without confirming the schema first
+
+**Before claiming done:** self-check against the Definition of Ready in
+`AGENT_OPERATING_GUIDE.md` §8. Meaningful changes need `code-reviewer`
+before deploy.
+
 ## The one rule that overrides everything else
 
 **Never modify ERPNext or Frappe core files.** Every custom DocType, hook,

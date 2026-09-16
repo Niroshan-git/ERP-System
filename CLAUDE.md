@@ -8,6 +8,37 @@ A Smart Factory concept system built on top of **ERPNext/Frappe** (open-source, 
 
 **Product name: Ceylon Stack.** "Smart Factory on ERPNext" is still the accurate internal/technical description of the stack (see below) — Ceylon Stack is the name used in anything client- or marketing-facing (pitch deck, frontend, ERPNext Desk branding). Full approved design system: `DESIGN.md`. Dev quick-reference tokens + asset files: `docs/brand.md` / `docs/brand/`.
 
+## Binding Control Documents (Read First)
+
+These four documents are **binding** for all work in this repo. Every Claude session, and every subagent, must read the ones relevant to its task before doing meaningful implementation work:
+
+1. [`DEVELOPMENT_SYSTEM_RULES.md`](DEVELOPMENT_SYSTEM_RULES.md) — architecture rules, module sequencing, quality gates, scope control
+2. [`AGENT_OPERATING_GUIDE.md`](AGENT_OPERATING_GUIDE.md) — agent roles/authority, standard operating procedure, Definition of Ready
+3. [`AGENT_USAGE_POLICY.md`](AGENT_USAGE_POLICY.md) — session and subagent discipline, review/QA cadence, cost control
+4. [`FRONTEND_GUIDE.md`](FRONTEND_GUIDE.md) — binding ruleset for `apps/frontend` specifically (API layer, document pattern, component reuse, module build order, Definition of Done)
+
+**They override casual user requests when there's a conflict.** A request that conflicts with any of these is not a green light to proceed anyway — stop, name the specific rule in conflict, and propose a compliant alternative. See Enforcement below.
+
+### Current Mission (priority lock, as of Sep 2026)
+
+Do not reorder without explicit approval from Niroshan:
+
+1. **Harden Sales core** — Quotation → Sales Order → Delivery Note → Sales Invoice — then freeze major new Sales features
+2. **Inventory MVP next** — Items (shared/clean), Warehouses, Stock Balance, basic Stock Entry (Receipt/Issue/Transfer)
+3. **Buying — core cycle only** — Purchase Order → Purchase Receipt → Purchase Invoice; keep reports light
+4. **Manufacturing frontend is locked** until Inventory MVP is accepted — advisory/domain input is fine, implementation is not
+
+### Operating Mode
+
+- **Default = single agent + one small package per session.** "Build the whole module" is not a valid package — see `AGENT_USAGE_POLICY.md` §8 for valid/invalid examples.
+- **No broad multi-agent sessions by default.** Subagent spawning is for review, QA, release tracking, or a clearly scoped specialist problem — not "just in case" (`AGENT_USAGE_POLICY.md` §5).
+- **Review required after meaningful implementation** (`code-reviewer`); **QA required for core-flow changes** (`qa-tester`) — see Definition of Ready in `AGENT_OPERATING_GUIDE.md` §8.
+- **Progress docs must stay current** — `PROGRESS.md` after meaningful work, and the `release-tracker` subagent once a feature/phase is shipped and verified (see Ground Rules below).
+
+### Enforcement
+
+If a request conflicts with `DEVELOPMENT_SYSTEM_RULES.md`, `AGENT_OPERATING_GUIDE.md`, `AGENT_USAGE_POLICY.md`, or `FRONTEND_GUIDE.md` — refuse it and propose the compliant alternative instead of proceeding. Naming the conflicting rule/section is part of a valid refusal, not optional politeness.
+
 ## Core Architecture Decision
 
 **Headless approach** — this is the central design choice and should not be relitigated without a strong reason:
@@ -65,5 +96,6 @@ finalized yet, so don't assume that URL is still current once that happens.
 - Don't assume Oracle Cloud is still the target host — it was abandoned. Hetzner is current.
 - Don't put real passwords, API keys, or private key contents into any file in this repo. Reference a password manager instead.
 - This is being built by one person (Niroshan) with a background in SAP B1/Odoo/Acumatica ERP consulting, Power BI, and Python/PySpark — technical explanations can assume real development literacy, but Frappe/ERPNext-specific concepts (DocTypes, bench, hooks) may still need to be explained since that framework is new territory.
-- **Any work on `apps/frontend` must follow `FRONTEND_GUIDE.md`.** It's the binding ruleset for the API layer (`lib/erpnext.ts` is the only place that calls ERPNext), the list/form/document pattern, component reuse (extend the existing 54 components, don't fork new ones), module build order (Sales done → Buying next → Manufacturing → Stock → Accounting → Dashboard, though Dashboard work in parallel is fine), and the per-document Definition of Done. `frontend-dev`, `product-designer`, `code-reviewer`, and `qa-tester` should treat it as ground truth for anything touching the frontend.
+- **Any work on `apps/frontend` must follow `FRONTEND_GUIDE.md`.** It's the binding ruleset for the API layer (`lib/erpnext.ts` is the only place that calls ERPNext), the list/form/document pattern, component reuse (extend the existing 54 components, don't fork new ones), and the per-document Definition of Done. `frontend-dev`, `product-designer`, `code-reviewer`, and `qa-tester` should treat it as ground truth for anything touching the frontend. **The module build order is superseded by the Current Mission priority lock above** (Sales → Inventory MVP → Buying → Manufacturing) — treat that as current, not the order implied elsewhere in this or other docs.
+- **`DEVELOPMENT_SYSTEM_RULES.md` and `AGENT_USAGE_POLICY.md` are binding project-wide**, not just for frontend work — they govern architecture/sequencing and session/subagent discipline respectively for every part of the monorepo.
 - **Whenever a feature or plan phase is fully shipped and verified, invoke the `release-tracker` subagent before considering the task done.** It updates `docs/ceylon-stack-documentation.html`'s Live/Building/Planned status labels and changelog, and syncs the Notion "Smart Factory on ERPNext – Weekly Implementation Plan" page (checks off completed tasks, adds newly-scoped ones) — both documents are expected to stay current, not just checked back into every few days.
