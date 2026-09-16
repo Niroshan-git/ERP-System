@@ -38,9 +38,9 @@ const MODULE_CARDS: ModuleCard[] = [
   {
     id: "manufacturing",
     label: "Manufacturing",
-    description: "Work Orders, Job Cards, BOM, downtime, live OEE.",
+    description: "Work Orders live; Job Cards, BOM, downtime, live OEE next.",
+    href: "/manufacturing",
     icon: Factory,
-    soon: true,
   },
 ];
 

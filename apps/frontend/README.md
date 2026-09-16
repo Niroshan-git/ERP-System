@@ -117,14 +117,29 @@ sessions to ship fast:
   read them, falling back to a plain text input otherwise
   (`lib/linkOptions.ts`).
 
+- **Manufacturing module — package 1 (shipped 2026-09-17):** module unlocked
+  in the Sidebar/module picker now that Inventory MVP and Buying are both
+  accepted (per the Current Mission priority lock in the root `CLAUDE.md`).
+  Only the module home placeholder and the Work Orders list
+  (`/manufacturing/work-orders`) exist so far — read-only, no row links, no
+  "+ New" (there is no Work Order detail/create page yet). Fields
+  (`status`, `company`, `production_item`, `item_name`, `qty`,
+  `produced_qty`, `bom_no`, `planned_start_date`, `planned_end_date`,
+  `creation`) and the `status` enum live-verified via
+  `mcp__ceylon-stack__get_doctype_fields`/direct REST calls this session.
+  `lib/erpStatus.ts`'s `workOrderStatus()` tone mapping is this app's own
+  reasonable choice, not a mirrored Desk `get_indicator` (no SSH access to
+  read `work_order_list.js` this session). See `docs/controls/FRONTEND_GUIDE.md`
+  §11.
+
 ## Not yet done
 
 - Sri Lanka-specific tax handling (VAT/SVAT/WHT) — ERPNext ships no
   regional tax pack for this; document-level discounts are live (see
   above), but tax is still not started.
-- Manufacturing module — locked per the Current Mission priority lock in
-  the root `CLAUDE.md` (Sales → Inventory MVP → Buying → Manufacturing)
-  until further notice; shown as a greyed "coming soon" sidebar entry.
+- Manufacturing beyond package 1 — Work Order detail/create, Job Cards,
+  BOM, Workstations, submit/cancel actions, and live status/OEE are all
+  separate future packages.
 - Real-time notifications (needs per-user ERPNext sessions)
 - `mes-service` / machine-status dashboard (the original placeholder
   homepage content — will come back once Manufacturing starts)

@@ -359,6 +359,35 @@ export function stockEntryStatus(doc: { docstatus: DocStatus }): StatusDisplay {
   return { label: "Submitted", tone: "signal" };
 }
 
+/**
+ * Work Order's own `status` Select field enum (live-verified via
+ * `mcp__ceylon-stack__get_doctype_fields`, 2026-09-17): Draft / Submitted / Not Started /
+ * In Process / Stock Reserved / Stock Partially Reserved / Completed / Stopped / Closed /
+ * Cancelled — unlike every other doctype in this file, that enum already spells out
+ * Draft/Submitted/Cancelled as literal stored values, so this trusts `status` directly with
+ * no separate `docstatus` pre-check (same shape `salesInvoiceStatus` uses for the same
+ * reason). This session had no way to read Work Order's actual `work_order_list.js`
+ * `get_indicator` source (no SSH/devops access from this task), so the tone choices below
+ * are this app's own reasonable mapping onto the three-tone system, not a mirrored Desk
+ * indicator — revisit if a future session confirms the real one differs.
+ */
+const WORK_ORDER_STATUS_TONE: Record<string, StatusTone> = {
+  Draft: "neutral",
+  Submitted: "signal",
+  "Not Started": "neutral",
+  "In Process": "signal",
+  "Stock Reserved": "signal",
+  "Stock Partially Reserved": "alert",
+  Completed: "success",
+  Stopped: "alert",
+  Closed: "success",
+  Cancelled: "alert",
+};
+
+export function workOrderStatus(doc: { status: string }): StatusDisplay {
+  return { label: doc.status, tone: WORK_ORDER_STATUS_TONE[doc.status] ?? "neutral" };
+}
+
 export function purchaseInvoiceStatus(doc: {
   status: string;
   docstatus: DocStatus;

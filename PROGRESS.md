@@ -1122,3 +1122,58 @@ per-package — same guidance a prior session's review already gave for the
 first two Phase 1 tools and that wasn't acted on before this package was
 added on top. Not committed — commit was not requested this session; noted
 here so whoever commits next splits them accordingly.
+
+## 2026-09-17 — Manufacturing frontend package 1: module shell + Work Orders list
+
+Unlocked the Manufacturing module in `apps/frontend` — the first Manufacturing frontend
+work, now that the Current Mission priority lock's condition is met (Inventory MVP shipped
++ QA'd 2026-09-16, Buying core cycle shipped + live-verified 2026-09-16). Scoped strictly to
+module shell + one read-only list page, per this task's package boundary:
+
+- **Sidebar** (`components/Sidebar.tsx`) and the `/` module picker
+  (`app/(app)/page.tsx`): Manufacturing switched from `soon: true`/greyed to a real,
+  clickable module. Added `MANUFACTURING_NAV_GROUPS` with exactly one group/one item
+  (Work Orders) — deliberately no "Soon" placeholders for Job Cards/BOM/Workstations,
+  to avoid implying more than this package built.
+- **`/manufacturing`** (`app/(app)/manufacturing/page.tsx`): module home placeholder,
+  same shape as the existing `buying/page.tsx`/`stock/page.tsx` placeholders.
+- **`/manufacturing/work-orders`** (`app/(app)/manufacturing/work-orders/page.tsx` +
+  `components/WorkOrdersTable.tsx`): read-only list of the `Work Order` doctype —
+  filters (ID, Item, Company, Status), sort, pagination, and 403 → `AccessDeniedNotice`
+  handling, mirroring `sales/delivery-notes/page.tsx`'s pattern (the stricter of the two
+  candidate references — `buying/purchase-orders/page.tsx` lacks the 403 handling).
+  No row links and no "+ New" — there is no Work Order detail/create page yet, so
+  nothing in the UI implies one exists.
+- **`lib/erpStatus.ts`**: added `workOrderStatus()`. Work Order's `status` field enum
+  (Draft/Submitted/Not Started/In Process/Stock Reserved/Stock Partially Reserved/
+  Completed/Stopped/Closed/Cancelled) was live-verified via
+  `mcp__ceylon-stack__get_doctype_fields` this session, not guessed — but the tone
+  mapping itself is this app's own reasonable choice, not a mirrored Desk
+  `get_indicator` (no SSH access to read `work_order_list.js` this session, unlike the
+  Buying status functions which had that access).
+- **`lib/tableColumns.ts`**: added `"work-orders"` to the `TableId` union.
+
+**Verification**: `npm run lint`, `npx tsc --noEmit`, and `npm run build` all clean.
+Full browser/UI verification wasn't done (no login attempted this session — see
+`QA_LOG.md`); instead, the exact `listDocs`/`getCount` calls the page makes were
+confirmed live against the real ERPNext instance via direct REST calls, returning all
+6 real Work Orders (`MFG-WO-2026-00001..006`) with the correct field shape, a working
+status filter, and a matching `get_count`. Confirmed no raw `fetch` outside
+`lib/erpnext.ts` and no ERPNext/Frappe core files touched.
+
+**`code-reviewer` pass**: no blocking findings. Confirmed pattern compliance against
+both Sales/Buying reference pages, correct scope boundary (no accidental link/button
+implying an unbuilt detail page), and correct field/status handling. One non-blocking
+suggestion — `bom_no` was fetched but not rendered — fixed by adding it as a hidden
+(`defaultVisible: false`) column, matching the existing convention for secondary
+columns (e.g. `schedule_date`/`company` on `PurchaseOrdersTable`).
+
+No `qa-tester` run — this package has no submit/cancel/write path to validate (see
+`AGENT_OPERATING_GUIDE.md` §8: QA is for core-flow validation; a read-only list has no
+flow to exercise beyond the live-data verification already logged in `QA_LOG.md`).
+`docs/ceylon-stack-documentation.html` and Notion not yet updated — deferred to a
+`release-tracker` pass. Not committed — commit wasn't requested this session.
+
+**Next Manufacturing package** (not started): Work Order detail page, then Job Cards,
+BOM, Workstations, and eventually live status/OEE — each its own scoped package per
+`docs/controls/FRONTEND_GUIDE.md` §11.

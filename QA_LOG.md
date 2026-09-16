@@ -97,3 +97,26 @@ Central QA log. Append one entry per QA run — date, package/flow tested, pass/
   pre-QA baseline.
 - **Sign-off**: `qa-tester` found no blockers. Meets Definition of Ready
   (`AGENT_OPERATING_GUIDE.md` §8). Buying core cycle accepted.
+
+## 2026-09-17 — Manufacturing module — package 1 (module shell + Work Orders list, read-only)
+
+- **Package tested**: `apps/frontend` new `/manufacturing` home placeholder and
+  `/manufacturing/work-orders` list page (read-only, no create/detail/actions). Not a
+  full `qa-tester` flow-level pass — this package has no submit/cancel/write path to
+  exercise — but the exact server-side calls the page makes were verified live against
+  the real ERPNext instance directly via REST (same field list, filters, and
+  `get_count` the page's `listDocs`/`getCount` calls use).
+- **Result**: **PASS**.
+- **Verified live**: `GET /api/resource/Work Order` with the page's exact field list
+  (`name`, `status`, `company`, `production_item`, `item_name`, `qty`, `produced_qty`,
+  `bom_no`, `planned_start_date`, `planned_end_date`, `creation`) returned all 6 live
+  Work Orders (`MFG-WO-2026-00001..006`) with the expected shape; a `status="Completed"`
+  filter correctly returned only `MFG-WO-2026-00004`; `frappe.client.get_count` for
+  `Work Order` returned `6`, matching the unfiltered list. No 403s.
+- **Not tested**: full browser UI (no login attempted — current Administrator/session
+  credentials weren't exercised this session, per the "don't touch real credentials"
+  rule); confirmed via server-side REST + a clean `npm run build`/`tsc --noEmit`/`eslint`
+  instead.
+- **Sign-off**: `code-reviewer` found no blockers (one non-blocking suggestion — an
+  unused fetched `bom_no` field — fixed by wiring it up as a hidden/optional column).
+  Meets Definition of Ready (`AGENT_OPERATING_GUIDE.md` §8) for a list-only package.

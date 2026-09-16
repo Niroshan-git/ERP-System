@@ -43,7 +43,8 @@ export type TableId =
   | "purchase-receipts"
   | "purchase-invoices"
   | "stock-entries"
-  | "stock-balance";
+  | "stock-balance"
+  | "work-orders";
 
 const STORAGE_KEY = "ceylonstack.columns.v1";
 

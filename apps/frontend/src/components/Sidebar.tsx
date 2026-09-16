@@ -227,11 +227,23 @@ const STOCK_NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
+// First Manufacturing package (2026-09-17): Work Orders list only. No Job Card/BOM/
+// Workstation routes exist yet, so this group deliberately holds just the one item rather
+// than padding it with "Soon" placeholders not asked for in this package.
+const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
+  {
+    id: "cycle",
+    label: "Manufacturing",
+    icon: Workflow,
+    items: [{ href: "/manufacturing/work-orders", label: "Work Orders", icon: ClipboardList }],
+  },
+];
+
 const MODULES: ModuleDef[] = [
   { id: "sales", label: "Selling", homeHref: "/sales", icon: ShoppingCart, groups: SALES_NAV_GROUPS },
   { id: "buying", label: "Buying", homeHref: "/buying", icon: ShoppingBag, groups: BUYING_NAV_GROUPS },
   { id: "stock", label: "Inventory", homeHref: "/stock", icon: Boxes, groups: STOCK_NAV_GROUPS },
-  { id: "manufacturing", label: "Manufacturing", homeHref: "/manufacturing", icon: Factory, groups: [], soon: true },
+  { id: "manufacturing", label: "Manufacturing", homeHref: "/manufacturing", icon: Factory, groups: MANUFACTURING_NAV_GROUPS },
 ];
 
 const DEFAULT_MODULE_ID = "sales";
