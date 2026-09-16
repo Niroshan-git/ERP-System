@@ -36,12 +36,15 @@ const columns: ColumnDef<CustomerRow>[] = [
     key: "disabled",
     label: "Status",
     render: (c) => (c.disabled ? <StatusPill label="Disabled" tone="neutral" /> : <StatusPill label="Active" tone="success" />),
+    exportValue: (c) => (c.disabled ? "Disabled" : "Active"),
   },
   { key: "mobile_no", label: "Mobile", defaultVisible: false, render: (c) => c.mobile_no || "—" },
   { key: "email_id", label: "Email", defaultVisible: false, render: (c) => c.email_id || "—" },
   { key: "default_currency", label: "Billing currency", defaultVisible: false, render: (c) => c.default_currency || "—" },
 ];
 
-export function CustomersTable({ customers }: { customers: CustomerRow[] }) {
-  return <DataTable tableId="customers" columns={columns} rows={customers} emptyLabel="No customers yet." />;
+export function CustomersTable({ customers, startIndex }: { customers: CustomerRow[]; startIndex?: number }) {
+  return (
+    <DataTable tableId="customers" columns={columns} rows={customers} emptyLabel="No customers yet." startIndex={startIndex} />
+  );
 }

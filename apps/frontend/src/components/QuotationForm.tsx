@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { LineItemsEditor, type LineRow } from "@/components/LineItemsEditor";
+import { DiscountFields } from "@/components/DiscountFields";
 import type { ItemOption } from "@/lib/actions/itemLookup";
 
 export type QuotationFormState = { error?: string } | undefined;
@@ -34,10 +35,19 @@ export function QuotationForm({
     order_type: string;
     company: string;
     items: LineRow[];
+    apply_discount_on?: string;
+    additional_discount_percentage?: number;
+    discount_amount?: number;
   };
 }) {
   const [state, formAction, isPending] = useActionState<QuotationFormState, FormData>(action, undefined);
   const today = new Date().toISOString().slice(0, 10);
+
+  // Controlled so LineItemsEditor's pricingContext can re-resolve Pricing Rules whenever
+  // any of these change (see LineItemsEditor's customer-change effect).
+  const [party_name, setPartyName] = useState(initial?.party_name ?? "");
+  const [company, setCompany] = useState(initial?.company ?? companies[0] ?? "");
+  const [transactionDate, setTransactionDate] = useState(initial?.transaction_date ?? today);
 
   return (
     <form id="quotation-form" action={formAction} className="max-w-3xl space-y-4">
@@ -51,7 +61,8 @@ export function QuotationForm({
               id="party_name"
               name="party_name"
               required
-              defaultValue={initial?.party_name ?? ""}
+              value={party_name}
+              onChange={(e) => setPartyName(e.target.value)}
               className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
             >
               <option value="">Select…</option>
@@ -66,7 +77,8 @@ export function QuotationForm({
               id="party_name"
               name="party_name"
               required
-              defaultValue={initial?.party_name}
+              value={party_name}
+              onChange={(e) => setPartyName(e.target.value)}
               placeholder="Must match an existing Customer"
               className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
             />
@@ -81,7 +93,8 @@ export function QuotationForm({
             id="company"
             name="company"
             required
-            defaultValue={initial?.company ?? companies[0]}
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
             className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
           >
             {companies.map((c) => (
@@ -103,7 +116,8 @@ export function QuotationForm({
             id="transaction_date"
             name="transaction_date"
             required
-            defaultValue={initial?.transaction_date ?? today}
+            value={transactionDate}
+            onChange={(e) => setTransactionDate(e.target.value)}
             className="w-full rounded-md border border-border px-3 py-2 font-mono text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
           />
         </div>
@@ -141,8 +155,32 @@ export function QuotationForm({
 
       <div>
         <p className="mb-1 text-sm font-medium text-graphite-900">Items</p>
-        <LineItemsEditor fieldName="items" itemOptions={itemOptions} initialRows={initial?.items} currency={currency} />
+        <LineItemsEditor
+          fieldName="items"
+          itemOptions={itemOptions}
+          initialRows={initial?.items}
+          currency={currency}
+          pricingContext={{
+            parentDoctype: "Quotation",
+            childDoctype: "Quotation Item",
+            customer: party_name,
+            company,
+            currency,
+            priceList: sellingPriceList,
+            transactionDate,
+          }}
+        />
       </div>
+
+      <DiscountFields
+        formId="quotation-form"
+        currency={currency}
+        initial={{
+          apply_discount_on: initial?.apply_discount_on,
+          additional_discount_percentage: initial?.additional_discount_percentage,
+          discount_amount: initial?.discount_amount,
+        }}
+      />
 
       <p className="text-xs text-graphite-500">
         Price list <span className="font-mono">{sellingPriceList}</span> · currency and conversion rates follow the

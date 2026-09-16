@@ -124,3 +124,19 @@ export function deliveryNoteStatus(doc: {
   if (doc.per_billed < 100) return { label: "Partially Billed", tone: "alert" };
   return { label: "Completed", tone: "success" };
 }
+
+/**
+ * Pick List's own `status` enum (confirmed via the live DocType JSON): Draft / Open /
+ * Partly Delivered / Partially Transferred / Completed / Cancelled. Unlike Delivery Note,
+ * there's no separate list.js indicator to mirror here (Pick List has no Desk list view
+ * indicator override worth replicating) — this just applies the same
+ * docstatus-first-then-status-map shape the other status functions use, collapsed onto
+ * this app's three tones the same way.
+ */
+export function pickListStatus(doc: { status: string; docstatus: DocStatus }): StatusDisplay {
+  if (doc.docstatus === 0) return { label: "Draft", tone: "neutral" };
+  if (doc.docstatus === 2) return { label: "Cancelled", tone: "alert" };
+  if (doc.status === "Completed") return { label: "Completed", tone: "success" };
+  // Open / Partly Delivered / Partially Transferred
+  return { label: doc.status, tone: "alert" };
+}

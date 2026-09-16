@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { listDocs } from "@/lib/erpnext";
+import { getCount, listDocs } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
+import { paginate, parsePage, parsePageSize } from "@/lib/pagination";
 import { ListFilterBar, type FilterFieldConfig } from "@/components/ListFilterBar";
+import { PaginationControls } from "@/components/PaginationControls";
 import { SalesOrderBulkTable, type SalesOrderRow } from "@/components/SalesOrderBulkTable";
 import { bulkCloseSalesOrdersAction, bulkReopenSalesOrdersAction } from "./actions";
 import { bulkCreateSalesInvoicesFromOrdersAction } from "../invoices/actions";
@@ -28,10 +30,14 @@ type SearchParams = {
   billing_status?: string;
   advance_payment_status?: string;
   sort?: string;
+  page?: string;
+  page_size?: string;
 };
 
 export default async function SalesOrdersPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
+  const page = parsePage(params.page);
+  const pageSize = parsePageSize(params.page_size);
 
   const filters: unknown[] = [];
   if (params.id) filters.push(["name", "like", `%${params.id}%`]);
@@ -43,7 +49,7 @@ export default async function SalesOrdersPage({ searchParams }: { searchParams: 
   if (params.billing_status) filters.push(["billing_status", "=", params.billing_status]);
   if (params.advance_payment_status) filters.push(["advance_payment_status", "=", params.advance_payment_status]);
 
-  const [orders, companies, customers] = await Promise.all([
+  const [orders, companies, customers, totalCount] = await Promise.all([
     listDocs<SalesOrderRow>("Sales Order", {
       fields: [
         "name",
@@ -61,12 +67,17 @@ export default async function SalesOrdersPage({ searchParams }: { searchParams: 
         "owner",
       ],
       filters: filters.length > 0 ? filters : undefined,
-      limit: 200,
+      limit: pageSize + 1,
+      start: (page - 1) * pageSize,
       orderBy: params.sort || SORT_OPTIONS[0].value,
     }),
     fetchLinkOptions("Company"),
     fetchLinkOptions("Customer"),
+    getCount("Sales Order", filters.length > 0 ? filters : undefined),
   ]);
+
+  const startIndex = (page - 1) * pageSize;
+  const { rows: pagedOrders, hasNextPage } = paginate(orders, pageSize);
 
   const filterFields: FilterFieldConfig[] = [
     { type: "text", name: "id", label: "ID" },
@@ -99,10 +110,19 @@ export default async function SalesOrdersPage({ searchParams }: { searchParams: 
       <ListFilterBar fields={filterFields} sortOptions={SORT_OPTIONS} values={params} />
 
       <SalesOrderBulkTable
-        orders={orders}
+        orders={pagedOrders}
         closeAction={bulkCloseSalesOrdersAction}
         reopenAction={bulkReopenSalesOrdersAction}
         createInvoicesAction={bulkCreateSalesInvoicesFromOrdersAction}
+        startIndex={startIndex}
+      />
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        hasNextPage={hasNextPage}
+        searchParams={params}
+        rowCount={pagedOrders.length}
+        totalCount={totalCount}
       />
     </div>
   );

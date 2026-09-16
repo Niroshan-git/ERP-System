@@ -41,6 +41,7 @@ const columns: ColumnDef<SalesInvoiceRow>[] = [
       const status = salesInvoiceStatus(inv);
       return <StatusPill label={status.label} tone={status.tone} />;
     },
+    exportValue: (inv) => salesInvoiceStatus(inv).label,
   },
   {
     key: "posting_date",
@@ -63,13 +64,14 @@ const columns: ColumnDef<SalesInvoiceRow>[] = [
   { key: "owner", label: "Owner", defaultVisible: false, render: (inv) => inv.owner || "—" },
 ];
 
-export function SalesInvoicesTable({ invoices }: { invoices: SalesInvoiceRow[] }) {
+export function SalesInvoicesTable({ invoices, startIndex }: { invoices: SalesInvoiceRow[]; startIndex?: number }) {
   return (
     <DataTable
       tableId="invoices"
       columns={columns}
       rows={invoices}
       emptyLabel="No sales invoices match these filters."
+      startIndex={startIndex}
     />
   );
 }

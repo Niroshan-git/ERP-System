@@ -1,6 +1,7 @@
 "use client";
 
 import { ColumnPicker } from "@/components/ColumnPicker";
+import { ExportMenu } from "@/components/ExportMenu";
 import { useVisibleColumns, type ColumnDef, type TableId } from "@/lib/tableColumns";
 
 /**
@@ -16,6 +17,7 @@ export function DataTable<T extends Record<string, unknown>>({
   getRowKey = (row) => String(row.name ?? ""),
   emptyLabel = "No records match these filters.",
   selectable,
+  startIndex = 0,
 }: {
   tableId: TableId;
   columns: ColumnDef<T>[];
@@ -28,14 +30,27 @@ export function DataTable<T extends Record<string, unknown>>({
     onToggleAll: () => void;
     allSelected: boolean;
   };
+  /** Absolute row number of this page's first row minus 1, i.e. `(page - 1) * pageSize` —
+   * used only to number the leading "#" column continuously across pages. */
+  startIndex?: number;
 }) {
   const { visibleColumns, isVisible, toggleColumn } = useVisibleColumns(tableId, columns);
-  const colSpan = visibleColumns.length + (selectable ? 1 : 0);
+  const colSpan = visibleColumns.length + (selectable ? 1 : 0) + 1;
+
+  const exportHeaders = visibleColumns.map((c) => c.label);
+  const exportRows = rows.map((row) =>
+    visibleColumns.map((col) => (col.exportValue ? col.exportValue(row) : String((row as Record<string, unknown>)[col.key] ?? ""))),
+  );
 
   return (
     <div>
-      <div className="mb-2 flex justify-end">
+      <div className="mb-2 flex justify-end gap-2">
         <ColumnPicker columns={columns} isVisible={isVisible} onToggle={toggleColumn} />
+        <ExportMenu
+          filename={`${tableId}-${new Date().toISOString().slice(0, 10)}`}
+          headers={exportHeaders}
+          rows={exportRows}
+        />
       </div>
       <div className="overflow-x-auto rounded-xl border border-border bg-surface">
         <table className="w-full text-left text-sm">
@@ -51,6 +66,7 @@ export function DataTable<T extends Record<string, unknown>>({
                   />
                 </th>
               )}
+              <th className="w-10 px-4 py-2.5 font-semibold text-graphite-400">#</th>
               {visibleColumns.map((col) => (
                 <th key={col.key} className="px-4 py-2.5 font-semibold">
                   {col.label}
@@ -59,7 +75,7 @@ export function DataTable<T extends Record<string, unknown>>({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {rows.map((row, i) => {
               const key = getRowKey(row);
               return (
                 <tr key={key} className="border-b border-border last:border-0 hover:bg-canvas/60">
@@ -73,6 +89,7 @@ export function DataTable<T extends Record<string, unknown>>({
                       />
                     </td>
                   )}
+                  <td className="px-4 py-2.5 text-graphite-400">{startIndex + i + 1}</td>
                   {visibleColumns.map((col) => (
                     <td key={col.key} className="px-4 py-2.5">
                       {col.render(row)}

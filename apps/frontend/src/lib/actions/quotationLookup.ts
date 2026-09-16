@@ -54,6 +54,13 @@ export type QuotationItemForCopy = {
   rate: number;
   originalQty: number;
   remainingQty: number;
+  /** Real Pricing Rule fields (Phase 4) — carried straight through from the source
+   * Quotation line, same reasoning as createSalesOrderFromQuotationAction's own carryover
+   * in sales/orders/actions.ts. */
+  price_list_rate?: number;
+  discount_percentage?: number;
+  discount_amount?: number;
+  pricing_rules?: string;
 };
 
 export type QuotationForCopy = {
@@ -79,6 +86,10 @@ type QuotationItemDoc = {
   /** Real, live ERPNext field — see the doc comment on createSalesOrderFromQuotationAction
    * in sales/orders/actions.ts for how it's kept in sync. */
   ordered_qty?: number;
+  price_list_rate?: number;
+  discount_percentage?: number;
+  discount_amount?: number;
+  pricing_rules?: string;
 };
 
 type QuotationDocForCopy = {
@@ -131,6 +142,14 @@ export async function getQuotationForCopy(
       rate: item.rate,
       originalQty: item.qty,
       remainingQty: item.qty - (item.ordered_qty ?? 0),
+      ...(item.price_list_rate
+        ? {
+            price_list_rate: item.price_list_rate,
+            discount_percentage: item.discount_percentage,
+            discount_amount: item.discount_amount,
+            pricing_rules: item.pricing_rules,
+          }
+        : {}),
     })),
     customer_address: doc.customer_address,
     contact_person: doc.contact_person,

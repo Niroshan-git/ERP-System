@@ -36,7 +36,11 @@ const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem("ceylonsta
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}>
+    <html
+      lang="en"
+      className={`${plexSans.variable} ${plexMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
       <body className="min-h-full bg-canvas text-graphite-900">
         <Script id="theme-init" strategy="beforeInteractive">
           {THEME_INIT_SCRIPT}

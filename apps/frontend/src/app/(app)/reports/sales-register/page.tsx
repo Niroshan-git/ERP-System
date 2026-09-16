@@ -79,7 +79,7 @@ export default async function SalesRegisterPage({ searchParams }: { searchParams
           No company configured in ERPNext yet.
         </p>
       ) : (
-        <ReportTable columns={columns} result={result} />
+        <ReportTable columns={columns} result={result} reportName="Sales Register" />
       )}
     </div>
   );

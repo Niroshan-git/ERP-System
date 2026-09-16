@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { listDocs } from "@/lib/erpnext";
+import { getCount, listDocs } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
+import { paginate, parsePage, parsePageSize } from "@/lib/pagination";
 import { ListFilterBar, type FilterFieldConfig } from "@/components/ListFilterBar";
+import { PaginationControls } from "@/components/PaginationControls";
 import { QuotationsTable, type QuotationRow } from "@/components/QuotationsTable";
 
 // Quotation's `status` DocType enum (checked against the live DocType JSON) — "Draft" and
@@ -25,10 +27,15 @@ type SearchParams = {
   date?: string;
   status?: string;
   sort?: string;
+  page?: string;
+  page_size?: string;
 };
 
 export default async function QuotationsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
+  const page = parsePage(params.page);
+  const pageSize = parsePageSize(params.page_size);
+  const startIndex = (page - 1) * pageSize;
 
   const filters: unknown[] = [];
   if (params.id) filters.push(["name", "like", `%${params.id}%`]);
@@ -37,7 +44,7 @@ export default async function QuotationsPage({ searchParams }: { searchParams: P
   if (params.date) filters.push(["transaction_date", "=", params.date]);
   if (params.status) filters.push(["status", "=", params.status]);
 
-  const [quotations, companies, customers] = await Promise.all([
+  const [quotations, companies, customers, totalCount] = await Promise.all([
     listDocs<QuotationRow>("Quotation", {
       fields: [
         "name",
@@ -56,12 +63,16 @@ export default async function QuotationsPage({ searchParams }: { searchParams: P
         "modified",
       ],
       filters: filters.length > 0 ? filters : undefined,
-      limit: 200,
+      limit: pageSize + 1,
+      start: startIndex,
       orderBy: params.sort || SORT_OPTIONS[0].value,
     }),
     fetchLinkOptions("Company"),
     fetchLinkOptions("Customer"),
+    getCount("Quotation", filters.length > 0 ? filters : undefined),
   ]);
+
+  const { rows: pagedQuotations, hasNextPage } = paginate(quotations, pageSize);
 
   const filterFields: FilterFieldConfig[] = [
     { type: "text", name: "id", label: "ID" },
@@ -85,7 +96,15 @@ export default async function QuotationsPage({ searchParams }: { searchParams: P
 
       <ListFilterBar fields={filterFields} sortOptions={SORT_OPTIONS} values={params} />
 
-      <QuotationsTable quotations={quotations} />
+      <QuotationsTable quotations={pagedQuotations} startIndex={startIndex} />
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        hasNextPage={hasNextPage}
+        searchParams={params}
+        rowCount={pagedQuotations.length}
+        totalCount={totalCount}
+      />
     </div>
   );
 }

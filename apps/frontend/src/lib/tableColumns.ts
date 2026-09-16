@@ -15,9 +15,14 @@ export type ColumnDef<T> = {
    * in a browser that has no saved preference yet. Defaults to true. */
   defaultVisible?: boolean;
   render: (row: T) => ReactNode;
+  /** Used only by ExportMenu (via DataTable) — when `render()` shows something other than
+   * the raw field value (a StatusPill, a formatted amount, a computed value), provide this
+   * so exports show the same plain-text meaning instead of e.g. "1"/"0". Falls back to
+   * `String(row[col.key] ?? "")` when absent. */
+  exportValue?: (row: T) => string | number;
 };
 
-export type TableId = "quotations" | "orders" | "delivery-notes" | "invoices" | "customers" | "items";
+export type TableId = "quotations" | "orders" | "pick-lists" | "delivery-notes" | "invoices" | "customers" | "items";
 
 const STORAGE_KEY = "ceylonstack.columns.v1";
 
@@ -47,8 +52,14 @@ function readState(): StoredState {
   return cachedState;
 }
 
+// A fresh `{}` on every call would break useSyncExternalStore's referential-equality check
+// (it re-invokes getServerSnapshot on every render to see if the snapshot changed) and spin
+// into "The result of getServerSnapshot should be cached to avoid an infinite loop" — return
+// the same empty object every time instead.
+const EMPTY_STATE: StoredState = {};
+
 function getServerSnapshot(): StoredState {
-  return {};
+  return EMPTY_STATE;
 }
 
 function subscribe(callback: () => void) {

@@ -69,8 +69,22 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
       filterField: "against_sales_order",
       hrefBase: "/sales/delivery-notes",
     },
+    {
+      label: "Pick List",
+      parentDoctype: "Pick List",
+      childDoctype: "Pick List Item",
+      filterField: "sales_order",
+      hrefBase: "/sales/pick-lists",
+    },
   ],
   "Sales Invoice": [],
+  // No downstream entry here for Delivery Note: Delivery Note Item carries no stored
+  // back-reference to the Pick List it was picked through (confirmed via the live DocType
+  // JSON — only `against_sales_order`/`so_detail`, the same fields set whether or not a
+  // Pick List was involved), so a reliable "which Delivery Notes came from this Pick List"
+  // query isn't possible over REST. The Pick List detail page instead gates its own
+  // "Create Delivery Note" action on each line's own picked_qty vs delivered_qty.
+  "Pick List": [],
   "Delivery Note": [
     {
       label: "Sales Invoice",

@@ -27,10 +27,11 @@ import {
  * instead of the concept's own bespoke blue/cyan palette, so it inherits this app's real
  * light/dark theme automatically rather than duplicating a second theme system.
  *
- * `href: null` marks a stage with no real page in this app yet (Opportunity, Pick & Pack,
+ * `href: null` marks a stage with no real page in this app yet (Opportunity,
  * Down Payment*, Reserve Invoice, Return Request, Replacement Delivery, Credit Note,
  * Apply Credit/Refund) — same "Coming soon" treatment Sidebar.tsx already uses for
  * Customer Payments/Sales Returns/Credit Notes, extended here to the rest of the concept.
+ * Pick & Pack (`pick`) is built — see /sales/pick-lists.
  */
 
 export type FlowNodeKey =
@@ -153,10 +154,10 @@ export const FLOW_RECORDS: Record<FlowNodeKey, FlowRecord> = {
     icon: PackageCheck,
     kind: "Optional operation",
     area: "Inventory",
-    href: null,
+    href: "/sales/pick-lists",
     purpose: "Release eligible order lines for picking, select stock and prepare the shipment.",
     effects: ["Operational step — the Delivery Note is what actually records the goods issue.", "No independent revenue posting."],
-    note: "Not yet built in Ceylon Stack. A Delivery Note can already be created directly from a Sales Order.",
+    note: "Optional — a Delivery Note can still be created directly from a Sales Order without a Pick List.",
   },
   delivery: {
     key: "delivery",

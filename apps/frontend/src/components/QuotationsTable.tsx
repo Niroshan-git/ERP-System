@@ -44,6 +44,7 @@ const columns: ColumnDef<QuotationRow>[] = [
       const status = quotationStatus(q);
       return <StatusPill label={status.label} tone={status.tone} />;
     },
+    exportValue: (q) => quotationStatus(q).label,
   },
   {
     key: "transaction_date",
@@ -65,13 +66,14 @@ const columns: ColumnDef<QuotationRow>[] = [
   { key: "modified", label: "Last updated", defaultVisible: false, render: (q) => <span className="font-mono text-graphite-500">{q.modified || "—"}</span> },
 ];
 
-export function QuotationsTable({ quotations }: { quotations: QuotationRow[] }) {
+export function QuotationsTable({ quotations, startIndex }: { quotations: QuotationRow[]; startIndex?: number }) {
   return (
     <DataTable
       tableId="quotations"
       columns={columns}
       rows={quotations}
       emptyLabel="No quotations match these filters."
+      startIndex={startIndex}
     />
   );
 }

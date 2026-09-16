@@ -46,6 +46,14 @@ async function buildSalesInvoiceFields(formData: FormData) {
   const po_no = String(formData.get("po_no") ?? "").trim() || undefined;
   const po_date = String(formData.get("po_date") ?? "").trim() || undefined;
 
+  // Document-level discount (Phase 4) — see quotations/actions.ts's buildQuotationFields
+  // for why both additional_discount_percentage and discount_amount are sent through as-is.
+  const apply_discount_on = String(formData.get("apply_discount_on") ?? "Grand Total").trim() || "Grand Total";
+  const additionalDiscountRaw = String(formData.get("additional_discount_percentage") ?? "").trim();
+  const additional_discount_percentage = additionalDiscountRaw ? Number(additionalDiscountRaw) : undefined;
+  const discountAmountRaw = String(formData.get("discount_amount") ?? "").trim();
+  const discount_amount = discountAmountRaw ? Number(discountAmountRaw) : undefined;
+
   if (!customer) throw new Error("Customer is required.");
   if (!posting_date) throw new Error("Posting date is required.");
 
@@ -90,6 +98,9 @@ async function buildSalesInvoiceFields(formData: FormData) {
     title,
     po_no,
     po_date,
+    apply_discount_on,
+    additional_discount_percentage,
+    discount_amount,
     items,
   };
 }
@@ -161,6 +172,14 @@ type SalesOrderItemForInvoice = {
   qty: number;
   uom: string;
   rate: number;
+  /** Real Pricing Rule fields (Phase 4) — carried straight through onto the resulting
+   * invoice line, same reasoning as createSalesOrderFromQuotationAction's own carryover:
+   * per-unit rate/discount fields scale correctly regardless of what qty is actually
+   * invoiced here. */
+  price_list_rate?: number;
+  discount_percentage?: number;
+  discount_amount?: number;
+  pricing_rules?: string;
 };
 
 type SalesOrderForInvoice = {
@@ -199,6 +218,14 @@ function buildInvoiceItem(item: SalesOrderItemForInvoice, qty: number, defaults:
     cost_center: defaults.defaultCostCenter,
     sales_order: salesOrderName,
     so_detail: item.name,
+    ...(item.price_list_rate
+      ? {
+          price_list_rate: item.price_list_rate,
+          discount_percentage: item.discount_percentage,
+          discount_amount: item.discount_amount,
+          pricing_rules: item.pricing_rules,
+        }
+      : {}),
   };
 }
 
@@ -376,6 +403,12 @@ type DeliveryNoteItemForInvoice = {
    * Note rather than the Sales Order directly. */
   so_detail?: string;
   against_sales_order?: string;
+  /** Real Pricing Rule fields (Phase 4) — same carryover reasoning as
+   * SalesOrderItemForInvoice above. */
+  price_list_rate?: number;
+  discount_percentage?: number;
+  discount_amount?: number;
+  pricing_rules?: string;
 };
 
 type DeliveryNoteForInvoice = {
@@ -427,6 +460,14 @@ function buildInvoiceItemFromDeliveryNote(
     dn_detail: item.name,
     ...(item.so_detail && item.against_sales_order
       ? { sales_order: item.against_sales_order, so_detail: item.so_detail }
+      : {}),
+    ...(item.price_list_rate
+      ? {
+          price_list_rate: item.price_list_rate,
+          discount_percentage: item.discount_percentage,
+          discount_amount: item.discount_amount,
+          pricing_rules: item.pricing_rules,
+        }
       : {}),
   };
 }

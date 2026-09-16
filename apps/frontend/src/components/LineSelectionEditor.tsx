@@ -33,6 +33,15 @@ export type SelectableLineRow = {
   warehouse?: string;
   has_batch_no?: boolean;
   has_serial_no?: boolean;
+  /** Real Pricing Rule fields (Phase 4) — only meaningful for confirm-mode callers
+   * (CopyFromQuotationPanel), which apply the selection directly to an in-progress
+   * LineItemsEditor rather than posting to a server action that re-derives item data
+   * itself. Carried straight through to ConfirmedLineRow below, unused by submit-mode
+   * callers. */
+  price_list_rate?: number;
+  discount_percentage?: number;
+  discount_amount?: number;
+  pricing_rules?: string;
 };
 
 /** One selected row, qty > 0 only — returned to the caller in "confirm" mode. */
@@ -50,6 +59,11 @@ export type ConfirmedLineRow = {
   sourceLabel?: string;
   /** The confirmed BatchSerialPicker selection for this row, if any — see SelectableLineRow. */
   batchSerialEntries?: BatchSerialEntry[];
+  /** See SelectableLineRow's own doc comment above. */
+  price_list_rate?: number;
+  discount_percentage?: number;
+  discount_amount?: number;
+  pricing_rules?: string;
 };
 
 function batchSerialTotal(entries?: BatchSerialEntry[]): number {
@@ -139,6 +153,10 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
       sourceLabel: r.sourceLabel,
       qty: qtys[r.reference] ?? 0,
       batchSerialEntries: batchSerial[r.reference],
+      price_list_rate: r.price_list_rate,
+      discount_percentage: r.discount_percentage,
+      discount_amount: r.discount_amount,
+      pricing_rules: r.pricing_rules,
     }))
     .filter((r) => r.qty > 0);
 

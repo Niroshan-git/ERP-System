@@ -1,23 +1,39 @@
 import Link from "next/link";
-import { listDocs } from "@/lib/erpnext";
+import { getCount, listDocs } from "@/lib/erpnext";
+import { paginate, parsePage, parsePageSize } from "@/lib/pagination";
+import { PaginationControls } from "@/components/PaginationControls";
 import { CustomersTable, type CustomerRow } from "@/components/CustomersTable";
 
-export default async function CustomersPage() {
-  const customers = await listDocs<CustomerRow>("Customer", {
-    fields: [
-      "name",
-      "customer_name",
-      "customer_type",
-      "customer_group",
-      "territory",
-      "disabled",
-      "mobile_no",
-      "email_id",
-      "default_currency",
-    ],
-    limit: 200,
-    orderBy: "modified desc",
-  });
+export default async function CustomersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; page_size?: string }>;
+}) {
+  const params = await searchParams;
+  const page = parsePage(params.page);
+  const pageSize = parsePageSize(params.page_size);
+  const startIndex = (page - 1) * pageSize;
+
+  const [customersPlusOne, totalCount] = await Promise.all([
+    listDocs<CustomerRow>("Customer", {
+      fields: [
+        "name",
+        "customer_name",
+        "customer_type",
+        "customer_group",
+        "territory",
+        "disabled",
+        "mobile_no",
+        "email_id",
+        "default_currency",
+      ],
+      limit: pageSize + 1,
+      start: startIndex,
+      orderBy: "modified desc",
+    }),
+    getCount("Customer"),
+  ]);
+  const { rows: customers, hasNextPage } = paginate(customersPlusOne, pageSize);
 
   return (
     <div>
@@ -31,7 +47,15 @@ export default async function CustomersPage() {
         </Link>
       </div>
 
-      <CustomersTable customers={customers} />
+      <CustomersTable customers={customers} startIndex={startIndex} />
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        hasNextPage={hasNextPage}
+        searchParams={params}
+        rowCount={customers.length}
+        totalCount={totalCount}
+      />
     </div>
   );
 }

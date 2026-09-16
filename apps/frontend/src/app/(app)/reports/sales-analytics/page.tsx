@@ -94,7 +94,7 @@ export default async function SalesAnalyticsPage({ searchParams }: { searchParam
           No company configured in ERPNext yet.
         </p>
       ) : (
-        <ReportTable columns={columns} result={result} />
+        <ReportTable columns={columns} result={result} reportName="Sales Analytics" />
       )}
     </div>
   );

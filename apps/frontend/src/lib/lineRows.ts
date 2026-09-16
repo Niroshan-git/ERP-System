@@ -35,6 +35,20 @@ export type LineRowInput = {
    */
   warehouse?: string;
   batchSerialEntries?: BatchSerialEntryInput[];
+  /**
+   * Real Pricing Rule fields (Phase 4) — carried here generically, same as the Quotation
+   * tag/Delivery-Note fields above, since parseLineRows is shared across Quotation/Sales
+   * Order/Sales Invoice/Delivery Note. Only set when LineItemsEditor's pricingContext prop
+   * resolved a base rate for the row (see lib/actions/pricingLookup.ts); `price_list_rate`
+   * is the pre-discount base, `pricing_rules` is ERPNext's own JSON-array-of-names string
+   * (empty when no rule matched) — both required for ERPNext's server-side
+   * `calculate_item_rate` to recompute the line the same way Desk itself would on save,
+   * rather than trusting the client-submitted `rate` blindly.
+   */
+  price_list_rate?: number;
+  discount_percentage?: number;
+  discount_amount?: number;
+  pricing_rules?: string;
 };
 
 /** Parses the hidden JSON field LineItemsEditor.tsx submits into clean, validated rows. */
@@ -56,6 +70,12 @@ export function parseLineRows(formData: FormData, fieldName: string): LineRowInp
         typeof r.source_quotation === "string" && r.source_quotation ? r.source_quotation : undefined;
       const warehouse = typeof r.warehouse === "string" && r.warehouse ? r.warehouse : undefined;
       const batchSerialEntries = parseBatchSerialEntries(r.batchSerialEntries);
+      // Only meaningful once a real base price_list_rate was resolved (see LineItemsEditor's
+      // onItemChange) — a bare 0/undefined means "no Item master lookup happened for this
+      // row" and must be left out entirely so ERPNext's own `calculate_item_rate` takes its
+      // no-price_list_rate early-exit path and leaves the submitted `rate` untouched, exactly
+      // matching this app's pre-Phase-4 behavior for that case.
+      const price_list_rate = Number(r.price_list_rate) || 0;
       return {
         item_code: String(r.item_code),
         item_name: String(r.item_name || r.item_code),
@@ -66,6 +86,14 @@ export function parseLineRows(formData: FormData, fieldName: string): LineRowInp
         ...(quotation_item && source_quotation ? { quotation_item, source_quotation } : {}),
         ...(warehouse ? { warehouse } : {}),
         ...(batchSerialEntries.length > 0 ? { batchSerialEntries } : {}),
+        ...(price_list_rate > 0
+          ? {
+              price_list_rate,
+              discount_percentage: Number(r.discount_percentage) || 0,
+              discount_amount: Number(r.discount_amount) || 0,
+              pricing_rules: typeof r.pricing_rules === "string" ? r.pricing_rules : "",
+            }
+          : {}),
       };
     })
     .filter((r) => r.qty > 0 && r.uom);

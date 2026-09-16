@@ -102,7 +102,7 @@ async function buildDeliveryNoteFields(formData: FormData) {
   return { fields, rows };
 }
 
-type BatchSerialAttachInput = { item_code: string; warehouse?: string; batchSerialEntries?: BatchSerialEntryInput[] };
+export type BatchSerialAttachInput = { item_code: string; warehouse?: string; batchSerialEntries?: BatchSerialEntryInput[] };
 
 /**
  * Step 2 of the two-step create flow (see Design Decisions in the Phase 2 plan): the
@@ -118,7 +118,9 @@ type BatchSerialAttachInput = { item_code: string; warehouse?: string; batchSeri
  * left in Draft, recoverable — not silently swallowed, and nothing here undoes lines
  * already attached before the failure.
  */
-async function attachBatchSerialBundles(deliveryNoteName: string, lines: BatchSerialAttachInput[]): Promise<void> {
+/** Exported so sales/pick-lists/actions.ts's create-Delivery-Note-from-Pick-List flow can
+ * reuse this exact two-step batch/serial attach logic, instead of duplicating it. */
+export async function attachBatchSerialBundles(deliveryNoteName: string, lines: BatchSerialAttachInput[]): Promise<void> {
   const withEntries = lines
     .map((line, idx) => ({ line, idx }))
     .filter((r) => r.line.batchSerialEntries && r.line.batchSerialEntries.length > 0);
@@ -284,6 +286,14 @@ type SalesOrderItemForDelivery = {
    * JSON) — unlike the billed-qty case, "remaining to deliver" is a simple subtraction,
    * no live-summed query needed. */
   delivered_qty?: number;
+  /** Real Pricing Rule fields (Phase 4) — carried straight through onto the resulting
+   * Delivery Note line (which has the same fields, confirmed via its live DocType JSON) so
+   * a later "Create Sales Invoice from Delivery Note" still reflects the original
+   * Pricing Rule. */
+  price_list_rate?: number;
+  discount_percentage?: number;
+  discount_amount?: number;
+  pricing_rules?: string;
 };
 
 type SalesOrderForDelivery = {
@@ -361,6 +371,10 @@ export async function createDeliveryNoteFromSalesOrderAction(
     warehouse?: string;
     against_sales_order: string;
     so_detail: string;
+    price_list_rate?: number;
+    discount_percentage?: number;
+    discount_amount?: number;
+    pricing_rules?: string;
   }[] = [];
   // Parallel to deliveryItems, same index — each selection's BatchSerialPicker choice
   // (see LineSelectionEditor.tsx), attached in the step-2 pass below.
@@ -385,6 +399,14 @@ export async function createDeliveryNoteFromSalesOrderAction(
       warehouse: defaults.defaultWarehouse,
       against_sales_order: salesOrderName,
       so_detail: item.name,
+      ...(item.price_list_rate
+        ? {
+            price_list_rate: item.price_list_rate,
+            discount_percentage: item.discount_percentage,
+            discount_amount: item.discount_amount,
+            pricing_rules: item.pricing_rules,
+          }
+        : {}),
     });
     batchSerialByIndex.push(sel.batchSerialEntries);
   }

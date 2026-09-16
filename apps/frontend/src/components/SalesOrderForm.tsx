@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { LineItemsEditor, type LineRow } from "@/components/LineItemsEditor";
 import { CopyFromQuotationPanel, type CopiedQuotationFields } from "@/components/CopyFromQuotationPanel";
+import { DiscountFields } from "@/components/DiscountFields";
 import type { ItemOption } from "@/lib/actions/itemLookup";
 
 export type SalesOrderFormState = { error?: string } | undefined;
@@ -31,6 +32,9 @@ export function SalesOrderForm({
     order_type: string;
     company: string;
     items: LineRow[];
+    apply_discount_on?: string;
+    additional_discount_percentage?: number;
+    discount_amount?: number;
   };
 }) {
   const [state, formAction, isPending] = useActionState<SalesOrderFormState, FormData>(action, undefined);
@@ -43,6 +47,10 @@ export function SalesOrderForm({
 
   const [customer, setCustomer] = useState(initial?.customer ?? "");
   const [company, setCompany] = useState(initial?.company ?? companies[0] ?? "");
+  // Controlled so LineItemsEditor's pricingContext can re-resolve Pricing Rules whenever
+  // it changes (see LineItemsEditor's customer-change effect) — same reasoning as
+  // customer/company above.
+  const [transactionDate, setTransactionDate] = useState(initial?.transaction_date ?? today);
   const [copiedItems, setCopiedItems] = useState<LineRow[] | undefined>(initial?.items);
   const [copyVersion, setCopyVersion] = useState(0);
   const [copiedFields, setCopiedFields] = useState<CopiedQuotationFields | null>(null);
@@ -120,7 +128,8 @@ export function SalesOrderForm({
             id="transaction_date"
             name="transaction_date"
             required
-            defaultValue={initial?.transaction_date ?? today}
+            value={transactionDate}
+            onChange={(e) => setTransactionDate(e.target.value)}
             className="w-full rounded-md border border-border px-3 py-2 font-mono text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
           />
         </div>
@@ -200,8 +209,27 @@ export function SalesOrderForm({
           itemOptions={itemOptions}
           initialRows={copiedItems}
           currency={currency}
+          pricingContext={{
+            parentDoctype: "Sales Order",
+            childDoctype: "Sales Order Item",
+            customer,
+            company,
+            currency,
+            priceList: sellingPriceList,
+            transactionDate,
+          }}
         />
       </div>
+
+      <DiscountFields
+        formId="sales-order-form"
+        currency={currency}
+        initial={{
+          apply_discount_on: initial?.apply_discount_on,
+          additional_discount_percentage: initial?.additional_discount_percentage,
+          discount_amount: initial?.discount_amount,
+        }}
+      />
 
       <p className="text-xs text-graphite-500">
         Price list <span className="font-mono">{sellingPriceList}</span> · currency and conversion rates follow the

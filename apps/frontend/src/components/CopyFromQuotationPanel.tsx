@@ -132,6 +132,14 @@ export function CopyFromQuotationPanel({
         rate: r.rate,
         quotation_item: r.reference,
         source_quotation: r.sourceLabel,
+        ...(r.price_list_rate
+          ? {
+              price_list_rate: r.price_list_rate,
+              discount_percentage: r.discount_percentage,
+              discount_amount: r.discount_amount,
+              pricing_rules: r.pricing_rules,
+            }
+          : {}),
       })),
       customer_address: primary.customer_address,
       contact_person: primary.contact_person,

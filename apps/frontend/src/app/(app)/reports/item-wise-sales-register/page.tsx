@@ -91,7 +91,7 @@ export default async function ItemWiseSalesRegisterPage({ searchParams }: { sear
           No company configured in ERPNext yet.
         </p>
       ) : (
-        <ReportTable columns={columns} result={result} />
+        <ReportTable columns={columns} result={result} reportName="Item-wise Sales Register" />
       )}
     </div>
   );

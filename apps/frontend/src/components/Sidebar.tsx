@@ -21,6 +21,7 @@ import {
   MapPin,
   Megaphone,
   Package,
+  PackageCheck,
   PackageOpen,
   PanelLeftClose,
   PanelLeftOpen,
@@ -70,6 +71,7 @@ const NAV_GROUPS: NavGroupDef[] = [
     items: [
       { href: "/sales/quotations", label: "Quotations", icon: FilePenLine },
       { href: "/sales/orders", label: "Sales Orders", icon: ClipboardList },
+      { href: "/sales/pick-lists", label: "Pick Lists", icon: PackageCheck },
       { href: "/sales/delivery-notes", label: "Delivery Notes", icon: Truck },
       { href: "/sales/invoices", label: "Sales Invoices", icon: ReceiptText },
       { label: "Customer Payments", icon: Wallet, soon: true },
@@ -262,7 +264,13 @@ export function Sidebar() {
     const el = navRef.current;
     if (!el) return;
     if (el.scrollHeight <= el.clientHeight) return;
-    const collapsible = stored.expanded.find((id) => id !== activeGroupId);
+    // Never auto-collapse the group whose route is active, or the one most recently opened
+    // (always the last entry — toggleGroup() appends there) — otherwise, whenever only one
+    // group is open, "oldest" and "just clicked" are the same entry, and this effect would
+    // immediately close the section the user just opened (or the default-open one on first
+    // load) the instant its content doesn't fit. Only groups opened *before* that one are
+    // fair game to auto-collapse to make room.
+    const collapsible = stored.expanded.slice(0, -1).find((id) => id !== activeGroupId);
     if (!collapsible) return; // nothing left we're allowed to collapse
     writeStoredState({ expanded: stored.expanded.filter((id) => id !== collapsible), collapsed: stored.collapsed });
   });

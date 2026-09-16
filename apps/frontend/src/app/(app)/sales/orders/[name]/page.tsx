@@ -36,6 +36,10 @@ type SalesOrderDoc = {
   currency: string;
   selling_price_list: string;
   grand_total: number;
+  net_total: number;
+  apply_discount_on?: string;
+  additional_discount_percentage?: number;
+  discount_amount?: number;
   docstatus: DocStatus;
   status: string;
   per_delivered: number;
@@ -51,6 +55,13 @@ type SalesOrderDoc = {
     /** Real, live stored Float field (confirmed via the live DocType JSON) — see the
      * hasRemainingToDeliver comment below. */
     delivered_qty?: number;
+    /** Real, live stored Float field (confirmed via the live DocType JSON) — see the
+     * hasRemainingToPick comment below. */
+    picked_qty?: number;
+    price_list_rate?: number;
+    discount_percentage?: number;
+    discount_amount?: number;
+    pricing_rules?: string;
   })[];
   customer_address?: string;
   contact_person?: string;
@@ -126,6 +137,11 @@ export default async function SalesOrderDetailPage({
   // billedByRef above, no live-summed query is needed here). Mirrors
   // hasRemainingToInvoice's shape.
   const hasRemainingToDeliver = doc.items.some((item) => item.qty - (item.delivered_qty ?? 0) > 1e-6);
+  // Show "Create Pick List" whenever any line still has qty left to pick — `picked_qty` is
+  // a real, live stored field ERPNext itself maintains, same shape as delivered_qty. Pick
+  // List is an optional stage (salesFlowMap.ts's `pick` node) — it doesn't gate
+  // hasRemainingToDeliver above, since a Delivery Note can still be created directly.
+  const hasRemainingToPick = doc.items.some((item) => item.qty - (item.picked_qty ?? 0) > 1e-6);
   // ERPNext only refuses to cancel over a *submitted* linked Sales Invoice (draft ones
   // don't block it — see the submittedDocs doc comment in lib/connections.ts). Same
   // check the server action runs for real; this just tells the user why up front instead
@@ -173,6 +189,9 @@ export default async function SalesOrderDetailPage({
     <ConnectionsPanel
       connections={connections}
       createActions={[
+        ...(doc.docstatus === 1 && hasRemainingToPick
+          ? [{ label: "Create Pick List", href: `/sales/orders/${encodeURIComponent(doc.name)}/create-pick-list` }]
+          : []),
         ...(doc.docstatus === 1 && hasRemainingToDeliver
           ? [{ label: "Create Delivery Note", href: `/sales/orders/${encodeURIComponent(doc.name)}/create-delivery` }]
           : []),
@@ -238,7 +257,18 @@ export default async function SalesOrderDetailPage({
             ...(i.quotation_item && i.prevdoc_docname
               ? { quotation_item: i.quotation_item, source_quotation: i.prevdoc_docname }
               : {}),
+            ...(i.price_list_rate
+              ? {
+                  price_list_rate: i.price_list_rate,
+                  discount_percentage: i.discount_percentage,
+                  discount_amount: i.discount_amount,
+                  pricing_rules: i.pricing_rules,
+                }
+              : {}),
           })),
+          apply_discount_on: doc.apply_discount_on,
+          additional_discount_percentage: doc.additional_discount_percentage,
+          discount_amount: doc.discount_amount,
         }}
       />
     );
@@ -325,6 +355,18 @@ export default async function SalesOrderDetailPage({
           <DocField label="Delivery date" value={doc.delivery_date || "—"} mono />
           <DocField label="Order type" value={doc.order_type} />
           <DocField label="Company" value={doc.company} />
+          <DocField label="Net total" value={`${doc.net_total.toFixed(2)} ${doc.currency}`} mono />
+          {(doc.additional_discount_percentage || doc.discount_amount) ? (
+            <DocField
+              label={`Discount (on ${doc.apply_discount_on ?? "Grand Total"})`}
+              value={
+                doc.additional_discount_percentage
+                  ? `${doc.additional_discount_percentage}%`
+                  : `${(doc.discount_amount ?? 0).toFixed(2)} ${doc.currency}`
+              }
+              mono
+            />
+          ) : null}
           <DocField label="Grand total" value={`${doc.grand_total.toFixed(2)} ${doc.currency}`} mono />
         </dl>
         <LineItemsTable items={doc.items} currency={doc.currency} />

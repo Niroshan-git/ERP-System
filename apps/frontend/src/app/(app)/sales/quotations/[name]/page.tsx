@@ -12,18 +12,24 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocTabs } from "@/components/DocTabs";
 import { ConnectionsPanel } from "@/components/ConnectionsPanel";
 import { SavedBanner } from "@/components/SavedBanner";
-import { ErpNextError, getDoc } from "@/lib/erpnext";
+import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
 import { getSellingDefaults } from "@/lib/salesDefaults";
 import { listItemOptions } from "@/lib/actions/itemLookup";
 import { fetchLinkOptions } from "@/lib/linkOptions";
-import { getConnections } from "@/lib/connections";
+import { getConnections, type Connection } from "@/lib/connections";
 import { getRelationshipMap } from "@/lib/relationshipMap";
 import type { DocStatus } from "@/lib/docStatus";
 import { quotationStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
-import { cancelQuotationAction, submitQuotationAction, updateQuotationAction } from "../actions";
+import Link from "next/link";
+import {
+  amendQuotationAction,
+  cancelQuotationAction,
+  submitQuotationAction,
+  updateQuotationAction,
+} from "../actions";
 
 type QuotationDoc = {
   name: string;
@@ -35,13 +41,24 @@ type QuotationDoc = {
   currency: string;
   selling_price_list: string;
   grand_total: number;
+  net_total: number;
+  apply_discount_on?: string;
+  additional_discount_percentage?: number;
+  discount_amount?: number;
   docstatus: DocStatus;
   status: string;
   creation: string;
   owner: string;
   modified: string;
   modified_by: string;
-  items: (LineItemRow & { name: string; ordered_qty?: number })[];
+  items: (LineItemRow & {
+    name: string;
+    ordered_qty?: number;
+    price_list_rate?: number;
+    discount_percentage?: number;
+    discount_amount?: number;
+    pricing_rules?: string;
+  })[];
   customer_address?: string;
   contact_person?: string;
   shipping_address_name?: string;
@@ -53,6 +70,9 @@ type QuotationDoc = {
   tc_name?: string;
   terms?: string;
   title?: string;
+  /** Real, stored Link field back to the cancelled Quotation this one was amended from
+   * (confirmed via the live DocType JSON) — set by amendQuotationAction, empty otherwise. */
+  amended_from?: string;
 };
 
 export default async function QuotationDetailPage({
@@ -84,23 +104,54 @@ export default async function QuotationDetailPage({
     />
   );
 
-  const [connections, timeline, session, relationshipMap] = await Promise.all([
+  const [downstreamConnections, timeline, session, relationshipMap, amendedTo] = await Promise.all([
     getConnections("Quotation", doc.name),
     buildTimeline("Quotation", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
     getRelationshipMap("Quotation", doc.name),
+    // Only a Cancelled quotation can have been amended (mirrors
+    // `frappe.client.is_document_amended`'s own docstatus-2-only precondition) — skip the
+    // query otherwise. `amended_from` lives directly on Quotation itself (not a child
+    // table), so this queries the doctype's own field rather than going through
+    // getConnections's child-table-filter shape.
+    doc.docstatus === 2
+      ? listDocs<{ name: string }>("Quotation", { fields: ["name"], filters: [["amended_from", "=", doc.name]], limit: 5 })
+      : Promise.resolve([]),
   ]);
   // Show "Create Sales Order" whenever any line still has qty left to order —
   // ERPNext natively supports multiple partial Sales Orders against one Quotation
   // (see docs/ceylon-stack-sales-scenarios.md), so "already has a Sales Order" is no
   // longer the gate. `ordered_qty` is ERPNext's own real, live-maintained field (see
   // createSalesOrderFromQuotationAction's doc comment for how it's kept in sync).
-  const hasRemainingLines = doc.items.some((item) => item.qty - (item.ordered_qty ?? 0) > 1e-6);
+  // Gap found live-verifying "Set as Lost" (2026-09-15): ERPNext's own
+  // `quotation.py::_make_sales_order`/`make_sales_order` has NO server-side guard against
+  // mapping a "Lost" quotation to a Sales Order — the only real enforcement is Desk's own
+  // `quotation.js::refresh` hiding the "Sales Order" create button once
+  // `status in ["Lost", "Ordered"]`. Confirmed by calling `make_sales_order` directly against
+  // a Lost quotation over REST: it succeeded and returned a valid mapped Sales Order Draft.
+  // `doc.status !== "Lost"` mirrors that same real Desk condition here (the "Ordered" half is
+  // already implied by hasRemainingLines being false once nothing is left to order); see the
+  // matching guard added to createSalesOrderFromQuotationAction for the actual enforcement,
+  // since ERPNext itself doesn't provide one.
+  const hasRemainingLines = doc.status !== "Lost" && doc.items.some((item) => item.qty - (item.ordered_qty ?? 0) > 1e-6);
+  const connections: Connection[] = [
+    ...(doc.amended_from ? [{ label: "Amended From", href: "/sales/quotations", docs: [doc.amended_from] }] : []),
+    ...(amendedTo.length > 0
+      ? [{ label: "Amended To", href: "/sales/quotations", docs: amendedTo.map((d) => d.name) }]
+      : []),
+    ...downstreamConnections,
+  ];
   // Same cancel-blocking rule as the Sales Order page: ERPNext only refuses to cancel
   // over a *submitted* linked Sales Order (see submittedDocs doc comment in
   // lib/connections.ts). The server action re-checks this for real; this is just so the
   // user sees why up front instead of hitting a rejection after clicking Cancel.
   const blockingOrders = connections.find((c) => c.label === "Sales Order")?.submittedDocs ?? [];
+  // Real Desk gate for the "Set as Lost" button (`quotation.js::refresh`, confirmed live):
+  // `docstatus == 1 && !["Lost", "Ordered"].includes(status)`. Note this still allows a
+  // "Partially Ordered" quotation through — `declare_enquiry_lost` itself then rejects
+  // those server-side ("Cannot set as Lost as Sales Order is made."), which is real
+  // ERPNext behavior being mirrored here, not a gap in this gate.
+  const canSetAsLost = doc.docstatus === 1 && doc.status !== "Lost" && doc.status !== "Ordered";
   const status = quotationStatus(doc);
 
   const header = (
@@ -114,27 +165,50 @@ export default async function QuotationDetailPage({
       {doc.docstatus === 0 && (
         <DocActionBar action={submitQuotationAction.bind(null, doc.name)} label="Submit" pendingLabel="Submitting…" />
       )}
-      {doc.docstatus === 1 &&
-        (blockingOrders.length > 0 ? (
-          <p className="text-sm text-alert">
-            Cannot cancel — linked with Sales Order{" "}
-            {blockingOrders.map((ordName, i) => (
-              <span key={ordName}>
-                {i > 0 && ", "}
-                <a href={`/sales/orders/${encodeURIComponent(ordName)}`} className="underline">
-                  {ordName}
-                </a>
-              </span>
-            ))}
-            . Cancel that first.
+      {doc.docstatus === 1 && (
+        <div className="flex items-center gap-3">
+          {canSetAsLost && (
+            <Link
+              href={`/sales/quotations/${encodeURIComponent(doc.name)}/set-as-lost`}
+              className="rounded-md border border-border px-4 py-2 text-sm font-medium text-graphite-900 hover:bg-surface"
+            >
+              Set as Lost
+            </Link>
+          )}
+          {blockingOrders.length > 0 ? (
+            <p className="text-sm text-alert">
+              Cannot cancel — linked with Sales Order{" "}
+              {blockingOrders.map((ordName, i) => (
+                <span key={ordName}>
+                  {i > 0 && ", "}
+                  <a href={`/sales/orders/${encodeURIComponent(ordName)}`} className="underline">
+                    {ordName}
+                  </a>
+                </span>
+              ))}
+              . Cancel that first.
+            </p>
+          ) : (
+            <DocActionBar
+              action={cancelQuotationAction.bind(null, doc.name)}
+              label="Cancel"
+              pendingLabel="Cancelling…"
+              variant="danger"
+            />
+          )}
+        </div>
+      )}
+      {doc.docstatus === 2 &&
+        (amendedTo.length > 0 ? (
+          <p className="text-sm text-graphite-500">
+            Already amended as{" "}
+            <a href={`/sales/quotations/${encodeURIComponent(amendedTo[0].name)}`} className="underline">
+              {amendedTo[0].name}
+            </a>
+            .
           </p>
         ) : (
-          <DocActionBar
-            action={cancelQuotationAction.bind(null, doc.name)}
-            label="Cancel"
-            pendingLabel="Cancelling…"
-            variant="danger"
-          />
+          <DocActionBar action={amendQuotationAction.bind(null, doc.name)} label="Amend" pendingLabel="Amending…" />
         ))}
     </div>
   );
@@ -198,7 +272,18 @@ export default async function QuotationDetailPage({
             qty: i.qty,
             uom: i.uom,
             rate: i.rate,
+            ...(i.price_list_rate
+              ? {
+                  price_list_rate: i.price_list_rate,
+                  discount_percentage: i.discount_percentage,
+                  discount_amount: i.discount_amount,
+                  pricing_rules: i.pricing_rules,
+                }
+              : {}),
           })),
+          apply_discount_on: doc.apply_discount_on,
+          additional_discount_percentage: doc.additional_discount_percentage,
+          discount_amount: doc.discount_amount,
         }}
       />
     );
@@ -258,6 +343,20 @@ export default async function QuotationDetailPage({
           <DocField label="Valid till" value={doc.valid_till || "—"} mono />
           <DocField label="Order type" value={doc.order_type} />
           <DocField label="Company" value={doc.company} />
+          <DocField label="Net total" value={`${doc.net_total.toFixed(2)} ${doc.currency}`} mono />
+          {(doc.additional_discount_percentage || doc.discount_amount) ? (
+            <>
+              <DocField
+                label={`Discount (on ${doc.apply_discount_on ?? "Grand Total"})`}
+                value={
+                  doc.additional_discount_percentage
+                    ? `${doc.additional_discount_percentage}%`
+                    : `${(doc.discount_amount ?? 0).toFixed(2)} ${doc.currency}`
+                }
+                mono
+              />
+            </>
+          ) : null}
           <DocField label="Grand total" value={`${doc.grand_total.toFixed(2)} ${doc.currency}`} mono />
         </dl>
         <LineItemsTable items={doc.items} currency={doc.currency} />

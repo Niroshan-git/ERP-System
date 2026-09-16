@@ -102,6 +102,14 @@ async function buildSalesOrderFields(formData: FormData) {
   const po_no = String(formData.get("po_no") ?? "").trim() || undefined;
   const po_date = String(formData.get("po_date") ?? "").trim() || undefined;
 
+  // Document-level discount (Phase 4) — see quotations/actions.ts's buildQuotationFields
+  // for why both additional_discount_percentage and discount_amount are sent through as-is.
+  const apply_discount_on = String(formData.get("apply_discount_on") ?? "Grand Total").trim() || "Grand Total";
+  const additionalDiscountRaw = String(formData.get("additional_discount_percentage") ?? "").trim();
+  const additional_discount_percentage = additionalDiscountRaw ? Number(additionalDiscountRaw) : undefined;
+  const discountAmountRaw = String(formData.get("discount_amount") ?? "").trim();
+  const discount_amount = discountAmountRaw ? Number(discountAmountRaw) : undefined;
+
   if (!customer) throw new Error("Customer is required.");
   if (!transaction_date) throw new Error("Date is required.");
   // ERPNext's live Sales Order controller rejects a missing delivery_date at
@@ -158,6 +166,9 @@ async function buildSalesOrderFields(formData: FormData) {
     title,
     po_no,
     po_date,
+    apply_discount_on,
+    additional_discount_percentage,
+    discount_amount,
     items,
   };
 }
@@ -260,11 +271,20 @@ type QuotationItemForOrder = {
    * `quotation_item` set to this row's `name` (confirmed by reading quotation.py/
    * sales_order.py on the live server). "Remaining to order" = qty - ordered_qty. */
   ordered_qty?: number;
+  /** Real Pricing Rule fields (Phase 4) — carried straight through onto the new order's
+   * line, same as `rate` already is, rather than re-resolved against the pricing engine a
+   * second time (the Quotation's own resolved rate/discount is still the correct one for
+   * whatever partial qty is being ordered here). */
+  price_list_rate?: number;
+  discount_percentage?: number;
+  discount_amount?: number;
+  pricing_rules?: string;
 };
 
 type QuotationForOrder = {
   name: string;
   party_name: string;
+  status: string;
   company: string;
   currency: string;
   selling_price_list: string;
@@ -278,6 +298,9 @@ type QuotationForOrder = {
   tc_name?: string;
   terms?: string;
   title?: string;
+  apply_discount_on?: string;
+  additional_discount_percentage?: number;
+  discount_amount?: number;
 };
 
 /**
@@ -330,6 +353,16 @@ export async function createSalesOrderFromQuotationAction(
     return { error: "Could not load the source quotation." };
   }
 
+  // ERPNext's own `make_sales_order`/`_make_sales_order` has no server-side guard against
+  // mapping a "Lost" quotation to a Sales Order — confirmed live by calling it directly
+  // against a Lost quotation over REST, which succeeded. Desk's own UI is the only real
+  // gate (`quotation.js::refresh` hides the "Sales Order" create button once
+  // `status in ["Lost", "Ordered"]`), so this app provides the actual enforcement itself,
+  // matching that same real Desk rule, rather than trusting ERPNext to reject it.
+  if (quotation.status === "Lost") {
+    return { error: "This quotation is marked Lost and can no longer be converted to a Sales Order." };
+  }
+
   const defaults = await getSellingDefaults(quotation.company);
 
   const orderItems: {
@@ -342,6 +375,10 @@ export async function createSalesOrderFromQuotationAction(
     warehouse?: string;
     prevdoc_docname: string;
     quotation_item: string;
+    price_list_rate?: number;
+    discount_percentage?: number;
+    discount_amount?: number;
+    pricing_rules?: string;
   }[] = [];
 
   for (const sel of selection) {
@@ -363,6 +400,16 @@ export async function createSalesOrderFromQuotationAction(
       warehouse: defaults.defaultWarehouse,
       prevdoc_docname: quotationName,
       quotation_item: item.name,
+      // Carried straight through from the Quotation line, same as `rate` above — see the
+      // QuotationItemForOrder type comment for why this isn't re-resolved here.
+      ...(item.price_list_rate
+        ? {
+            price_list_rate: item.price_list_rate,
+            discount_percentage: item.discount_percentage,
+            discount_amount: item.discount_amount,
+            pricing_rules: item.pricing_rules,
+          }
+        : {}),
     });
   }
 
@@ -394,6 +441,11 @@ export async function createSalesOrderFromQuotationAction(
     tc_name: quotation.tc_name,
     terms: quotation.terms,
     title: quotation.title,
+    // Deliberately NOT carrying the Quotation's own document-level
+    // additional_discount_percentage/discount_amount here — this is a partial-selection flow
+    // (LineSelectionEditor), so a flat discount computed against the *full* Quotation's total
+    // wouldn't scale correctly onto a partial order. Line-level pricing above still carries
+    // through since Pricing Rule discounts are per-unit and scale correctly with any qty.
     items: orderItems,
   };
 

@@ -35,6 +35,10 @@ type SalesInvoiceDoc = {
   selling_price_list: string;
   debit_to: string;
   grand_total: number;
+  net_total: number;
+  apply_discount_on?: string;
+  additional_discount_percentage?: number;
+  discount_amount?: number;
   outstanding_amount: number;
   docstatus: DocStatus;
   status: string;
@@ -42,7 +46,14 @@ type SalesInvoiceDoc = {
   owner: string;
   modified: string;
   modified_by: string;
-  items: (LineItemRow & { sales_order?: string; delivery_note?: string })[];
+  items: (LineItemRow & {
+    sales_order?: string;
+    delivery_note?: string;
+    price_list_rate?: number;
+    discount_percentage?: number;
+    discount_amount?: number;
+    pricing_rules?: string;
+  })[];
   customer_address?: string;
   contact_person?: string;
   shipping_address_name?: string;
@@ -194,7 +205,18 @@ export default async function SalesInvoiceDetailPage({
             qty: i.qty,
             uom: i.uom,
             rate: i.rate,
+            ...(i.price_list_rate
+              ? {
+                  price_list_rate: i.price_list_rate,
+                  discount_percentage: i.discount_percentage,
+                  discount_amount: i.discount_amount,
+                  pricing_rules: i.pricing_rules,
+                }
+              : {}),
           })),
+          apply_discount_on: doc.apply_discount_on,
+          additional_discount_percentage: doc.additional_discount_percentage,
+          discount_amount: doc.discount_amount,
         }}
       />
     );
@@ -280,6 +302,18 @@ export default async function SalesInvoiceDetailPage({
           <DocField label="Posting date" value={doc.posting_date} mono />
           <DocField label="Company" value={doc.company} />
           <DocField label="Receivable account" value={doc.debit_to} mono />
+          <DocField label="Net total" value={`${doc.net_total.toFixed(2)} ${doc.currency}`} mono />
+          {(doc.additional_discount_percentage || doc.discount_amount) ? (
+            <DocField
+              label={`Discount (on ${doc.apply_discount_on ?? "Grand Total"})`}
+              value={
+                doc.additional_discount_percentage
+                  ? `${doc.additional_discount_percentage}%`
+                  : `${(doc.discount_amount ?? 0).toFixed(2)} ${doc.currency}`
+              }
+              mono
+            />
+          ) : null}
           <DocField label="Grand total" value={`${doc.grand_total.toFixed(2)} ${doc.currency}`} mono />
           <DocField label="Outstanding" value={`${doc.outstanding_amount.toFixed(2)} ${doc.currency}`} mono />
         </dl>

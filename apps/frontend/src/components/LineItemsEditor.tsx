@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { getItemLineDefaults, type ItemOption } from "@/lib/actions/itemLookup";
+import { resolvePricingForLine, type PricingContext } from "@/lib/actions/pricingLookup";
 import { BatchSerialPicker, type BatchSerialEntry } from "@/components/BatchSerialPicker";
 import { StockBadge } from "@/components/StockBadge";
 
@@ -35,12 +36,42 @@ export type LineRow = {
   has_batch_no?: boolean;
   has_serial_no?: boolean;
   batchSerialEntries?: BatchSerialEntry[];
+  /**
+   * Real Pricing Rule fields (Phase 4) — only set on Quotation/Sales Order/Sales Invoice
+   * (i.e. only when `pricingContext` is passed in below). `price_list_rate` is the base
+   * rate before any Pricing Rule discount (normally Item.standard_rate, from
+   * getItemLineDefaults); `discount_percentage`/`discount_amount`/`pricing_rules` come
+   * straight from ERPNext's own `apply_pricing_rule` response (see
+   * lib/actions/pricingLookup.ts) when a rule actually matched, otherwise stay at
+   * 0/0/undefined. `rate` is kept in sync as the *effective* rate (price_list_rate minus
+   * discount) so the estimated total below and the final saved amount agree — but ERPNext
+   * itself is still what actually computes the authoritative saved rate on save (see
+   * lib/lineRows.ts's parseLineRows for how these travel to the server action).
+   */
+  price_list_rate?: number;
+  discount_percentage?: number;
+  discount_amount?: number;
+  pricing_rules?: string;
 };
 
 const emptyRow: LineRow = { item_code: "", item_name: "", qty: 1, uom: "", rate: 0 };
 
 function batchSerialTotal(row: LineRow): number {
   return (row.batchSerialEntries ?? []).reduce((s, e) => s + (e.qty || 0), 0);
+}
+
+function hasPricingRule(row: LineRow): boolean {
+  return Boolean(row.pricing_rules && row.pricing_rules !== "[]" && row.pricing_rules !== "");
+}
+
+function pricingRuleSummary(row: LineRow): string {
+  if (row.discount_percentage && row.discount_percentage > 0) {
+    return `Pricing Rule applied — ${row.discount_percentage}% off`;
+  }
+  if (row.discount_amount && row.discount_amount > 0) {
+    return `Pricing Rule applied — discount of ${row.discount_amount.toFixed(2)} per unit`;
+  }
+  return "Pricing Rule applied";
 }
 
 /**
@@ -57,6 +88,7 @@ export function LineItemsEditor({
   initialRows,
   currency,
   defaultWarehouse,
+  pricingContext,
 }: {
   fieldName: string;
   itemOptions: ItemOption[];
@@ -70,6 +102,15 @@ export function LineItemsEditor({
    * Note is the only doctype in this app that actually moves stock.
    */
   defaultWarehouse?: string;
+  /**
+   * Set only by QuotationForm/SalesOrderForm/SalesInvoiceForm (Phase 4) — the transaction
+   * context ERPNext's real Pricing Rule engine needs (see
+   * lib/actions/pricingLookup.ts::resolvePricingForLine). When present, a line's Pricing
+   * Rule is (re-)resolved whenever its item or qty changes, and whenever the context's
+   * `customer` changes (e.g. the Customer dropdown above the items table). Left undefined
+   * for Delivery Note — out of scope for this phase (see PLAN.md Phase 4 notes).
+   */
+  pricingContext?: PricingContext;
 }) {
   const [rows, setRows] = useState<LineRow[]>(() => {
     const base = initialRows?.length ? initialRows : [emptyRow];
@@ -78,11 +119,44 @@ export function LineItemsEditor({
   const [isPending, startTransition] = useTransition();
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
 
+  // Mirrors `rows` for use inside the customer-change effect below, which needs the
+  // *current* rows without re-running every time rows itself changes (only when the
+  // pricing context's customer/company/date actually changes).
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
+
   function updateRow(index: number, patch: Partial<LineRow>) {
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }
 
+  async function refreshPricingForRow(index: number, itemCode: string, qty: number, priceListRate: number) {
+    if (!pricingContext || !itemCode || qty <= 0 || priceListRate <= 0) return;
+    const resolved = await resolvePricingForLine(itemCode, qty, priceListRate, pricingContext);
+    if (resolved) {
+      updateRow(index, {
+        price_list_rate: resolved.price_list_rate,
+        discount_percentage: resolved.discount_percentage,
+        discount_amount: resolved.discount_amount,
+        pricing_rules: resolved.pricing_rules || undefined,
+        rate: resolved.rate,
+      });
+    } else {
+      // No Pricing Rule applies (the common case) — fall back to the plain base rate,
+      // clearing any previously-applied rule's leftover discount fields.
+      updateRow(index, {
+        price_list_rate: priceListRate,
+        discount_percentage: 0,
+        discount_amount: 0,
+        pricing_rules: undefined,
+        rate: priceListRate,
+      });
+    }
+  }
+
   function onItemChange(index: number, itemCode: string) {
+    const currentQty = rows[index]?.qty ?? 1;
     const option = itemOptions.find((o) => o.code === itemCode);
     setRows((prev) =>
       prev.map((row, i) => {
@@ -99,6 +173,9 @@ export function LineItemsEditor({
           // A swapped item is a different item master — its batch/serial flags and any
           // already-picked batch/serial selection no longer apply.
           ...(itemSwapped ? { has_batch_no: undefined, has_serial_no: undefined, batchSerialEntries: undefined } : {}),
+          // A swapped item also invalidates any previously-resolved Pricing Rule — it was
+          // resolved for a different item.
+          ...(itemSwapped ? { price_list_rate: undefined, discount_percentage: 0, discount_amount: 0, pricing_rules: undefined } : {}),
         };
       }),
     );
@@ -109,12 +186,45 @@ export function LineItemsEditor({
           item_name: defaults.item_name,
           uom: defaults.uom,
           rate: defaults.rate,
+          price_list_rate: defaults.rate,
           has_batch_no: defaults.has_batch_no,
           has_serial_no: defaults.has_serial_no,
         });
+        await refreshPricingForRow(index, itemCode, currentQty, defaults.rate);
       }
     });
   }
+
+  function onQtyChange(index: number, qty: number) {
+    const row = rows[index];
+    // A changed qty invalidates any already-confirmed batch/serial selection — its total
+    // no longer matches, so force a re-pick rather than silently submitting a stale, now-
+    // wrong allocation.
+    updateRow(index, { qty, ...(row?.batchSerialEntries ? { batchSerialEntries: undefined } : {}) });
+    if (pricingContext && row?.item_code && row.price_list_rate) {
+      startTransition(async () => {
+        await refreshPricingForRow(index, row.item_code, qty, row.price_list_rate as number);
+      });
+    }
+  }
+
+  // Re-resolves every row's Pricing Rule whenever the document's own customer (or company/
+  // transaction date) changes — a rule scoped to a specific Customer/Customer Group only
+  // becomes knowable once a customer is actually selected. Deliberately keyed on just these
+  // three context fields, not on `rows` itself (see rowsRef above) — this must NOT re-run
+  // every time a row's own qty/item edit already triggered its own refresh above.
+  useEffect(() => {
+    if (!pricingContext) return;
+    const currentRows = rowsRef.current;
+    currentRows.forEach((row, index) => {
+      if (row.item_code && row.price_list_rate) {
+        startTransition(async () => {
+          await refreshPricingForRow(index, row.item_code, row.qty, row.price_list_rate as number);
+        });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pricingContext?.customer, pricingContext?.company, pricingContext?.transactionDate]);
 
   function addRow() {
     setRows((prev) => [...prev, defaultWarehouse ? { ...emptyRow, warehouse: defaultWarehouse } : emptyRow]);
@@ -185,6 +295,9 @@ export function LineItemsEditor({
                       )}
                     </div>
                   )}
+                  {pricingContext && hasPricingRule(row) && (
+                    <p className="mt-1 text-xs text-signal">{pricingRuleSummary(row)}</p>
+                  )}
                 </td>
                 <td className="px-3 py-2">
                   <input
@@ -192,13 +305,7 @@ export function LineItemsEditor({
                     min="0"
                     step="any"
                     value={row.qty}
-                    onChange={(e) => {
-                      const qty = Number(e.target.value) || 0;
-                      // A changed qty invalidates any already-confirmed batch/serial
-                      // selection — its total no longer matches, so force a re-pick rather
-                      // than silently submitting a stale, now-wrong allocation.
-                      updateRow(index, { qty, ...(row.batchSerialEntries ? { batchSerialEntries: undefined } : {}) });
-                    }}
+                    onChange={(e) => onQtyChange(index, Number(e.target.value) || 0)}
                     className="w-20 rounded-md border border-border px-2 py-1.5 font-mono text-sm tabular-nums focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
                   />
                   {defaultWarehouse && (
@@ -214,8 +321,9 @@ export function LineItemsEditor({
                     min="0"
                     step="any"
                     value={row.rate}
+                    disabled={pricingContext && hasPricingRule(row)}
                     onChange={(e) => updateRow(index, { rate: Number(e.target.value) || 0 })}
-                    className="w-28 rounded-md border border-border px-2 py-1.5 font-mono text-sm tabular-nums focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
+                    className="w-28 rounded-md border border-border px-2 py-1.5 font-mono text-sm tabular-nums focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal disabled:bg-canvas disabled:text-graphite-500"
                   />
                 </td>
                 <td className="px-3 py-2 font-mono tabular-nums text-graphite-900">
@@ -247,8 +355,9 @@ export function LineItemsEditor({
         </p>
       </div>
       <p className="mt-1 text-xs text-graphite-500">
-        Rate defaults to the item&apos;s standard selling rate and is editable per line. ERPNext computes the saved
-        total (including any taxes) on save — this estimate excludes taxes.
+        {pricingContext
+          ? "Rate defaults to the item's standard selling rate, then any matching Pricing Rule is applied automatically (rate becomes read-only once one applies). ERPNext computes the saved total (including any taxes) on save — this estimate excludes taxes."
+          : "Rate defaults to the item's standard selling rate and is editable per line. ERPNext computes the saved total (including any taxes) on save — this estimate excludes taxes."}
       </p>
 
       {activePicker && pickerIndex !== null && (

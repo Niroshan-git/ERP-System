@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { AccessDeniedNotice } from "@/components/AccessDeniedNotice";
-import { ErpNextError, listDocs } from "@/lib/erpnext";
+import { ErpNextError, getCount, listDocs } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
+import { paginate, parsePage, parsePageSize } from "@/lib/pagination";
 import { ListFilterBar, type FilterFieldConfig } from "@/components/ListFilterBar";
+import { PaginationControls } from "@/components/PaginationControls";
 import { SalesInvoicesTable, type SalesInvoiceRow } from "@/components/SalesInvoicesTable";
 
 // Sales Invoice's `status` DocType enum (checked against the live DocType JSON).
@@ -37,10 +39,15 @@ type SearchParams = {
   date?: string;
   status?: string;
   sort?: string;
+  page?: string;
+  page_size?: string;
 };
 
 export default async function SalesInvoicesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
+  const page = parsePage(params.page);
+  const pageSize = parsePageSize(params.page_size);
+  const startIndex = (page - 1) * pageSize;
 
   const filters: unknown[] = [];
   if (params.id) filters.push(["name", "like", `%${params.id}%`]);
@@ -52,8 +59,9 @@ export default async function SalesInvoicesPage({ searchParams }: { searchParams
   let invoices: SalesInvoiceRow[];
   let companies: string[] | null;
   let customers: string[] | null;
+  let totalCount: number;
   try {
-    [invoices, companies, customers] = await Promise.all([
+    [invoices, companies, customers, totalCount] = await Promise.all([
       listDocs<SalesInvoiceRow>("Sales Invoice", {
         fields: [
           "name",
@@ -69,11 +77,13 @@ export default async function SalesInvoicesPage({ searchParams }: { searchParams
           "owner",
         ],
         filters: filters.length > 0 ? filters : undefined,
-        limit: 200,
+        limit: pageSize + 1,
+        start: startIndex,
         orderBy: params.sort || SORT_OPTIONS[0].value,
       }),
       fetchLinkOptions("Company"),
       fetchLinkOptions("Customer"),
+      getCount("Sales Invoice", filters.length > 0 ? filters : undefined),
     ]);
   } catch (e) {
     if (e instanceof ErpNextError && e.status === 403) {
@@ -86,6 +96,8 @@ export default async function SalesInvoicesPage({ searchParams }: { searchParams
     }
     throw e;
   }
+
+  const { rows: pagedInvoices, hasNextPage } = paginate(invoices, pageSize);
 
   const filterFields: FilterFieldConfig[] = [
     { type: "text", name: "id", label: "ID" },
@@ -109,7 +121,15 @@ export default async function SalesInvoicesPage({ searchParams }: { searchParams
 
       <ListFilterBar fields={filterFields} sortOptions={SORT_OPTIONS} values={params} />
 
-      <SalesInvoicesTable invoices={invoices} />
+      <SalesInvoicesTable invoices={pagedInvoices} startIndex={startIndex} />
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        hasNextPage={hasNextPage}
+        searchParams={params}
+        rowCount={pagedInvoices.length}
+        totalCount={totalCount}
+      />
     </div>
   );
 }

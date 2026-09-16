@@ -41,6 +41,7 @@ const columns: ColumnDef<DeliveryNoteRow>[] = [
       const status = deliveryNoteStatus(dn);
       return <StatusPill label={status.label} tone={status.tone} />;
     },
+    exportValue: (dn) => deliveryNoteStatus(dn).label,
   },
   {
     key: "posting_date",
@@ -58,13 +59,20 @@ const columns: ColumnDef<DeliveryNoteRow>[] = [
   { key: "owner", label: "Owner", defaultVisible: false, render: (dn) => dn.owner || "—" },
 ];
 
-export function DeliveryNotesTable({ deliveryNotes }: { deliveryNotes: DeliveryNoteRow[] }) {
+export function DeliveryNotesTable({
+  deliveryNotes,
+  startIndex,
+}: {
+  deliveryNotes: DeliveryNoteRow[];
+  startIndex?: number;
+}) {
   return (
     <DataTable
       tableId="delivery-notes"
       columns={columns}
       rows={deliveryNotes}
       emptyLabel="No delivery notes match these filters."
+      startIndex={startIndex}
     />
   );
 }

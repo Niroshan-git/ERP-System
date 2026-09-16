@@ -38,6 +38,7 @@ const columns: ColumnDef<SalesOrderRow>[] = [
       const status = salesOrderStatus(o);
       return <StatusPill label={status.label} tone={status.tone} />;
     },
+    exportValue: (o) => salesOrderStatus(o).label,
   },
   {
     key: "delivery_date",
@@ -82,11 +83,13 @@ export function SalesOrderBulkTable({
   closeAction,
   reopenAction,
   createInvoicesAction,
+  startIndex,
 }: {
   orders: SalesOrderRow[];
   closeAction: (names: string[]) => Promise<BulkResult>;
   reopenAction: (names: string[]) => Promise<BulkResult>;
   createInvoicesAction: (names: string[]) => Promise<BulkResult>;
+  startIndex?: number;
 }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState<string | null>(null);
@@ -173,6 +176,7 @@ export function SalesOrderBulkTable({
           onToggleAll: toggleAll,
           allSelected,
         }}
+        startIndex={startIndex}
       />
     </div>
   );

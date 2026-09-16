@@ -19,6 +19,7 @@ type QuotationForSelection = {
   name: string;
   party_name: string;
   docstatus: number;
+  status: string;
   currency: string;
   items: QuotationItemForSelection[];
 };
@@ -41,7 +42,11 @@ export default async function CreateSalesOrderFromQuotationPage({ params }: { pa
     throw e;
   }
 
-  if (doc.docstatus !== 1) {
+  // `status !== "Lost"` mirrors Desk's own real gate (`quotation.js::refresh`) — ERPNext's
+  // `make_sales_order` itself has no server-side guard against mapping a Lost quotation
+  // (confirmed live), so this page and createSalesOrderFromQuotationAction's own re-check
+  // are the only real enforcement this app provides.
+  if (doc.docstatus !== 1 || doc.status === "Lost") {
     redirect(`/sales/quotations/${encodeURIComponent(quotationName)}`);
   }
 

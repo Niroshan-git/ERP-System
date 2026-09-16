@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { LineItemsEditor, type LineRow } from "@/components/LineItemsEditor";
+import { DiscountFields } from "@/components/DiscountFields";
 import type { ItemOption } from "@/lib/actions/itemLookup";
 
 export type SalesInvoiceFormState = { error?: string } | undefined;
@@ -33,10 +34,19 @@ export function SalesInvoiceForm({
     posting_date: string;
     company: string;
     items: LineRow[];
+    apply_discount_on?: string;
+    additional_discount_percentage?: number;
+    discount_amount?: number;
   };
 }) {
   const [state, formAction, isPending] = useActionState<SalesInvoiceFormState, FormData>(action, undefined);
   const today = new Date().toISOString().slice(0, 10);
+
+  // Controlled so LineItemsEditor's pricingContext can re-resolve Pricing Rules whenever
+  // any of these change (see LineItemsEditor's customer-change effect).
+  const [customer, setCustomer] = useState(initial?.customer ?? "");
+  const [company, setCompany] = useState(initial?.company ?? companies[0] ?? "");
+  const [postingDate, setPostingDate] = useState(initial?.posting_date ?? today);
 
   return (
     <form id="sales-invoice-form" action={formAction} className="max-w-3xl space-y-4">
@@ -50,7 +60,8 @@ export function SalesInvoiceForm({
               id="customer"
               name="customer"
               required
-              defaultValue={initial?.customer ?? ""}
+              value={customer}
+              onChange={(e) => setCustomer(e.target.value)}
               className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
             >
               <option value="">Select…</option>
@@ -65,7 +76,8 @@ export function SalesInvoiceForm({
               id="customer"
               name="customer"
               required
-              defaultValue={initial?.customer}
+              value={customer}
+              onChange={(e) => setCustomer(e.target.value)}
               placeholder="Must match an existing Customer"
               className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
             />
@@ -80,7 +92,8 @@ export function SalesInvoiceForm({
             id="company"
             name="company"
             required
-            defaultValue={initial?.company ?? companies[0]}
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
             className="w-full rounded-md border border-border bg-surface px-3 py-2 text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
           >
             {companies.map((c) => (
@@ -101,15 +114,40 @@ export function SalesInvoiceForm({
           id="posting_date"
           name="posting_date"
           required
-          defaultValue={initial?.posting_date ?? today}
+          value={postingDate}
+          onChange={(e) => setPostingDate(e.target.value)}
           className="w-40 rounded-md border border-border px-3 py-2 font-mono text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
         />
       </div>
 
       <div>
         <p className="mb-1 text-sm font-medium text-graphite-900">Items</p>
-        <LineItemsEditor fieldName="items" itemOptions={itemOptions} initialRows={initial?.items} currency={currency} />
+        <LineItemsEditor
+          fieldName="items"
+          itemOptions={itemOptions}
+          initialRows={initial?.items}
+          currency={currency}
+          pricingContext={{
+            parentDoctype: "Sales Invoice",
+            childDoctype: "Sales Invoice Item",
+            customer,
+            company,
+            currency,
+            priceList: sellingPriceList,
+            transactionDate: postingDate,
+          }}
+        />
       </div>
+
+      <DiscountFields
+        formId="sales-invoice-form"
+        currency={currency}
+        initial={{
+          apply_discount_on: initial?.apply_discount_on,
+          additional_discount_percentage: initial?.additional_discount_percentage,
+          discount_amount: initial?.discount_amount,
+        }}
+      />
 
       <p className="text-xs text-graphite-500">
         Price list <span className="font-mono">{sellingPriceList}</span> · receivable account{" "}

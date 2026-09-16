@@ -108,7 +108,7 @@ export default async function SimpleReportPage({
           ERPNext yet.
         </p>
       ) : (
-        <ReportTable columns={columns} result={result} />
+        <ReportTable columns={columns} result={result} reportName={config.title} />
       )}
     </div>
   );

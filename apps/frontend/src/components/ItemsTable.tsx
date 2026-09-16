@@ -42,12 +42,31 @@ const columns: ColumnDef<ItemRow>[] = [
     key: "disabled",
     label: "Status",
     render: (item) => (item.disabled ? <StatusPill label="Disabled" tone="neutral" /> : <StatusPill label="Active" tone="success" />),
+    exportValue: (item) => (item.disabled ? "Disabled" : "Active"),
   },
-  { key: "is_stock_item", label: "Maintains stock", defaultVisible: false, render: (item) => (item.is_stock_item ? "Yes" : "No") },
-  { key: "has_batch_no", label: "Has batch no.", defaultVisible: false, render: (item) => (item.has_batch_no ? "Yes" : "No") },
-  { key: "has_serial_no", label: "Has serial no.", defaultVisible: false, render: (item) => (item.has_serial_no ? "Yes" : "No") },
+  {
+    key: "is_stock_item",
+    label: "Maintains stock",
+    defaultVisible: false,
+    render: (item) => (item.is_stock_item ? "Yes" : "No"),
+    exportValue: (item) => (item.is_stock_item ? "Yes" : "No"),
+  },
+  {
+    key: "has_batch_no",
+    label: "Has batch no.",
+    defaultVisible: false,
+    render: (item) => (item.has_batch_no ? "Yes" : "No"),
+    exportValue: (item) => (item.has_batch_no ? "Yes" : "No"),
+  },
+  {
+    key: "has_serial_no",
+    label: "Has serial no.",
+    defaultVisible: false,
+    render: (item) => (item.has_serial_no ? "Yes" : "No"),
+    exportValue: (item) => (item.has_serial_no ? "Yes" : "No"),
+  },
 ];
 
-export function ItemsTable({ items }: { items: ItemRow[] }) {
-  return <DataTable tableId="items" columns={columns} rows={items} emptyLabel="No items yet." />;
+export function ItemsTable({ items, startIndex }: { items: ItemRow[]; startIndex?: number }) {
+  return <DataTable tableId="items" columns={columns} rows={items} emptyLabel="No items yet." startIndex={startIndex} />;
 }
