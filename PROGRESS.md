@@ -367,6 +367,15 @@ reports) rather than split into single-package sessions per `AGENT_USAGE_POLICY.
 Matches the precedent already set by the Buying module's own commit, but worth tightening on
 whatever Stock/Inventory work comes next.
 
+### Package closeout (2026-09-16, same day)
+
+Created `QA_LOG.md` (new central QA log, project root) with the Inventory/Stock QA entry
+above as its first record. Committed the pending `docs/ceylon-stack-documentation.html`
+status update together with the new QA log (`98560ab`) and pushed to `origin/frontend`.
+Notion's "Smart Factory on ERPNext – Weekly Implementation Plan" page was already current
+for this package (synced in the same-day release-tracker pass referenced above) — verified,
+no further edit needed. Inventory MVP package is now fully closed per the Definition of Done.
+
 ## Not Yet Done (see PLAN.md for full context)
 
 - `smart_factory` exists and does the full Desk branding pass (navbar/sidebar/app-switcher/buttons); it does not yet contain any actual Manufacturing/OEE business logic — that's still 100% ahead, per `PLAN.md`.
