@@ -1048,3 +1048,77 @@ of this same package's documentation step, not a separate follow-up; (2) the
 is, per the inline code comment and this entry above, not a defect.
 
 Not committed — commit was not requested this session.
+
+## 2026-09-17 (later) — MCP Phase 1: fifth business-specific tool, `get_job_card_detail`
+
+Added `get_job_card_detail(job_card_name)` to `apps/mcp-server/src/server.py`,
+per `docs/mcp-agents-plan.md` Phase 1 and this session's explicit one-tool
+mission. Completes the minimum MCP read-only inspection set (overview → list
+→ detail, for both Work Order and Job Card) before Manufacturing frontend
+work starts. Read-only, GET-only, dev-tier — same conventions as
+`get_work_order_detail` (its closest analog): validates/strips
+`job_card_name`, returns a clean `{"error": ...}` dict for empty input or a
+not-found Job Card (no unhandled exception), builds a header dict +
+`missing_fields` gap detection, looks up a related-record summary, and
+returns `{job_card, work_order, quality_readiness, gaps, source}`.
+
+Before implementing, confirmed live via `get_doctype_fields` that Job Card
+genuinely has `company`, `process_loss_qty`, and `total_time_in_mins` fields
+(none previously exposed by any tool), and — more importantly — that Quality
+Inspection has a genuine **direct** link to Job Card:
+`reference_type` (Select, includes `"Job Card"`) + `reference_name` (Dynamic
+Link keyed by `reference_type`). This is a real link, not the item-level
+fallback `get_work_order_detail` uses (Work Order has no such direct link) —
+so `get_job_card_detail`'s Quality readiness is more precise than the Work
+Order tool's, filtering directly on
+`reference_type="Job Card"` + `reference_name=<job_card_name>` instead of by
+`item_code`.
+
+**Verified live against the Hetzner instance**: called the tool function
+directly (same bypass-the-running-session approach as the prior tools, with
+HTTP-method interception to positively confirm GET-only). Tested
+`PO-JOB00001` (Completed — all header fields including
+`process_loss_qty`/`total_time_in_mins` returned correctly, related Work
+Order `MFG-WO-2026-00002` summary correct, item template
+`Steel Bracket Assembly - Final QC` resolved, 0 linked Quality Inspections
+found and correctly flagged as a gap since none exist on the instance yet —
+consistent with `docs/erp-inventory.md`'s recorded `Quality Inspection` count
+of 0) and `PO-JOB00006` (Open, no actuals yet — `actual_start_date`/
+`actual_end_date` entirely absent from ERPNext's REST response rather than
+null, same omission-not-null behavior already documented for Work Order's
+`planned_end_date`, correctly flagged in `gaps`). Also tested a nonexistent
+Job Card name (clean error dict, no crash), an empty string, and a
+whitespace-only string (both cleanly rejected before any request was
+issued). 9 HTTP requests total across the run, all `GET`, zero non-GET.
+
+`apps/mcp-server/README.md` updated with the new tool's description and
+verification note. No `QA_LOG.md` entry — internal dev tooling, not a
+Sales/Stock/Buying core flow, same rationale as the prior four Phase 1
+tools. `docs/ceylon-stack-documentation.html` and Notion not touched — no
+product-facing status changed and the implementation plan (MCP Phase 1)
+didn't change beyond what was already planned.
+
+**`code-reviewer` pass**: no blocking findings. Reviewer confirmed:
+empty-input/not-found handling exactly mirrors `get_work_order_detail`; the
+`reference_type`/`reference_name` Quality Inspection filter is Frappe's
+standard polymorphic-link pattern and is a real precision improvement over
+the Work Order tool's item-level fallback; `work_order` being `None` when
+unset or on lookup failure is handled safely (explicit `null` + a
+corresponding `gaps` entry, nothing downstream dereferences it unsafely);
+all calls are GET-only; response stays small and bounded. One non-blocking
+observation carried over from `get_work_order_detail` (not new to this
+tool): the final `quality_inspections_found` list call isn't wrapped in
+try/except, so a non-2xx there would propagate as an uncaught error instead
+of a clean dict — flagged as a pre-existing pattern across both detail tools
+worth a future hardening pass together, not blocking for this package.
+
+**Process note from reviewer, carried forward**: the working tree currently
+bundles three uncommitted tool packages (`list_work_orders`, `list_job_cards`,
+`get_job_card_detail`), each independently reviewed and verified. Per
+`docs/controls/AGENT_USAGE_POLICY.md` §8 and this file's own Package Closure
+Rules, these should land as three separate commits (one per package) rather
+than one combined commit, to keep history and review responsibility
+per-package — same guidance a prior session's review already gave for the
+first two Phase 1 tools and that wasn't acted on before this package was
+added on top. Not committed — commit was not requested this session; noted
+here so whoever commits next splits them accordingly.

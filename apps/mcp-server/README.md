@@ -198,6 +198,43 @@ Cards, 1 Quality Inspection Template), real recent Work Orders
   confirmed via HTTP-method interception — all `GET`, zero writes.
   `code-reviewer` pass: no blocking findings.
 
+- **`get_job_card_detail(job_card_name)`** — **dev-tier, read-only**, fifth
+  business-specific tool (Phase 1), completing the minimum MCP read-only
+  inspection set alongside `get_manufacturing_overview`,
+  `get_work_order_detail`, `list_work_orders`, and `list_job_cards`. Given a
+  Job Card name, returns its header (status, work_order, production_item,
+  operation, workstation, company, for_quantity, total_completed_qty,
+  process_loss_qty, expected/actual start/end dates, total_time_in_mins), a
+  summary of its related Work Order (name, status, production_item, qty,
+  produced_qty, bom_no), Quality readiness (the production item's
+  `quality_inspection_template`, plus up to 5 `Quality Inspection` records
+  found), a `gaps` array, and a `source` note. Validates `job_card_name` is
+  non-empty and returns a clean `{"error": ...}` dict (not an unhandled
+  exception) for an empty name or a Job Card that doesn't exist.
+
+  Unlike `get_work_order_detail` — which can only check Quality Inspection
+  readiness by `item_code` because Work Order has no direct link — Quality
+  Inspection genuinely links to Job Card directly: `reference_type` (Select,
+  includes `"Job Card"`) + `reference_name` (Dynamic Link keyed by
+  `reference_type`), both live-confirmed via
+  `get_doctype_fields("Quality Inspection")`. `get_job_card_detail` filters
+  on `reference_type="Job Card"` + `reference_name=<job_card_name>` — a real,
+  precise link rather than an item-level fallback.
+
+  Verified end-to-end against the live instance (2026-09-17): tested
+  `PO-JOB00001` (Completed, has actuals/process_loss_qty/total_time_in_mins —
+  all returned correctly, related Work Order `MFG-WO-2026-00002` summary
+  correct, item template `Steel Bracket Assembly - Final QC` resolved, 0
+  linked Quality Inspections found — correctly flagged as a gap since none
+  exist on the instance yet) and `PO-JOB00006` (Open, no actuals yet —
+  `actual_start_date`/`actual_end_date` entirely absent from ERPNext's REST
+  response, same omission-not-null behavior already documented for Work
+  Order, correctly flagged in `gaps`). Also tested a nonexistent Job Card
+  name (clean error dict, no crash), an empty string, and a whitespace-only
+  string (both cleanly rejected, no request issued). 9 HTTP requests total
+  across the run, confirmed via HTTP-method interception — all `GET`, zero
+  writes. `code-reviewer` pass: no blocking findings.
+
 ## What's deliberately not built yet
 
 Phase 0 (`docs/erp-inventory.md`) is complete, which unblocked the

@@ -38,6 +38,7 @@ LIST_WORK_ORDERS_DEFAULT_LIMIT = 20
 LIST_WORK_ORDERS_MAX_LIMIT = 100
 LIST_JOB_CARDS_DEFAULT_LIMIT = 20
 LIST_JOB_CARDS_MAX_LIMIT = 100
+JOB_CARD_QUALITY_INSPECTIONS_LIMIT = 5
 
 # Header fields returned by get_work_order_detail, per docs/erp-inventory.md's
 # confirmed Work Order schema (live-verified via get_doctype_fields, not guessed).
@@ -112,6 +113,41 @@ JOB_CARD_LIST_FIELDS = [
     "actual_start_date",
     "actual_end_date",
     "creation",
+]
+
+# Header fields for get_job_card_detail - a superset of JOB_CARD_DETAIL_FIELDS
+# / JOB_CARD_LIST_FIELDS adding company, process_loss_qty, and
+# total_time_in_mins (all live-confirmed via get_doctype_fields("Job Card")
+# for this tool's own package, not previously exposed by any tool).
+JOB_CARD_DETAIL_HEADER_FIELDS = [
+    "name",
+    "status",
+    "work_order",
+    "production_item",
+    "operation",
+    "workstation",
+    "company",
+    "for_quantity",
+    "total_completed_qty",
+    "process_loss_qty",
+    "expected_start_date",
+    "expected_end_date",
+    "actual_start_date",
+    "actual_end_date",
+    "total_time_in_mins",
+]
+
+# Related Work Order summary fields for get_job_card_detail - deliberately
+# smaller than WORK_ORDER_DETAIL_FIELDS since this is a summary of the
+# parent record, not a full inspection (get_work_order_detail already
+# covers that).
+WORK_ORDER_SUMMARY_FIELDS = [
+    "name",
+    "status",
+    "production_item",
+    "qty",
+    "produced_qty",
+    "bom_no",
 ]
 
 mcp = MCPServer(
@@ -488,6 +524,119 @@ async def list_job_cards(
         },
         "total_returned": len(job_cards),
         "job_cards": job_cards,
+        "gaps": gaps,
+        "source": (
+            "Dev-tier read-only data from live ERPNext (Administrator API key), "
+            "not a client-scoped agent - see apps/mcp-server/README.md."
+        ),
+    }
+
+
+@mcp.tool()
+async def get_job_card_detail(job_card_name: str) -> dict[str, Any]:
+    """Compact, read-only detail for a single Job Card: header fields, its
+    related Work Order summary, and Quality readiness.
+
+    Dev-tier reporting tool completing the minimum MCP read-only inspection
+    set alongside get_manufacturing_overview, get_work_order_detail,
+    list_work_orders, and list_job_cards. Returns the Job Card header
+    (status, work_order, production item, operation, workstation, company,
+    quantities, dates, total time), a summary of its parent Work Order, the
+    production item's Quality Inspection Template (if set), and any Quality
+    Inspection records linked directly to this Job Card. Not a client-scoped
+    agent - see apps/mcp-server/README.md's "Two-tier access model".
+    """
+    name = (job_card_name or "").strip()
+    if not name:
+        return {"error": "job_card_name is required and cannot be empty."}
+
+    try:
+        doc = await _client.get_doc("Job Card", name)
+    except ERPNextError as exc:
+        return {
+            "error": f"Job Card '{name}' could not be read: {exc}",
+            "job_card_name": name,
+        }
+
+    job_card = {field: doc.get(field) for field in JOB_CARD_DETAIL_HEADER_FIELDS}
+    missing_fields = [f for f in JOB_CARD_DETAIL_HEADER_FIELDS if f not in doc]
+
+    gaps: list[str] = []
+
+    work_order_name = job_card.get("work_order")
+    work_order_summary: dict[str, Any] | None = None
+    if work_order_name:
+        try:
+            wo_doc = await _client.get_doc("Work Order", work_order_name)
+            work_order_summary = {
+                field: wo_doc.get(field) for field in WORK_ORDER_SUMMARY_FIELDS
+            }
+        except ERPNextError as exc:
+            gaps.append(
+                f"Related Work Order {work_order_name} could not be read: {exc}"
+            )
+    else:
+        gaps.append(f"Job Card {name} has no work_order set.")
+
+    production_item = job_card.get("production_item")
+    quality_readiness: dict[str, Any] = {"production_item": production_item}
+    if production_item:
+        try:
+            item = await _client.get_doc("Item", production_item)
+            quality_readiness["item_quality_inspection_template"] = item.get(
+                "quality_inspection_template"
+            )
+        except ERPNextError as exc:
+            quality_readiness["item_quality_inspection_template"] = None
+            quality_readiness["item_lookup_error"] = (
+                f"Could not read Item {production_item}: {exc}"
+            )
+        if not quality_readiness.get("item_quality_inspection_template"):
+            gaps.append(
+                f"Production item {production_item} has no quality_inspection_template set."
+            )
+    else:
+        quality_readiness["item_quality_inspection_template"] = None
+        gaps.append(
+            f"Job Card {name} has no production_item set - item quality "
+            "template could not be checked."
+        )
+
+    # Quality Inspection has a genuine direct link to Job Card
+    # (reference_type="Job Card" + reference_name=<job card name>, both
+    # live-confirmed via get_doctype_fields("Quality Inspection")) - a real
+    # link, not the item-level fallback get_work_order_detail uses because
+    # Work Order has no such direct link.
+    quality_inspections_found = await _client.get_list(
+        "Quality Inspection",
+        filters={"reference_type": "Job Card", "reference_name": name},
+        fields=["name", "status", "inspection_type", "item_code"],
+        limit=JOB_CARD_QUALITY_INSPECTIONS_LIMIT,
+        order_by="creation desc",
+    )
+    quality_readiness["quality_inspections_found"] = quality_inspections_found
+    quality_readiness["note"] = (
+        "Quality Inspection links directly to Job Card via "
+        "reference_type='Job Card' + reference_name=<job_card_name> - a real "
+        "link, confirmed live, not a fallback."
+    )
+    if not quality_inspections_found:
+        gaps.append(f"No Quality Inspection records linked to Job Card {name}.")
+
+    if missing_fields:
+        # Same ERPNext behavior documented for get_work_order_detail: a field
+        # defined on the doctype can be entirely absent from the REST
+        # response for a given record rather than returned as null.
+        gaps.append(
+            "Fields ERPNext omitted from this Job Card's API response "
+            f"(defined on the doctype, but not returned for this record): "
+            f"{', '.join(missing_fields)}."
+        )
+
+    return {
+        "job_card": job_card,
+        "work_order": work_order_summary,
+        "quality_readiness": quality_readiness,
         "gaps": gaps,
         "source": (
             "Dev-tier read-only data from live ERPNext (Administrator API key), "
