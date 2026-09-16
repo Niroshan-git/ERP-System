@@ -167,6 +167,7 @@
       <a href="#frontend-sales" class="sub">Sales Documents</a>
       <a href="#frontend-fulfillment" class="sub">Partial Fulfillment &amp; Copy From</a>
       <a href="#frontend-ops" class="sub">Reports, Bulk Actions &amp; Settings</a>
+      <a href="#frontend-buying" class="sub">Buying Module</a>
     </div>
     <div class="grp">
       <div class="grp-title">Upcoming</div>
@@ -298,8 +299,19 @@
       </ul>
     </section>
 
+    <section id="frontend-buying">
+      <span class="eyebrow">10 — Live Today</span>
+      <h2>Ceylon Stack Frontend — Buying Module <span class="status building"><span class="dot"></span>Building</span></h2>
+      <p class="lede">The second Sidebar module after Sales, replicating the Sales module's own file/code pattern for the purchasing cycle (Material Request → Request for Quotation → Supplier Quotation → Purchase Order → Purchase Receipt → Purchase Invoice) plus Suppliers, behind a new real module switcher.</p>
+      <ul class="feat-list">
+        <li><span class="status building"><span class="dot"></span>Building</span><div><strong>Core purchasing cycle &amp; Suppliers</strong> — Material Request, Request for Quotation, Supplier Quotation, Purchase Order, Purchase Receipt, Purchase Invoice, and Suppliers list/detail pages exist and are wired into a dedicated Buying nav group in the Sidebar, mirroring the Sales document pattern. Not yet individually confirmed live-verified end to end (create → submit → cancel) against the real ERPNext instance in a logged pass — tracked here as Building, not Live, until that verification is on record.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Buying Reports hub</strong> — 13 of ERPNext's own Buying-workspace reports (Purchase Analytics, Purchase Order Analysis, Item Wise Consumption, Items to Order and Receive, Purchase Order Trends, Procurement Tracker, Items To Be Requested, Item-wise Purchase History, Purchase Receipt Trends, Purchase Invoice Trends, Supplier Quotation Comparison, Material Requests for which Supplier Quotations are not created, Supplier Addresses and Contacts) run live through ERPNext's own report engine, mirroring the Sales Reports hub's approach — each of the 13 confirmed via <code>bench execute frappe.desk.query_report.run</code> directly on the live Hetzner server. Two further reports (Subcontracted Raw Materials To Be Transferred, Subcontracted Item To Be Received) are shown as "Coming soon" — they depend on Subcontracting Order, a doctype not built in this app.</div></li>
+        <li><span class="status planned"><span class="dot"></span>Planned</span><div><strong>Buying Settings</strong> — the dashboard-side view of ERPNext's own Buying Settings singleton, mirroring Selling Settings. Not started.</div></li>
+      </ul>
+    </section>
+
     <section id="roadmap-sales">
-      <span class="eyebrow">10 — Upcoming</span>
+      <span class="eyebrow">11 — Upcoming</span>
       <h2>Sales Module — Next Phases <span class="status planned"><span class="dot"></span>Planned</span></h2>
       <p class="lede">All four build phases of the Sales-module gap-closing plan have now shipped — Delivery Note, Quotation Lifecycle, and Real Pricing Rule &amp; Discounts, alongside the earlier Partial Fulfillment work (see <a href="#frontend-sales">Sales Documents</a> and <a href="#frontend-fulfillment">Partial Fulfillment &amp; Copy From</a>). One item remains before this plan is fully closed.</p>
       <div class="grid-2">
@@ -308,7 +320,7 @@
     </section>
 
     <section id="roadmap-manufacturing">
-      <span class="eyebrow">11 — Upcoming</span>
+      <span class="eyebrow">12 — Upcoming</span>
       <h2>Manufacturing &amp; OEE (Smart Factory) <span class="status building"><span class="dot"></span>Building</span></h2>
       <p class="lede">The layer that gives Ceylon Stack its name — live machine and shop-floor visibility on top of ERPNext's Manufacturing module.</p>
       <ul class="feat-list">
@@ -319,14 +331,14 @@
     </section>
 
     <section id="roadmap-agents">
-      <span class="eyebrow">12 — Upcoming</span>
+      <span class="eyebrow">13 — Upcoming</span>
       <h2>AI Agents (MCP) <span class="status planned"><span class="dot"></span>Planned</span></h2>
       <p class="lede">An MCP server exposing scoped ERPNext tools, with a roster of specialist agents (Manufacturing Floor, Apparel &amp; Textile, Agro-Processing, Quality &amp; Compliance, Finance &amp; Reporting, Inventory &amp; Procurement) on top of it — designed, not yet built.</p>
       <div class="callout warn"><p><strong>Sequencing:</strong> gated behind a full walkthrough of the live ERPNext instance (not yet run) and the MCP tool-server build itself (not started). The agent roster is fully specified so it's ready to build once those two steps land — it should not be pitched as available before then.</p></div>
     </section>
 
     <section id="roadmap-portfolio">
-      <span class="eyebrow">13 — Upcoming</span>
+      <span class="eyebrow">14 — Upcoming</span>
       <h2>Product Portfolio — Next <span class="status planned"><span class="dot"></span>Planned</span></h2>
       <p class="lede">Frappe HR proved the whitelabel-more-apps model works. The same pattern is scoped for further official Frappe apps as future Ceylon Stack products.</p>
       <div class="grid-3">
@@ -337,7 +349,7 @@
     </section>
 
     <section id="roadmap-platform">
-      <span class="eyebrow">14 — Upcoming</span>
+      <span class="eyebrow">15 — Upcoming</span>
       <h2>Platform Hardening <span class="status planned"><span class="dot"></span>Planned</span></h2>
       <ul class="feat-list">
         <li><span class="status planned"><span class="dot"></span>Planned</span><div><strong>Full per-user ERPNext sessions</strong> — replacing the current single-service-account proxy so ERPNext's own permission rules apply per logged-in person, not just per what the UI exposes.</div></li>
@@ -348,14 +360,14 @@
     </section>
 
     <section id="licensing">
-      <span class="eyebrow">15 — Reference</span>
+      <span class="eyebrow">16 — Reference</span>
       <h2>Licensing (GPL-3.0)</h2>
       <p>ERPNext is fully open-source under GPL-3.0 — no licensing fees, no locked modules, no vendor lock-in. Because it's GPL-3.0 (not AGPL), the source-disclosure obligation is triggered by <em>distributing</em> a modified copy, not by hosting it as a service — when Ceylon Stack is delivered as hosted SaaS, that obligation is most likely never triggered. The custom layers — the Frappe apps and the frontend — stay proprietary as long as they only ever communicate with ERPNext through its REST API. That's the entire reason the headless architecture in <a href="#architecture">Architecture</a> exists.</p>
       <div class="quote">"Ceylon Stack is built on ERPNext, a mature open-source ERP used by tens of thousands of companies worldwide — a complete, battle-tested core with no licensing fees and full ownership of the data — with a purpose-built dashboard and factory-floor layer on top that ERPNext doesn't ship out of the box."</div>
     </section>
 
     <section id="changelog">
-      <span class="eyebrow">16 — Reference</span>
+      <span class="eyebrow">17 — Reference</span>
       <h2>Changelog &amp; Sources</h2>
       <p class="lede">This page is a living document — update it as features ship or the roadmap shifts, rather than letting it drift out of date.</p>
       <table>
@@ -367,6 +379,7 @@
           <tr><td class="mono">2026-09-15</td><td>Both 2026-09-14 role-grant blockers confirmed fixed and live-verified end to end via the real ERPNext REST API: (1) Item creation with a non-zero <code>standard_rate</code> no longer 403s on <code>Item Price</code> — <code>Sales Master Manager</code> role confirmed working. (2) The Batch &amp; Serial Number picker on Delivery Note lines moved from Building to Live — <code>Stock User</code> role confirmed working, full FIFO auto-suggest → batch/serial bundle attach → Delivery Note submit chain succeeded, with correct downstream <code>delivered_qty</code>/Bin <code>actual_qty</code> effects. Test Item/Item Price were deleted; test Sales Order (<code>SAL-ORD-2026-00035</code>) and Delivery Note (<code>MAT-DN-2026-00010</code>) were cancelled but left in place (GL Entry links block hard delete), same precedent as the Pick List test data. Browser UI click-path not covered by this pass — verification was at the REST API level.</td></tr>
           <tr><td class="mono">2026-09-15</td><td>"Quotation Lifecycle (Set as Lost, Amend)" moved from Planned to Live, completing Phase 3 of the Sales scenario gaps plan: real "Set as Lost" via ERPNext's own <code>declare_enquiry_lost</code> method with a Lost Reason picker, and "Amend after cancel" matching Desk's real <code>amend_doc()</code>/Amend Counter naming. Also closed a real ERPNext gap found along the way — stock <code>make_sales_order</code> has no server-side guard against converting a Lost Quotation, now enforced by this app. Removed from the Sales Module roadmap card accordingly; only Pricing Rule &amp; Discounts remains planned there. Live-verified end to end; all test data cleaned up.</td></tr>
           <tr><td class="mono">2026-09-15</td><td>"Real Pricing Rule &amp; document-level discounts" moved from Planned to Live, completing Phase 4 (and the last of the four build phases) of the Sales scenario gaps plan: line items now resolve through ERPNext's real <code>apply_pricing_rule</code> engine (manual rate editing disabled once a rule applies — a fact about real ERPNext behavior, confirmed live), plus document-level <code>apply_discount_on</code>/<code>additional_discount_percentage</code>/<code>discount_amount</code> fields on Quotation/Sales Order/Sales Invoice, with ERPNext's own server-side total recalculation confirmed exact. Resolution survives the full document chain including Copy From Quotation. Live-verified end to end; all test data cleaned up. Sales Module — Next Phases roadmap card replaced with the one remaining item: a full combined end-to-end verification pass (Phase 5), not yet started.</td></tr>
+          <tr><td class="mono">2026-09-16</td><td>New "Ceylon Stack Frontend — Buying Module" section added, closing a documentation gap (the Buying/Purchasing module's frontend build — Material Request through Purchase Invoice, plus Suppliers — was never previously reflected here). Buying Reports hub marked Live: 13 of ERPNext's real Buying-workspace reports (Purchase Analytics, Purchase Order Analysis, Item Wise Consumption, and 10 more) run through ERPNext's own report engine, mirroring the Sales Reports hub; each confirmed via <code>bench execute frappe.desk.query_report.run</code> directly on the live Hetzner server. Two Subcontracting-dependent reports remain "Coming soon." The rest of the Buying cycle (Material Request/RFQ/Supplier Quotation/Purchase Order/Purchase Receipt/Purchase Invoice/Suppliers) exists in code and is marked Building, not Live — no logged live-verification evidence for those individual doctypes was found this pass. Buying Settings remains Planned; not started.</td></tr>
         </tbody>
       </table>
       <p style="margin-bottom:0;">Sources: <code>PROGRESS.md</code>, <code>PLAN.md</code>, <code>apps/frontend/README.md</code>, <code>docs/ceylon-stack-sales-scenarios.md</code>, <code>docs/ceylon-stack-playbook.html</code> (full market pitch), and <code>docs/brand/ceylon-stack-branding.html</code> (visual identity reference this page's styling is drawn from).</p>
@@ -377,7 +390,7 @@
 
 <footer>
   <span>Ceylon Stack — Product Documentation</span>
-  <span>Private build reference, prepared ahead of public domain publish · Last updated 2026-09-15</span>
+  <span>Private build reference, prepared ahead of public domain publish · Last updated 2026-09-16</span>
 </footer>
 
 <script>
