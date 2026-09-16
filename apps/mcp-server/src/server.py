@@ -34,6 +34,8 @@ MAX_DOCTYPE_PAGE = 500
 RECENT_RECORDS_LIMIT = 5
 WORK_ORDER_JOB_CARDS_LIMIT = 50
 QUALITY_INSPECTIONS_LIMIT = 5
+LIST_WORK_ORDERS_DEFAULT_LIMIT = 20
+LIST_WORK_ORDERS_MAX_LIMIT = 100
 
 # Header fields returned by get_work_order_detail, per docs/erp-inventory.md's
 # confirmed Work Order schema (live-verified via get_doctype_fields, not guessed).
@@ -70,6 +72,23 @@ JOB_CARD_DETAIL_FIELDS = [
 # Phase 0 walkthrough) - the readiness check needs a concrete item to check
 # `quality_inspection_template` against.
 QUALITY_READINESS_ITEM = "FG-STEEL-BRACKET-ASSY"
+
+# List-view fields for list_work_orders - a subset of WORK_ORDER_DETAIL_FIELDS
+# plus creation, since this tool exists to help a caller discover a Work
+# Order name (not inspect one in full - that's get_work_order_detail).
+WORK_ORDER_LIST_FIELDS = [
+    "name",
+    "status",
+    "company",
+    "production_item",
+    "item_name",
+    "qty",
+    "produced_qty",
+    "bom_no",
+    "planned_start_date",
+    "planned_end_date",
+    "creation",
+]
 
 mcp = MCPServer(
     "ceylon-stack",
@@ -332,6 +351,60 @@ async def get_work_order_detail(work_order_name: str) -> dict[str, Any]:
         "work_order": work_order,
         "job_cards": job_cards,
         "quality_readiness": quality_readiness,
+        "gaps": gaps,
+        "source": (
+            "Dev-tier read-only data from live ERPNext (Administrator API key), "
+            "not a client-scoped agent - see apps/mcp-server/README.md."
+        ),
+    }
+
+
+@mcp.tool()
+async def list_work_orders(
+    status: str | None = None,
+    production_item: str | None = None,
+    limit: int = LIST_WORK_ORDERS_DEFAULT_LIMIT,
+) -> dict[str, Any]:
+    """Compact, read-only list of Work Orders, optionally filtered by status and/or
+    production item, newest first.
+
+    Dev-tier discovery tool: helps a caller find the Work Order `name` to pass into
+    get_work_order_detail, rather than inspecting one record in full. Not a
+    client-scoped agent - see apps/mcp-server/README.md's "Two-tier access model".
+    """
+    bounded_limit = max(1, min(limit, LIST_WORK_ORDERS_MAX_LIMIT))
+
+    filters: dict[str, Any] = {}
+    if status:
+        filters["status"] = status
+    if production_item:
+        filters["production_item"] = production_item
+
+    work_orders = await _client.get_list(
+        "Work Order",
+        filters=filters or None,
+        fields=WORK_ORDER_LIST_FIELDS,
+        limit=bounded_limit,
+        order_by="creation desc",
+    )
+
+    gaps: list[str] = []
+    for wo in work_orders:
+        missing_fields = [f for f in WORK_ORDER_LIST_FIELDS if f not in wo]
+        if missing_fields:
+            gaps.append(
+                f"Work Order {wo.get('name', '<unknown>')} - fields ERPNext omitted "
+                f"from this record's response: {', '.join(missing_fields)}."
+            )
+
+    return {
+        "applied_filters": {
+            "status": status,
+            "production_item": production_item,
+            "limit": bounded_limit,
+        },
+        "total_returned": len(work_orders),
+        "work_orders": work_orders,
         "gaps": gaps,
         "source": (
             "Dev-tier read-only data from live ERPNext (Administrator API key), "

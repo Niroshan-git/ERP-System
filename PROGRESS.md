@@ -950,3 +950,47 @@ should land as two separate commits (one per tool/package) rather than one combi
 commit, to keep history and review responsibility per-package. This session did not
 commit anything (commit was not requested) — noted here so whoever does commit next
 splits them accordingly rather than assuming this is one package.
+
+## 2026-09-16 — MCP Phase 1: third business-specific tool, `list_work_orders`
+
+Added `list_work_orders(status=None, production_item=None, limit=20)` to
+`apps/mcp-server/src/server.py`, per `docs/mcp-agents-plan.md` Phase 1 and this
+session's explicit one-tool mission. Complements `get_manufacturing_overview()`
+and `get_work_order_detail()` by giving an agent a way to discover the Work
+Order `name` to inspect, rather than only seeing 5 recent ones or needing an
+exact name already in hand. Read-only, GET-only, dev-tier — same conventions
+as the two prior Phase 1 tools: reuses `ERPNextClient.get_list()`, clamps
+`limit` to `[1, 100]`, builds equality filters from `status`/`production_item`
+when provided, sorts `order_by="creation desc"`, and returns
+`applied_filters` / `total_returned` / `work_orders` / `gaps` / `source`.
+
+**Verified live against the Hetzner instance**: called the tool function
+directly (same bypass-the-running-session approach as the first two tools,
+with HTTP-method interception to positively confirm GET-only). Unfiltered
+call returned all 6 real Work Orders (`MFG-WO-2026-00001..006`), newest-first
+by creation; `status="Completed"` returned exactly `-00004`;
+`production_item="FG-STEEL-BRACKET-ASSY"` returned all 6 (the instance's only
+manufactured item, per `docs/erp-inventory.md`); combined `status="Not
+Started"` + that production item returned exactly `-00003` and `-00006`;
+`limit=0` clamped to 1, `limit=9999` clamped to 100. 6 HTTP requests total
+across the run, all `GET`, zero non-GET.
+
+`apps/mcp-server/README.md` updated with the new tool's description and
+verification note. No `QA_LOG.md` entry — internal dev tooling, not a
+Sales/Stock/Buying core flow, same rationale as the first two Phase 1 tools.
+`docs/ceylon-stack-documentation.html` and Notion not touched — no
+product-facing status changed and the implementation plan (MCP Phase 1)
+didn't change beyond what was already planned.
+
+**`code-reviewer` pass**: no blocking findings. Reviewer confirmed: limit
+clamping and filter construction match existing patterns exactly; filters
+pass through Frappe's own parameterized `frappe.client.get_list` RPC (no
+injection risk, and narrower than `list_documents`'s already-arbitrary
+filter/field acceptance); only `GET` is reachable from this tool; headless
+boundary and dev-tier scope both respected; return shape and docstring
+boilerplate consistent with `get_manufacturing_overview` /
+`get_work_order_detail`. One non-blocking observation (not acted on):
+`applied_filters.limit` returns the clamped value, not the raw input — a
+deliberate transparency choice, not a defect.
+
+Not committed — commit was not requested this session.

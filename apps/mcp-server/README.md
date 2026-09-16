@@ -143,6 +143,29 @@ Cards, 1 Quality Inspection Template), real recent Work Orders
   schema drift, since the field *is* defined; root cause on the ERPNext
   side wasn't investigated further (out of this package's scope).
 
+- **`list_work_orders(status=None, production_item=None, limit=20)`** —
+  **dev-tier, read-only**, third business-specific tool (Phase 1). Lists
+  Work Orders newest-first (`order_by="creation desc"`), optionally
+  filtered by `status` and/or `production_item` (equality filters passed
+  straight through to `frappe.client.get_list`). Returns a compact
+  `applied_filters` / `total_returned` / `work_orders` / `gaps` / `source`
+  shape — each Work Order carries `name`, `status`, `company`,
+  `production_item`, `item_name`, `qty`, `produced_qty`, `bom_no`,
+  `planned_start_date`, `planned_end_date`, `creation`. `limit` is clamped
+  to `[1, 100]` (default 20). Exists to help an agent discover the Work
+  Order `name` to pass into `get_work_order_detail`, complementing that
+  tool and `get_manufacturing_overview`.
+
+  Verified end-to-end against the live instance (2026-09-16): unfiltered
+  call returned all 6 real Work Orders (`MFG-WO-2026-00001..006`),
+  newest-first; `status="Completed"` returned exactly `-00004`;
+  `production_item="FG-STEEL-BRACKET-ASSY"` returned all 6 (the instance's
+  only manufactured item, per `docs/erp-inventory.md`); combined
+  `status="Not Started"` + that production item returned exactly `-00003`
+  and `-00006`; `limit=0` clamped to 1, `limit=9999` clamped to 100. 6 HTTP
+  requests total across the run, confirmed via HTTP-method interception —
+  all `GET`, zero writes. `code-reviewer` pass: no blocking findings.
+
 ## What's deliberately not built yet
 
 Phase 0 (`docs/erp-inventory.md`) is complete, which unblocked the
