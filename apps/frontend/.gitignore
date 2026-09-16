@@ -30,6 +30,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# dev-only ERPNext error log (see src/lib/errorLog.ts)
+/logs/
+
 # env files (can opt-in for committing if needed)
 .env*
 

@@ -1,4 +1,5 @@
 import "server-only";
+import { logError } from "./errorLog";
 
 const BASE_URL = process.env.ERPNEXT_URL;
 
@@ -61,23 +62,34 @@ function serviceAuthHeader() {
 
 /** All data calls run as the "Frontend Integration" service account — see apps/frontend/README.md. */
 async function erpnextFetch(path: string, init: RequestInit = {}) {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...init,
-    headers: {
-      Authorization: serviceAuthHeader(),
-      "Content-Type": "application/json",
-      ...init.headers,
-    },
-    cache: "no-store",
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        Authorization: serviceAuthHeader(),
+        "Content-Type": "application/json",
+        ...init.headers,
+      },
+      cache: "no-store",
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logError({ source: "erpnextFetch", message: `network error calling ${path}`, path, detail: message });
+    throw err;
+  }
 
   if (!res.ok) {
     const body = await res.text();
-    throw new ErpNextError(
-      `ERPNext ${res.status} on ${path}: ${body.slice(0, 300)}`,
-      res.status,
-      extractErpNextMessage(body),
-    );
+    const erpnextMessage = extractErpNextMessage(body);
+    logError({
+      source: "erpnextFetch",
+      message: `ERPNext ${res.status} on ${path}`,
+      status: res.status,
+      path,
+      detail: erpnextMessage ?? body.slice(0, 500),
+    });
+    throw new ErpNextError(`ERPNext ${res.status} on ${path}: ${body.slice(0, 300)}`, res.status, erpnextMessage);
   }
   if (res.status === 204) return null;
   return res.json();
@@ -87,21 +99,39 @@ type ListOpts = {
   fields?: string[];
   filters?: unknown[];
   limit?: number;
+  /** Row offset (Frappe's `limit_start`) — paired with `limit` for page-by-page fetches. */
+  start?: number;
   orderBy?: string;
 };
 
 export async function listDocs<T = Record<string, unknown>>(
   doctype: string,
-  { fields = ["name"], filters, limit = 100, orderBy }: ListOpts = {},
+  { fields = ["name"], filters, limit = 100, start, orderBy }: ListOpts = {},
 ): Promise<T[]> {
   const params = new URLSearchParams();
   params.set("fields", JSON.stringify(fields));
   params.set("limit_page_length", String(limit));
+  if (start) params.set("limit_start", String(start));
   if (filters) params.set("filters", JSON.stringify(filters));
   if (orderBy) params.set("order_by", orderBy);
 
   const data = await erpnextFetch(`/api/resource/${encodeURIComponent(doctype)}?${params.toString()}`);
   return data.data as T[];
+}
+
+/**
+ * Total row count for a filtered list, via Frappe's own `frappe.client.get_count`
+ * whitelisted method (`frappe.db.count` under the hood) rather than paginating through
+ * everything to count it client-side. Used only for the "Showing X-Y of N" label — Prev/Next
+ * itself doesn't need it (see lib/pagination.ts's N+1-row trick), so this stays one extra
+ * request per list page load, not per page turn.
+ */
+export async function getCount(doctype: string, filters?: unknown[]): Promise<number> {
+  const data = await erpnextFetch("/api/method/frappe.client.get_count", {
+    method: "POST",
+    body: JSON.stringify({ doctype, filters }),
+  });
+  return data.message as number;
 }
 
 export async function getDoc<T = Record<string, unknown>>(doctype: string, name: string): Promise<T> {
@@ -147,6 +177,42 @@ export async function callMethod(method: string, args: Record<string, unknown>):
   await erpnextFetch(`/api/method/${method}`, {
     method: "POST",
     body: JSON.stringify(args),
+  });
+}
+
+/**
+ * Calls a whitelisted *document* method (defined with `@frappe.whitelist()` directly on a
+ * DocType class, e.g. `Quotation.declare_enquiry_lost` — not a free-standing module-level
+ * function like the ones callMethod() above targets). Frappe exposes these over REST via
+ * `/api/resource/<doctype>/<name>` with a `run_method` argument identifying which method to
+ * call (confirmed by reading `frappe/api/v1.py::execute_doc_method` on the live server: it
+ * loads the doc, calls `check_permission("write")` for POST, then
+ * `doc.run_method(method, **frappe.form_dict)`) — not the generic `/api/method/<dotted.path>`
+ * shape callMethod() uses.
+ *
+ * `run_method` is sent inside the JSON body, not as a `?run_method=...` query string param
+ * — live-verified this actually matters: `frappe/app.py::make_form_dict` only parses
+ * `request.args`/`request.form` into `frappe.form_dict` when the request body is *not*
+ * JSON; a JSON POST body (`Content-Type: application/json`, what erpnextFetch always sends)
+ * replaces form_dict with the parsed body entirely, silently dropping anything sent as a
+ * query string instead. Confirmed live: a `?run_method=` query param 500'd with
+ * `KeyError: 'run_method'` on `frappe.form_dict.pop("run_method")`; moving it into the body
+ * fixed it.
+ *
+ * The rest of `args` also travel as real JSON types (not `JSON.stringify`-then-`json.loads`
+ * strings like `close_or_unclose_sales_orders` needs for its untyped `names` param) — a
+ * `list`-typed parameter (per the target method's own type hints, which
+ * `frappe.whitelist()` validates) arrives as an actual list here.
+ */
+export async function callDocMethod(
+  doctype: string,
+  name: string,
+  method: string,
+  args: Record<string, unknown> = {},
+): Promise<void> {
+  await erpnextFetch(`/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
+    method: "POST",
+    body: JSON.stringify({ run_method: method, ...args }),
   });
 }
 
