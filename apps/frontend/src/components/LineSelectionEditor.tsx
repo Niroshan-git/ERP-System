@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { BatchSerialPicker, type BatchSerialEntry } from "@/components/BatchSerialPicker";
 import { StockBadge } from "@/components/StockBadge";
+import { formatAmount } from "@/lib/format";
 
 export type SelectableLineRow = {
   /** The source child-table row's own `name` (Quotation Item's/Sales Order Item's docname) —
@@ -169,10 +170,10 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
         <thead>
           <tr className="border-b border-border bg-canvas text-graphite-500">
             <th className="px-3 py-2 font-semibold">Item</th>
-            <th className="px-3 py-2 font-semibold">Original qty</th>
-            <th className="px-3 py-2 font-semibold">Remaining</th>
-            <th className="px-3 py-2 font-semibold">Qty to take</th>
-            <th className="px-3 py-2 font-semibold">Rate</th>
+            <th className="px-3 py-2 text-right font-semibold">Original qty</th>
+            <th className="px-3 py-2 text-right font-semibold">Remaining</th>
+            <th className="px-3 py-2 text-right font-semibold">Qty to take</th>
+            <th className="px-3 py-2 text-right font-semibold">Rate</th>
           </tr>
         </thead>
         <tbody>
@@ -208,10 +209,10 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
                     </div>
                   )}
                 </td>
-                <td className="px-3 py-2 font-mono tabular-nums text-graphite-500">{row.originalQty}</td>
-                <td className="px-3 py-2 font-mono tabular-nums text-graphite-500">{remaining}</td>
-                <td className="px-3 py-2">
-                  <div className="flex items-center gap-1.5">
+                <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-500">{row.originalQty}</td>
+                <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-500">{remaining}</td>
+                <td className="px-3 py-2 text-right">
+                  <div className="flex items-center justify-end gap-1.5">
                     <input
                       type="number"
                       min="0"
@@ -232,7 +233,7 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
                     />
                   )}
                 </td>
-                <td className="px-3 py-2 font-mono tabular-nums text-graphite-500">{row.rate.toFixed(2)}</td>
+                <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-500">{formatAmount(row.rate)}</td>
               </tr>
             );
           })}
@@ -244,7 +245,7 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
   const footer = (
     <>
       <p className="font-mono text-sm tabular-nums text-graphite-500">
-        Estimated total: {total.toFixed(2)} {currency}
+        Estimated total: {formatAmount(total)} {currency}
       </p>
       <p className="text-xs text-graphite-500">
         Rate and item details come from the source document and aren&apos;t editable here — only quantity, capped at

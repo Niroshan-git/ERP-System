@@ -43,7 +43,7 @@ export default async function SalesPartnersPage({
           { key: "name", label: "ID", mono: true },
           { key: "partner_type", label: "Partner Type" },
           { key: "territory", label: "Territory" },
-          { key: "commission_rate", label: "Commission Rate", mono: true },
+          { key: "commission_rate", label: "Commission Rate", mono: true, align: "right" },
         ]}
         startIndex={startIndex}
       />

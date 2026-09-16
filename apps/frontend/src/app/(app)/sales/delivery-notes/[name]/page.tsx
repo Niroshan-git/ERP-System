@@ -25,6 +25,7 @@ import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 import { getInvoicedQtyByDnDetail } from "@/lib/fulfillment";
+import { formatAmount } from "@/lib/format";
 import { cancelDeliveryNoteAction, submitDeliveryNoteAction, updateDeliveryNoteAction } from "../actions";
 
 type DeliveryNoteDoc = {
@@ -327,7 +328,7 @@ export default async function DeliveryNoteDetailPage({
           <DocField label="Customer" value={doc.customer} />
           <DocField label="Posting date" value={doc.posting_date} mono />
           <DocField label="Company" value={doc.company} />
-          <DocField label="Grand total" value={`${doc.grand_total.toFixed(2)} ${doc.currency}`} mono />
+          <DocField label="Grand total" value={`${formatAmount(doc.grand_total)} ${doc.currency}`} mono />
         </dl>
         <LineItemsTable items={doc.items} currency={doc.currency} />
       </div>

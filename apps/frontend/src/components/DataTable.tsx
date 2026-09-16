@@ -66,9 +66,12 @@ export function DataTable<T extends Record<string, unknown>>({
                   />
                 </th>
               )}
-              <th className="w-10 px-4 py-2.5 font-semibold text-graphite-400">#</th>
+              <th className="w-10 px-4 py-2.5 text-right font-semibold text-graphite-400">#</th>
               {visibleColumns.map((col) => (
-                <th key={col.key} className="px-4 py-2.5 font-semibold">
+                <th
+                  key={col.key}
+                  className={`px-4 py-2.5 font-semibold ${col.align === "right" ? "text-right" : ""}`}
+                >
                   {col.label}
                 </th>
               ))}
@@ -89,9 +92,9 @@ export function DataTable<T extends Record<string, unknown>>({
                       />
                     </td>
                   )}
-                  <td className="px-4 py-2.5 text-graphite-400">{startIndex + i + 1}</td>
+                  <td className="px-4 py-2.5 text-right text-graphite-400">{startIndex + i + 1}</td>
                   {visibleColumns.map((col) => (
-                    <td key={col.key} className="px-4 py-2.5">
+                    <td key={col.key} className={`px-4 py-2.5 ${col.align === "right" ? "text-right" : ""}`}>
                       {col.render(row)}
                     </td>
                   ))}

@@ -24,6 +24,7 @@ import { salesInvoiceStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { formatAmount } from "@/lib/format";
 import { cancelSalesInvoiceAction, submitSalesInvoiceAction, updateSalesInvoiceAction } from "../actions";
 
 type SalesInvoiceDoc = {
@@ -302,20 +303,20 @@ export default async function SalesInvoiceDetailPage({
           <DocField label="Posting date" value={doc.posting_date} mono />
           <DocField label="Company" value={doc.company} />
           <DocField label="Receivable account" value={doc.debit_to} mono />
-          <DocField label="Net total" value={`${doc.net_total.toFixed(2)} ${doc.currency}`} mono />
+          <DocField label="Net total" value={`${formatAmount(doc.net_total)} ${doc.currency}`} mono />
           {(doc.additional_discount_percentage || doc.discount_amount) ? (
             <DocField
               label={`Discount (on ${doc.apply_discount_on ?? "Grand Total"})`}
               value={
                 doc.additional_discount_percentage
                   ? `${doc.additional_discount_percentage}%`
-                  : `${(doc.discount_amount ?? 0).toFixed(2)} ${doc.currency}`
+                  : `${formatAmount(doc.discount_amount ?? 0)} ${doc.currency}`
               }
               mono
             />
           ) : null}
-          <DocField label="Grand total" value={`${doc.grand_total.toFixed(2)} ${doc.currency}`} mono />
-          <DocField label="Outstanding" value={`${doc.outstanding_amount.toFixed(2)} ${doc.currency}`} mono />
+          <DocField label="Grand total" value={`${formatAmount(doc.grand_total)} ${doc.currency}`} mono />
+          <DocField label="Outstanding" value={`${formatAmount(doc.outstanding_amount)} ${doc.currency}`} mono />
         </dl>
         <LineItemsTable items={doc.items} currency={doc.currency} />
       </div>

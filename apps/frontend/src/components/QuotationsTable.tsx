@@ -4,6 +4,7 @@ import Link from "next/link";
 import { DataTable } from "@/components/DataTable";
 import { StatusPill } from "@/components/StatusPill";
 import { quotationStatus } from "@/lib/erpStatus";
+import { formatAmount } from "@/lib/format";
 import type { ColumnDef } from "@/lib/tableColumns";
 import type { DocStatus } from "@/lib/docStatus";
 
@@ -54,7 +55,8 @@ const columns: ColumnDef<QuotationRow>[] = [
   {
     key: "grand_total",
     label: "Grand total",
-    render: (q) => <span className="font-mono tabular-nums text-graphite-900">{q.grand_total.toFixed(2)}</span>,
+    align: "right",
+    render: (q) => <span className="font-mono tabular-nums text-graphite-900">{formatAmount(q.grand_total)}</span>,
   },
   { key: "valid_till", label: "Valid till", defaultVisible: false, render: (q) => <span className="font-mono text-graphite-500">{q.valid_till || "—"}</span> },
   { key: "order_type", label: "Order type", defaultVisible: false, render: (q) => q.order_type || "—" },

@@ -20,9 +20,9 @@ export function PickListLocationsTable({ locations }: { locations: PickListLocat
           <tr className="border-b border-border bg-canvas text-graphite-500">
             <th className="px-3 py-2 font-semibold">Item</th>
             <th className="px-3 py-2 font-semibold">Warehouse</th>
-            <th className="px-3 py-2 font-semibold">Qty requested</th>
-            <th className="px-3 py-2 font-semibold">Picked qty</th>
-            <th className="px-3 py-2 font-semibold">Delivered qty</th>
+            <th className="px-3 py-2 text-right font-semibold">Qty requested</th>
+            <th className="px-3 py-2 text-right font-semibold">Picked qty</th>
+            <th className="px-3 py-2 text-right font-semibold">Delivered qty</th>
             <th className="px-3 py-2 font-semibold">UOM</th>
           </tr>
         </thead>
@@ -34,9 +34,9 @@ export function PickListLocationsTable({ locations }: { locations: PickListLocat
                 {row.sales_order && <div className="font-mono text-xs text-graphite-500">from {row.sales_order}</div>}
               </td>
               <td className="px-3 py-2 font-mono text-graphite-500">{row.warehouse}</td>
-              <td className="px-3 py-2 font-mono tabular-nums">{row.qty}</td>
-              <td className="px-3 py-2 font-mono tabular-nums text-graphite-900">{row.picked_qty}</td>
-              <td className="px-3 py-2 font-mono tabular-nums text-graphite-500">{row.delivered_qty ?? 0}</td>
+              <td className="px-3 py-2 text-right font-mono tabular-nums">{row.qty}</td>
+              <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-900">{row.picked_qty}</td>
+              <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-500">{row.delivered_qty ?? 0}</td>
               <td className="px-3 py-2 font-mono text-graphite-500">{row.uom}</td>
             </tr>
           ))}

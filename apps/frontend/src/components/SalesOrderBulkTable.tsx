@@ -7,6 +7,7 @@ import { DataTable } from "@/components/DataTable";
 import { StatusPill } from "@/components/StatusPill";
 import { ProgressBar } from "@/components/ProgressBar";
 import { salesOrderStatus } from "@/lib/erpStatus";
+import { formatAmount } from "@/lib/format";
 import type { ColumnDef } from "@/lib/tableColumns";
 import type { DocStatus } from "@/lib/docStatus";
 
@@ -48,8 +49,13 @@ const columns: ColumnDef<SalesOrderRow>[] = [
   {
     key: "grand_total",
     label: "Grand total",
-    render: (o) => <span className="font-mono tabular-nums text-graphite-900">{o.grand_total.toFixed(2)}</span>,
+    align: "right",
+    render: (o) => <span className="font-mono tabular-nums text-graphite-900">{formatAmount(o.grand_total)}</span>,
   },
+  // per_delivered/per_billed deliberately stay left-aligned even though they're Percent
+  // fields — ProgressBar renders a fixed-width flex bar+label, which a `text-align` on the
+  // <td> can't move (block-level content ignores it), so right-aligning the header here
+  // would visually mismatch the still-left body content instead of fixing anything.
   { key: "per_delivered", label: "% Delivered", render: (o) => <ProgressBar value={o.per_delivered} /> },
   { key: "per_billed", label: "% Amount billed", render: (o) => <ProgressBar value={o.per_billed} /> },
   {

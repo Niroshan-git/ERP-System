@@ -9,6 +9,7 @@ import {
   type QuotationForCopy,
 } from "@/lib/actions/quotationLookup";
 import type { LineRow } from "@/components/LineItemsEditor";
+import { formatAmount } from "@/lib/format";
 
 export type CopiedQuotationFields = {
   items: LineRow[];
@@ -215,7 +216,7 @@ export function CopyFromQuotationPanel({
                             <span className="font-mono">{q.name}</span>
                             <span className="text-graphite-500"> · {q.transaction_date} · {q.status} · </span>
                             <span className="font-mono">
-                              {q.grand_total.toFixed(2)} {currency}
+                              {formatAmount(q.grand_total)} {currency}
                             </span>
                           </span>
                         </label>

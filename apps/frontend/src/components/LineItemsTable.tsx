@@ -1,3 +1,5 @@
+import { formatAmount } from "@/lib/format";
+
 export type LineItemRow = {
   item_code: string;
   item_name: string;
@@ -17,10 +19,10 @@ export function LineItemsTable({ items, currency }: { items: LineItemRow[]; curr
         <thead>
           <tr className="border-b border-border bg-canvas text-graphite-500">
             <th className="px-3 py-2 font-semibold">Item</th>
-            <th className="px-3 py-2 font-semibold">Qty</th>
+            <th className="px-3 py-2 text-right font-semibold">Qty</th>
             <th className="px-3 py-2 font-semibold">UOM</th>
-            <th className="px-3 py-2 font-semibold">Rate</th>
-            <th className="px-3 py-2 font-semibold">Amount</th>
+            <th className="px-3 py-2 text-right font-semibold">Rate</th>
+            <th className="px-3 py-2 text-right font-semibold">Amount</th>
           </tr>
         </thead>
         <tbody>
@@ -29,10 +31,10 @@ export function LineItemsTable({ items, currency }: { items: LineItemRow[]; curr
               <td className="px-3 py-2 text-graphite-900">
                 {row.item_code} — {row.item_name}
               </td>
-              <td className="px-3 py-2 font-mono tabular-nums">{row.qty}</td>
+              <td className="px-3 py-2 text-right font-mono tabular-nums">{row.qty}</td>
               <td className="px-3 py-2 font-mono text-graphite-500">{row.uom}</td>
-              <td className="px-3 py-2 font-mono tabular-nums">{row.rate.toFixed(2)}</td>
-              <td className="px-3 py-2 font-mono tabular-nums text-graphite-900">{row.amount.toFixed(2)}</td>
+              <td className="px-3 py-2 text-right font-mono tabular-nums">{formatAmount(row.rate)}</td>
+              <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-900">{formatAmount(row.amount)}</td>
             </tr>
           ))}
         </tbody>
@@ -41,8 +43,8 @@ export function LineItemsTable({ items, currency }: { items: LineItemRow[]; curr
             <td colSpan={4} className="px-3 py-2 text-right text-sm font-medium text-graphite-900">
               Total
             </td>
-            <td className="px-3 py-2 font-mono tabular-nums text-graphite-900">
-              {total.toFixed(2)} {currency}
+            <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-900">
+              {formatAmount(total)} {currency}
             </td>
           </tr>
         </tfoot>

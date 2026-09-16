@@ -23,6 +23,7 @@ import { quotationStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { formatAmount } from "@/lib/format";
 import Link from "next/link";
 import {
   amendQuotationAction,
@@ -343,7 +344,7 @@ export default async function QuotationDetailPage({
           <DocField label="Valid till" value={doc.valid_till || "—"} mono />
           <DocField label="Order type" value={doc.order_type} />
           <DocField label="Company" value={doc.company} />
-          <DocField label="Net total" value={`${doc.net_total.toFixed(2)} ${doc.currency}`} mono />
+          <DocField label="Net total" value={`${formatAmount(doc.net_total)} ${doc.currency}`} mono />
           {(doc.additional_discount_percentage || doc.discount_amount) ? (
             <>
               <DocField
@@ -351,13 +352,13 @@ export default async function QuotationDetailPage({
                 value={
                   doc.additional_discount_percentage
                     ? `${doc.additional_discount_percentage}%`
-                    : `${(doc.discount_amount ?? 0).toFixed(2)} ${doc.currency}`
+                    : `${formatAmount(doc.discount_amount ?? 0)} ${doc.currency}`
                 }
                 mono
               />
             </>
           ) : null}
-          <DocField label="Grand total" value={`${doc.grand_total.toFixed(2)} ${doc.currency}`} mono />
+          <DocField label="Grand total" value={`${formatAmount(doc.grand_total)} ${doc.currency}`} mono />
         </dl>
         <LineItemsTable items={doc.items} currency={doc.currency} />
       </div>

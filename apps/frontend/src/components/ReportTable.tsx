@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { ExportMenu } from "@/components/ExportMenu";
 import type { ReportColumn, ReportRow } from "@/lib/erpnext";
+import { formatAmount } from "@/lib/format";
 
 /** Doctypes this frontend has its own detail page for — Link-fieldtype columns pointing
  * at one of these render as real internal links instead of plain text. */
@@ -19,12 +20,6 @@ const NUMERIC_TYPES = new Set(["Currency", "Float", "Int", "Percent"]);
 
 function cellValue(row: ReportRow, col: ReportColumn, idx: number): unknown {
   return Array.isArray(row) ? row[idx] : row[col.fieldname];
-}
-
-function formatNumber(value: unknown): string {
-  const n = typeof value === "number" ? value : Number(value);
-  if (Number.isNaN(n)) return String(value ?? "");
-  return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 /**
@@ -89,7 +84,10 @@ export function ReportTable({
           <thead>
             <tr className="border-b border-border bg-canvas text-graphite-500">
               {columns.map((col) => (
-                <th key={col.fieldname} className="whitespace-nowrap px-3 py-2.5 font-semibold">
+                <th
+                  key={col.fieldname}
+                  className={`whitespace-nowrap px-3 py-2.5 font-semibold ${NUMERIC_TYPES.has(col.fieldtype ?? "") ? "text-right" : ""}`}
+                >
                   {col.label}
                 </th>
               ))}
@@ -112,7 +110,7 @@ export function ReportTable({
                     if (value === null || value === undefined || value === "") {
                       content = "—";
                     } else if (isNumeric) {
-                      content = formatNumber(value);
+                      content = formatAmount(value as number | string);
                     } else if (route && typeof value === "string") {
                       content = (
                         <Link href={`${route}/${encodeURIComponent(value)}`} className="text-signal hover:underline">
@@ -126,7 +124,7 @@ export function ReportTable({
                     return (
                       <td
                         key={col.fieldname}
-                        className={`whitespace-nowrap px-3 py-2 ${isNumeric ? "font-mono tabular-nums text-graphite-900" : "text-graphite-900"}`}
+                        className={`whitespace-nowrap px-3 py-2 ${isNumeric ? "text-right font-mono tabular-nums text-graphite-900" : "text-graphite-900"}`}
                       >
                         {content}
                       </td>
@@ -138,8 +136,11 @@ export function ReportTable({
             {!hasOwnTotalRow && (
               <tr className="bg-canvas font-semibold text-graphite-900">
                 {columns.map((col, idx) => (
-                  <td key={col.fieldname} className="whitespace-nowrap px-3 py-2 font-mono tabular-nums">
-                    {idx === 0 ? "Total" : col.fieldname in totals ? formatNumber(totals[col.fieldname]) : ""}
+                  <td
+                    key={col.fieldname}
+                    className={`whitespace-nowrap px-3 py-2 font-mono tabular-nums ${NUMERIC_TYPES.has(col.fieldtype ?? "") ? "text-right" : ""}`}
+                  >
+                    {idx === 0 ? "Total" : col.fieldname in totals ? formatAmount(totals[col.fieldname]) : ""}
                   </td>
                 ))}
               </tr>

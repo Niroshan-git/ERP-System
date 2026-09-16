@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { DataTable } from "@/components/DataTable";
 import { StatusPill } from "@/components/StatusPill";
+import { formatAmount } from "@/lib/format";
 import type { ColumnDef } from "@/lib/tableColumns";
 
 export type ItemRow = {
@@ -34,8 +35,9 @@ const columns: ColumnDef<ItemRow>[] = [
   {
     key: "standard_rate",
     label: "Rate",
+    align: "right",
     render: (item) => (
-      <span className="font-mono tabular-nums text-graphite-500">{item.standard_rate ? item.standard_rate.toFixed(2) : "—"}</span>
+      <span className="font-mono tabular-nums text-graphite-500">{item.standard_rate ? formatAmount(item.standard_rate) : "—"}</span>
     ),
   },
   {

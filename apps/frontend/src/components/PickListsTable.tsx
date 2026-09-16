@@ -41,6 +41,9 @@ const columns: ColumnDef<PickListRow>[] = [
     },
     exportValue: (pl) => pickListStatus(pl).label,
   },
+  // Deliberately left-aligned despite being a Percent field — ProgressBar renders a fixed-
+  // width flex bar+label that a <td> text-align can't move (see SalesOrderBulkTable.tsx's
+  // matching note), so right-aligning here would just mismatch header vs. body.
   {
     key: "per_delivered",
     label: "% Delivered",

@@ -187,9 +187,9 @@ export function BatchSerialPicker({
                 <thead>
                   <tr className="border-b border-border text-graphite-500">
                     <th className="py-1 font-semibold">Batch</th>
-                    <th className="py-1 font-semibold">Available</th>
+                    <th className="py-1 text-right font-semibold">Available</th>
                     <th className="py-1 font-semibold">Expiry</th>
-                    <th className="py-1 font-semibold">Take</th>
+                    <th className="py-1 text-right font-semibold">Take</th>
                     <th className="py-1" />
                   </tr>
                 </thead>
@@ -199,9 +199,9 @@ export function BatchSerialPicker({
                     return (
                       <tr key={row.batch_no} className="border-b border-border last:border-0">
                         <td className="py-1.5 font-mono">{row.batch_no}</td>
-                        <td className="py-1.5 font-mono tabular-nums text-graphite-500">{row.qty}</td>
+                        <td className="py-1.5 text-right font-mono tabular-nums text-graphite-500">{row.qty}</td>
                         <td className="py-1.5 font-mono text-xs text-graphite-500">{row.expiry_date ?? "—"}</td>
-                        <td className="py-1.5">
+                        <td className="py-1.5 text-right">
                           {selected ? (
                             <input
                               type="number"

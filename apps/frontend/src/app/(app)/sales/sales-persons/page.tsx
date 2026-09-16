@@ -45,7 +45,7 @@ export default async function SalesPersonsPage({
           { key: "name", label: "ID", mono: true },
           { key: "parent_sales_person", label: "Parent" },
           { key: "employee", label: "Employee" },
-          { key: "commission_rate", label: "Commission Rate", mono: true },
+          { key: "commission_rate", label: "Commission Rate", mono: true, align: "right" },
           {
             key: "enabled",
             label: "Status",

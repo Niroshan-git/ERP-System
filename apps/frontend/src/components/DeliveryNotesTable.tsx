@@ -4,6 +4,7 @@ import Link from "next/link";
 import { DataTable } from "@/components/DataTable";
 import { StatusPill } from "@/components/StatusPill";
 import { deliveryNoteStatus } from "@/lib/erpStatus";
+import { formatAmount } from "@/lib/format";
 import type { ColumnDef } from "@/lib/tableColumns";
 import type { DocStatus } from "@/lib/docStatus";
 
@@ -51,9 +52,10 @@ const columns: ColumnDef<DeliveryNoteRow>[] = [
   {
     key: "grand_total",
     label: "Grand total",
-    render: (dn) => <span className="font-mono tabular-nums text-graphite-900">{dn.grand_total.toFixed(2)}</span>,
+    align: "right",
+    render: (dn) => <span className="font-mono tabular-nums text-graphite-900">{formatAmount(dn.grand_total)}</span>,
   },
-  { key: "per_billed", label: "% Billed", defaultVisible: false, render: (dn) => <span className="font-mono tabular-nums text-graphite-500">{dn.per_billed?.toFixed(0) ?? 0}%</span> },
+  { key: "per_billed", label: "% Billed", defaultVisible: false, align: "right", render: (dn) => <span className="font-mono tabular-nums text-graphite-500">{dn.per_billed?.toFixed(0) ?? 0}%</span> },
   { key: "company", label: "Company", defaultVisible: false, render: (dn) => dn.company || "—" },
   { key: "territory", label: "Territory", defaultVisible: false, render: (dn) => dn.territory || "—" },
   { key: "owner", label: "Owner", defaultVisible: false, render: (dn) => dn.owner || "—" },

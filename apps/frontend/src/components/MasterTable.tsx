@@ -5,6 +5,9 @@ export type MasterColumn<T> = {
   key: keyof T & string;
   label: string;
   mono?: boolean;
+  /** Text alignment for both this column's `<th>` and every `<td>` in it — same convention
+   * as DataTable's ColumnDef.align. Omit for left (the default). */
+  align?: "left" | "right";
   render?: (row: T) => React.ReactNode;
   /** Used only by ExportMenu — when `render()` shows something other than the raw field
    * value (a StatusPill, a computed value), provide this so exports show the same
@@ -66,9 +69,12 @@ export function MasterTable<T extends Record<string, unknown>>({
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-border bg-canvas text-graphite-500">
-              <th className="w-10 px-4 py-2.5 font-semibold text-graphite-400">#</th>
+              <th className="w-10 px-4 py-2.5 text-right font-semibold text-graphite-400">#</th>
               {columns.map((col) => (
-                <th key={col.key} className="px-4 py-2.5 font-semibold">
+                <th
+                  key={col.key}
+                  className={`px-4 py-2.5 font-semibold ${col.align === "right" ? "text-right" : ""}`}
+                >
                   {col.label}
                 </th>
               ))}
@@ -77,14 +83,14 @@ export function MasterTable<T extends Record<string, unknown>>({
           <tbody>
             {rows.map((row, i) => (
               <tr key={String(row.name ?? i)} className="border-b border-border last:border-0 hover:bg-canvas/60">
-                <td className="px-4 py-2.5 text-graphite-400">{startIndex + i + 1}</td>
+                <td className="px-4 py-2.5 text-right text-graphite-400">{startIndex + i + 1}</td>
                 {columns.map((col, colIdx) => {
                   const value = row[col.key];
                   const content = col.render ? col.render(row) : (value === null || value === undefined || value === "" ? "—" : String(value));
                   return (
                     <td
                       key={col.key}
-                      className={`px-4 py-2.5 ${colIdx === 0 ? "" : col.mono ? "font-mono text-graphite-500" : "text-graphite-500"}`}
+                      className={`px-4 py-2.5 ${colIdx === 0 ? "" : col.mono ? "font-mono text-graphite-500" : "text-graphite-500"} ${col.align === "right" ? "text-right" : ""}`}
                     >
                       {colIdx === 0 ? (
                         <Link href={rowLink(row)} className="font-mono text-signal hover:underline">
