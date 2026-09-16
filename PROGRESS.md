@@ -749,3 +749,55 @@ lock. See `QA_LOG.md` for the compact QA record. `docs/ceylon-stack-documentatio
 "Full end-to-end verification pass" roadmap card and changelog updated accordingly (see
 that file's own changelog entry for today).
 
+## 2026-09-16 (later) — Phase 0 ERPNext walkthrough: `docs/erp-inventory.md` created
+
+Long-overdue Phase 0 walkthrough from `docs/mcp-agents-plan.md`, run by `erp-functional-consultant`.
+Live, read-only inventory of the Hetzner instance via SSH + `bench --site frontend console`
+(and spot-checks on `gym-demo`/`verify-provision-test`) — no data created, modified, or
+deleted. Full findings: `docs/erp-inventory.md`.
+
+**Headline correction to prior assumptions**: the "fresh install, no manufacturing master
+data" baseline repeated in `docs/mcp-agents-plan.md`, `manufacturing-floor.md`, and
+`mcp-dev.md` is now partially stale — real (if narrow) Manufacturing master data already
+exists on `frontend`: 1 BOM, 2 Workstations, 6 Work Orders, 6 Job Cards, all on a single
+product line (`FG-STEEL-BRACKET-ASSY`). Matches the "M0 DONE" milestone from earlier
+session memory. **Zero Quality Inspection Templates exist** — the one Manufacturing
+master-data checklist item that's fully unaddressed, not just thin.
+
+**Other findings worth flagging**:
+- **No permission scoping exists anywhere on the instance** — all 3 System Users
+  (`Administrator`, `frontend-integration@ceylonstack.local`, and the real human login)
+  carry nearly the full ERPNext role catalog including `System Manager`. This is a bigger
+  gap than just "no client-scoped MCP tier" — the frontend's own service account is
+  equally unscoped.
+- Sri Lanka VAT setup is a partial skeleton, not untouched: `Sri Lanka Tax - CS/CSD` tax
+  templates and `VAT - CS/CSD` GL accounts already exist per company. No Tax Category, no
+  SVAT/e-invoicing logic — `erpnext-full-reference.md`'s "needs custom work" conclusion
+  still holds, just not from zero.
+- **Naming series correction**: Job Card's real live series is `PO-JOB.#####`, not the
+  `JC-.YYYY.-` pattern `docs/mcp-agents-plan.md` guessed — matters for any future MCP tool
+  or frontend code that assumes the ID format.
+- An undocumented site, `verify-provision-test` (company "Provision Test Co"), exists on
+  the server with no prior record in this file — likely a leftover from the earlier
+  HR-portfolio provisioning work. Flagged for a keep/delete decision, not acted on.
+- Administrator password was **not re-verified this session** (no login attempted, by
+  design) — still recorded as the `pwd.yml` default per the existing record above until
+  someone explicitly changes it.
+
+**Phase 0 gate cleared**: `mcp-dev` was explicitly blocked from building any
+business-specific MCP tool (Work Order, Job Card, BOM, Item, etc.) until
+`docs/erp-inventory.md` existed. It now does — `mcp-dev` can start Phase 1 read tools
+against this document's real schema/naming reference.
+
+Recommended next package (per `AGENT_USAGE_POLICY.md` §8, one at a time): either (a) a
+small `erp-functional-consultant` master-data package — create a Quality Inspection
+Template for `FG-STEEL-BRACKET-ASSY`, the one fully-missing checklist item — or (b)
+`mcp-dev` Phase 1 read-only tools (Work Order/Job Card/BOM/Item lookups). Founder's call
+which goes first.
+
+No QA_LOG.md entry (discovery/documentation work, not a QA test pass, per this task's own
+scope). `docs/ceylon-stack-documentation.html` left untouched — its "AI Agents (MCP)"
+section's overall status label (Planned) is still accurate; one callout sentence
+("not yet run") is now stale text, flagged for a future `release-tracker` pass rather than
+hand-edited here. Notion not touched — no plan changed, this is a new discovery package.
+
