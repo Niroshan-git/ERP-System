@@ -168,6 +168,7 @@
       <a href="#frontend-fulfillment" class="sub">Partial Fulfillment &amp; Copy From</a>
       <a href="#frontend-ops" class="sub">Reports, Bulk Actions &amp; Settings</a>
       <a href="#frontend-buying" class="sub">Buying Module</a>
+      <a href="#frontend-inventory" class="sub">Inventory / Stock Module</a>
     </div>
     <div class="grp">
       <div class="grp-title">Upcoming</div>
@@ -310,8 +311,22 @@
       </ul>
     </section>
 
+    <section id="frontend-inventory">
+      <span class="eyebrow">11 — Live Today</span>
+      <h2>Ceylon Stack Frontend — Inventory / Stock Module <span class="status live"><span class="dot"></span>Live</span></h2>
+      <p class="lede">The third Sidebar module (Sales → Buying → Inventory), sitting between Buying and the still-locked Manufacturing module — full Inventory MVP v1 scope per <code>FRONTEND_GUIDE.md</code> §10a, reusing the exact list/create/edit/<code>actions.ts</code> pattern established by Buying.</p>
+      <ul class="feat-list">
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Warehouses</strong> — full master list/create/edit on the shared <code>MasterTable</code>/<code>MasterForm</code> components. Live-verified: create and update confirmed against the real ERPNext instance.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Batches &amp; Serial Nos</strong> — masters for both tracking types on the same <code>MasterTable</code>/<code>MasterForm</code> pattern (a new <code>date</code> field kind was added to <code>MasterForm</code> for Batch's <code>expiry_date</code>). Serial No create/delete confirmed live end to end. Batch creation was only verified as far as ERPNext's own validation layer — no Item on this instance has <code>has_batch_no</code> enabled yet, so an actual batch record couldn't be saved this pass; a live-data gap, not a code defect.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Stock Entry</strong> — Material Issue / Material Receipt / Material Transfer, with the real Draft → Submitted → Cancelled workflow, purpose-driven source/target warehouse handling, and the same FIFO Batch/Serial Number picker used on Delivery Note (outbound lines only — inbound batch/serial capture on Material Receipt is deliberately deferred past v1). Live-verified end to end for all three purposes. QA caught one real bug along the way: batch/serial-tracked outbound entries initially failed to submit because ERPNext's <code>get_type_of_transaction</code> check needs an explicit <code>s_warehouse</code> on the bundle payload, not the generic <code>warehouse</code> key this app was sending — fixed and re-verified live the same day (submits cleanly, <code>Bin</code> quantities update correctly).</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Stock Balance</strong> — a live, filterable view backed directly by ERPNext's own <code>Bin</code> doctype. ERPNext's native "Stock Balance" report can't run through this app's report engine (it's a <code>prepared_report</code> background-job report Desk itself polls for, and this app has no polling machinery) — the Bin-backed page fills the same "what's on hand" need instead. Live-verified: <code>Bin</code> quantities correctly reflected post-submit across all three Stock Entry purposes.</div></li>
+        <li><span class="status live"><span class="dot"></span>Live</span><div><strong>Stock Reports hub</strong> — entry point alongside the Sales and Buying Reports hubs; Stock Balance links to the live Bin-backed page above, the rest of the native Stock-module reports are listed "Coming soon" for v1.</div></li>
+      </ul>
+      <div class="callout good"><p><strong>Reviewed and QA-verified (2026-09-16).</strong> <code>code-reviewer</code> found no blockers. <code>qa-tester</code> live-tested against the real ERPNext instance and caught the <code>s_warehouse</code> bug above, which was fixed and re-confirmed live the same day. All QA test documents were cancelled afterward, leaving stock levels at their pre-QA baseline.</p></div>
+    </section>
+
     <section id="roadmap-sales">
-      <span class="eyebrow">11 — Upcoming</span>
+      <span class="eyebrow">12 — Upcoming</span>
       <h2>Sales Module — Next Phases <span class="status planned"><span class="dot"></span>Planned</span></h2>
       <p class="lede">All four build phases of the Sales-module gap-closing plan have now shipped — Delivery Note, Quotation Lifecycle, and Real Pricing Rule &amp; Discounts, alongside the earlier Partial Fulfillment work (see <a href="#frontend-sales">Sales Documents</a> and <a href="#frontend-fulfillment">Partial Fulfillment &amp; Copy From</a>). One item remains before this plan is fully closed.</p>
       <div class="grid-2">
@@ -320,7 +335,7 @@
     </section>
 
     <section id="roadmap-manufacturing">
-      <span class="eyebrow">12 — Upcoming</span>
+      <span class="eyebrow">13 — Upcoming</span>
       <h2>Manufacturing &amp; OEE (Smart Factory) <span class="status building"><span class="dot"></span>Building</span></h2>
       <p class="lede">The layer that gives Ceylon Stack its name — live machine and shop-floor visibility on top of ERPNext's Manufacturing module.</p>
       <ul class="feat-list">
@@ -331,14 +346,14 @@
     </section>
 
     <section id="roadmap-agents">
-      <span class="eyebrow">13 — Upcoming</span>
+      <span class="eyebrow">14 — Upcoming</span>
       <h2>AI Agents (MCP) <span class="status planned"><span class="dot"></span>Planned</span></h2>
       <p class="lede">An MCP server exposing scoped ERPNext tools, with a roster of specialist agents (Manufacturing Floor, Apparel &amp; Textile, Agro-Processing, Quality &amp; Compliance, Finance &amp; Reporting, Inventory &amp; Procurement) on top of it — designed, not yet built.</p>
       <div class="callout warn"><p><strong>Sequencing:</strong> gated behind a full walkthrough of the live ERPNext instance (not yet run) and the MCP tool-server build itself (not started). The agent roster is fully specified so it's ready to build once those two steps land — it should not be pitched as available before then.</p></div>
     </section>
 
     <section id="roadmap-portfolio">
-      <span class="eyebrow">14 — Upcoming</span>
+      <span class="eyebrow">15 — Upcoming</span>
       <h2>Product Portfolio — Next <span class="status planned"><span class="dot"></span>Planned</span></h2>
       <p class="lede">Frappe HR proved the whitelabel-more-apps model works. The same pattern is scoped for further official Frappe apps as future Ceylon Stack products.</p>
       <div class="grid-3">
@@ -349,7 +364,7 @@
     </section>
 
     <section id="roadmap-platform">
-      <span class="eyebrow">15 — Upcoming</span>
+      <span class="eyebrow">16 — Upcoming</span>
       <h2>Platform Hardening <span class="status planned"><span class="dot"></span>Planned</span></h2>
       <ul class="feat-list">
         <li><span class="status planned"><span class="dot"></span>Planned</span><div><strong>Full per-user ERPNext sessions</strong> — replacing the current single-service-account proxy so ERPNext's own permission rules apply per logged-in person, not just per what the UI exposes.</div></li>
@@ -360,14 +375,14 @@
     </section>
 
     <section id="licensing">
-      <span class="eyebrow">16 — Reference</span>
+      <span class="eyebrow">17 — Reference</span>
       <h2>Licensing (GPL-3.0)</h2>
       <p>ERPNext is fully open-source under GPL-3.0 — no licensing fees, no locked modules, no vendor lock-in. Because it's GPL-3.0 (not AGPL), the source-disclosure obligation is triggered by <em>distributing</em> a modified copy, not by hosting it as a service — when Ceylon Stack is delivered as hosted SaaS, that obligation is most likely never triggered. The custom layers — the Frappe apps and the frontend — stay proprietary as long as they only ever communicate with ERPNext through its REST API. That's the entire reason the headless architecture in <a href="#architecture">Architecture</a> exists.</p>
       <div class="quote">"Ceylon Stack is built on ERPNext, a mature open-source ERP used by tens of thousands of companies worldwide — a complete, battle-tested core with no licensing fees and full ownership of the data — with a purpose-built dashboard and factory-floor layer on top that ERPNext doesn't ship out of the box."</div>
     </section>
 
     <section id="changelog">
-      <span class="eyebrow">17 — Reference</span>
+      <span class="eyebrow">18 — Reference</span>
       <h2>Changelog &amp; Sources</h2>
       <p class="lede">This page is a living document — update it as features ship or the roadmap shifts, rather than letting it drift out of date.</p>
       <table>
@@ -380,6 +395,7 @@
           <tr><td class="mono">2026-09-15</td><td>"Quotation Lifecycle (Set as Lost, Amend)" moved from Planned to Live, completing Phase 3 of the Sales scenario gaps plan: real "Set as Lost" via ERPNext's own <code>declare_enquiry_lost</code> method with a Lost Reason picker, and "Amend after cancel" matching Desk's real <code>amend_doc()</code>/Amend Counter naming. Also closed a real ERPNext gap found along the way — stock <code>make_sales_order</code> has no server-side guard against converting a Lost Quotation, now enforced by this app. Removed from the Sales Module roadmap card accordingly; only Pricing Rule &amp; Discounts remains planned there. Live-verified end to end; all test data cleaned up.</td></tr>
           <tr><td class="mono">2026-09-15</td><td>"Real Pricing Rule &amp; document-level discounts" moved from Planned to Live, completing Phase 4 (and the last of the four build phases) of the Sales scenario gaps plan: line items now resolve through ERPNext's real <code>apply_pricing_rule</code> engine (manual rate editing disabled once a rule applies — a fact about real ERPNext behavior, confirmed live), plus document-level <code>apply_discount_on</code>/<code>additional_discount_percentage</code>/<code>discount_amount</code> fields on Quotation/Sales Order/Sales Invoice, with ERPNext's own server-side total recalculation confirmed exact. Resolution survives the full document chain including Copy From Quotation. Live-verified end to end; all test data cleaned up. Sales Module — Next Phases roadmap card replaced with the one remaining item: a full combined end-to-end verification pass (Phase 5), not yet started.</td></tr>
           <tr><td class="mono">2026-09-16</td><td>New "Ceylon Stack Frontend — Buying Module" section added, closing a documentation gap (the Buying/Purchasing module's frontend build — Material Request through Purchase Invoice, plus Suppliers — was never previously reflected here). Buying Reports hub marked Live: 13 of ERPNext's real Buying-workspace reports (Purchase Analytics, Purchase Order Analysis, Item Wise Consumption, and 10 more) run through ERPNext's own report engine, mirroring the Sales Reports hub; each confirmed via <code>bench execute frappe.desk.query_report.run</code> directly on the live Hetzner server. Two Subcontracting-dependent reports remain "Coming soon." The rest of the Buying cycle (Material Request/RFQ/Supplier Quotation/Purchase Order/Purchase Receipt/Purchase Invoice/Suppliers) exists in code and is marked Building, not Live — no logged live-verification evidence for those individual doctypes was found this pass. Buying Settings remains Planned; not started.</td></tr>
+          <tr><td class="mono">2026-09-16</td><td>New "Ceylon Stack Frontend — Inventory / Stock Module" section added, marked Live: Warehouses, Batches, Serial Nos (shared <code>MasterTable</code>/<code>MasterForm</code> masters), Stock Entry (Material Issue/Receipt/Transfer with a real Draft → Submitted → Cancelled workflow and batch/serial line tracking), Stock Balance (live Bin-backed view), and a Stock Reports hub entry — full Inventory MVP v1 scope per <code>FRONTEND_GUIDE.md</code> §10a. Code-reviewed with no blockers; QA live-tested against the real ERPNext instance and caught one real bug (batch/serial-tracked outbound Stock Entries failing to submit because ERPNext's type-of-transaction check needs an explicit <code>s_warehouse</code> field, which the bundle payload was missing) — fixed and re-verified live the same day. Batch record creation itself could only be verified against ERPNext's own validation layer, not a successful save, since no Item on this instance has batch tracking enabled yet — a live-data gap, not a code defect. Per the Current Mission priority lock (Sales → Inventory MVP → Buying core cycle → Manufacturing), Inventory MVP is now shipped and verified, which satisfies Manufacturing's specific unlock condition in <code>CLAUDE.md</code> ("locked until Inventory MVP is accepted"). Note for the founder: Buying's core purchasing-cycle doctypes above are still marked Building, not Live — only the Buying Reports hub has a logged live-verification pass, so the strict Sales→Inventory→Buying→Manufacturing sequence is not yet confirmed complete through Buying even though the Manufacturing-specific gate is now open.</td></tr>
         </tbody>
       </table>
       <p style="margin-bottom:0;">Sources: <code>PROGRESS.md</code>, <code>PLAN.md</code>, <code>apps/frontend/README.md</code>, <code>docs/ceylon-stack-sales-scenarios.md</code>, <code>docs/ceylon-stack-playbook.html</code> (full market pitch), and <code>docs/brand/ceylon-stack-branding.html</code> (visual identity reference this page's styling is drawn from).</p>
