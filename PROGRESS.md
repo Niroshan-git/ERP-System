@@ -834,3 +834,50 @@ No `QA_LOG.md` entry — this is configuration/master-data work, not a QA test p
 `docs/ceylon-stack-documentation.html` and Notion not touched (out of this task's scope;
 Notion sync is handled separately by `release-tracker`).
 
+## 2026-09-16 — MCP Phase 1: first business-specific tool, `get_manufacturing_overview`
+
+Added the first domain-specific tool to `apps/mcp-server`, now that Phase 0
+(`docs/erp-inventory.md`) is complete and unblocks it per `docs/mcp-agents-plan.md`.
+Dev-tier, read-only, stdio-only — no remote transport, no write/action tools, no
+client-facing agent layer, no ERPNext/Frappe core or Manufacturing frontend touched.
+
+`get_manufacturing_overview()` returns: counts of BOM / Workstation / Work Order / Job
+Card / Quality Inspection Template; the 5 most recently modified Work Orders and Job
+Cards (key fields only); whether `FG-STEEL-BRACKET-ASSY` has a `quality_inspection_template`
+set and which one; a `gaps` array flagging missing/risky readiness items; and a source
+note marking this as dev-tier data, not a client-scoped agent. Built directly against the
+real field names and naming series recorded in `docs/erp-inventory.md` (e.g. Job Card's
+`PO-JOB.#####` series, not the `JC-.YYYY.-` pattern earlier docs guessed) rather than
+assumed schema. Also added a small `get_count()` method and an optional `order_by` param
+to `get_list()` on `erpnext_client.py`'s existing generic client (backward compatible,
+reused by the new tool for counts and recency ordering).
+
+**Verified live against the Hetzner instance** by calling the tool function directly
+(bypassing the running MCP session, which was started before the code change): real
+counts (1 BOM, 2 Workstations, 6 Work Orders, 6 Job Cards, 1 Quality Inspection Template),
+real recent Work Orders (`MFG-WO-2026-0000x`) and Job Cards (`PO-JOB0000x`), and the
+`Steel Bracket Assembly - Final QC` template correctly resolved for `FG-STEEL-BRACKET-ASSY`
+(`gaps` came back empty, matching that this instance's one real readiness gap was already
+closed by the prior Quality Inspection Template package). Every HTTP request logged during
+the run was `GET` — confirmed no write requests were made.
+
+`apps/mcp-server/README.md` updated with the new tool's description and verification
+note. No `QA_LOG.md` entry — this is internal dev tooling, not a Sales/Stock/Buying core
+flow, so no `qa-tester` pass was run; the live verification above is the tool's own
+functional check. `docs/ceylon-stack-documentation.html` and Notion not touched — no
+product-facing status changed and the implementation plan (MCP Phase 1) didn't change.
+
+**`code-reviewer` pass**: no blocking issues; sequencing/scope confirmed correct (Phase 0
+gate cleared per `docs/erp-inventory.md`, exactly one tool added, read-only guarantee
+verified by reading every method on `erpnext_client.py` — only four request-issuing
+methods exist, all `GET`), the new `order_by` param confirmed backward-compatible with
+its two existing callers. One minor finding fixed: the `except ERPNextError` around the
+quality-readiness lookup originally labeled *any* failure (transient 500, permission
+issue, not just a real 404) as "item does not exist" — changed to report it as
+unverified (`quality_readiness.error` + a softer gaps message) instead of asserting
+non-existence. Re-verified live after the fix; output unchanged for the real
+(existing-item, template-attached) case. Also flagged by review, out of this package's
+scope: `.claude/agents/mcp-dev.md`'s "Current reality" section still says Manufacturing
+tools are out of scope regardless of Phase 0 — stale now, needs a future
+documentation-alignment pass (already separately noted in `docs/erp-inventory.md`).
+

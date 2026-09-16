@@ -23,14 +23,20 @@ from mcp.server.mcpserver import MCPServer
 
 try:
     from .config import load_config
-    from .erpnext_client import ERPNextClient
+    from .erpnext_client import ERPNextClient, ERPNextError
 except ImportError:  # running as a script (e.g. `mcp dev src/server.py`)
     from config import load_config
-    from erpnext_client import ERPNextClient
+    from erpnext_client import ERPNextClient, ERPNextError
 
 DEFAULT_LIST_LIMIT = 100
 MAX_LIST_LIMIT = 2000
 MAX_DOCTYPE_PAGE = 500
+RECENT_RECORDS_LIMIT = 5
+
+# The one finished good on the live instance today (per docs/erp-inventory.md,
+# Phase 0 walkthrough) - the readiness check needs a concrete item to check
+# `quality_inspection_template` against.
+QUALITY_READINESS_ITEM = "FG-STEEL-BRACKET-ASSY"
 
 mcp = MCPServer(
     "ceylon-stack",
@@ -102,6 +108,103 @@ async def list_documents(
     return await _client.get_list(
         doctype, filters=filters, fields=fields, limit=bounded_limit, offset=offset
     )
+
+
+@mcp.tool()
+async def get_manufacturing_overview() -> dict[str, Any]:
+    """Compact, read-only Manufacturing readiness/status overview from live ERPNext.
+
+    Dev-tier reporting tool: counts of key Manufacturing DocTypes, a bounded
+    list of recent Work Orders and Job Cards, whether the reference finished
+    good has a Quality Inspection Template attached, and a gaps list flagging
+    missing/risky readiness items. Not a client-scoped agent - see
+    apps/mcp-server/README.md's "Two-tier access model".
+    """
+    counts = {
+        "boms": await _client.get_count("BOM"),
+        "workstations": await _client.get_count("Workstation"),
+        "work_orders": await _client.get_count("Work Order"),
+        "job_cards": await _client.get_count("Job Card"),
+        "quality_inspection_templates": await _client.get_count(
+            "Quality Inspection Template"
+        ),
+    }
+
+    recent_work_orders = await _client.get_list(
+        "Work Order",
+        fields=[
+            "name",
+            "production_item",
+            "qty",
+            "produced_qty",
+            "status",
+            "company",
+            "planned_start_date",
+        ],
+        limit=RECENT_RECORDS_LIMIT,
+        order_by="modified desc",
+    )
+
+    recent_job_cards = await _client.get_list(
+        "Job Card",
+        fields=[
+            "name",
+            "work_order",
+            "operation",
+            "workstation",
+            "status",
+            "for_quantity",
+            "total_completed_qty",
+        ],
+        limit=RECENT_RECORDS_LIMIT,
+        order_by="modified desc",
+    )
+
+    gaps: list[str] = []
+
+    quality_readiness: dict[str, Any] = {"item": QUALITY_READINESS_ITEM}
+    try:
+        item = await _client.get_doc("Item", QUALITY_READINESS_ITEM)
+        template = item.get("quality_inspection_template")
+        quality_readiness["has_quality_inspection_template"] = bool(template)
+        quality_readiness["quality_inspection_template"] = template
+        if not template:
+            gaps.append(
+                f"Reference item {QUALITY_READINESS_ITEM} has no "
+                "quality_inspection_template set."
+            )
+    except ERPNextError as exc:
+        # Covers any non-2xx response (missing item, permission issue,
+        # transient server error), not just "item not found" - report it as
+        # unverified rather than asserting the item doesn't exist.
+        quality_readiness["has_quality_inspection_template"] = False
+        quality_readiness["quality_inspection_template"] = None
+        quality_readiness["error"] = f"Could not read Item {QUALITY_READINESS_ITEM}: {exc}"
+        gaps.append(
+            f"Reference item {QUALITY_READINESS_ITEM} readiness could not be "
+            "verified (see quality_readiness.error)."
+        )
+
+    if counts["boms"] == 0:
+        gaps.append("No BOMs exist - Manufacturing cannot run without at least one.")
+    if counts["workstations"] == 0:
+        gaps.append("No Workstations exist.")
+    if counts["work_orders"] == 0:
+        gaps.append("No Work Orders exist yet.")
+    if counts["quality_inspection_templates"] == 0:
+        gaps.append("No Quality Inspection Templates exist anywhere on the instance.")
+
+    return {
+        "counts": counts,
+        "recent_work_orders": recent_work_orders,
+        "recent_job_cards": recent_job_cards,
+        "quality_readiness": quality_readiness,
+        "gaps": gaps,
+        "source": (
+            "Dev-tier read-only data from live ERPNext (Administrator API key), "
+            "not a client-scoped agent - see apps/mcp-server/README.md."
+        ),
+    }
 
 
 if __name__ == "__main__":

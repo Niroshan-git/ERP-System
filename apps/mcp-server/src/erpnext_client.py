@@ -62,6 +62,7 @@ class ERPNextClient:
         fields: list[str] | None = None,
         limit: int = 20,
         offset: int = 0,
+        order_by: str | None = None,
     ) -> list[dict[str, Any]]:
         params: dict[str, Any] = {
             "doctype": doctype,
@@ -72,10 +73,23 @@ class ERPNextClient:
             params["filters"] = _json(filters)
         if fields is not None:
             params["fields"] = _json(fields)
+        if order_by is not None:
+            params["order_by"] = order_by
         result = await self._request(
             "GET", "/api/method/frappe.client.get_list", params=params
         )
         return result or []
+
+    async def get_count(
+        self, doctype: str, filters: dict[str, Any] | None = None
+    ) -> int:
+        params: dict[str, Any] = {"doctype": doctype}
+        if filters is not None:
+            params["filters"] = _json(filters)
+        result = await self._request(
+            "GET", "/api/method/frappe.client.get_count", params=params
+        )
+        return int(result or 0)
 
     async def get_doc(self, doctype: str, name: str) -> dict[str, Any]:
         result = await self._request(
