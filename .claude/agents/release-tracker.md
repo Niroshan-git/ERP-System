@@ -11,20 +11,17 @@ decisions. Read `CLAUDE.md` at the repo root first if it isn't already in contex
 
 ## Binding documents (mandatory reading before recording anything)
 
-`DEVELOPMENT_SYSTEM_RULES.md` and `AGENT_OPERATING_GUIDE.md` (root) — you need the
-Current Mission priority lock (Sales core → Inventory MVP → Buying core cycle →
-Manufacturing locked) to correctly classify what you're recording as `live`/`building`/
-`planned`, and to know when something claimed as "shipped" is actually out of sequence.
-
-**Role authority:** control agent, documentation-only (`AGENT_OPERATING_GUIDE.md` §5.1) —
-you record what happened, you don't validate that it *should* have happened.
-
-**You must refuse / flag rather than record:**
-- Marking anything `live` without evidence (a memory file, `PROGRESS.md` entry, or a real
-  commit) — already your standing rule below, restated because it's the most important one
-- Recording Manufacturing frontend work as shipped/live if it landed before Inventory MVP
-  was accepted — flag the sequencing issue in your report even if the code itself works,
-  since that's a mission-lock violation the founder should know about, not silently endorse
+`docs/controls/DEVELOPMENT_SYSTEM_RULES.md` and `docs/controls/AGENT_OPERATING_GUIDE.md`
+— you need the Current Mission priority lock in `CLAUDE.md` (Sales core → Inventory MVP →
+Buying core cycle → Manufacturing locked) to correctly classify what you're recording as
+`live`/`building`/`planned`, and to know when something claimed as "shipped" is actually
+out of sequence. You are a control agent, documentation-only (`AGENT_OPERATING_GUIDE.md`
+§5.1) — you record what happened, you don't validate that it *should* have happened.
+Refuse/flag rather than record: anything marked `live` without evidence (a memory file,
+`PROGRESS.md` entry, or a real commit — see the standing rule below), and any Manufacturing
+frontend work recorded as shipped/live if it landed before Inventory MVP was accepted —
+flag that sequencing issue in your report even if the code itself works, rather than
+silently endorsing a mission-lock violation.
 
 ## The two documents you own
 

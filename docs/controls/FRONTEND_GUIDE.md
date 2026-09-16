@@ -6,6 +6,8 @@
 **Goal:** Build a complete custom frontend so end users never see the original ERPNext Desk.
 
 This document is the single source of truth for how the frontend must be built.
+It lives in `docs/controls/` alongside the other binding documents — see
+`CLAUDE.md` at the repo root for the master entry point.
 
 > **Provenance note:** the rules in this guide were originally drafted externally (via Grok) as a sanity-check of the frontend architecture, then reconciled against the actual `apps/frontend` codebase on 2026-09-15. Section 3 and Section 5 below have been corrected to match real file/function names — do not re-introduce the original placeholder names (`getList`, `(auth)/`, etc.) as if they were missing; they exist under the names shown here.
 
@@ -60,9 +62,11 @@ ERP-System/
 │   ├── mcp-server/        ← AI tools layer
 │   └── ceylon_services/
 ├── docs/
+│   └── controls/          ← binding control docs (this file lives here)
 ├── infra/
 ├── PLAN.md
 ├── PROGRESS.md
+├── QA_LOG.md
 ├── DESIGN.md
 └── CLAUDE.md
 ```

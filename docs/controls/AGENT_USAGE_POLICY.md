@@ -12,10 +12,13 @@ This policy exists because unrestricted agent usage creates:
 - Scope creep
 - Architectural drift
 
+This file lives in `docs/controls/` alongside the other binding documents.
+See `CLAUDE.md` at the repo root for the master entry point.
+
 Related documents:
-- `AGENT_OPERATING_GUIDE.md`
-- `DEVELOPMENT_SYSTEM_RULES.md`
-- `FRONTEND_GUIDE.md`
+- `docs/controls/AGENT_OPERATING_GUIDE.md`
+- `docs/controls/DEVELOPMENT_SYSTEM_RULES.md`
+- `docs/controls/FRONTEND_GUIDE.md`
 
 ---
 
@@ -166,7 +169,7 @@ All agent work should be assigned as a **package**.
 - Start Manufacturing while finishing Inventory and polishing Sales
 
 ### Package completion rule
-A package is complete only when it meets the Definition of Ready in `AGENT_OPERATING_GUIDE.md` and relevant guide documents.
+A package is complete only when it meets the Definition of Ready in `docs/controls/AGENT_OPERATING_GUIDE.md` and relevant guide documents.
 
 ---
 

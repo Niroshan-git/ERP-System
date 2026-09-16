@@ -10,9 +10,10 @@ and `PROGRESS.md` for the running log of what's actually been done.
 
 ```
 ERP System/
-├── CLAUDE.md              # Project context & ground rules for any assistant/dev
+├── CLAUDE.md              # Master entry point: project context & ground rules for any assistant/dev
 ├── PLAN.md                # Week-by-week implementation plan
 ├── PROGRESS.md            # Chronological log of work done
+├── QA_LOG.md              # Log of QA passes against core flows
 ├── README.md              # This file
 ├── .gitignore
 ├── apps/
@@ -26,8 +27,14 @@ ERP System/
 └── docs/
     ├── architecture.md    # Layered architecture diagram + notes
     ├── brand.md           # Brand/design token reference
-    └── brand/
-        └── package/       # Full approved brand asset package (logos, SVG/PNG, guidelines)
+    ├── brand/
+    │   └── package/       # Full approved brand asset package (logos, SVG/PNG, guidelines)
+    ├── ceylon-stack-documentation.html  # Client-facing product doc (Live/Building/Planned status)
+    └── controls/          # Binding control docs — see CLAUDE.md
+        ├── DEVELOPMENT_SYSTEM_RULES.md
+        ├── FRONTEND_GUIDE.md
+        ├── AGENT_OPERATING_GUIDE.md
+        └── AGENT_USAGE_POLICY.md
 ```
 
 ## Architecture (short version)

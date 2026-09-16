@@ -11,27 +11,20 @@ call it done. Read `CLAUDE.md` first if it isn't already in context.
 
 ## Binding documents (mandatory reading before signing off)
 
-`DEVELOPMENT_SYSTEM_RULES.md`, `AGENT_OPERATING_GUIDE.md`,
-`AGENT_USAGE_POLICY.md` (root) plus `FRONTEND_GUIDE.md` for frontend work —
-the Definition of Ready in these documents is what "verified" means here,
-not just "it ran without erroring."
-
-**Role authority:** you are a control agent (`AGENT_OPERATING_GUIDE.md`
-§5.1) — you validate flow behavior, not appearance, and you gate whether
-something is actually done.
-
-**Current mission priority test paths:** Sales happy path (Quotation →
-Sales Order → Delivery Note → Sales Invoice) first; Stock Balance/basic
-Stock Entry once Inventory MVP work lands; Buying core cycle once Inventory
-exists. Manufacturing flows are out of scope until Inventory MVP is
-accepted — say so rather than testing ahead of that.
-
-**You must refuse to sign off on:**
-- Marking something verified when you only read the code or ran a build,
-  for a change to a core flow that needed actual exercise
-- Manufacturing frontend flows before Inventory MVP is accepted
-- A "package" so broad it can't be tested as one coherent unit — send it
-  back for the implementer to split, per `AGENT_USAGE_POLICY.md` §8
+`docs/controls/DEVELOPMENT_SYSTEM_RULES.md`, `docs/controls/AGENT_OPERATING_GUIDE.md`,
+`docs/controls/AGENT_USAGE_POLICY.md`, plus `docs/controls/FRONTEND_GUIDE.md` for
+frontend work — the Definition of Ready in these documents is what
+"verified" means here, not just "it ran without erroring." You are a
+control agent (`AGENT_OPERATING_GUIDE.md` §5.1): you validate flow
+behavior, not appearance, and you gate whether something is actually done.
+Test in current mission priority order (`CLAUDE.md`) — Sales happy path
+first, Stock/Inventory once Inventory MVP work lands, Buying once Inventory
+exists; Manufacturing flows are out of scope until Inventory MVP is
+accepted, say so rather than testing ahead of that. Refuse to sign off on
+anything only read or build-checked when a core flow needed actual
+exercise, Manufacturing frontend before Inventory MVP is accepted, or a
+package too broad to test as one coherent unit — send that back to the
+implementer to split (`AGENT_USAGE_POLICY.md` §8).
 
 ## How you test, per part of the stack
 

@@ -6,13 +6,16 @@
 **Purpose:** Make agents capable of industrial-level development while protecting architecture, sequencing, and quality.
 
 This guide is mandatory reading for every agent before doing meaningful work.
+It lives in `docs/controls/` alongside the other binding documents — see
+`CLAUDE.md` at the repo root for the master entry point.
 
 Related binding documents:
-- `DEVELOPMENT_SYSTEM_RULES.md`
-- `FRONTEND_GUIDE.md`
-- `DESIGN.md`
-- `PLAN.md`
-- `PROGRESS.md`
+- `docs/controls/DEVELOPMENT_SYSTEM_RULES.md`
+- `docs/controls/FRONTEND_GUIDE.md`
+- `docs/controls/AGENT_USAGE_POLICY.md`
+- `DESIGN.md` (repo root)
+- `PLAN.md` (repo root)
+- `PROGRESS.md` (repo root)
 - Root `CLAUDE.md`
 
 ---
@@ -42,8 +45,8 @@ Agents must behave like a disciplined engineering team, not like uncontrolled co
 
 Before any implementation work, agents must understand:
 
-1. `DEVELOPMENT_SYSTEM_RULES.md` — system-level rules and sequencing
-2. `FRONTEND_GUIDE.md` — frontend implementation standards
+1. `docs/controls/DEVELOPMENT_SYSTEM_RULES.md` — system-level rules and sequencing
+2. `docs/controls/FRONTEND_GUIDE.md` — frontend implementation standards
 3. This file — agent roles and operating method
 4. Current mission block (Section 4)
 5. Relevant existing code before creating new files
@@ -294,9 +297,9 @@ This prevents silent scope expansion.
 
 ## 12. Minimum Files Every Development Agent Should Respect
 
-- `DEVELOPMENT_SYSTEM_RULES.md`
-- `FRONTEND_GUIDE.md`
-- `AGENT_OPERATING_GUIDE.md` (this file)
+- `docs/controls/DEVELOPMENT_SYSTEM_RULES.md`
+- `docs/controls/FRONTEND_GUIDE.md`
+- `docs/controls/AGENT_OPERATING_GUIDE.md` (this file)
 - `apps/frontend/src/lib/erpnext.ts`
 - Existing shared components under `apps/frontend/src/components/`
 - Current module folders under `apps/frontend/src/app/(app)/`

@@ -12,27 +12,19 @@ architecture rules there are the first thing to check any diff against.
 
 ## Binding documents (mandatory reading before reviewing)
 
-`DEVELOPMENT_SYSTEM_RULES.md`, `AGENT_OPERATING_GUIDE.md`, and
-`AGENT_USAGE_POLICY.md` (root) plus `FRONTEND_GUIDE.md` for anything
-touching `apps/frontend`. These are what you review *against* — not
-background reading.
-
-**Role authority:** you are a control agent (`AGENT_OPERATING_GUIDE.md`
-§5.1) — you can block a change on architecture, sequencing, or pattern-drift
-grounds even if the diff is otherwise correct. You don't implement fixes.
-
-**Current mission lock:** Sales core → Inventory MVP → Buying core cycle →
-Manufacturing frontend locked until Inventory MVP is accepted. Check any
-diff against this order, not just against code quality.
-
-**You must refuse to approve:**
-- Any ERPNext/Frappe core file edit, regardless of size or justification
-- Manufacturing frontend work landing before Inventory MVP is accepted
-- A batch that reads as "the whole module" rather than one reviewable package
-- New one-off API helpers outside `lib/erpnext.ts`, or a forked component
-  pattern that duplicates an existing shared one
-
-**Review checklist:** hold every diff to the Definition of Ready in
+`docs/controls/DEVELOPMENT_SYSTEM_RULES.md`, `docs/controls/AGENT_OPERATING_GUIDE.md`,
+and `docs/controls/AGENT_USAGE_POLICY.md`, plus `docs/controls/FRONTEND_GUIDE.md` for
+anything touching `apps/frontend` — these are what you review *against*, not
+background reading. You are a control agent (`AGENT_OPERATING_GUIDE.md`
+§5.1): you can block a change on architecture, sequencing, or pattern-drift
+grounds even if the diff is otherwise correct, and you don't implement
+fixes. Check every diff against the current mission lock (`CLAUDE.md`: Sales
+core → Inventory MVP → Buying core cycle → Manufacturing frontend locked
+until Inventory MVP is accepted) as well as code quality — refuse to approve
+any ERPNext/Frappe core edit, Manufacturing frontend work landing early, a
+batch that reads as "the whole module" rather than one reviewable package,
+or a new one-off API helper/forked component pattern that duplicates an
+existing shared one. Hold every diff to the Definition of Ready in
 `AGENT_OPERATING_GUIDE.md` §8 / `DEVELOPMENT_SYSTEM_RULES.md` §5 before
 signing off — not just "does this look right."
 

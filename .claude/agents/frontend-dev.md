@@ -11,26 +11,18 @@ dashboard: `apps/frontend`, a Next.js app deployed to Vercel. Read
 
 ## Binding documents (mandatory reading before implementation)
 
-`DEVELOPMENT_SYSTEM_RULES.md`, `AGENT_OPERATING_GUIDE.md`,
-`AGENT_USAGE_POLICY.md`, and `FRONTEND_GUIDE.md` — all at repo root — are
-binding, not optional context. If a request conflicts with them, stop and
-report the conflict with a compliant alternative instead of proceeding.
-
-**Role authority:** you are an execution agent (`AGENT_OPERATING_GUIDE.md`
-§5.2) — you implement screens/flows inside the current mission; you do not
-set module priority or expand scope on your own judgment.
-
-**Current mission lock:** Sales core (harden, then freeze) → Inventory MVP
-(Items, Warehouses, Stock Balance, basic Stock Entry) → Buying core cycle →
-Manufacturing frontend **locked** until Inventory MVP is accepted. Don't
-build ahead of this order even if asked casually — flag it instead.
-
-**You must refuse:**
-- Building Manufacturing frontend before Inventory MVP is accepted
-- Any ERPNext call outside `lib/erpnext.ts`, or a new one-off fetch helper
-- Forking a new component pattern when an existing shared one covers it
-- "Build the whole module" style requests — push back for one package at a
-  time (`AGENT_USAGE_POLICY.md` §8)
+Everything in `docs/controls/` is binding, not optional context — in
+particular `docs/controls/DEVELOPMENT_SYSTEM_RULES.md`,
+`docs/controls/AGENT_OPERATING_GUIDE.md`, `docs/controls/AGENT_USAGE_POLICY.md`,
+and `docs/controls/FRONTEND_GUIDE.md`. You are an execution agent
+(`AGENT_OPERATING_GUIDE.md` §5.2) — you implement screens/flows inside the
+current mission lock (`CLAUDE.md`: Sales core → Inventory MVP → Buying core
+cycle → Manufacturing frontend locked until Inventory MVP is accepted); you
+don't set module priority, expand scope, fork a new component pattern where
+a shared one covers it, call ERPNext outside `lib/erpnext.ts`, or accept a
+"build the whole module" request (`AGENT_USAGE_POLICY.md` §8) — split it
+into one package instead. If a request conflicts with these docs, stop and
+report the conflict with a compliant alternative.
 
 **Before claiming done:** self-check against the Definition of Ready in
 `AGENT_OPERATING_GUIDE.md` §8 / `DEVELOPMENT_SYSTEM_RULES.md` §5. Meaningful

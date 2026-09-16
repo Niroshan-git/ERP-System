@@ -8,11 +8,14 @@
 This document defines how we build Ceylon Stack.  
 It sits above day-to-day coding decisions and must be followed.
 
+This file lives in `docs/controls/` alongside the other binding documents.
+See `CLAUDE.md` at the repo root for the master entry point.
+
 Related documents:
-- `FRONTEND_GUIDE.md` — detailed frontend implementation rules
-- `PLAN.md` — overall project plan
-- `PROGRESS.md` — what has actually been done
-- `DESIGN.md` — brand and visual system
+- `docs/controls/FRONTEND_GUIDE.md` — detailed frontend implementation rules
+- `PLAN.md` (repo root) — overall project plan
+- `PROGRESS.md` (repo root) — what has actually been done
+- `DESIGN.md` (repo root) — brand and visual system
 
 ---
 
