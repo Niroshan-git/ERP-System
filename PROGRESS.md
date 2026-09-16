@@ -698,3 +698,54 @@ change to test. Notion was not touched — no implementation plan or shipped-sta
 change resulted from this package. `docs/ceylon-stack-documentation.html` was touched
 only for the one factual status-badge correction, not a general rewrite.
 
+## 2026-09-16 — Sales combined end-to-end verification pass (Phase 5, plan complete)
+
+Last remaining item from the Sales scenario gaps plan: Phases 1-4 (partial fulfillment,
+Pick List/Delivery Note/batch-serial, Quotation lifecycle, Pricing Rule/document
+discounts) had each been live-verified individually, but never run together in one
+chain. `qa-tester` ran that combined pass live against the Hetzner instance, same
+direct-REST-matching-`actions.ts`-payload-shapes method as the Inventory and Buying QA
+passes (Next.js server actions can't be driven from plain curl).
+
+**Result: PASS, no code fixes required.** Full chain exercised live: Quotation (2 lines)
+→ document-level discount (10% on Grand Total, server recalculation exact) → submit →
+Sales Order via Copy From Quotation (partial ordered qty) → Pick List (partial picked
+qty, write-back confirmed) → submit → Delivery Note from Pick List with real Serial and
+Batch Bundle attachment (`type_of_transaction: "Outward"`) → submit → `Bin.actual_qty`
+impact confirmed → Sales Invoice (partial invoiced qty) → submit → Connections data
+verified directly via REST filter tuples → cancellation-blocking (`417 LinkExistsError`)
+confirmed on three separate attempts → full cleanup, stock/serial baseline restored.
+
+**What combining the phases actually proved** (the point of the exercise): nothing broke
+that hadn't already been verified in isolation. Partial-fulfillment bookkeeping held
+across three consecutive partial stages on the same lines; the document-level discount
+survived the Quotation→Sales Order copy; batch/serial attachment on Delivery Note worked
+when sourced from a **Pick List** specifically (previously only verified from a direct
+Sales Order in the Phase 2 pass); every cancel-blocked-by-child-document guard held under
+the full chain.
+
+**Live-data gap**: no `Pricing Rule` record exists on the instance, so automatic rule
+application couldn't be re-exercised live in this pass (previously confirmed by reading
+`LineItemsEditor.tsx`'s rate-input disable guard, not a fresh live application here).
+
+**Non-blocking technical finding**: hand-constructing a line payload with
+`rate == price_list_rate` but a nonzero `discount_percentage` shows ERPNext's controller
+silently zeroes `discount_percentage` instead of recomputing `rate` — contradicts a
+comment's stated assumption in `lib/lineRows.ts`. Not reachable through the real UI
+(`LineItemsEditor.tsx` disables the rate input once a Pricing Rule sets a discount), so
+no user-facing defect exists today. Flagged for `frontend-dev` awareness only, in case
+that guard is ever relaxed.
+
+**Cleanup**: `SAL-QTN-2026-00023`, `SAL-ORD-2026-00038`, `STO-PICK-2026-00001`,
+`MAT-DN-2026-00011`, `ACC-SINV-2026-00028` all cancelled in reverse dependency order.
+`QA Test Customer Sales E2E` disabled (deletion blocked by link, expected). Stray Draft
+documents from tool-call retries deleted. `Bin.actual_qty` and Serial No status/warehouse
+both confirmed back at pre-test baseline.
+
+Sales scenario gaps plan (all 5 phases) is now complete. Sales core cycle
+(Quotation → Sales Order → Delivery Note → Sales Invoice) meets the Definition of Ready
+(`AGENT_OPERATING_GUIDE.md` §8) and is fully accepted per the Current Mission priority
+lock. See `QA_LOG.md` for the compact QA record. `docs/ceylon-stack-documentation.html`'s
+"Full end-to-end verification pass" roadmap card and changelog updated accordingly (see
+that file's own changelog entry for today).
+
