@@ -166,6 +166,38 @@ Cards, 1 Quality Inspection Template), real recent Work Orders
   requests total across the run, confirmed via HTTP-method interception —
   all `GET`, zero writes. `code-reviewer` pass: no blocking findings.
 
+- **`list_job_cards(status=None, work_order=None, workstation=None, limit=20)`** —
+  **dev-tier, read-only**, fourth business-specific tool (Phase 1). Lists Job
+  Cards newest-first (`order_by="creation desc"`), optionally filtered by
+  `status`, `work_order`, and/or `workstation` (equality filters passed
+  straight through to `frappe.client.get_list`). Returns a compact
+  `applied_filters` / `total_returned` / `job_cards` / `gaps` / `source`
+  shape — each Job Card carries `name`, `status`, `work_order`,
+  `production_item`, `operation`, `workstation`, `for_quantity`,
+  `total_completed_qty`, `expected_start_date`, `expected_end_date`,
+  `actual_start_date`, `actual_end_date`, `creation`. `limit` is clamped to
+  `[1, 100]` (default 20). Lets Manufacturing Floor / MCP workflows inspect
+  execution-level work without already knowing a Job Card name or its parent
+  Work Order, complementing `list_work_orders`, `get_work_order_detail`, and
+  `get_manufacturing_overview`.
+
+  `production_item` (live-confirmed via `get_doctype_fields("Job Card")` as
+  "Final Product", a Link to Item) is included here even though it isn't in
+  the existing `JOB_CARD_DETAIL_FIELDS` set used by `get_work_order_detail`'s
+  Job Card sub-list — a deliberate, documented choice for this list tool, not
+  an inconsistency to fix.
+
+  Verified end-to-end against the live instance (2026-09-17): unfiltered call
+  returned all 6 real Job Cards (`PO-JOB00001..00006`), newest-first;
+  `status="Completed"` returned exactly `PO-JOB00001`;
+  `work_order="MFG-WO-2026-00002"` returned its 2 real Job Cards
+  (`PO-JOB00001`, `PO-JOB00002`); `workstation="Coating Station"` returned
+  exactly the 3 Job Cards on that workstation; combined `work_order` +
+  `workstation` returned exactly 1 matching card; `limit=0` clamped to 1,
+  `limit=9999` clamped to 100. 7 HTTP requests total across the run,
+  confirmed via HTTP-method interception — all `GET`, zero writes.
+  `code-reviewer` pass: no blocking findings.
+
 ## What's deliberately not built yet
 
 Phase 0 (`docs/erp-inventory.md`) is complete, which unblocked the

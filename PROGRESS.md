@@ -994,3 +994,57 @@ boilerplate consistent with `get_manufacturing_overview` /
 deliberate transparency choice, not a defect.
 
 Not committed — commit was not requested this session.
+
+## 2026-09-17 — MCP Phase 1: fourth business-specific tool, `list_job_cards`
+
+Added `list_job_cards(status=None, work_order=None, workstation=None, limit=20)`
+to `apps/mcp-server/src/server.py`, per `docs/mcp-agents-plan.md` Phase 1 and
+this session's explicit one-tool mission. Lets Manufacturing Floor / MCP
+workflows inspect execution-level work (Job Cards) without already knowing a
+Job Card name or its parent Work Order, complementing `list_work_orders`,
+`get_work_order_detail`, and `get_manufacturing_overview`. Read-only,
+GET-only, dev-tier — same conventions as the three prior Phase 1 tools:
+reuses `ERPNextClient.get_list()`, clamps `limit` to `[1, 100]`, builds
+equality filters from `status`/`work_order`/`workstation` when provided,
+sorts `order_by="creation desc"`, and returns `applied_filters` /
+`total_returned` / `job_cards` / `gaps` / `source`.
+
+Before implementing, confirmed live via `get_doctype_fields("Job Card")` that
+Job Card genuinely has a `production_item` field (label "Final Product",
+Link to Item) — not present in the pre-existing `JOB_CARD_DETAIL_FIELDS`
+constant used by `get_work_order_detail`'s Job Card sub-list, so this was
+checked rather than assumed. Included it in the new `JOB_CARD_LIST_FIELDS`
+constant as a deliberate, documented choice.
+
+**Verified live against the Hetzner instance**: called the tool function
+directly (same bypass-the-running-session approach as the prior three tools,
+with HTTP-method interception to positively confirm GET-only). Unfiltered
+call returned all 6 real Job Cards (`PO-JOB00001..00006`), newest-first by
+creation; `status="Completed"` returned exactly `PO-JOB00001`;
+`work_order="MFG-WO-2026-00002"` returned its 2 real Job Cards
+(`PO-JOB00001`, `PO-JOB00002`); `workstation="Coating Station"` returned
+exactly the 3 Job Cards on that workstation; combined `work_order` +
+`workstation` filter returned exactly 1 matching card; `limit=0` clamped to
+1, `limit=9999` clamped to 100. 7 HTTP requests total across the run, all
+`GET`, zero non-GET.
+
+`apps/mcp-server/README.md` updated with the new tool's description and
+verification note. No `QA_LOG.md` entry — internal dev tooling, not a
+Sales/Stock/Buying core flow, same rationale as the prior three Phase 1
+tools. `docs/ceylon-stack-documentation.html` and Notion not touched — no
+product-facing status changed and the implementation plan (MCP Phase 1)
+didn't change beyond what was already planned.
+
+**`code-reviewer` pass**: no blocking findings. Reviewer confirmed: limit
+clamping, filter construction, and gap-detection all match `list_work_orders`
+(the closest analog) exactly; filters pass through Frappe's own
+parameterized `frappe.client.get_list` RPC (no new injection surface); only
+`GET` is reachable from this tool; scope matches the request (one tool, two
+constants, no unrelated changes); no secrets in the diff. Two non-blocking
+observations: (1) README needed the corresponding entry added — done as part
+of this same package's documentation step, not a separate follow-up; (2) the
+`production_item` asymmetry between `JOB_CARD_LIST_FIELDS` and
+`JOB_CARD_DETAIL_FIELDS` was flagged for confirmation it's intentional — it
+is, per the inline code comment and this entry above, not a defect.
+
+Not committed — commit was not requested this session.

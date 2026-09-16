@@ -36,6 +36,8 @@ WORK_ORDER_JOB_CARDS_LIMIT = 50
 QUALITY_INSPECTIONS_LIMIT = 5
 LIST_WORK_ORDERS_DEFAULT_LIMIT = 20
 LIST_WORK_ORDERS_MAX_LIMIT = 100
+LIST_JOB_CARDS_DEFAULT_LIMIT = 20
+LIST_JOB_CARDS_MAX_LIMIT = 100
 
 # Header fields returned by get_work_order_detail, per docs/erp-inventory.md's
 # confirmed Work Order schema (live-verified via get_doctype_fields, not guessed).
@@ -87,6 +89,28 @@ WORK_ORDER_LIST_FIELDS = [
     "bom_no",
     "planned_start_date",
     "planned_end_date",
+    "creation",
+]
+
+# List-view fields for list_job_cards - JOB_CARD_DETAIL_FIELDS plus
+# production_item (confirmed live via get_doctype_fields - "Final Product",
+# a Link to Item, present on Job Card despite not being in
+# JOB_CARD_DETAIL_FIELDS or docs/erp-inventory.md's schema notes) and
+# work_order/creation, since this tool exists to help a caller discover a
+# Job Card without already knowing its Work Order.
+JOB_CARD_LIST_FIELDS = [
+    "name",
+    "status",
+    "work_order",
+    "production_item",
+    "operation",
+    "workstation",
+    "for_quantity",
+    "total_completed_qty",
+    "expected_start_date",
+    "expected_end_date",
+    "actual_start_date",
+    "actual_end_date",
     "creation",
 ]
 
@@ -405,6 +429,65 @@ async def list_work_orders(
         },
         "total_returned": len(work_orders),
         "work_orders": work_orders,
+        "gaps": gaps,
+        "source": (
+            "Dev-tier read-only data from live ERPNext (Administrator API key), "
+            "not a client-scoped agent - see apps/mcp-server/README.md."
+        ),
+    }
+
+
+@mcp.tool()
+async def list_job_cards(
+    status: str | None = None,
+    work_order: str | None = None,
+    workstation: str | None = None,
+    limit: int = LIST_JOB_CARDS_DEFAULT_LIMIT,
+) -> dict[str, Any]:
+    """Compact, read-only list of Job Cards, optionally filtered by status,
+    Work Order, and/or Workstation, newest first.
+
+    Dev-tier discovery tool: lets Manufacturing Floor / MCP workflows inspect
+    execution-level work (Job Cards) without already knowing a Job Card name
+    or its parent Work Order. Not a client-scoped agent - see
+    apps/mcp-server/README.md's "Two-tier access model".
+    """
+    bounded_limit = max(1, min(limit, LIST_JOB_CARDS_MAX_LIMIT))
+
+    filters: dict[str, Any] = {}
+    if status:
+        filters["status"] = status
+    if work_order:
+        filters["work_order"] = work_order
+    if workstation:
+        filters["workstation"] = workstation
+
+    job_cards = await _client.get_list(
+        "Job Card",
+        filters=filters or None,
+        fields=JOB_CARD_LIST_FIELDS,
+        limit=bounded_limit,
+        order_by="creation desc",
+    )
+
+    gaps: list[str] = []
+    for jc in job_cards:
+        missing_fields = [f for f in JOB_CARD_LIST_FIELDS if f not in jc]
+        if missing_fields:
+            gaps.append(
+                f"Job Card {jc.get('name', '<unknown>')} - fields ERPNext omitted "
+                f"from this record's response: {', '.join(missing_fields)}."
+            )
+
+    return {
+        "applied_filters": {
+            "status": status,
+            "work_order": work_order,
+            "workstation": workstation,
+            "limit": bounded_limit,
+        },
+        "total_returned": len(job_cards),
+        "job_cards": job_cards,
         "gaps": gaps,
         "source": (
             "Dev-tier read-only data from live ERPNext (Administrator API key), "
