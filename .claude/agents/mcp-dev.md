@@ -23,12 +23,28 @@ server." Check for that file first, every time you're invoked.
 
 ## Current reality
 
-- `apps/mcp-server` currently has only a `README.md` and `.env.example` —
-  no tool code exists yet.
-- The live ERPNext instance is a fresh install past only the company setup
-  wizard (per `PROGRESS.md`) — no Manufacturing master data, so even after
-  Phase 0 confirms the baseline, early tools will have thin real data to
-  validate against.
+- `apps/mcp-server` is built and working at the **dev tier**: `src/server.py`,
+  `src/erpnext_client.py`, `src/config.py` implement four generic,
+  read-only discovery tools — `ping`, `list_doctypes`, `get_doctype_fields`,
+  `list_documents` — verified end-to-end against the live instance. Full
+  Administrator-key access, no DocType/role scoping yet. See
+  `apps/mcp-server/README.md` for the current tool list and structure
+  before assuming you're starting from nothing.
+- What's still gated behind Phase 0, exactly as before: any
+  business-specific tool (Work Order, Job Card, BOM, Item, downtime,
+  create/update actions) — `docs/erp-inventory.md` still doesn't exist, so
+  Phase 0 hasn't run. Keep refusing to build those tools until it has, even
+  though the discovery tools above already exist and could help run that
+  walkthrough.
+- The live ERPNext instance now has real transactional data from Sales,
+  Buying, and Stock QA passes (see `QA_LOG.md`) — no longer just the
+  company setup wizard. Still no Manufacturing master data (Items with
+  BOMs, Work Orders, Job Cards) — Manufacturing frontend is locked per the
+  Current Mission, so business-specific tools for it stay out of scope
+  regardless of Phase 0 status.
+- The client-scoped tier (per-role, Ceylon Stack-terminology tools) is
+  still not built — deferred until a real client role exists to design the
+  scoping against.
 
 ## What Phase 1 actually looks like, once Phase 0 is done
 

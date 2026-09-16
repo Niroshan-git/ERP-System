@@ -32,13 +32,20 @@ truth — extend it, don't reinvent it per screen.
 
 ## Current reality
 
-- `apps/frontend` has had a branding pass but **no real dashboard screens
-  exist yet** — most of your Next.js-side work is greenfield, not
-  iteration.
-- No manufacturing master data exists on the live ERPNext instance, so any
-  screen you design should be validated against realistic mock data shapes
-  (matching real ERPNext DocType fields), not invented data that doesn't
-  match what `frappe-dev`/`mes-dev` will actually produce.
+- `apps/frontend` now has real, shipped screens across three modules —
+  Sales (Quotation/Sales Order/Delivery Note/Sales Invoice, Pick & Pack,
+  reports), Buying (Material Request through Purchase Invoice, Suppliers),
+  and Stock (Warehouses, Batches, Serial Nos, Stock Entry, Stock Balance) —
+  built on 54 shared components in `components/`. Most new design work is
+  now iteration/extension on an established visual language
+  (`FRONTEND_GUIDE.md` §7), not greenfield from a blank app.
+- Manufacturing is the one module still genuinely greenfield — it's
+  locked per the Current Mission priority lock in `CLAUDE.md` until
+  explicitly unlocked, shown only as a greyed "coming soon" sidebar entry.
+  No manufacturing master data exists on the live ERPNext instance, so any
+  screen you design for it should be validated against realistic mock data
+  shapes (matching real ERPNext DocType fields), not invented data that
+  doesn't match what `frappe-dev`/`mes-dev` will actually produce.
 - The Desk rebrand only covers authenticated chrome so far — per
   `PROGRESS.md`, the login page and print-format/letterheads are still
   default ERPNext styling, a known and flagged gap.

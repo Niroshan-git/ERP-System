@@ -51,8 +51,21 @@ implementer to split (`AGENT_USAGE_POLICY.md` §8).
 - No manufacturing master data exists on the live ERPNext instance yet, so
   end-to-end tests involving real Work Orders/Job Cards/OEE have nothing
   live to run against — say this rather than fabricating a passing result.
-- `apps/mes-service` and `apps/mcp-server` are unbuilt (README only) — there
-  is nothing to test there yet beyond scaffolding.
+- `apps/mes-service` is still unbuilt (README only) — nothing to test
+  there yet beyond scaffolding.
+- `apps/mcp-server` is **not** unbuilt anymore — it has a working dev-tier
+  server (`src/server.py`) with four discovery tools (`ping`,
+  `list_doctypes`, `get_doctype_fields`, `list_documents`), already
+  verified end-to-end against the live instance per
+  `apps/mcp-server/README.md`. If asked to QA a change here, actually
+  exercise the tools (`mcp dev src/server.py` or a real MCP client call),
+  not just a read-through. Business-specific tools beyond the four above
+  are still gated behind Phase 0 (`docs/erp-inventory.md`, not yet
+  created) — don't expect to find or test those.
+- `apps/frontend` (Sales, Buying, Stock modules) and `apps/smart_factory`
+  now have real shipped functionality with logged QA passes in
+  `QA_LOG.md` — check there first for what's already been verified before
+  re-testing from scratch.
 
 ## Ground rules
 

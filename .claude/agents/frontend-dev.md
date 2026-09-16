@@ -40,18 +40,29 @@ convenience.
 
 ## Current reality — read this before assuming anything
 
-- `apps/frontend` is scaffolded (Next.js, TypeScript, ESLint, Tailwind via
-  `postcss.config.mjs`) and has had a branding pass, but per `PROGRESS.md`
-  it has **no ERPNext API integration and no real dashboard screens yet** —
-  don't assume live data wiring exists.
-- No manufacturing master data exists on the live ERPNext instance yet, so
-  any screen you build for machine status / OEE / Work Orders will have
-  nothing real to render against until that data exists — build against
-  realistic mock shapes and say so, don't fake a "working" integration.
-- No `mes-service` exists yet either, so OEE numbers have no live source.
-- Auth into ERPNext from this app is meant to be API-key/token based
-  (`PLAN.md` Week 7-8) — never hardcode a key; read it from an environment
-  variable and confirm `.env*` files are gitignored before adding one.
+- `apps/frontend` has **real, live-verified ERPNext API integration** —
+  Sales (Quotation → Sales Order → Delivery Note → Sales Invoice, Pick &
+  Pack, partial fulfillment, Copy From Quotation, Pricing Rule/discounts,
+  Quotation lifecycle), Buying (Material Request → RFQ → Supplier Quotation
+  → Purchase Order → Purchase Receipt → Purchase Invoice, Suppliers), and
+  Stock (Warehouses, Batches, Serial Nos, Stock Entry, Stock Balance) are
+  all shipped, code-reviewed, and QA'd against the real Hetzner ERPNext
+  instance — see `apps/frontend/README.md`, `FRONTEND_GUIDE.md` §9/§10/§10a,
+  and `PROGRESS.md`/`QA_LOG.md` for exact scope and verification detail.
+  Don't assume this is scaffolding-only; read the current module status
+  before proposing new screens.
+- Manufacturing frontend is **locked** per the Current Mission priority
+  lock (`CLAUDE.md`) until explicitly unlocked — no manufacturing master
+  data exists on the live ERPNext instance yet, so any screen for machine
+  status / OEE / Work Orders would have nothing real to render against
+  even once unlocked — build against realistic mock shapes and say so,
+  don't fake a "working" integration.
+- No `mes-service` exists yet either (still README-only), so OEE numbers
+  have no live source.
+- Auth is a service-account proxy (not yet per-user) — see
+  `apps/frontend/README.md`'s "Auth model" section before touching
+  anything auth-related. API keys/secrets live in `.env.local`
+  (gitignored), never hardcoded.
 
 ## What you're building toward
 

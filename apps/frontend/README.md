@@ -71,11 +71,38 @@ sessions to ship fast:
   `components/DocActionBar.tsx`). `lib/salesDefaults.ts` resolves
   company/currency/price-list/accounting defaults the way Desk does
   client-side — deliberately simplified for this single-currency (LKR)
-  business (conversion_rate always 1, no exchange-rate lookups, no Price
-  List/Pricing Rule resolution — line rate defaults to the Item's own
-  `standard_rate`, editable per line; a resolved fallback warehouse is
-  applied to every Sales Order line too, since not every item has a
-  per-company default warehouse configured in ERPNext — see `getSellingDefaults`).
+  business (conversion_rate always 1, no exchange-rate lookups); a resolved
+  fallback warehouse is applied to every Sales Order line too, since not
+  every item has a per-company default warehouse configured in ERPNext —
+  see `getSellingDefaults`. Line items now resolve through ERPNext's real
+  `apply_pricing_rule` engine, and document-level discounts
+  (`apply_discount_on`/`additional_discount_percentage`/`discount_amount`)
+  are live on all three doctypes.
+- **Sales scope beyond the original happy path** (shipped 2026-09-14/15):
+  Pick & Pack (Sales Order → Pick List → Delivery Note, with
+  `picked_qty`/`delivered_qty` write-back), partial fulfillment (multiple
+  partial Sales Orders from one Quotation, multiple partial Invoices from
+  one Sales Order), "Copy From Quotation" (SAP B1-style multi-Quotation →
+  one Sales Order), Quotation lifecycle ("Set as Lost", Amend-after-cancel),
+  and a Reports hub covering the majority of ERPNext's native
+  Selling-module reports. Full detail in `docs/controls/FRONTEND_GUIDE.md` §9.
+- **Buying module** (shipped, live-verified 2026-09-16): full core
+  purchasing cycle — Material Request → Request for Quotation → Supplier
+  Quotation → Purchase Order → Purchase Receipt → Purchase Invoice — plus
+  Suppliers, mirroring the Sales module's list/`[name]`/`actions.ts`
+  pattern, behind its own Sidebar nav group. Live end-to-end QA pass
+  confirmed correct `Bin` stock impact and error-case handling; no code
+  fixes required. Buying Reports hub live (13 of ERPNext's native
+  Buying-workspace reports). See `docs/controls/FRONTEND_GUIDE.md` §10.
+- **Inventory / Stock module** (shipped, reviewed + QA'd 2026-09-16):
+  Warehouses, Batches, Serial Nos (shared `MasterTable`/`MasterForm`
+  masters), Stock Entry (Material Issue/Receipt/Transfer with a real
+  Draft→Submitted→Cancelled workflow and batch/serial line tracking via the
+  same `BatchSerialPicker` built for Delivery Note), Stock Balance (a live
+  view backed by the `Bin` doctype), and a Stock Reports hub entry — full
+  Inventory MVP v1 scope. QA caught and fixed one real bug (`s_warehouse`
+  not sent on batch/serial-tracked outbound Stock Entries — see `QA_LOG.md`).
+  See `docs/controls/FRONTEND_GUIDE.md` §10a.
 - **Tab layout + Connections** (mirrors ERPNext's own Desk form):
   `components/DocTabs.tsx` gives Quotation/Sales Order/Sales Invoice
   detail pages the same Details / Address & Contact / Terms / More Info /
@@ -92,8 +119,12 @@ sessions to ship fast:
 
 ## Not yet done
 
-- Tax/discount handling on any sales document — line rate is the whole
-  story right now.
+- Sri Lanka-specific tax handling (VAT/SVAT/WHT) — ERPNext ships no
+  regional tax pack for this; document-level discounts are live (see
+  above), but tax is still not started.
+- Manufacturing module — locked per the Current Mission priority lock in
+  the root `CLAUDE.md` (Sales → Inventory MVP → Buying → Manufacturing)
+  until further notice; shown as a greyed "coming soon" sidebar entry.
 - Real-time notifications (needs per-user ERPNext sessions)
 - `mes-service` / machine-status dashboard (the original placeholder
   homepage content — will come back once Manufacturing starts)

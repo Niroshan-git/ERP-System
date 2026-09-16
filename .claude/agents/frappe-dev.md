@@ -40,20 +40,25 @@ rather than reaching for a core patch.
 
 ## Current reality — read this before assuming anything
 
-- **`apps/smart_factory` in this local repo is just a README right now.**
-  The actual app code was created directly on the server (`bench new-app`
-  inside the `frappe_docker-backend-1` container) and hand-edited there —
-  it has not been pulled down into this local checkout yet. Before editing
-  "the app," check whether you're looking at the local stub or need to pull
-  the live version down first; don't assume local and live are in sync.
+- **`apps/smart_factory` was pulled into this local repo on 2026-09-13**
+  (commit `b955a55`) — it is no longer just a README stub. The real app
+  code (`smart_factory/boot.py`, `hooks.py`, `public/css/ceylon_stack_desk.css`,
+  `public/js/ceylon_stack_desk.js`, etc.) lives locally now and is what you
+  should edit directly. It's still the same code that was originally
+  hand-edited on the server, so **local and live can drift** if a change is
+  made on one side and not the other — check git status / diff against the
+  live container before assuming they're in sync, especially since
+  deploying a local change still requires the `docker cp`-based
+  `deploy-smart-factory` skill (see below), not a simple restart.
 - What exists today, per `PROGRESS.md`: a `boot_session` hook rewriting
   `bootinfo.app_data` for Desk branding, `app_include_css`/`app_include_js`
-  for theme overrides, and (as of the most recent session) a `Workspace` +
-  `Desktop Icon` pair for the app-switcher tile. **No Manufacturing/OEE
-  business logic exists yet** — Machine/Sensor Reading DocTypes, OEE fields
-  on Job Card, Sri Lanka tax fields, and industry-specific fields are all
-  still ahead, per `PLAN.md` and `docs/ceylon-stack-playbook.html` § Build
-  Around It.
+  for theme overrides, and a `Workspace` + `Desktop Icon` pair for the
+  app-switcher tile. **No Manufacturing/OEE business logic exists yet** —
+  Machine/Sensor Reading DocTypes, OEE fields on Job Card, Sri Lanka tax
+  fields, and industry-specific fields are all still ahead, per `PLAN.md`
+  and `docs/ceylon-stack-playbook.html` § Build Around It — and Manufacturing
+  work specifically stays locked per the Current Mission priority lock in
+  `CLAUDE.md`, even for self-contained-looking backend additions.
 - No manufacturing master data exists on the live instance yet (fresh
   install past only the company wizard) — new DocTypes/fields will have
   nothing real to validate against until that changes.

@@ -384,7 +384,8 @@ no further edit needed. Inventory MVP package is now fully closed per the Defini
 - No manufacturing master data (Items, BOM, Workstations, Work Orders) has been created yet.
 - No mobile browser testing of the Desk UI has been done yet.
 - ERPNext Administrator default password has not been changed yet.
-- MQTT broker, MES/FastAPI service, Postgres/TimescaleDB have not been started. The Next.js frontend is scaffolded and branded but has no ERPNext API integration or real dashboard screens yet.
+- MQTT broker, MES/FastAPI service, Postgres/TimescaleDB have not been started.
+- *(Superseded — kept for history: this line originally said the Next.js frontend had no ERPNext API integration or real dashboard screens. As of 2026-09-16 that's no longer true — Sales, Buying, and Stock are all shipped and QA'd; see the Inventory MVP and Buying package-closeout entries above and `QA_LOG.md`.)*
 - `pwd.yml` has no `restart:` policy — containers require a manual restart after any server reboot.
 
 ## Decision Log
@@ -666,3 +667,34 @@ confirmed back at pre-QA baseline.
 
 Buying core cycle now meets the Definition of Ready (`AGENT_OPERATING_GUIDE.md` §8) and
 is accepted. See `QA_LOG.md` for the compact QA record.
+
+## Documentation alignment package (2026-09-16)
+
+Doc-only package: no application code changed. Several docs had drifted behind the
+Inventory MVP and Buying package closeouts above and were actively contradicting the
+rest of the project's own records — fixed so future sessions don't inherit stale context:
+
+- `apps/frontend/README.md` — "What's built" only described the Sales-only Phase 1-3
+  state and explicitly claimed "no Price List/Pricing Rule resolution," which shipped
+  2026-09-15. Added Buying and Stock module summaries, the Pick & Pack/partial
+  fulfillment/Copy From/Quotation-lifecycle/Pricing Rule shipped scope, and corrected
+  "Not yet done" (removed the now-false discount claim, kept tax since that's still
+  unbuilt, added the Manufacturing lock).
+- `.claude/agents/frontend-dev.md`, `product-designer.md`, `qa-tester.md`,
+  `inventory-procurement.md`, `mcp-dev.md`, `frappe-dev.md` — each had a "Current
+  reality" section claiming no ERPNext integration / no dashboard screens / no
+  Items-warehouses-transactions / mcp-server as README-only / local `smart_factory` as
+  README-only. All corrected against the actual current repo state and `QA_LOG.md`;
+  `manufacturing-floor.md` and `mes-dev.md` were checked and left untouched — both
+  correctly still describe Manufacturing/MES as not built.
+- `docs/ceylon-stack-documentation.html` — the "Buying Module" section-header badge
+  still read Building even though its own most recent changelog entry says the core
+  cycle moved to Live; corrected the badge and logged the correction in the changelog.
+- This entry (`PROGRESS.md`'s own stale "no ERPNext API integration or real dashboard
+  screens" line in the "Not Yet Done" section, superseded in place above).
+
+No QA_LOG.md entry — this was a documentation-only pass with no code or live-system
+change to test. Notion was not touched — no implementation plan or shipped-status
+change resulted from this package. `docs/ceylon-stack-documentation.html` was touched
+only for the one factual status-badge correction, not a general rewrite.
+
