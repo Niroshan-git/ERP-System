@@ -35,7 +35,7 @@ This mirrors the Notion page "Smart Factory on ERPNext – Weekly Implementation
 - [x] Create site, install ERPNext app, log into Desk UI
 - [x] Complete initial company setup wizard
 - [ ] Secure basic access (firewall rules, change default Administrator password)
-- [ ] Enable Manufacturing module, create sample master data (Items, BOM, Workstations, Work Order → Job Cards, Quality Inspection template)
+- [x] Enable Manufacturing module, create sample master data (Items, BOM, Workstations, Work Order → Job Cards, Quality Inspection template)
 - [ ] Walk through a complete Manufacturing flow end-to-end
 - [ ] Verify Desk UI works reasonably on mobile browser
 

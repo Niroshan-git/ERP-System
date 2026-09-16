@@ -801,3 +801,36 @@ section's overall status label (Planned) is still accurate; one callout sentence
 ("not yet run") is now stale text, flagged for a future `release-tracker` pass rather than
 hand-edited here. Notion not touched — no plan changed, this is a new discovery package.
 
+## 2026-09-16 (later still) — Quality Inspection Template created for `FG-STEEL-BRACKET-ASSY`
+
+Closed the one fully-missing item flagged by the Phase 0 walkthrough
+(`docs/erp-inventory.md`): zero Quality Inspection Templates existed anywhere on
+`frontend`. Done by `erp-functional-consultant` as a narrow master-data configuration
+package via `bench --site frontend console` — no code, no custom DocTypes, no core
+changes.
+
+Created 5 `Quality Inspection Parameter` master records (`Visual Finish`,
+`Dimension Check (Length)`, `Hole Alignment`, `Weld/Joint Integrity`, `Final Pass/Fail`)
+and 1 `Quality Inspection Template` (`Steel Bracket Assembly - Final QC`) referencing all
+five as child rows, with realistic acceptance criteria for a steel bracket assembly
+(visual/cosmetic, a numeric dimension check at 149-151mm, hole tolerance, weld integrity,
+and a final accept/reject gate). Linked the template to `Item.quality_inspection_template`
+on `FG-STEEL-BRACKET-ASSY`.
+
+One real ERPNext quirk hit and corrected: the `numeric` checkbox on the
+`Item Quality Inspection Parameter` child DocType defaults to `1` at the field-definition
+level, so all 5 rows came back `numeric=1` after the first insert even though only
+"Dimension Check (Length)" was meant to be numeric. Explicitly set `numeric=0` on the
+other four rows and re-saved; verified via a fresh `frappe.get_doc` read-back that the
+final state is correct (1 numeric row with min/max 149/151, 4 text-value rows with their
+intended acceptance-criteria strings).
+
+No `Quality Inspection` records created (this package is the reusable template only, not
+fake inspection results). No other Item/BOM/Work Order/Job Card master data touched.
+`PLAN.md` line 38 ("Enable Manufacturing module, create sample master data...") checked
+off — every clause was already satisfied except this one. `docs/erp-inventory.md` updated
+with a dated addendum correcting the now-stale "0 Quality Inspection Templates" facts.
+No `QA_LOG.md` entry — this is configuration/master-data work, not a QA test pass.
+`docs/ceylon-stack-documentation.html` and Notion not touched (out of this task's scope;
+Notion sync is handled separately by `release-tracker`).
+
