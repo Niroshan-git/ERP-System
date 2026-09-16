@@ -44,3 +44,7 @@ Thumbs.db
 dist/
 build/
 *.tmp
+
+# --- graphify (machine-local pointers only; graph.json/GRAPH_REPORT.md/graph.html/cache are committed) ---
+graphify-out/.graphify_python
+graphify-out/.graphify_root

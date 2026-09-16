@@ -1,0 +1,1 @@
+{"nodes": [{"id": "pkg_ceylon_services", "label": "ceylon_services", "file_type": "code", "type": "package", "ecosystem": "python", "source_file": "apps/ceylon_services/pyproject.toml", "source_location": "L1"}], "edges": []}
