@@ -1,6 +1,6 @@
 "use server";
 
-import { callMethodWithResult } from "@/lib/erpnext";
+import { callMethodWithResult, getDoc } from "@/lib/erpnext";
 
 const BUNDLE_MODULE = "erpnext.stock.doctype.serial_and_batch_bundle.serial_and_batch_bundle";
 
@@ -83,6 +83,26 @@ export type BatchSerialLedgerEntry = { qty: number; batch_no?: string; serial_no
  * 403 until an ERPNext admin grants `Stock User` to that account (a live-server role change,
  * not a code change). See delivery-notes/actions.ts's error handling for how that surfaces.
  */
+export type SerialBatchBundleEntry = { batch_no?: string; serial_no?: string; qty: number };
+
+/**
+ * Reads back what was actually consumed/received against a real "Serial and Batch Bundle"
+ * doc's `entries` child table — used to show which batches/serials a submitted transaction
+ * line resolved to (the bundle itself is created by `addSerialBatchLedgers` above at
+ * submit-time; this is the read side, for any doctype whose line carries a
+ * `serial_and_batch_bundle` link, not just Stock Entry). Returns `[]` rather than throwing on
+ * a missing/inaccessible bundle — a display-only lookup should never break the page it's on.
+ */
+export async function getSerialBatchBundleEntries(bundleName: string | undefined): Promise<SerialBatchBundleEntry[]> {
+  if (!bundleName) return [];
+  try {
+    const bundle = await getDoc<{ entries: SerialBatchBundleEntry[] }>("Serial and Batch Bundle", bundleName);
+    return bundle.entries ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function addSerialBatchLedgers(args: {
   entries: BatchSerialLedgerEntry[];
   child_row: {
@@ -92,6 +112,13 @@ export async function addSerialBatchLedgers(args: {
     warehouse: string;
     parenttype: string;
     is_rejected?: 0 | 1;
+    /** Stock Entry Detail only — ERPNext's `get_type_of_transaction` reads this exact key
+     * off `child_row` to decide Outward vs Inward for Stock Entry (`"Outward" if
+     * child_row.get("s_warehouse") else "Inward"`, confirmed on the live v16.34.2 server).
+     * The generic `warehouse` field above does not satisfy that check — omitting this key
+     * silently defaults every Stock Entry bundle to "Inward", which then fails to submit
+     * for any outbound purpose (Material Issue/Transfer). */
+    s_warehouse?: string;
   };
   doc: {
     doctype: string;

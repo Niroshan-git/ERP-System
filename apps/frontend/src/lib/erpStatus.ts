@@ -347,6 +347,18 @@ const PURCHASE_INVOICE_STATUS_TONE: Record<string, StatusTone> = {
   "Internal Transfer": "neutral",
 };
 
+/**
+ * Stock Entry has no separate `status` field at all (confirmed via the live DocType JSON —
+ * unlike every other doctype in this file) — Desk's own list view falls back to the generic
+ * docstatus-only indicator: Draft (0) = red, Submitted (1) = blue, Cancelled (2) = red.
+ * Deliberately left this plain rather than inventing status logic that doesn't exist.
+ */
+export function stockEntryStatus(doc: { docstatus: DocStatus }): StatusDisplay {
+  if (doc.docstatus === 0) return { label: "Draft", tone: "neutral" };
+  if (doc.docstatus === 2) return { label: "Cancelled", tone: "alert" };
+  return { label: "Submitted", tone: "signal" };
+}
+
 export function purchaseInvoiceStatus(doc: {
   status: string;
   docstatus: DocStatus;

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
+  ArrowLeftRight,
   Box,
   Boxes,
   Building2,
@@ -18,6 +19,7 @@ import {
   FileMinus,
   FilePenLine,
   Handshake,
+  Layers,
   LayoutDashboard,
   Map,
   MapPin,
@@ -28,6 +30,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ReceiptText,
+  ScanBarcode,
   Settings2,
   ShoppingBag,
   ShoppingCart,
@@ -190,9 +193,44 @@ const BUYING_NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
+// Phase 1 of the Stock + multi-module nav plan: Stock movement (Stock Entries, Stock
+// Balance) ordered first, matching every other module's own "cycle group before masters"
+// convention. "Items" is a link-out to the existing /sales/items route (same precedent
+// Buying already set for /sales/contacts and /sales/addresses) — Item is a shared master,
+// not forked per module.
+const STOCK_NAV_GROUPS: NavGroupDef[] = [
+  {
+    id: "cycle",
+    label: "Stock movement",
+    icon: Workflow,
+    items: [
+      { href: "/stock/stock-entries", label: "Stock Entries", icon: ArrowLeftRight },
+      { href: "/stock/stock-balance", label: "Stock Balance", icon: Boxes },
+    ],
+  },
+  {
+    id: "masters",
+    label: "Warehouses & tracking",
+    icon: Warehouse,
+    items: [
+      { href: "/stock/warehouses", label: "Warehouses", icon: Warehouse },
+      { href: "/stock/batches", label: "Batches", icon: Layers },
+      { href: "/stock/serial-nos", label: "Serial Nos", icon: ScanBarcode },
+      { href: "/sales/items", label: "Items", icon: Box },
+    ],
+  },
+  {
+    id: "reports",
+    label: "Stock reports",
+    icon: ChartNoAxesCombined,
+    items: [{ href: "/stock/reports", label: "Stock Reports", icon: ChartNoAxesCombined }],
+  },
+];
+
 const MODULES: ModuleDef[] = [
   { id: "sales", label: "Selling", homeHref: "/sales", icon: ShoppingCart, groups: SALES_NAV_GROUPS },
   { id: "buying", label: "Buying", homeHref: "/buying", icon: ShoppingBag, groups: BUYING_NAV_GROUPS },
+  { id: "stock", label: "Inventory", homeHref: "/stock", icon: Boxes, groups: STOCK_NAV_GROUPS },
   { id: "manufacturing", label: "Manufacturing", homeHref: "/manufacturing", icon: Factory, groups: [], soon: true },
 ];
 

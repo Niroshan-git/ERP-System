@@ -10,7 +10,8 @@ export type FieldSpec =
   | { kind: "number"; id: string; label: string; required?: boolean }
   | { kind: "checkbox"; id: string; label: string; defaultChecked?: boolean }
   | { kind: "select"; id: string; label: string; options: string[]; required?: boolean }
-  | { kind: "link"; id: string; label: string; options: string[] | null; required?: boolean };
+  | { kind: "link"; id: string; label: string; options: string[] | null; required?: boolean }
+  | { kind: "date"; id: string; label: string; required?: boolean };
 
 /**
  * Generic create/edit form driven by a FieldSpec[], for the flat/self-referencing
@@ -90,6 +91,17 @@ function FieldInput({ field, initial }: { field: FieldSpec; initial?: Record<str
           placeholder={field.placeholder}
           defaultValue={defaultValue}
           className="w-full rounded-md border border-border px-3 py-2 text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
+        />
+      )}
+
+      {field.kind === "date" && (
+        <input
+          type="date"
+          id={field.id}
+          name={field.id}
+          required={field.required}
+          defaultValue={defaultValue}
+          className="w-full rounded-md border border-border px-3 py-2 font-mono text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
         />
       )}
 

@@ -257,6 +257,116 @@ stacked.").
   original branding pass, unchanged by this task since it was scoped to
   "live Desk" branding fields already wired up, not new surfaces.
 
+## 2026-09-16 — `apps/frontend` build: Inventory (Stock) module
+
+Fourth frontend module, following the Sales → Buying build order (`FRONTEND_GUIDE.md` §4
+updated accordingly). Reused the exact list/create/edit/`actions.ts` triad established by
+Buying — `lib/erpnext.ts` needed zero changes.
+
+- **Sidebar**: new `stock` module (label "Inventory") inserted between Buying and
+  Manufacturing — Stock movement group (Stock Entries, Stock Balance), Warehouses & tracking
+  group (Warehouses, Batches, Serial Nos, link-out to the shared `/sales/items`), Stock
+  Reports.
+- **Warehouse / Batch / Serial No masters**: generic `MasterTable`/`MasterForm`, no
+  submit/cancel (confirmed none of the three have a docstatus field). `MasterForm.tsx`
+  gained one new `FieldSpec` variant (`kind: "date"`) for Batch's `expiry_date` — the only
+  change to a shared component this build made. `batch_id`/`serial_no` are excluded from
+  each doctype's *edit* form (they're the record's own immutable name) but required on create.
+- **`lib/stockDefaults.ts`** (new): company + full non-group/non-disabled warehouse list per
+  company, mirroring `buyingDefaults.ts`'s structure without the accounting fields Stock
+  Entry doesn't need.
+- **Stock Entry** (`stock-entries/`): new bespoke `StockEntryForm.tsx` component. Purpose is
+  restricted to Material Issue / Material Receipt / Material Transfer (Manufacture/Repack/
+  Subcontracting purposes are Manufacturing-scope, out of bounds here); `stock_entry_type` is
+  set to the same string as `purpose` (confirmed live: the Stock Entry Type records are
+  literally named to match). Two decisions made and live-verified, not guessed:
+  - **Rate handling**: Rate column only shown (`showRate`) for Material Receipt — Material
+    Issue/Transfer let ERPNext compute `basic_rate` itself from existing stock valuation.
+  - **Dual-warehouse limitation**: `LineItemsEditor` only supports one `defaultWarehouse`
+    (used as each line's *source* warehouse for Issue/Transfer, via the header's
+    `from_warehouse`). Material Transfer's *target* warehouse has no per-line UI in that
+    shared component — rather than forking it, the header's `to_warehouse` is applied
+    uniformly to every line's `t_warehouse` (documented in `actions.ts`, surfaced to the user
+    as a note in the form).
+  - **Inbound batch/serial capture skipped for v1**: `LineItemsEditor`'s FIFO batch/serial
+    picker only appears when a `defaultWarehouse` is passed — deliberately withheld for
+    Material Receipt (new stock has nothing existing to allocate against; the picker is
+    built for the opposite, outbound direction). Batch/serial capture on receipt isn't
+    offered in this form; use the Batches/Serial Nos screens afterward if needed.
+  - Batch/serial picker on Material Issue/Transfer lines reuses `BatchSerialPicker`/
+    `getAutoBatchSerialData`/`addSerialBatchLedgers` exactly as Delivery Note does, with a
+    self-contained `attachBatchSerialBundles` in `stock-entries/actions.ts` (child doctype
+    "Stock Entry Detail" instead of "Delivery Note Item" — not shared code, per the guide's
+    one-doctype-per-folder rule).
+- **Stock Balance** (`stock-balance/`): read-only, backed directly by `Bin` (`listDocs`),
+  filterable by item/warehouse. **Live-verified, not guessed**: ERPNext's own "Stock Balance"
+  Script Report has `prepared_report=1` on this server (`GET /api/resource/Report/Stock
+  Balance`) — it only runs as a background job Desk itself polls for; `frappe.desk
+  .query_report.run` (this app's `runReport()`) returns an empty `{prepared_report: true,
+  doc: null}` shell instead of real columns/result, with no polling machinery in this app
+  to drive it. The Bin-backed page fills the same "what's on hand" need as a live snapshot
+  instead.
+- **Stock Reports hub** (`lib/stockReports.ts`): catalog of the real Stock reports (module
+  Stock on the live `Report` doctype) — Stock Balance's `href` points at `/stock/stock-balance`
+  (see above) rather than the generic `/stock/reports/[slug]` runner; the rest are listed
+  "Coming soon" for v1. One real correction made against the plan's working title: the live
+  report is named "Warehouse wise Item Balance Age and Value" (no hyphen, lowercase "wise"),
+  not "Warehouse-wise...".
+- **Live-verified end-to-end** (direct ERPNext API calls matching the exact payload shapes
+  `actions.ts` sends, since Next.js server actions can't be driven from plain `curl`):
+  Warehouse create + update; Stock Entry create → update (Draft) → submit → cancel for all
+  three purposes (Material Issue/Receipt/Transfer), including `s_warehouse`/`t_warehouse`
+  wiring; Bin correctly reflected post-submit quantities across all three entries; Serial No
+  create/delete. **Batch create hit a real ERPNext business-rule block, not a code bug**:
+  "The selected item cannot have Batch" — no Item on this instance has `has_batch_no=1` yet
+  (confirmed: 0 of 20 live Items do), so the Batch master's create flow could only be verified
+  as far as ERPNext's own validation, not a successful save — same "no manufacturing/tracking
+  master data yet" gap already logged elsewhere in this file.
+- **No permission gaps hit this pass** — `frontend-integration`'s roles were re-checked live
+  and now include `Stock Manager`/`Stock User`/`System Manager` (broader than the
+  Sales-User-only set logged in earlier entries), so every Stock doctype (Warehouse, Stock
+  Entry, Batch, Serial No, Bin) read/wrote without a single 403 in this session.
+- All new/changed files: `components/Sidebar.tsx`, `components/MasterForm.tsx`, new
+  `components/StockEntryForm.tsx`, `components/StockEntriesTable.tsx`,
+  `components/StockBalanceTable.tsx`, `lib/stockDefaults.ts`, `lib/stockReports.ts`,
+  `lib/erpStatus.ts` (+`stockEntryStatus`), `lib/tableColumns.ts` (+`stock-entries`/
+  `stock-balance` table ids), and the full `app/(app)/stock/**` route tree (module home,
+  warehouses/batches/serial-nos masters, stock-entries, stock-balance, reports hub).
+
+### Review + QA pass (2026-09-16, same day) — one real bug caught and fixed
+
+`code-reviewer` found no blockers (architecture, component reuse, and the purpose-driven
+warehouse/rate wiring all checked out; one pre-existing, consciously-carried-forward gap
+noted — re-editing a Draft Stock Entry doesn't repopulate an already-attached batch/serial
+selection, same accepted limitation Delivery Note already has).
+
+`qa-tester` live-tested against the real ERPNext instance and caught what review didn't:
+**every batch/serial-tracked Material Issue/Transfer failed to submit** —
+`ValidationError: The Serial and Batch Bundle ... is not valid for this transaction. The
+'Type of Transaction' should be 'Outward' instead of 'Inward'`. Root cause: ERPNext's
+`get_type_of_transaction` (`serial_and_batch_bundle.py`) decides Outward vs Inward for a
+Stock Entry line by checking `child_row.get("s_warehouse")` specifically — the generic
+`warehouse` key `attachBatchSerialBundles` (`stock-entries/actions.ts`) was already sending
+doesn't satisfy that check, so every bundle silently defaulted to Inward regardless of
+purpose. Plain (non-batch/serial) Material Issue/Receipt/Transfer and Stock Balance were
+unaffected and passed on the first QA pass.
+
+**Fix**: `addSerialBatchLedgers`'s `child_row` type (`lib/actions/batchSerialLookup.ts`) now
+accepts an explicit `s_warehouse?: string`, and `attachBatchSerialBundles` passes
+`childRow.s_warehouse` through. Re-verified live: a fresh batch-tracked Material Issue
+(`TEST-BATCH-01` from `Stores - CS`) now returns `type_of_transaction: "Outward"` and
+submits cleanly, with `Bin` correctly reflecting the issued quantity.
+
+All QA-created test documents (`MAT-STE-2026-00008/00009/00011`) were cancelled after
+verification, leaving the demo company's stock levels at their pre-QA baseline. Inventory
+MVP now meets the Definition of Ready (`AGENT_OPERATING_GUIDE.md` §8) and is ready to commit.
+
+**Standing process note for next time** (from both reviewers, not a blocker here): this
+shipped as one six-route package (warehouses/batches/serial-nos/stock-entries/stock-balance/
+reports) rather than split into single-package sessions per `AGENT_USAGE_POLICY.md` §8.
+Matches the precedent already set by the Buying module's own commit, but worth tightening on
+whatever Stock/Inventory work comes next.
+
 ## Not Yet Done (see PLAN.md for full context)
 
 - `smart_factory` exists and does the full Desk branding pass (navbar/sidebar/app-switcher/buttons); it does not yet contain any actual Manufacturing/OEE business logic — that's still 100% ahead, per `PLAN.md`.
