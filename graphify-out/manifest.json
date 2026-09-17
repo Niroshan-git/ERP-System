@@ -265,9 +265,9 @@
     "semantic_hash": "98f28080c011c89290fab09c27e562ed"
   },
   "apps/frontend/src/app/(app)/page.tsx": {
-    "mtime": 1789527004.1680138,
-    "ast_hash": "2d6a7db09c4cdbaa07516d6ca680785a",
-    "semantic_hash": "2d6a7db09c4cdbaa07516d6ca680785a"
+    "mtime": 1789584598.965977,
+    "ast_hash": "dd889b0a0b9e66e3db275c2d4cd36e92",
+    "semantic_hash": "dd889b0a0b9e66e3db275c2d4cd36e92"
   },
   "apps/frontend/src/app/(app)/reports/[slug]/page.tsx": {
     "mtime": 1789525474.4200225,
@@ -870,9 +870,9 @@
     "semantic_hash": "bfa84638463dc8a6d7dab35477307266"
   },
   "apps/frontend/src/components/DocField.tsx": {
-    "mtime": 1789315615.2815838,
-    "ast_hash": "4c7daaea9ff53694dbabd684bcf6279b",
-    "semantic_hash": "4c7daaea9ff53694dbabd684bcf6279b"
+    "mtime": 1789640235.2442448,
+    "ast_hash": "14600ab6e59c24751f04cf94182c11c4",
+    "semantic_hash": "14600ab6e59c24751f04cf94182c11c4"
   },
   "apps/frontend/src/components/DocTabs.tsx": {
     "mtime": 1789316908.940847,
@@ -1085,9 +1085,9 @@
     "semantic_hash": "bbd989f16b056e5ee94321e5ea15651c"
   },
   "apps/frontend/src/components/Sidebar.tsx": {
-    "mtime": 1789551543.4181056,
-    "ast_hash": "b802fba09dc472aaef938fdfc7946328",
-    "semantic_hash": "b802fba09dc472aaef938fdfc7946328"
+    "mtime": 1789584577.5362422,
+    "ast_hash": "e5b0c9826ed7a9f828eb22ef98144d06",
+    "semantic_hash": "e5b0c9826ed7a9f828eb22ef98144d06"
   },
   "apps/frontend/src/components/StatusPill.tsx": {
     "mtime": 1789312512.7299356,
@@ -1160,9 +1160,9 @@
     "semantic_hash": "948b377b91a4688b340fe92343c77801"
   },
   "apps/frontend/src/lib/actions/itemLookup.ts": {
-    "mtime": 1789395191.9922109,
-    "ast_hash": "0cc0b45cb1154d0b0cc2a76c8ca8a004",
-    "semantic_hash": "0cc0b45cb1154d0b0cc2a76c8ca8a004"
+    "mtime": 1789642229.5973086,
+    "ast_hash": "85cfee93052dc01f58be76ae3f43a854",
+    "semantic_hash": "85cfee93052dc01f58be76ae3f43a854"
   },
   "apps/frontend/src/lib/actions/pricingLookup.ts": {
     "mtime": 1789490492.7857566,
@@ -1205,9 +1205,9 @@
     "semantic_hash": "eb9e03105d882d23e2d9bd7a773b76eb"
   },
   "apps/frontend/src/lib/erpStatus.ts": {
-    "mtime": 1789551735.2223358,
-    "ast_hash": "53c21fd653156e0b8ef41e1a050bff93",
-    "semantic_hash": "53c21fd653156e0b8ef41e1a050bff93"
+    "mtime": 1789657775.660616,
+    "ast_hash": "e06fd9a6f1f47b3ba96f9c99a1eae388",
+    "semantic_hash": "e06fd9a6f1f47b3ba96f9c99a1eae388"
   },
   "apps/frontend/src/lib/erpnext.ts": {
     "mtime": 1789523458.8481677,
@@ -1300,9 +1300,9 @@
     "semantic_hash": "bbdbf89550a42016df6d27b9b5cb272d"
   },
   "apps/frontend/src/lib/tableColumns.ts": {
-    "mtime": 1789551728.5327945,
-    "ast_hash": "d429f03395ed85d6e486932f95ae9550",
-    "semantic_hash": "d429f03395ed85d6e486932f95ae9550"
+    "mtime": 1789584524.9367943,
+    "ast_hash": "e1ad1da7484e5f826762839b79f5d9aa",
+    "semantic_hash": "e1ad1da7484e5f826762839b79f5d9aa"
   },
   "apps/frontend/src/lib/theme.ts": {
     "mtime": 1789412584.637221,
@@ -1335,14 +1335,14 @@
     "semantic_hash": "f6de44fc4a69080e7746db1effe691ea"
   },
   "apps/mcp-server/src/erpnext_client.py": {
-    "mtime": 1789237088.5227163,
-    "ast_hash": "abf6d9515af43340e17252f694387d57",
-    "semantic_hash": "abf6d9515af43340e17252f694387d57"
+    "mtime": 1789581229.1147,
+    "ast_hash": "17664e0d271fdc5399066296a964a254",
+    "semantic_hash": "17664e0d271fdc5399066296a964a254"
   },
   "apps/mcp-server/src/server.py": {
-    "mtime": 1789236578.7912314,
-    "ast_hash": "855a4c2d3156c817b6d2a6a5b32a60c9",
-    "semantic_hash": "855a4c2d3156c817b6d2a6a5b32a60c9"
+    "mtime": 1789584235.1194327,
+    "ast_hash": "759629cca844814d8c7984f4d64f7039",
+    "semantic_hash": "759629cca844814d8c7984f4d64f7039"
   },
   "apps/smart_factory/pyproject.toml": {
     "mtime": 1789240929.1617508,
@@ -1425,9 +1425,9 @@
     "semantic_hash": "1ff7b8a8d0e2f22c488665ebbf63b04d"
   },
   ".claude/agents/code-reviewer.md": {
-    "mtime": 1789560837.3976884,
-    "ast_hash": "b0264539b9a27668fad8ba501d0e8880",
-    "semantic_hash": "b0264539b9a27668fad8ba501d0e8880"
+    "mtime": 1789564954.0648394,
+    "ast_hash": "a5cedb07bf8319fd46ed854620cbc067",
+    "semantic_hash": "a5cedb07bf8319fd46ed854620cbc067"
   },
   ".claude/agents/devops.md": {
     "mtime": 1789231009.8759663,
@@ -1445,19 +1445,19 @@
     "semantic_hash": "efb5287f333f4843ea3133d6bb02d653"
   },
   ".claude/agents/frappe-dev.md": {
-    "mtime": 1789560886.512458,
-    "ast_hash": "4c0852350e2d91a7506b178d5bd8fa0d",
-    "semantic_hash": "4c0852350e2d91a7506b178d5bd8fa0d"
+    "mtime": 1789575260.141515,
+    "ast_hash": "19f9c82ef41c443b7c6fd070b7bb27d8",
+    "semantic_hash": "19f9c82ef41c443b7c6fd070b7bb27d8"
   },
   ".claude/agents/frontend-dev.md": {
-    "mtime": 1789560825.039076,
-    "ast_hash": "7d6e0b5c6bf5c5a623c0ab0c28a980c8",
-    "semantic_hash": "7d6e0b5c6bf5c5a623c0ab0c28a980c8"
+    "mtime": 1789575184.9910998,
+    "ast_hash": "74ab13d0c508a9c0a58f8e22ccb56c83",
+    "semantic_hash": "74ab13d0c508a9c0a58f8e22ccb56c83"
   },
   ".claude/agents/inventory-procurement.md": {
-    "mtime": 1789560874.724914,
-    "ast_hash": "85c99a3f018d48f07c1d8d1bf29a81c9",
-    "semantic_hash": "85c99a3f018d48f07c1d8d1bf29a81c9"
+    "mtime": 1789575210.5974724,
+    "ast_hash": "d22f238d99bb54ea5be7820d9c4e77fa",
+    "semantic_hash": "d22f238d99bb54ea5be7820d9c4e77fa"
   },
   ".claude/agents/manufacturing-floor.md": {
     "mtime": 1789231158.7091367,
@@ -1465,9 +1465,9 @@
     "semantic_hash": "17453be75de27023551beac0ef791701"
   },
   ".claude/agents/mcp-dev.md": {
-    "mtime": 1789231379.958678,
-    "ast_hash": "baf54ff1cb107cfe056f5c9a1d3c3ed2",
-    "semantic_hash": "baf54ff1cb107cfe056f5c9a1d3c3ed2"
+    "mtime": 1789575224.7910643,
+    "ast_hash": "7dce66bdefce9805ae7baaf5933369fc",
+    "semantic_hash": "7dce66bdefce9805ae7baaf5933369fc"
   },
   ".claude/agents/mes-dev.md": {
     "mtime": 1789231371.0083506,
@@ -1475,14 +1475,14 @@
     "semantic_hash": "478db11336c394beb50b03fdd60c58ac"
   },
   ".claude/agents/product-designer.md": {
-    "mtime": 1789231415.7914677,
-    "ast_hash": "827c711190c885f1e841b5109b8a2d18",
-    "semantic_hash": "827c711190c885f1e841b5109b8a2d18"
+    "mtime": 1789575235.8993962,
+    "ast_hash": "a0575bf5bcc2e105b661d680e2b2f0c4",
+    "semantic_hash": "a0575bf5bcc2e105b661d680e2b2f0c4"
   },
   ".claude/agents/qa-tester.md": {
-    "mtime": 1789560850.3611681,
-    "ast_hash": "a06c8604eb9b8a7c7cdea4f3924bd6ce",
-    "semantic_hash": "a06c8604eb9b8a7c7cdea4f3924bd6ce"
+    "mtime": 1789575246.364546,
+    "ast_hash": "683d81d70334cd6753f61a6b6397ae2c",
+    "semantic_hash": "683d81d70334cd6753f61a6b6397ae2c"
   },
   ".claude/agents/quality-compliance.md": {
     "mtime": 1789231202.9198914,
@@ -1490,9 +1490,9 @@
     "semantic_hash": "d6634cbbc8d9e75db2e531067ea918d8"
   },
   ".claude/agents/release-tracker.md": {
-    "mtime": 1789560863.4570775,
-    "ast_hash": "3fefc6b24185f5b6d6f32775e73abae6",
-    "semantic_hash": "3fefc6b24185f5b6d6f32775e73abae6"
+    "mtime": 1789564978.6166523,
+    "ast_hash": "9f8d5f8c859db82bc6371fe1ecf8453d",
+    "semantic_hash": "9f8d5f8c859db82bc6371fe1ecf8453d"
   },
   ".claude/agents/security-specialist.md": {
     "mtime": 1789285557.7587638,
@@ -1509,55 +1509,35 @@
     "ast_hash": "ae5a72d53fad4803dbc51370ac1261f7",
     "semantic_hash": "ae5a72d53fad4803dbc51370ac1261f7"
   },
-  "AGENT_OPERATING_GUIDE.md": {
-    "mtime": 1789560542.0287175,
-    "ast_hash": "a86f0865f7c19e1327d1d822b5c434f2",
-    "semantic_hash": "a86f0865f7c19e1327d1d822b5c434f2"
-  },
-  "AGENT_USAGE_POLICY.md": {
-    "mtime": 1789560534.888404,
-    "ast_hash": "cb6ad375c7df7008f875c4f2c1ad02cb",
-    "semantic_hash": "cb6ad375c7df7008f875c4f2c1ad02cb"
-  },
   "CLAUDE.md": {
-    "mtime": 1789560810.4312718,
-    "ast_hash": "9efed270bb27f0902d8a00a1a88cba30",
-    "semantic_hash": "9efed270bb27f0902d8a00a1a88cba30"
+    "mtime": 1789659814.573808,
+    "ast_hash": "34f22ec2f790f810c81c26bdcb7b53bb",
+    "semantic_hash": "34f22ec2f790f810c81c26bdcb7b53bb"
   },
   "DESIGN.md": {
     "mtime": 1789315793.7022247,
     "ast_hash": "d7e89788226c82b13ff2f3ec7e895436",
     "semantic_hash": "d7e89788226c82b13ff2f3ec7e895436"
   },
-  "DEVELOPMENT_SYSTEM_RULES.md": {
-    "mtime": 1789560550.5026717,
-    "ast_hash": "2c505c341a92bdd1873805dfa0ad7391",
-    "semantic_hash": "2c505c341a92bdd1873805dfa0ad7391"
-  },
-  "FRONTEND_GUIDE.md": {
-    "mtime": 1789551346.785932,
-    "ast_hash": "d48823814ebb5f1a8edc845e60156cd1",
-    "semantic_hash": "d48823814ebb5f1a8edc845e60156cd1"
-  },
   "PLAN.md": {
-    "mtime": 1789315793.7028253,
-    "ast_hash": "89afc4e9caad839404b7532d15edc6d1",
-    "semantic_hash": "89afc4e9caad839404b7532d15edc6d1"
+    "mtime": 1789580781.8993995,
+    "ast_hash": "7c47e487a7a3c191352d53cdbd14a5c6",
+    "semantic_hash": "7c47e487a7a3c191352d53cdbd14a5c6"
   },
   "PROGRESS.md": {
-    "mtime": 1789563248.1266232,
-    "ast_hash": "04bfaf84ddd7ada764cdd5d700e5bfa2",
-    "semantic_hash": "04bfaf84ddd7ada764cdd5d700e5bfa2"
+    "mtime": 1789659274.466902,
+    "ast_hash": "380e0e0171439b97833fe663a6381246",
+    "semantic_hash": "380e0e0171439b97833fe663a6381246"
   },
   "QA_LOG.md": {
-    "mtime": 1789563169.0949438,
-    "ast_hash": "25a710370b508c5c8c13dd811165804b",
-    "semantic_hash": "25a710370b508c5c8c13dd811165804b"
+    "mtime": 1789658919.7032409,
+    "ast_hash": "f9578a808bf1e77c1c99cd9b5861d559",
+    "semantic_hash": "f9578a808bf1e77c1c99cd9b5861d559"
   },
   "README.md": {
-    "mtime": 1789270881.636926,
-    "ast_hash": "85631b6ed76e9204c52a74b26a87e462",
-    "semantic_hash": "85631b6ed76e9204c52a74b26a87e462"
+    "mtime": 1789564925.3630126,
+    "ast_hash": "1cb9a573335485768006185a7a62ebb7",
+    "semantic_hash": "1cb9a573335485768006185a7a62ebb7"
   },
   "apps/ceylon_services/.pre-commit-config.yaml": {
     "mtime": 1789273878.0,
@@ -1595,14 +1575,14 @@
     "semantic_hash": "5c27369b226fcf2be8a6cfe52224e767"
   },
   "apps/frontend/README.md": {
-    "mtime": 1789320064.4242487,
-    "ast_hash": "0ccdc35b7eed7ad4bd7e7c852c34fcbb",
-    "semantic_hash": "0ccdc35b7eed7ad4bd7e7c852c34fcbb"
+    "mtime": 1789658954.735085,
+    "ast_hash": "631fdccad3da48f8e51fc115833549e8",
+    "semantic_hash": "631fdccad3da48f8e51fc115833549e8"
   },
   "apps/mcp-server/README.md": {
-    "mtime": 1789236610.2869537,
-    "ast_hash": "729078883ee0d02b8005072def3980c2",
-    "semantic_hash": "729078883ee0d02b8005072def3980c2"
+    "mtime": 1789584235.1569567,
+    "ast_hash": "07b46c5e762a95f507e751871d437834",
+    "semantic_hash": "07b46c5e762a95f507e751871d437834"
   },
   "apps/mcp-server/requirements.txt": {
     "mtime": 1789235971.0527022,
@@ -1695,9 +1675,9 @@
     "semantic_hash": "f70da24235466ffe7f7ac7588b59e959"
   },
   "docs/ceylon-stack-documentation.html": {
-    "mtime": 1789562631.3035312,
-    "ast_hash": "ad5da98cd87e9678572da628011709cd",
-    "semantic_hash": "ad5da98cd87e9678572da628011709cd"
+    "mtime": 1789643355.9365952,
+    "ast_hash": "494636113bb1006675b88970db254fe2",
+    "semantic_hash": "494636113bb1006675b88970db254fe2"
   },
   "docs/ceylon-stack-playbook.html": {
     "mtime": 1789228728.8416202,
@@ -1738,5 +1718,565 @@
     "mtime": 1789218444.472957,
     "ast_hash": "b814cf6e17aa588c0786204a7745cea4",
     "semantic_hash": "b814cf6e17aa588c0786204a7745cea4"
+  },
+  ".claude/settings.json": {
+    "mtime": 1789564229.4248936,
+    "ast_hash": "1cfe068865df8f43a39f0cb65bbc9170",
+    "semantic_hash": "1cfe068865df8f43a39f0cb65bbc9170"
+  },
+  "apps/frontend/src/app/(app)/manufacturing/page.tsx": {
+    "mtime": 1789584549.8327935,
+    "ast_hash": "d31a9de0543aa005f57eaa681116fa54",
+    "semantic_hash": "d31a9de0543aa005f57eaa681116fa54"
+  },
+  "apps/frontend/src/app/(app)/manufacturing/work-orders/[name]/page.tsx": {
+    "mtime": 1789658043.5517998,
+    "ast_hash": "6646e66c5fa0c94d5590b4a42315e960",
+    "semantic_hash": "6646e66c5fa0c94d5590b4a42315e960"
+  },
+  "apps/frontend/src/app/(app)/manufacturing/work-orders/[name]/transfer-materials/actions.ts": {
+    "mtime": 1789658597.5445495,
+    "ast_hash": "85215431b63ef9292046a3ac6355cc0d",
+    "semantic_hash": "85215431b63ef9292046a3ac6355cc0d"
+  },
+  "apps/frontend/src/app/(app)/manufacturing/work-orders/[name]/transfer-materials/page.tsx": {
+    "mtime": 1789659237.246286,
+    "ast_hash": "b8ce914e7338ba1140e05a5b64defbf0",
+    "semantic_hash": "b8ce914e7338ba1140e05a5b64defbf0"
+  },
+  "apps/frontend/src/app/(app)/manufacturing/work-orders/actions.ts": {
+    "mtime": 1789643257.3811269,
+    "ast_hash": "69cacadcfed5402a31d9db684c5c6da7",
+    "semantic_hash": "69cacadcfed5402a31d9db684c5c6da7"
+  },
+  "apps/frontend/src/app/(app)/manufacturing/work-orders/new/page.tsx": {
+    "mtime": 1789642304.0934463,
+    "ast_hash": "e0ffe048a954acf10d898ed314d9235a",
+    "semantic_hash": "e0ffe048a954acf10d898ed314d9235a"
+  },
+  "apps/frontend/src/app/(app)/manufacturing/work-orders/page.tsx": {
+    "mtime": 1789642319.0864706,
+    "ast_hash": "751297ab64214f92b6babd8117905656",
+    "semantic_hash": "751297ab64214f92b6babd8117905656"
+  },
+  "apps/frontend/src/components/MaterialTransferForm.tsx": {
+    "mtime": 1789658989.6986396,
+    "ast_hash": "35cf07fb0a0adbb55d98f5ec98a3e344",
+    "semantic_hash": "35cf07fb0a0adbb55d98f5ec98a3e344"
+  },
+  "apps/frontend/src/components/WorkOrderForm.tsx": {
+    "mtime": 1789642297.4880407,
+    "ast_hash": "5590abb4e23d7b871f15a62aa7fc1a23",
+    "semantic_hash": "5590abb4e23d7b871f15a62aa7fc1a23"
+  },
+  "apps/frontend/src/components/WorkOrdersTable.tsx": {
+    "mtime": 1789638744.6899183,
+    "ast_hash": "3c07777264bf606daf66e7ff66f4891c",
+    "semantic_hash": "3c07777264bf606daf66e7ff66f4891c"
+  },
+  "apps/frontend/src/lib/actions/bomLookup.ts": {
+    "mtime": 1789642239.0245762,
+    "ast_hash": "4a09168f69e291915afe8d3876b94ae9",
+    "semantic_hash": "4a09168f69e291915afe8d3876b94ae9"
+  },
+  "apps/frontend/src/lib/actions/workOrderTransfer.ts": {
+    "mtime": 1789659203.7712233,
+    "ast_hash": "901e4454f05576619acbb4a45d85428b",
+    "semantic_hash": "901e4454f05576619acbb4a45d85428b"
+  },
+  "docs/architecture/decisions/README.md": {
+    "mtime": 1789661181.6081698,
+    "ast_hash": "967821b3e55a0e8ff508b281d59be941",
+    "semantic_hash": "967821b3e55a0e8ff508b281d59be941"
+  },
+  "docs/backend/00-architecture/README.md": {
+    "mtime": 1789660979.3448017,
+    "ast_hash": "d21e2b403906cc1eb2d68a4e22353376",
+    "semantic_hash": "d21e2b403906cc1eb2d68a4e22353376"
+  },
+  "docs/backend/05-manufacturing/README.md": {
+    "mtime": 1789661044.1087644,
+    "ast_hash": "0a5948663737e42b0a54447a9c140461",
+    "semantic_hash": "0a5948663737e42b0a54447a9c140461"
+  },
+  "docs/backend/05-manufacturing/job-card.md": {
+    "mtime": 1789661149.1633584,
+    "ast_hash": "f95bf0028ca1c423b5d58c7d56335a1f",
+    "semantic_hash": "f95bf0028ca1c423b5d58c7d56335a1f"
+  },
+  "docs/backend/05-manufacturing/material-transfer.md": {
+    "mtime": 1789661133.0469139,
+    "ast_hash": "9b08114bd7bbbfc23077b9b60f39256f",
+    "semantic_hash": "9b08114bd7bbbfc23077b9b60f39256f"
+  },
+  "docs/backend/05-manufacturing/work-order.md": {
+    "mtime": 1789661095.9561627,
+    "ast_hash": "d03311db2c0d88cb7520694b942f3c56",
+    "semantic_hash": "d03311db2c0d88cb7520694b942f3c56"
+  },
+  "docs/backend/11-relationships/master-erd.md": {
+    "mtime": 1789661031.420446,
+    "ast_hash": "4adffe51aa2826a92cef71e5aaaedff8",
+    "semantic_hash": "4adffe51aa2826a92cef71e5aaaedff8"
+  },
+  "docs/backend/15-migration/migration-status.md": {
+    "mtime": 1789660992.7907603,
+    "ast_hash": "634efddbbc2976d506d6d8121583f70e",
+    "semantic_hash": "634efddbbc2976d506d6d8121583f70e"
+  },
+  "docs/backend/99-unverified/unverified-behaviours.md": {
+    "mtime": 1789661012.7446592,
+    "ast_hash": "83093e981440f865d7039e77fed2a856",
+    "semantic_hash": "83093e981440f865d7039e77fed2a856"
+  },
+  "docs/backend/README.md": {
+    "mtime": 1789661163.6024814,
+    "ast_hash": "c863de3d2877101d2e13a402e5b3e863",
+    "semantic_hash": "c863de3d2877101d2e13a402e5b3e863"
+  },
+  "docs/controls/AGENT_OPERATING_GUIDE.md": {
+    "mtime": 1789640358.7101989,
+    "ast_hash": "1653c2f71830ef2e83335d0c5c9262b3",
+    "semantic_hash": "1653c2f71830ef2e83335d0c5c9262b3"
+  },
+  "docs/controls/AGENT_USAGE_POLICY.md": {
+    "mtime": 1789564827.4080288,
+    "ast_hash": "65681fae00fc75511253310ff71affe3",
+    "semantic_hash": "65681fae00fc75511253310ff71affe3"
+  },
+  "docs/controls/BACKEND_KNOWLEDGE_POLICY.md": {
+    "mtime": 1789659785.7462518,
+    "ast_hash": "34ce4b553865b61b16f7c250b7db2208",
+    "semantic_hash": "34ce4b553865b61b16f7c250b7db2208"
+  },
+  "docs/controls/DEVELOPMENT_SYSTEM_RULES.md": {
+    "mtime": 1789564799.2366147,
+    "ast_hash": "bbae4a65c248b59a2940ba6e34c3f1f0",
+    "semantic_hash": "bbae4a65c248b59a2940ba6e34c3f1f0"
+  },
+  "docs/controls/FRONTEND_GUIDE.md": {
+    "mtime": 1789658933.5200605,
+    "ast_hash": "a6339355aea81d59b7739e97d2451ba0",
+    "semantic_hash": "a6339355aea81d59b7739e97d2451ba0"
+  },
+  "docs/erp-inventory.md": {
+    "mtime": 1789580804.964988,
+    "ast_hash": "818555015546b4d110c17fb5649bdb8c",
+    "semantic_hash": "818555015546b4d110c17fb5649bdb8c"
+  },
+  "apps/frontend/public/brand/app-logo-512.png": {
+    "mtime": 1789221999.520591,
+    "ast_hash": "6d1e3d5b03758c9a22ca4f087af047e3",
+    "semantic_hash": "6d1e3d5b03758c9a22ca4f087af047e3"
+  },
+  "apps/frontend/public/brand/ceylonstack-app-dark-once.svg": {
+    "mtime": 1789312377.154343,
+    "ast_hash": "2d11634dc0155658d5cfa845b2404846",
+    "semantic_hash": "2d11634dc0155658d5cfa845b2404846"
+  },
+  "apps/frontend/public/brand/ceylonstack-app-original-once.svg": {
+    "mtime": 1789312377.1010578,
+    "ast_hash": "11c34e25cf8292f195f70e32ef666cf2",
+    "semantic_hash": "11c34e25cf8292f195f70e32ef666cf2"
+  },
+  "apps/frontend/public/brand/favicon-16.png": {
+    "mtime": 1789221999.5326567,
+    "ast_hash": "e8f2be007ccf9d2780d1b69b74aba821",
+    "semantic_hash": "e8f2be007ccf9d2780d1b69b74aba821"
+  },
+  "apps/frontend/public/brand/favicon-192.png": {
+    "mtime": 1789221999.5575385,
+    "ast_hash": "a0a203854fc6f544273383291b6b7561",
+    "semantic_hash": "a0a203854fc6f544273383291b6b7561"
+  },
+  "apps/frontend/public/brand/favicon-32.png": {
+    "mtime": 1789221999.5411856,
+    "ast_hash": "ede10aa68f5e268a38060b6ace34f048",
+    "semantic_hash": "ede10aa68f5e268a38060b6ace34f048"
+  },
+  "apps/frontend/public/brand/logo-mark-reverse.svg": {
+    "mtime": 1789221999.5090337,
+    "ast_hash": "4f04b5827fa501e4c4d7c815a3378eff",
+    "semantic_hash": "4f04b5827fa501e4c4d7c815a3378eff"
+  },
+  "apps/frontend/public/brand/logo-mark.svg": {
+    "mtime": 1789221999.4958055,
+    "ast_hash": "963e6e1d1a184390cb03e74ec77b1001",
+    "semantic_hash": "963e6e1d1a184390cb03e74ec77b1001"
+  },
+  "docs/brand/app-logo-512.png": {
+    "mtime": 1789220014.4752152,
+    "ast_hash": "6d1e3d5b03758c9a22ca4f087af047e3",
+    "semantic_hash": "6d1e3d5b03758c9a22ca4f087af047e3"
+  },
+  "docs/brand/favicon-16.png": {
+    "mtime": 1789220017.4089575,
+    "ast_hash": "e8f2be007ccf9d2780d1b69b74aba821",
+    "semantic_hash": "e8f2be007ccf9d2780d1b69b74aba821"
+  },
+  "docs/brand/favicon-192.png": {
+    "mtime": 1789220015.687182,
+    "ast_hash": "a0a203854fc6f544273383291b6b7561",
+    "semantic_hash": "a0a203854fc6f544273383291b6b7561"
+  },
+  "docs/brand/favicon-256.png": {
+    "mtime": 1789220015.092906,
+    "ast_hash": "101931a702ab62dd30fbd19748af9afd",
+    "semantic_hash": "101931a702ab62dd30fbd19748af9afd"
+  },
+  "docs/brand/favicon-32.png": {
+    "mtime": 1789220016.8449192,
+    "ast_hash": "ede10aa68f5e268a38060b6ace34f048",
+    "semantic_hash": "ede10aa68f5e268a38060b6ace34f048"
+  },
+  "docs/brand/favicon-64.png": {
+    "mtime": 1789220016.3048985,
+    "ast_hash": "b1a47693cca2ad1c3a78526bcfa844a7",
+    "semantic_hash": "b1a47693cca2ad1c3a78526bcfa844a7"
+  },
+  "docs/brand/logo-mark-reverse-512.png": {
+    "mtime": 1789220018.0099134,
+    "ast_hash": "77347a93f4c1fc5b705736a9c2d28a08",
+    "semantic_hash": "77347a93f4c1fc5b705736a9c2d28a08"
+  },
+  "docs/brand/logo-mark-reverse.svg": {
+    "mtime": 1789220002.8034256,
+    "ast_hash": "4f04b5827fa501e4c4d7c815a3378eff",
+    "semantic_hash": "4f04b5827fa501e4c4d7c815a3378eff"
+  },
+  "docs/brand/logo-mark.svg": {
+    "mtime": 1789220002.7928293,
+    "ast_hash": "963e6e1d1a184390cb03e74ec77b1001",
+    "semantic_hash": "963e6e1d1a184390cb03e74ec77b1001"
+  },
+  "docs/brand/package/01-Approved-Masters/ceylon-stack-full-detail.svg": {
+    "mtime": 1789231504.2320435,
+    "ast_hash": "664b6646f6a3d2dcee4b7f31e823d1d6",
+    "semantic_hash": "664b6646f6a3d2dcee4b7f31e823d1d6"
+  },
+  "docs/brand/package/01-Approved-Masters/ceylon-stack-logo.svg": {
+    "mtime": 1789231504.2390442,
+    "ast_hash": "c7bea235f87c911033a791754f4928e7",
+    "semantic_hash": "c7bea235f87c911033a791754f4928e7"
+  },
+  "docs/brand/package/01-Approved-Masters/ceylon-stack-mark.svg": {
+    "mtime": 1789231504.246372,
+    "ast_hash": "559a6e43dbd44bddc39fe4b6c98b05d7",
+    "semantic_hash": "559a6e43dbd44bddc39fe4b6c98b05d7"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-full-detail-dark.svg": {
+    "mtime": 1789231504.2572267,
+    "ast_hash": "d9553139230fe0e514d9aec4a6dbc6be",
+    "semantic_hash": "d9553139230fe0e514d9aec4a6dbc6be"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-full-detail-navy.svg": {
+    "mtime": 1789231504.265227,
+    "ast_hash": "3860c46e2c0866c249f2d11a682b503a",
+    "semantic_hash": "3860c46e2c0866c249f2d11a682b503a"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-full-detail-original.svg": {
+    "mtime": 1789231504.2716074,
+    "ast_hash": "9776257014e4d45eeac6905ee58f2fb4",
+    "semantic_hash": "9776257014e4d45eeac6905ee58f2fb4"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-full-detail-white.svg": {
+    "mtime": 1789231504.277851,
+    "ast_hash": "ef30541d490f31e09045bbae54db9960",
+    "semantic_hash": "ef30541d490f31e09045bbae54db9960"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-horizontal-dark.svg": {
+    "mtime": 1789231504.2843864,
+    "ast_hash": "1ab41565cdee3b3efe7d3d285a9c0d30",
+    "semantic_hash": "1ab41565cdee3b3efe7d3d285a9c0d30"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-horizontal-navy.svg": {
+    "mtime": 1789231504.2903917,
+    "ast_hash": "23b2b7faa7eb5dbe269e1a103a730629",
+    "semantic_hash": "23b2b7faa7eb5dbe269e1a103a730629"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-horizontal-original.svg": {
+    "mtime": 1789231504.2968612,
+    "ast_hash": "387c043f68d47ebcae4becb6236329d9",
+    "semantic_hash": "387c043f68d47ebcae4becb6236329d9"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-horizontal-white.svg": {
+    "mtime": 1789231504.302505,
+    "ast_hash": "1c22365a6687bd2d1ae4e977274acd30",
+    "semantic_hash": "1c22365a6687bd2d1ae4e977274acd30"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-mark-dark.svg": {
+    "mtime": 1789231504.3085055,
+    "ast_hash": "3f908672aa0e850898d56d662cec1898",
+    "semantic_hash": "3f908672aa0e850898d56d662cec1898"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-mark-navy.svg": {
+    "mtime": 1789231504.3145103,
+    "ast_hash": "eba5ad851e1f05ecf73e8af2268d3755",
+    "semantic_hash": "eba5ad851e1f05ecf73e8af2268d3755"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-mark-original.svg": {
+    "mtime": 1789231504.3205636,
+    "ast_hash": "d90d07d7b88ce9da59d991a5f0c47da0",
+    "semantic_hash": "d90d07d7b88ce9da59d991a5f0c47da0"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-mark-white.svg": {
+    "mtime": 1789231504.326439,
+    "ast_hash": "0e91dd73b731cb9ddf4dc770525bcb88",
+    "semantic_hash": "0e91dd73b731cb9ddf4dc770525bcb88"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-stacked-dark.svg": {
+    "mtime": 1789231504.3329928,
+    "ast_hash": "556a185dca10ee3c6f0d7af68a4a1afa",
+    "semantic_hash": "556a185dca10ee3c6f0d7af68a4a1afa"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-stacked-navy.svg": {
+    "mtime": 1789231504.3402877,
+    "ast_hash": "233c2473918b1c8f663e51a0d65f980b",
+    "semantic_hash": "233c2473918b1c8f663e51a0d65f980b"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-stacked-original.svg": {
+    "mtime": 1789231504.3455799,
+    "ast_hash": "90f5b777824094413cf07d6c7588d0a9",
+    "semantic_hash": "90f5b777824094413cf07d6c7588d0a9"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-stacked-white.svg": {
+    "mtime": 1789231504.3517337,
+    "ast_hash": "1fcd665fb7a789d8d669488d71d37a0e",
+    "semantic_hash": "1fcd665fb7a789d8d669488d71d37a0e"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-wordmark-dark.svg": {
+    "mtime": 1789231504.357735,
+    "ast_hash": "b6556ec8fc2f7a50d0348f9da3b8c42f",
+    "semantic_hash": "b6556ec8fc2f7a50d0348f9da3b8c42f"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-wordmark-navy.svg": {
+    "mtime": 1789231504.3638427,
+    "ast_hash": "f33a3bb51d85d40777994cdb58be2cc2",
+    "semantic_hash": "f33a3bb51d85d40777994cdb58be2cc2"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-wordmark-original.svg": {
+    "mtime": 1789231504.3702211,
+    "ast_hash": "06663aadc81d1884b1c9a80d72018f1f",
+    "semantic_hash": "06663aadc81d1884b1c9a80d72018f1f"
+  },
+  "docs/brand/package/02-SVG/ceylon-stack-wordmark-white.svg": {
+    "mtime": 1789231504.3763123,
+    "ast_hash": "e86870beb6477a5785ee227bf51b655b",
+    "semantic_hash": "e86870beb6477a5785ee227bf51b655b"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-full-detail-dark-2400.png": {
+    "mtime": 1789231504.3873172,
+    "ast_hash": "e0e89f71dc5dbd7748378e3d2e2e167d",
+    "semantic_hash": "e0e89f71dc5dbd7748378e3d2e2e167d"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-full-detail-navy-2400.png": {
+    "mtime": 1789231504.393317,
+    "ast_hash": "0545e951d7510d2842c34cd7fba71a58",
+    "semantic_hash": "0545e951d7510d2842c34cd7fba71a58"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-full-detail-original-2400.png": {
+    "mtime": 1789231504.400906,
+    "ast_hash": "d41dc692a6bd944e88a493ab97181946",
+    "semantic_hash": "d41dc692a6bd944e88a493ab97181946"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-full-detail-white-2400.png": {
+    "mtime": 1789231504.4072194,
+    "ast_hash": "96a69a7c731e0a71bc842bcbf20a9433",
+    "semantic_hash": "96a69a7c731e0a71bc842bcbf20a9433"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-horizontal-dark-1600.png": {
+    "mtime": 1789231504.4130108,
+    "ast_hash": "bbac841047035c5f093f1b4371cea871",
+    "semantic_hash": "bbac841047035c5f093f1b4371cea871"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-horizontal-navy-1600.png": {
+    "mtime": 1789231504.4183612,
+    "ast_hash": "58301343089aac28ab38268ad8849099",
+    "semantic_hash": "58301343089aac28ab38268ad8849099"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-horizontal-original-1600.png": {
+    "mtime": 1789231504.4253612,
+    "ast_hash": "3ec38dae43be3bd9d91a09065af75b2b",
+    "semantic_hash": "3ec38dae43be3bd9d91a09065af75b2b"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-horizontal-white-1600.png": {
+    "mtime": 1789231504.4303856,
+    "ast_hash": "a1154e399aec889a4316e31e013c4a18",
+    "semantic_hash": "a1154e399aec889a4316e31e013c4a18"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-mark-dark-1024.png": {
+    "mtime": 1789231504.4366198,
+    "ast_hash": "e3c6286d5eb9717cc71802754f5fe0cf",
+    "semantic_hash": "e3c6286d5eb9717cc71802754f5fe0cf"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-mark-navy-1024.png": {
+    "mtime": 1789231504.4436197,
+    "ast_hash": "5e5efc42d507b49516c04f75f3cd77ca",
+    "semantic_hash": "5e5efc42d507b49516c04f75f3cd77ca"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-mark-original-1024.png": {
+    "mtime": 1789231504.4496195,
+    "ast_hash": "d53824aa6081564b6f0c68add9b0d7f0",
+    "semantic_hash": "d53824aa6081564b6f0c68add9b0d7f0"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-mark-white-1024.png": {
+    "mtime": 1789231504.4566207,
+    "ast_hash": "63fe5c0b3bb1b57ee26132076ff5f07e",
+    "semantic_hash": "63fe5c0b3bb1b57ee26132076ff5f07e"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-stacked-dark-1600.png": {
+    "mtime": 1789231504.4626193,
+    "ast_hash": "e8b1cc58eac2b8dfb1ead0645ba0c379",
+    "semantic_hash": "e8b1cc58eac2b8dfb1ead0645ba0c379"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-stacked-navy-1600.png": {
+    "mtime": 1789231504.4686198,
+    "ast_hash": "cfff624fe95dbebd6830425eaf23dbf3",
+    "semantic_hash": "cfff624fe95dbebd6830425eaf23dbf3"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-stacked-original-1600.png": {
+    "mtime": 1789231504.4756193,
+    "ast_hash": "ef254c585d53f27646b1b43bcc207b56",
+    "semantic_hash": "ef254c585d53f27646b1b43bcc207b56"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-stacked-white-1600.png": {
+    "mtime": 1789231504.48062,
+    "ast_hash": "d5f7284ddb5a06be539d22a930793a6c",
+    "semantic_hash": "d5f7284ddb5a06be539d22a930793a6c"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-wordmark-dark-1600.png": {
+    "mtime": 1789231504.4876716,
+    "ast_hash": "d93a270347901a714a80b4aea04e3434",
+    "semantic_hash": "d93a270347901a714a80b4aea04e3434"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-wordmark-navy-1600.png": {
+    "mtime": 1789231504.4927385,
+    "ast_hash": "a3e84fd52efdad6fc6dca84f8df939e8",
+    "semantic_hash": "a3e84fd52efdad6fc6dca84f8df939e8"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-wordmark-original-1600.png": {
+    "mtime": 1789231504.4987385,
+    "ast_hash": "d32dbbd722cd12da2f53158f5276e4f2",
+    "semantic_hash": "d32dbbd722cd12da2f53158f5276e4f2"
+  },
+  "docs/brand/package/03-PNG/ceylon-stack-wordmark-white-1600.png": {
+    "mtime": 1789231504.5036328,
+    "ast_hash": "f706de0820bb59c980c1e5019d54b28b",
+    "semantic_hash": "f706de0820bb59c980c1e5019d54b28b"
+  },
+  "docs/brand/package/04-App-Icons/ceylon-stack-app-1024.png": {
+    "mtime": 1789231504.513904,
+    "ast_hash": "31a93fe6f5316b4f4b5950b577fa671a",
+    "semantic_hash": "31a93fe6f5316b4f4b5950b577fa671a"
+  },
+  "docs/brand/package/04-App-Icons/ceylon-stack-app-128.png": {
+    "mtime": 1789231504.5179038,
+    "ast_hash": "e896753fc86bf3e1ad1e0ee953a11251",
+    "semantic_hash": "e896753fc86bf3e1ad1e0ee953a11251"
+  },
+  "docs/brand/package/04-App-Icons/ceylon-stack-app-16.png": {
+    "mtime": 1789231504.5239038,
+    "ast_hash": "1b98265fc0443d5552ff5d07674c56d7",
+    "semantic_hash": "1b98265fc0443d5552ff5d07674c56d7"
+  },
+  "docs/brand/package/04-App-Icons/ceylon-stack-app-180.png": {
+    "mtime": 1789231504.528661,
+    "ast_hash": "1d4b2cc63f3a7a61e857cf5a2cea8614",
+    "semantic_hash": "1d4b2cc63f3a7a61e857cf5a2cea8614"
+  },
+  "docs/brand/package/04-App-Icons/ceylon-stack-app-192.png": {
+    "mtime": 1789231504.5332806,
+    "ast_hash": "6f6979817ec2d96f2d6529e95525972d",
+    "semantic_hash": "6f6979817ec2d96f2d6529e95525972d"
+  },
+  "docs/brand/package/04-App-Icons/ceylon-stack-app-256.png": {
+    "mtime": 1789231504.5382876,
+    "ast_hash": "5eeec0fe0cdcf226e05dca5ef68be49a",
+    "semantic_hash": "5eeec0fe0cdcf226e05dca5ef68be49a"
+  },
+  "docs/brand/package/04-App-Icons/ceylon-stack-app-32.png": {
+    "mtime": 1789231504.5432858,
+    "ast_hash": "7d2899838a50ab836879de491b7bbef8",
+    "semantic_hash": "7d2899838a50ab836879de491b7bbef8"
+  },
+  "docs/brand/package/04-App-Icons/ceylon-stack-app-48.png": {
+    "mtime": 1789231504.5484376,
+    "ast_hash": "e93e25e8e25058d70a694fc13e6e2f9b",
+    "semantic_hash": "e93e25e8e25058d70a694fc13e6e2f9b"
+  },
+  "docs/brand/package/04-App-Icons/ceylon-stack-app-512.png": {
+    "mtime": 1789231504.5530326,
+    "ast_hash": "4ec6f3ef36935388b503f0c41ee7d9a0",
+    "semantic_hash": "4ec6f3ef36935388b503f0c41ee7d9a0"
+  },
+  "docs/brand/package/04-App-Icons/ceylon-stack-app-64.png": {
+    "mtime": 1789231504.558033,
+    "ast_hash": "a8901e91fc1befaadb78c2bef60f387b",
+    "semantic_hash": "a8901e91fc1befaadb78c2bef60f387b"
+  },
+  "docs/brand/package/04-App-Icons/ceylon-stack-app-icon.svg": {
+    "mtime": 1789231504.5630329,
+    "ast_hash": "a629edb383ffedceafd19e328067bd5b",
+    "semantic_hash": "a629edb383ffedceafd19e328067bd5b"
+  },
+  "docs/brand/package/05-Web/apple-touch-icon.png": {
+    "mtime": 1789231504.5740314,
+    "ast_hash": "1d4b2cc63f3a7a61e857cf5a2cea8614",
+    "semantic_hash": "1d4b2cc63f3a7a61e857cf5a2cea8614"
+  },
+  "docs/brand/package/05-Web/favicon.svg": {
+    "mtime": 1789231504.5980394,
+    "ast_hash": "a629edb383ffedceafd19e328067bd5b",
+    "semantic_hash": "a629edb383ffedceafd19e328067bd5b"
+  },
+  "docs/brand/package/05-Web/icon-192.png": {
+    "mtime": 1789231504.6025505,
+    "ast_hash": "6f6979817ec2d96f2d6529e95525972d",
+    "semantic_hash": "6f6979817ec2d96f2d6529e95525972d"
+  },
+  "docs/brand/package/05-Web/icon-512.png": {
+    "mtime": 1789231504.607552,
+    "ast_hash": "4ec6f3ef36935388b503f0c41ee7d9a0",
+    "semantic_hash": "4ec6f3ef36935388b503f0c41ee7d9a0"
+  },
+  "docs/brand/package/CeylonStack-App-Animation/ceylonstack-app-dark-once.svg": {
+    "mtime": 1789311807.0816555,
+    "ast_hash": "2d11634dc0155658d5cfa845b2404846",
+    "semantic_hash": "2d11634dc0155658d5cfa845b2404846"
+  },
+  "docs/brand/package/CeylonStack-App-Animation/ceylonstack-app-dark.gif": {
+    "mtime": 1789311807.1011627,
+    "ast_hash": "8f54b145f9e3974c4740cb3687ab440c",
+    "semantic_hash": "8f54b145f9e3974c4740cb3687ab440c"
+  },
+  "docs/brand/package/CeylonStack-App-Animation/ceylonstack-app-dark.svg": {
+    "mtime": 1789311807.1264102,
+    "ast_hash": "3a3ecb3f99ef6f21257ac2fb0a652c44",
+    "semantic_hash": "3a3ecb3f99ef6f21257ac2fb0a652c44"
+  },
+  "docs/brand/package/CeylonStack-App-Animation/ceylonstack-app-original-once.svg": {
+    "mtime": 1789311807.141715,
+    "ast_hash": "11c34e25cf8292f195f70e32ef666cf2",
+    "semantic_hash": "11c34e25cf8292f195f70e32ef666cf2"
+  },
+  "docs/brand/package/CeylonStack-App-Animation/ceylonstack-app-original.gif": {
+    "mtime": 1789311807.1595242,
+    "ast_hash": "5ac825c5cc9912a714720b5ff8e59882",
+    "semantic_hash": "5ac825c5cc9912a714720b5ff8e59882"
+  },
+  "docs/brand/package/CeylonStack-App-Animation/ceylonstack-app-original.svg": {
+    "mtime": 1789311807.1892843,
+    "ast_hash": "a5bd4df5ecab27b97d9c16b4a2ab8907",
+    "semantic_hash": "a5bd4df5ecab27b97d9c16b4a2ab8907"
+  },
+  "docs/brand/package/CeylonStack-App-Animation/ceylonstack-app-dark.mp4": {
+    "mtime": 1789311807.1138902,
+    "ast_hash": "d1317077e8822dec9ce55b8d3d50908d",
+    "semantic_hash": "d1317077e8822dec9ce55b8d3d50908d"
+  },
+  "docs/brand/package/CeylonStack-App-Animation/ceylonstack-app-original.mp4": {
+    "mtime": 1789311807.1747727,
+    "ast_hash": "7cd1ed3c3724384edae815f516995a65",
+    "semantic_hash": "7cd1ed3c3724384edae815f516995a65"
   }
 }
