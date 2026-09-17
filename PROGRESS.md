@@ -1177,3 +1177,371 @@ flow to exercise beyond the live-data verification already logged in `QA_LOG.md`
 **Next Manufacturing package** (not started): Work Order detail page, then Job Cards,
 BOM, Workstations, and eventually live status/OEE — each its own scoped package per
 `docs/controls/FRONTEND_GUIDE.md` §11.
+
+## 2026-09-17 (later) — Manufacturing frontend package 2: Work Order detail page + list link
+
+**Superseded same day, corrected below**: an earlier pass of this entry described a much
+thinner header+Comments-only detail page and a 3-file diff. The page was substantially
+expanded later the same session (full Production Progress/Materials/Operations/Job
+Cards/Quality Readiness/More Info) before being committed anywhere — the log below
+describes the actual page as it now stands, not that earlier draft. Flagged by
+`code-reviewer` as a real doc-accuracy gap (the review that approved the thinner version
+could not have been reviewing this diff) — fixed here rather than left inconsistent.
+
+Closed the navigation gap package 1 deliberately left open, and built the full read-only
+Work Order document view. `app/(app)/manufacturing/work-orders/[name]/page.tsx` — no
+`DocActionBar`, no Edit form, no create/submit/cancel anywhere (Work Order write actions
+aren't built in this frontend; nothing here implies otherwise). Six `DocTabs`:
+- **Details**: Production Progress (produced/qty/process loss/remaining, safe against
+  `qty=0` and `produced_qty > qty`, via the existing `ProgressBar`) + Production Information
+  (Production Item — linked to `/sales/items/[name]`; BOM No — plain text, no BOM detail
+  route yet; Quantity/Stock UOM; Company; Project when set; Sales Order — linked to
+  `/sales/orders/[name]` when set; Source/WIP/Target Warehouse — each linked to
+  `/stock/warehouses/[name]` when set; Planned/Actual Start/End dates).
+- **Materials**: `required_items` child table (embedded free in the single `getDoc` response
+  — Frappe returns child tables on a single-document GET with no extra request), rendered
+  via the existing `PlainLineItemsTable` (Item/Qty/UOM + its `extra` freeform fields for
+  Transferred/Consumed/Source Warehouse) — reused as-is, not forked.
+- **Operations**: `operations` child table (same free embed) in a hand-rolled read-only
+  table (Seq/Operation/Workstation/Status/Time/Completed Qty/Batch Size/Planned+Actual
+  Start+End) — no existing shared component fit this column shape, styled to match
+  `PlainLineItemsTable`'s classes rather than forking a new generic table component for a
+  single use.
+- **Job Cards**: one additional bounded `listDocs("Job Card", { filters: [["work_order","=",
+  doc.name]], limit: 50 })` call (not per-row, not unbounded) showing Job Card/Status/
+  Operation/Workstation/For Qty/Completed Qty/Expected+Actual Start+End. Job Card names stay
+  plain text — no Job Card detail route exists yet (separate future package) — deliberately
+  not linked.
+- **Quality Readiness** (inside the Job Cards tab): reads each already-fetched Job Card's own
+  `quality_inspection_template`/`quality_inspection` fields — confirmed live via
+  `mcp__ceylon-stack__get_doctype_fields("Job Card")` this session as genuine direct fields on
+  Job Card (`quality_inspection_section` → `quality_inspection_template` Link to "Quality
+  Inspection Template", `quality_inspection` Link to "Quality Inspection"), and independently
+  confirmed queryable via `mcp__ceylon-stack__list_documents("Job Card", filters={"work_order":
+  "MFG-WO-2026-00002"}, fields=["name","quality_inspection_template","quality_inspection"])`
+  returning real rows (both null on this instance's real Job Cards — no data has been entered,
+  not a query failure). **Deliberately does not** read the production Item's own
+  `quality_inspection_template` config field or query Quality Inspection records directly —
+  that would be inferring Work Order-level quality from an unrelated Item-level default, which
+  the task explicitly ruled out. (Note: `apps/mcp-server`'s own `get_work_order_detail`/
+  `get_job_card_detail` tools take the Item-level approach instead, for their own different,
+  narrower purpose — the two aren't inconsistent, they answer different questions.)
+- **More Info**: Created/Last modified/Company. Created By/Modified By deliberately omitted —
+  every write in this app runs under the one shared `frontend-integration` service account,
+  so those fields would show that account's email on every document, not the real person; the
+  Comments tab is where a real attributed name actually appears (see
+  [[project_frontend_build]]'s "Auth model" section).
+- **Comments**: unchanged generic `ActivityTimeline`/`buildTimeline`/`postCommentAction`.
+
+`components/WorkOrdersTable.tsx`'s ID column wraps the name in the exact same
+`<Link href=... className="font-mono text-signal hover:underline">` pattern
+`PurchaseOrdersTable.tsx` uses — no new link abstraction. `components/DocField.tsx`'s `value`
+prop widened from `string` to `React.ReactNode` (one-line, backward-compatible — confirmed
+against all ~15 existing call sites) so linked fields (Production Item/Sales Order/Warehouses)
+render through the same `<dt>/<dd>` layout as every plain field.
+
+**Verification**: `npm run lint`, `npx tsc --noEmit`, and `npm run build` all clean (re-run
+after two post-review fixes below). `.next/server/.../manufacturing/work-orders/[name]/page`
+confirmed compiled. Field names for Work Order/Work Order Item/Work Order Operation/Job Card
+verified live via `get_doctype_fields` against all 4 required statuses (Not Started
+`MFG-WO-2026-00006`, Cancelled `-00005`, Completed `-00004`, In Process `-00002`) plus direct
+child-row existence checks via `list_documents`. No raw `fetch` outside `lib/erpnext.ts`, no
+ERPNext/Frappe core touched, no write/mutating call anywhere in the diff.
+
+**`code-reviewer` pass** (against the actual 6-tab diff): one blocking finding — this
+PROGRESS.md entry (and `docs/ceylon-stack-documentation.html`'s matching changelog row)
+described the earlier, thinner page instead of what actually shipped; fixed by rewriting both
+to match reality, as this entry now does. Also caught two declared-but-unrendered fields
+(`process_loss_qty`, `operations[].batch_size`) — real oversights, now wired into Production
+Progress and the Operations table respectively (fixed, re-verified: lint/tsc clean). Everything
+else passed clean: read-only constraint held, query bounding correct (exactly 1 `getDoc` + 1
+bounded `listDocs`), field names correct, all 3 document-link targets confirmed to exist
+(`/sales/items`, `/sales/orders`, `/stock/warehouses`), BOM/Job Card correctly left unlinked,
+null/undefined handled everywhere (including ERPNext's confirmed-live behavior of omitting a
+field entirely rather than returning null, e.g. `planned_end_date` on some real records),
+`PlainLineItemsTable` reuse vs. the two hand-rolled tables judged a reasonable
+avoid-premature-abstraction call (each shape used exactly once), `DocField` widening backward
+compatible, tables responsive (`overflow-x-auto`), control-doc wording edits confirmed surgical.
+
+No `qa-tester` run — same rationale as package 1: read-only, no submit/cancel/write path to
+validate. `AGENT_OPERATING_GUIDE.md` §8 doesn't list Manufacturing as a core flow requiring a
+full QA cycle yet; browser verification wasn't done (no login attempted this session), but
+every field/query this page relies on was confirmed live via the MCP tools above.
+
+`docs/ceylon-stack-documentation.html` changelog row corrected to match this entry. Notion
+still pending a `release-tracker` pass for this package specifically. Not committed — commit
+wasn't requested this session.
+
+**Next Manufacturing package** (not started): Work Order create/submit/cancel, Job Card
+list/detail, BOM, Workstations, and eventually live status/OEE — each its own scoped package
+per `docs/controls/FRONTEND_GUIDE.md` §11.
+
+## Manufacturing — Work Order Create (package 3, 2026-09-17)
+
+Built `apps/frontend/src/app/(app)/manufacturing/work-orders/new/page.tsx` +
+`manufacturing/work-orders/actions.ts` (`createWorkOrderAction`, create-only — no submit) +
+`components/WorkOrderForm.tsx`, following `sales/orders/new`'s pattern. New small lookup file
+`lib/actions/bomLookup.ts` (`listBomsForItem`, `getBomDetails`) and a `listManufacturableItemOptions`
+export added to the existing `lib/actions/itemLookup.ts` (not forked). No changes to
+`lib/erpnext.ts` or `lib/stockDefaults.ts` — both reused as-is.
+
+- **Production Item** restricted to items with `default_bom` set (live-verified ERPNext field,
+  the reliable native way to mean "manufacturable" — no custom inventory engine). Only one such
+  item exists on this instance today: `FG-STEEL-BRACKET-ASSY` → `BOM-FG-STEEL-BRACKET-ASSY-001`.
+- **BOM** select auto-fills/auto-selects when one active+default BOM exists for the item
+  (`listBomsForItem`: `item=X, docstatus=1, is_active=1`), editable otherwise.
+- **BOM materials/operations preview** is read-only and client-scaled from the BOM's own
+  top-level `items`/`operations` tables (`getBomDetails` → single `getDoc("BOM", ...)`) —
+  `required_qty = bomItem.qty * (workOrderQty / bom.quantity)`, recomputed on qty change. No
+  multi-level explosion in the frontend; `use_multi_level_bom` is passed straight through to
+  ERPNext, which explodes server-side. Live-verified twice (qty=7 and qty=13 against the one
+  live BOM) — exact match to ERPNext's own computed `required_items` both times.
+- **Warehouses** (Source/WIP/Target) are optional selects from `getStockDefaults`, soft-defaulted
+  by matching warehouse name substrings ("Stores"/"Work In Progress"/"Finished Goods") — fully
+  editable, no ERPNext-native default exists for these (checked `Manufacturing Settings` live,
+  confirmed it carries no default warehouse fields).
+- **Material Readiness** (optional, only shown once a source warehouse is picked) reuses the
+  existing `getBinQty`/`StockBadge` — same soft-warning pattern already used on Delivery Note
+  lines, not a new inventory engine.
+- **Create behavior**: `createDoc` only, never `submitDoc` — every created Work Order stays at
+  docstatus 0 (Draft), matching the mission's draft-first rule. Required fields enforced before
+  the call: `production_item`, `bom_no`, `qty>0`, `company`, `planned_start_date`.
+- **Live-confirmed gap worth remembering for the future Job Card package**: ERPNext populates a
+  newly-inserted Work Order's `required_items` from `bom_no`+`qty` automatically, but its
+  `operations` table stays **empty** on a plain REST insert even when the BOM has operations —
+  pulling BOM operations into a Work Order is normally a Desk-side client script action, not
+  something `validate()` does alone. Doesn't affect this package (the Operations preview reads
+  from the BOM doc, not the created WO) but a future package must populate `operations`
+  explicitly rather than assume it's already there.
+- Added the "+ New Work Order" button to the list page and corrected its now-stale doc comment
+  (previously said create wasn't built).
+
+**Code review**: `code-reviewer` found no blocking issues — payload field names, datetime-local→
+ERPNext conversion, division-by-zero guards on the scaling math, error handling, reuse
+discipline, and bounded queries all confirmed correct against the live schema, not just
+plausible-looking.
+
+**QA**: live-tested via direct REST (same method as prior Manufacturing/Sales/Buying/Stock QA
+passes — Next.js server actions aren't curl-drivable) — created `MFG-WO-2026-00007` (qty=7) and
+`MFG-WO-2026-00008` (qty=13), confirmed Draft status, correct `required_items` scaling at both
+quantities, list/detail visibility, and two error-path cases (invalid `bom_no` → clean
+`LinkValidationError` message; a fractional qty ERPNext's own UOM rule rejects → clean
+`ValidationError` message, no orphan doc created either time). Both test Work Orders deleted
+after verification; live Work Order count back to the pre-QA baseline of 6. One non-blocking
+finding (the `operations` gap above) fed back into this package's own code comment rather than
+left as a surprise for later. **Result: PASS.** Fixed the one inaccurate doc comment QA flagged
+(`actions.ts` previously implied ERPNext auto-populates `operations` too — corrected).
+
+Not committed — commit wasn't requested this session. `docs/ceylon-stack-documentation.html`
+and Notion sync pending a `release-tracker` pass for this package.
+
+## Manufacturing frontend Package 4 — Work Order Material Change investigation (2026-09-17): STOPPED before write UI, no code changed
+
+Mission was "Work Order Material Change / Production Variance workflow" — letting production
+substitute/add/remove/re-quantify materials on a specific Work Order without touching the master
+BOM. Per the mission's own explicit stop condition, investigation came first and its outcome
+requires stopping before any write UI is built — no frontend code was written this session.
+
+**Method**: read ERPNext/Frappe core source directly on the live Hetzner instance via SSH
+(`erpnext/manufacturing/doctype/work_order/work_order.py`, `work_order.json`,
+`work_order_item.json`, `frappe/model/document.py` + `base_document.py`'s update-after-submit
+machinery, `erpnext/stock/doctype/item_alternative/`, `stock_entry.py`/`stock_entry_detail.json`)
+— read-only, no core files modified. Findings were then live-verified against the real instance
+with a temporary Draft/Submitted Work Order (`MFG-WO-2026-00009`, built from the existing
+`FG-STEEL-BRACKET-ASSY` + `BOM-FG-STEEL-BRACKET-ASSY-001`), not just inferred from source.
+
+**Core finding — Work Order.required_items cannot be edited via a normal document update once
+submitted.** Neither the parent `required_items` table field nor any `Work Order Item` child
+field carries `allow_on_submit: 1` (confirmed in both DocType JSONs), so Frappe's own
+`_validate_update_after_submit()` blocks any change to item_code/required_qty/row count once
+`docstatus = 1`. Live-confirmed: editing `required_qty` on a submitted test Work Order raised
+`UpdateAfterSubmitError: "Row #1: Not allowed to change Required Qty after submission from 4.0
+to 5.0"` exactly as the source predicted. This is not a permissions gap or something a frontend
+workaround should route around — it's the same core safety mechanism that already protects every
+other submitted document in this system (Sales Order, Purchase Order, etc.).
+
+**While still Draft**, `required_items` edits behave asymmetrically, live-confirmed on the same
+test WO: a plain `required_qty` edit (4.0 → 7.0, saved, reloaded) **silently reverted to 4.0**
+— because `Manufacturing Settings.allow_editing_of_items_and_quantities_in_work_order` is `0`
+(disabled) on this instance, so `validate()` unconditionally calls
+`set_required_items(reset_only_qty=True)` on every save, which resets the qty of any row whose
+`item_code` still matches the BOM. An `item_code` **substitution** on a row (BOM item → a
+different item entirely), by contrast, **did persist** across save+reload — that code path only
+touches `required_qty` for BOM-matching rows, never resets `item_code`. (Caveat found in the same
+test: nothing merges duplicate `item_code` rows, so a careless substitution can produce two rows
+for the same item — a real edge case any future Draft-stage editor UI would need to guard
+against.)
+
+**The real, ERPNext-native mechanism for a Work-Order-specific material deviation during
+production is entirely Stock-Entry-driven, not a Work Order edit**, confirmed by source
+(`work_order.py`'s `add_additional_items()`/`remove_additional_items()`, called from Stock
+Entry's own submit/cancel flow, not from Work Order's controller):
+- **Add a non-BOM material**: submit a **Material Transfer for Manufacture** Stock Entry against
+  the Work Order with an extra item line. ERPNext appends it to `required_items` itself via a
+  direct child-row insert (`is_additional_item=1`, `voucher_detail_reference` linking back to the
+  Stock Entry Detail row) — this bypasses the update-after-submit block because it's a targeted
+  server-side insert, not a `doc.save()`. Gated by
+  `Manufacturing Settings.validate_components_quantities_per_bom` (must be off; it is, on this
+  instance).
+- **Remove such an added material**: cancel the Stock Entry that added it —
+  `remove_additional_items()` deletes the matching row. Original BOM-derived rows can never be
+  removed this way, or any other way, once submitted.
+- **Transfer/consume more of an existing material**: allowed in aggregate up to
+  `qty × (1 + Manufacturing Settings.transfer_extra_materials_percentage / 100)` — a
+  site-wide percentage headroom, not a per-line revised-qty field. Currently **0% on this
+  instance**, so no over-transfer is possible today without the founder raising that setting.
+- **Substitute one item for another** (Scenario A's headline example): native ERPNext support
+  exists as **`Item Alternative`** (approved `item_code` ↔ `alternative_item_code` pairs, plus
+  `Item.allow_alternative_item` and `Work Order.allow_alternative_item` checkboxes) and a
+  whitelisted `get_alternative_items` search method — but it's exercised on the **Stock Entry**
+  line (`Stock Entry Detail.original_item` + `allow_alternative_item`), not on the Work Order.
+  Work Order's `required_items` row for the original item keeps accruing the correct
+  transferred/consumed qty via `original_item` matching, while its own `item_code` never
+  changes — a clean design, but **currently unusable on this instance**: none of the 3 raw
+  materials or the 1 BOM have `allow_alternative_item` set, and 0 `Item Alternative` records
+  exist (confirmed live). Standing up this feature needs master-data setup first, not frontend
+  code.
+
+**Master BOM confirmed unchanged throughout** — `BOM-FG-STEEL-BRACKET-ASSY-001`'s item list was
+read before and after every test-WO mutation and was byte-identical both times.
+
+**Audit trail**: Frappe's native `Version` doctype auto-logs field-level diffs (including child
+tables) on every save, covering "changed by/at" for Draft-stage edits — but neither `Work Order
+Item` nor `Stock Entry`/`Stock Entry Detail` has a `reason`/`notes` field, so a business reason
+("material shortage", "wastage allowance") has no structured home today. `Stock Entry.remarks`
+(header-level free text) is the closest existing field and can carry a reason now without any
+schema change; a real structured reason field would be a `smart_factory` custom-field addition,
+not something to build inside this package.
+
+**Decision**: per the mission's own stop condition, this rules out a generic "Work Order material
+edit" UI for the submitted case — the scenario the mission actually cares about ("during actual
+production the factory may need to change a material"). Building one would mean fighting core
+Frappe's submit-safety model instead of using it. The correct next package, if picked up, is a
+**Material Transfer for Manufacture Stock Entry creation flow** — which doesn't exist in the
+frontend yet (`FRONTEND_GUIDE.md` §10a explicitly scoped that Stock Entry purpose out of Stock
+module v1 as "Manufacturing-scope, not Stock-scope") — plus the master-data work to make
+`Item Alternative` substitution actually usable. Both are bigger/different than a required_items
+editor and belong to their own future scoped package(s), not built here.
+
+No frontend code, `lib/erpnext.ts`, or `smart_factory` files were changed this session. No
+`code-reviewer`/`release-tracker` run — nothing shipped to review or announce. Test Work Order
+`MFG-WO-2026-00009` was cancelled and deleted after verification; live Work Order count is back
+at its pre-investigation baseline.
+
+## Manufacturing frontend Package 5 — Material Transfer for Manufacture (2026-09-17)
+
+Built the Stock-Entry-driven material transfer workflow Package 4's investigation identified as
+the correct (and only ERPNext-supported) path — not a Work Order editor. Scope per the mission:
+Material Transfer for Manufacture only, nothing beyond it (no Manufacture/finished-goods entry,
+no Job Cards, no BOM editing).
+
+**Native ERPNext mechanism used, not reimplemented**: `erpnext.manufacturing.doctype.work_order
+.work_order.make_stock_entry` — the exact whitelisted method Desk's own "Start" button calls
+(`work_order.js`, live-read on the Hetzner instance). Called via `callMethodWithResult` with only
+`work_order_id` + `purpose: "Material Transfer for Manufacture"` (no `qty` override), which
+defaults to the Work Order's full remaining production qty — mirroring Desk's own default rather
+than reinventing outstanding-qty math. The response already carries, per pending material line:
+`transfer_qty` (ERPNext's own proposed remaining-to-transfer amount, `transfer_extra_materials_
+percentage` headroom included), the item's cumulative `transferred_qty` so far, real Bin-backed
+`actual_qty` at the source warehouse, and `s_warehouse`/`t_warehouse` defaults — all read straight
+through, none recomputed client-side.
+
+**New route**: `/manufacturing/work-orders/[name]/transfer-materials` (`page.tsx` + `actions.ts`),
+new component `components/MaterialTransferForm.tsx`, new helper
+`lib/actions/workOrderTransfer.ts`. "Transfer Materials" button added to Work Order Detail,
+gated by a new `canTransferMaterials()` in `lib/erpStatus.ts` that mirrors ERPNext Desk's own
+"Start" button visibility rule verbatim (read from `work_order.js`): `docstatus === 1`, status
+not Closed/Completed/Stopped, `!skip_transfer`, `transfer_material_against !== "Job Card"`,
+`!track_semi_finished_goods`, and at least one required item still pending — not a guessed rule.
+
+**Partial transfer**: the "Transfer Now" qty per row defaults to ERPNext's own proposed amount
+and is user-editable down to 0 (skip that item this round) or up to that same proposed maximum
+(hard client-side cap — ERPNext's own submit-time validation is still the real authority).
+Live-confirmed: transferring half of one item, then transferring "the rest" on a second visit
+(re-calling `make_stock_entry`, which recomputes remaining from the now-updated `transferred_qty`)
+correctly showed Required 8 / Transferred 4 / Remaining 4 after the first transfer, then
+Transferred 8 / Remaining 0 after the second.
+
+**Additional material** — real bug found and fixed via live QA, not by inspection alone: the
+Stock Entry payload this app builds must include `fg_completed_qty` (same value
+`make_stock_entry` itself sets — the Work Order's remaining qty to produce). Omitting it — the
+initial implementation's actual state — meant ERPNext's `Stock Entry.update_work_order` never
+called `add_additional_items`/`update_work_order_qty` at all (that whole block is gated behind
+`if self.fg_completed_qty:` in `stock_entry.py`), so an item added beyond the BOM was accepted
+and stock-moved but silently **never attached to the Work Order's `required_items`** — a real
+functional gap that would have shipped invisibly. Fixed by threading `fg_completed_qty` from the
+`make_stock_entry` response through `page.tsx` → `MaterialTransferForm.tsx` (hidden field) →
+`actions.ts` (now required, throws if missing/zero). Re-verified live after the fix: an added
+item correctly appears on the Work Order as `is_additional_item: 1` with a real
+`voucher_detail_reference` back to the originating Stock Entry Detail row, and disappears again
+when that Stock Entry is cancelled (`remove_additional_items` firing correctly). Additional rows
+are visually tagged `ADDITIONAL` in both the transfer screen and the Work Order Detail materials
+table, never merged into the BOM-standard rows.
+
+**Alternative Item**: left unbuilt, exactly as scoped — `Item Alternative` records and
+`allow_alternative_item` remain unconfigured on this instance (confirmed again this session), so
+no substitution UI would have real data to back it. Noted as a future master-data prerequisite,
+not built here.
+
+**Quantity headroom**: `Manufacturing Settings.transfer_extra_materials_percentage` is still 0%
+on this instance (live-confirmed) — an excess-quantity attempt was live-tested and correctly
+rejected by ERPNext itself (`"Cannot transfer 200.0 Nos of Item RM-BOLT-M6X20. Maximum
+transferable quantity is 0.0 Nos."`), surfaced verbatim via the existing `ErpNextError.
+erpnextMessage` pattern rather than a generic failure message.
+
+**Warehouses**: source/target warehouse selects reuse `getStockDefaults()` (already filters to
+`is_group=0, disabled=0`). Live-tested a submit against a real group warehouse — correctly
+rejected (`"Group node warehouse is not allowed to select for transactions"`).
+
+**Draft vs Submit**: `saveTransferDraftAction` (create-only, redirects to the existing
+`/stock/stock-entries/[name]` detail page) vs `submitTransferAction` (create+submit, redirects
+back to Work Order Detail with a `?transferred=` success banner). Live-confirmed a Draft Stock
+Entry does not move stock or touch the Work Order's `transferred_qty` — only submission does.
+
+**Batch/serial**: none of the 3 real raw materials require batch/serial (re-confirmed live).
+Built the guard anyway per the mission's instruction — `page.tsx` fetches each preview row's
+`has_batch_no`/`has_serial_no` via the existing `getItemLineDefaults` (bounded to the Work
+Order's own handful of BOM lines, not a list-scale query) and the form blocks/disables that row
+with a truthful message rather than silently building an invalid Stock Entry if one ever does.
+
+**Work Order Detail enhancements**: Materials tab rebuilt from the old generic
+`PlainLineItemsTable` into a dedicated table with Required/Transferred/Remaining/Consumed/
+Source/Readiness columns (Readiness reuses `StockBadge`, not a new stock calculation) plus an
+`ADDITIONAL` tag read from Work Order Item's own real `is_additional_item` field. Added a
+"Material Transfers" section listing related Stock Entries (bounded `listDocs` filtered to
+`work_order` + this purpose, linked to the existing Stock Entry detail route).
+
+**Live QA** (dev instance only, confirmed no client/production stock — same instance every prior
+QA pass has used): ran via `bench console` against the real ERPNext instance (same method as
+every prior QA pass — Next.js server actions aren't curl-drivable), building the exact payload
+shape `actions.ts` produces. Covered: full transfer, partial transfer, additional material
+(twice — the pre-fix failure and the post-fix success), excess-quantity rejection, invalid
+(group) warehouse rejection, Draft-doesn't-move-stock, and BOM-integrity checks before/after
+every mutation (byte-identical every time). One unrelated discovery along the way: a prior
+session's Package 3 QA pass had claimed `MFG-WO-2026-00007`/`00008` were both deleted after
+verification, but `MFG-WO-2026-00008` (Draft) and a Stock QA pass's `MAT-STE-2026-00010` (Draft)
+were still live on the instance — cleaned up both this session; Work Order count is back to the
+documented baseline of 6.
+
+**Code review**: `code-reviewer` found no blocking code defects — headless boundary, secrets
+hygiene, `fg_completed_qty` wiring end-to-end, native-method reuse, batch/serial safety (rows
+are actually excluded from the submitted payload, not just visually disabled), BOM-mutation
+risk (zero), Draft-vs-Submitted semantics, and component/pattern reuse all confirmed correct.
+One "blocking" finding (PROGRESS.md/QA_LOG.md missing their Package 5 entries) was a read-timing
+race — the review agent was spawned before this session finished writing those entries in the
+same turn, not a real gap; both entries were already present once written. Two non-blocking
+items applied anyway as good practice: (1) `getMaterialTransferPreview` no longer collapses a
+real ERPNext error (permission denial, ineligible Work Order) into the same `null` result as
+"nothing left to transfer" — now returns a discriminated `{ preview } | { error }` so the page
+can show the real cause instead of a guess; (2) confirmed (not changed) that `submitTransferAction`
+never calls `submitDoc`/`cancelDoc` on **Work Order** itself — only on the Stock Entry it
+creates — consistent with every prior Manufacturing package's "each its own scoped package"
+precedent and with this package's own mission brief, which explicitly asked for a Submit
+Transfer action on the Stock Entry. One item left as-is per the reviewer's own "not blocking"
+assessment: `MaterialTransferForm`'s "+ Add Material" doesn't check the Work Order's *fully-
+transferred* required items before tagging a re-added item `ADDITIONAL` — cosmetic only, since
+ERPNext's own server-side item_code matching decides the real outcome (and would reject an
+already-satisfied line as excess under the current 0% headroom setting either way).
+
+Not committed — commit wasn't requested. `docs/ceylon-stack-documentation.html` and Notion sync
+pending a `release-tracker` pass.

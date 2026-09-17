@@ -60,3 +60,23 @@ export async function listItemOptions(): Promise<ItemOption[]> {
   });
   return rows.map((r) => ({ code: r.name, name: r.item_name }));
 }
+
+export type ManufacturableItemOption = { code: string; name: string; default_bom: string };
+
+/**
+ * Production Item options for Work Order create — restricted to items that actually have a
+ * default BOM set (`default_bom` is populated by ERPNext itself the moment a BOM for that
+ * item is marked `is_default`). This is the reliable, ERPNext-native way to filter to
+ * "manufacturable" items rather than guessing at an item group/flag — see
+ * manufacturing/work-orders/new package notes. `default_bom` is carried through so the form
+ * can pre-select a sensible BOM immediately, before its own BOM-by-item lookup resolves.
+ */
+export async function listManufacturableItemOptions(): Promise<ManufacturableItemOption[]> {
+  const rows = await listDocs<{ name: string; item_name: string; default_bom: string }>("Item", {
+    fields: ["name", "item_name", "default_bom"],
+    filters: [["default_bom", "is", "set"]],
+    limit: 500,
+    orderBy: "name asc",
+  });
+  return rows.map((r) => ({ code: r.name, name: r.item_name, default_bom: r.default_bom }));
+}

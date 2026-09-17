@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { DataTable } from "@/components/DataTable";
 import { StatusPill } from "@/components/StatusPill";
 import { workOrderStatus } from "@/lib/erpStatus";
@@ -19,17 +20,16 @@ export type WorkOrderRow = {
   creation?: string;
 };
 
-/**
- * List-only table — no row is a link, deliberately. There is no Work Order detail page yet
- * (locked out of this package's scope, see PROGRESS.md), so nothing here should imply one
- * exists.
- */
 const columns: ColumnDef<WorkOrderRow>[] = [
   {
     key: "name",
     label: "ID",
     core: true,
-    render: (wo) => <span className="font-mono text-graphite-900">{wo.name}</span>,
+    render: (wo) => (
+      <Link href={`/manufacturing/work-orders/${encodeURIComponent(wo.name)}`} className="font-mono text-signal hover:underline">
+        {wo.name}
+      </Link>
+    ),
   },
   {
     key: "status",

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AccessDeniedNotice } from "@/components/AccessDeniedNotice";
 import { ErpNextError, getCount, listDocs } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
@@ -40,9 +41,9 @@ type SearchParams = {
 };
 
 /**
- * List-only page — no "+ New", no row links. There is no Work Order create/detail page in
- * this package's scope (Job Card, BOM, Workstation pages and any submit/cancel actions are
- * separate packages), so nothing here should imply one exists yet.
+ * "+ New" creates a Draft Work Order only (see ./new/page.tsx and ./actions.ts) — Submit,
+ * Cancel, Job Card, BOM, and Workstation pages remain separate, not-yet-built packages. Row
+ * IDs link to the read-only detail page (`[name]/page.tsx`).
  */
 export default async function WorkOrdersPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
@@ -108,6 +109,12 @@ export default async function WorkOrdersPage({ searchParams }: { searchParams: P
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-medium text-graphite-900">Work Orders</h1>
+        <Link
+          href="/manufacturing/work-orders/new"
+          className="rounded-md bg-signal px-4 py-2 text-sm font-medium text-white hover:bg-signal/90"
+        >
+          + New Work Order
+        </Link>
       </div>
 
       <ListFilterBar fields={filterFields} sortOptions={SORT_OPTIONS} values={params} />

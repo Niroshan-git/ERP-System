@@ -117,29 +117,35 @@ sessions to ship fast:
   read them, falling back to a plain text input otherwise
   (`lib/linkOptions.ts`).
 
-- **Manufacturing module — package 1 (shipped 2026-09-17):** module unlocked
-  in the Sidebar/module picker now that Inventory MVP and Buying are both
-  accepted (per the Current Mission priority lock in the root `CLAUDE.md`).
-  Only the module home placeholder and the Work Orders list
-  (`/manufacturing/work-orders`) exist so far — read-only, no row links, no
-  "+ New" (there is no Work Order detail/create page yet). Fields
-  (`status`, `company`, `production_item`, `item_name`, `qty`,
-  `produced_qty`, `bom_no`, `planned_start_date`, `planned_end_date`,
-  `creation`) and the `status` enum live-verified via
-  `mcp__ceylon-stack__get_doctype_fields`/direct REST calls this session.
+- **Manufacturing module (shipped 2026-09-17, several packages same day):**
+  module unlocked in the Sidebar/module picker now that Inventory MVP and
+  Buying are both accepted (per the Current Mission priority lock in the
+  root `CLAUDE.md`). Work Orders list + read-only detail (Materials/
+  Operations/Related Job Cards/Quality Readiness tabs), Work Order Create
+  (`work-orders/new`, Draft-only), and **Material Transfer for Manufacture**
+  (`work-orders/[name]/transfer-materials`) are all live. The transfer flow
+  calls ERPNext's own whitelisted `make_stock_entry` method (the same one
+  Desk's "Start" button uses) rather than recomputing outstanding-material
+  math client-side — see `docs/controls/FRONTEND_GUIDE.md` §11 for the full
+  native-behavior writeup, including the real live-QA-caught bug
+  (`fg_completed_qty` omission silently breaking additional-material
+  attachment) and why a generic `required_items` editor was deliberately
+  never built (blocked by core Frappe once a Work Order is submitted).
   `lib/erpStatus.ts`'s `workOrderStatus()` tone mapping is this app's own
-  reasonable choice, not a mirrored Desk `get_indicator` (no SSH access to
-  read `work_order_list.js` this session). See `docs/controls/FRONTEND_GUIDE.md`
-  §11.
+  reasonable choice, not a mirrored Desk `get_indicator`; `canTransferMaterials()`
+  in the same file *is* a direct mirror of Desk's own `work_order.js` button
+  visibility rule (read from the live ERPNext source). Still not started:
+  Manufacture/finished-goods Stock Entry, Job Cards, BOM view, Workstations,
+  downtime logging, live status/OEE.
 
 ## Not yet done
 
 - Sri Lanka-specific tax handling (VAT/SVAT/WHT) — ERPNext ships no
   regional tax pack for this; document-level discounts are live (see
   above), but tax is still not started.
-- Manufacturing beyond package 1 — Work Order detail/create, Job Cards,
-  BOM, Workstations, submit/cancel actions, and live status/OEE are all
-  separate future packages.
+- Manufacturing beyond Work Order create/detail/material-transfer — Work
+  Order submit/cancel actions, Job Cards, BOM view, Workstations, downtime
+  logging, and live status/OEE are all separate future packages.
 - Real-time notifications (needs per-user ERPNext sessions)
 - `mes-service` / machine-status dashboard (the original placeholder
   homepage content — will come back once Manufacturing starts)

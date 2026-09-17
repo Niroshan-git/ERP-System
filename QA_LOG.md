@@ -120,3 +120,136 @@ Central QA log. Append one entry per QA run — date, package/flow tested, pass/
 - **Sign-off**: `code-reviewer` found no blockers (one non-blocking suggestion — an
   unused fetched `bom_no` field — fixed by wiring it up as a hidden/optional column).
   Meets Definition of Ready (`AGENT_OPERATING_GUIDE.md` §8) for a list-only package.
+
+## 2026-09-17 — Manufacturing module — package 3 (Work Order Create)
+
+- **Package tested**: `apps/frontend` `/manufacturing/work-orders/new` — the first write/create
+  path in the Manufacturing module. Live-tested against the real ERPNext instance on Hetzner via
+  direct REST calls shaped exactly like `createWorkOrderAction`'s payload (Next.js server
+  actions aren't curl-drivable), same method as every prior module's QA pass in this log.
+- **Result**: **PASS**.
+- **Verified live**: created `MFG-WO-2026-00007` (qty=7) and `MFG-WO-2026-00008` (qty=13)
+  against the instance's one live manufacturable item/BOM (`FG-STEEL-BRACKET-ASSY` /
+  `BOM-FG-STEEL-BRACKET-ASSY-001`). Both landed at `docstatus: 0` / `status: "Draft"` (create
+  action only ever calls `createDoc`, never `submitDoc`, confirmed by code inspection and by
+  the live result). ERPNext auto-populated `required_items` from `bom_no`+`qty` on insert;
+  quantities matched the frontend's client-side scaling formula
+  (`required_qty = bomItem.qty * (workOrderQty / bom.quantity)`) exactly at both qty values
+  (5.6/28.0/0.35 at qty=7; 10.4/52.0/0.65 at qty=13 — bom base qty 1). Both docs immediately
+  visible via the same `listDocs`/`getDoc` shapes the list/detail pages already use.
+- **Error paths verified**: invalid `bom_no` → clean ERPNext `LinkValidationError` ("Could not
+  find BOM No: ...") surfaced through `humanizeError`, not a raw stack trace; a fractional qty
+  (2.5) against a whole-number-UOM item → ERPNext's own `ValidationError` rejected it cleanly.
+  Neither failed attempt created an orphan Work Order (live count stayed at baseline both times).
+- **Regression check**: Work Orders list (filters/sort/pagination) and Work Order detail page
+  confirmed unaffected by the new "+ New Work Order" button; `npm run build`/`tsc --noEmit`/
+  `eslint` all clean.
+- **One non-blocking finding, fixed same day**: a doc comment in `actions.ts` incorrectly
+  implied ERPNext's `validate()` auto-populates a new Work Order's `operations` table the same
+  way it does `required_items`. Live testing showed `operations` stays empty on a plain REST
+  insert even when the BOM has operations (Desk normally populates that table via a client-side
+  form script, not `validate()` alone) — doesn't affect this package (the Operations preview
+  reads from the BOM doc, not the created WO) but matters for a future Job Card package. Comment
+  corrected to state this accurately.
+- **Cleanup**: both test Work Orders deleted after verification; live Work Order count
+  confirmed back at the pre-QA baseline of 6, no stray Draft documents left behind.
+- **Sign-off**: `code-reviewer` found no blockers (payload field names, datetime-local→ERPNext
+  conversion, scaling-math division-by-zero guards, error handling, and reuse discipline all
+  verified against the live schema). Meets Definition of Ready (`AGENT_OPERATING_GUIDE.md` §8).
+  Work Order Create accepted — Submit/Cancel remains a separate future package.
+
+## 2026-09-17 — Manufacturing Package 4 — Work Order Material Change: investigation-stage live QA only, no UI shipped
+
+- **What was tested**: not a frontend feature (none was built — see `PROGRESS.md`'s matching
+  entry for why) — this was live verification of ERPNext's own native behavior around
+  `Work Order.required_items`, run directly against the ERPNext instance via `bench console`
+  (not through `apps/frontend`), to confirm source-code reading before ruling out a write UI.
+- **Test Work Order**: temporary `MFG-WO-2026-00009`, `FG-STEEL-BRACKET-ASSY` ×5 against
+  `BOM-FG-STEEL-BRACKET-ASSY-001`.
+- **Result: PASS** (all 4 behaviors matched source-code prediction exactly):
+  1. `required_items` auto-populated from BOM×qty on insert (0.8/4/0.05 per unit → 4/20/0.25 at
+     qty 5) — consistent with the prior Work Order Create package's finding.
+  2. Draft-stage `required_qty` edit (4.0 → 7.0), saved, reloaded → **reverted to 4.0** —
+     confirms `Manufacturing Settings.allow_editing_of_items_and_quantities_in_work_order = 0`
+     (current site value) causes `validate()` to silently reset quantities on BOM-matching rows
+     every save.
+  3. Draft-stage `item_code` substitution (`RM-BOLT-M6X20` → `RM-COATING-CPD`), saved, reloaded
+     → **persisted** (not reset) — confirms substitution and quantity edits are NOT symmetric
+     under the current settings. Found a real edge case in the process: nothing merges duplicate
+     `item_code` rows, so the substitution left two `RM-COATING-CPD` rows in the table.
+  4. Submitted-stage `required_qty` edit via plain doc update → **blocked**,
+     `UpdateAfterSubmitError: "Row #1: Not allowed to change Required Qty after submission from
+     4.0 to 5.0"` — confirms core Frappe's update-after-submit guard applies to this table exactly
+     as the DocType JSON (no `allow_on_submit` on the child fields) predicted.
+  5. `BOM-FG-STEEL-BRACKET-ASSY-001`'s item list read before and after all mutations —
+     **byte-identical both times**, confirming master BOM integrity held throughout.
+- **Not live-tested** (would need master-data setup out of this investigation's scope): the
+  Stock-Entry-driven "additional item" and `Item Alternative` substitution paths — confirmed only
+  by source reading (`add_additional_items`/`remove_additional_items` in `work_order.py`,
+  `item_alternative.py`), plus a live check that no item on this instance currently has
+  `allow_alternative_item` set and 0 `Item Alternative` records exist (a master-data gap, not a
+  code question).
+- **Cleanup**: `MFG-WO-2026-00009` cancelled and deleted after verification; live Work Order
+  count back at its pre-test baseline.
+- **Sign-off**: no `code-reviewer`/QA-for-shipped-feature applies — nothing was implemented.
+  This entry exists because live verification work happened and the project's QA log is meant to
+  reflect real testing activity, not only shipped-feature acceptance.
+
+## 2026-09-17 — Manufacturing Package 5 — Material Transfer for Manufacture
+
+- **Package tested**: new `/manufacturing/work-orders/[name]/transfer-materials` route (create
+  a "Material Transfer for Manufacture" Stock Entry against a submitted Work Order, using
+  ERPNext's own native `make_stock_entry` whitelisted method), plus the enhanced Work Order
+  Detail Materials tab and "Transfer Materials" entry button. Live-tested against the real
+  ERPNext instance on Hetzner via `bench console`, replicating the exact payload shape
+  `actions.ts` builds — same method as every prior QA pass (Next.js server actions aren't
+  curl-drivable).
+- **Result**: **PASS after one real fix found live** (not caught by static review or the
+  earlier source-code investigation).
+- **Bug found and fixed**: the initial Stock Entry payload omitted `fg_completed_qty`. ERPNext's
+  `Stock Entry.update_work_order` (in `stock_entry.py`) only calls
+  `add_additional_items`/`update_work_order_qty` when `fg_completed_qty` is truthy — without it,
+  an "additional" material line submitted cleanly (stock moved, no error) but **silently never
+  attached to the Work Order's `required_items`**, meaning `is_additional_item`/
+  `voucher_detail_reference` would never appear and the Work Order Detail page would show no
+  trace of the extra material. Reproduced live, then fixed by threading
+  `preview.fg_completed_qty` (from the native `make_stock_entry` response) through `page.tsx` →
+  `MaterialTransferForm.tsx` (hidden field) → `actions.ts` (now validated as required). Re-tested
+  live after the fix — confirmed correct.
+- **Live scenarios covered** (temporary Work Orders against `FG-STEEL-BRACKET-ASSY` +
+  `BOM-FG-STEEL-BRACKET-ASSY-001`, cleaned up after each):
+  1. **Draft, no submit**: Stock Entry created but not submitted — WIP `Bin.actual_qty` and the
+     Work Order's `transferred_qty` both stayed unchanged. Confirms Draft never reads as
+     "transferred."
+  2. **Partial transfer**: transferred 4.0 of 8.0 Kg required for one item — Work Order
+     correctly showed Required 8.0 / Transferred 4.0.
+  3. **Full transfer of the remainder**: a second Stock Entry transferring the rest (4.0 Kg) plus
+     the other two full required lines — all three lines reached Transferred == Required.
+  4. **Additional material (pre-fix)**: failed for an unrelated reason first (picked a
+     zero-valuation test item — `TEST-BATCH-TEA` — which correctly triggered ERPNext's own
+     "Valuation Rate ... required" error, a real ERPNext safeguard, not a bug in this app) then
+     retried with a properly-valued catalog item (`GRO-CLEANER-BATH-750ML`) and hit the
+     `fg_completed_qty` bug above — confirmed the row moved stock but never reached
+     `required_items`.
+  5. **Additional material (post-fix)**: re-run with `fg_completed_qty` set — Work Order gained a
+     new `required_items` row with `is_additional_item: 1` and a real `voucher_detail_reference`
+     pointing at the Stock Entry Detail row. Cancelling that Stock Entry correctly removed the
+     row again (`remove_additional_items`).
+  6. **Excess quantity rejection**: attempted to transfer 200 Nos against a fully-satisfied line
+     — ERPNext rejected with `"Cannot transfer 200.0 Nos of Item RM-BOLT-M6X20. Maximum
+     transferable quantity is 0.0 Nos."`, confirming `transfer_extra_materials_percentage = 0%`
+     (still the live value) is enforced, not bypassed.
+  7. **Invalid (group) warehouse rejection**: attempted a transfer from a group warehouse —
+     ERPNext rejected with `"Group node warehouse is not allowed to select for transactions"`.
+  8. **BOM integrity**: `BOM-FG-STEEL-BRACKET-ASSY-001`'s item list read before/after every
+     mutation across all scenarios above — byte-identical every time.
+- **Unrelated pre-existing leftovers found and cleaned up** (not caused this session): a prior
+  Package 3 QA pass's `MFG-WO-2026-00008` (Draft) and an earlier Stock module QA pass's
+  `MAT-STE-2026-00010` (Draft) were both still live despite their own QA entries claiming full
+  cleanup — deleted both; live Work Order count confirmed back at the documented baseline of 6.
+- **Cleanup**: every test Work Order and Stock Entry created this session (including the
+  deliberately-failing ones) was cancelled/deleted; no stray data remains.
+- **Sign-off**: see `code-reviewer` findings applied in this same package (recorded in
+  PROGRESS.md's matching entry). Meets Definition of Ready (`AGENT_OPERATING_GUIDE.md` §8) for
+  the Material Transfer for Manufacture scope specifically — not a claim that Manufacturing or
+  Production Execution as a whole is done.

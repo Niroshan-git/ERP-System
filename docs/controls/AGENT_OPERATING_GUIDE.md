@@ -84,7 +84,10 @@ If a user request conflicts with these documents, the agent must **stop and repo
    - Stock Balance
    - Basic Stock Entry (Receipt / Issue / Transfer)
 3. Keep Buying limited to core purchasing cycle
-4. Do **not** start Manufacturing frontend until Inventory MVP is usable
+4. Manufacturing frontend unlocked 2026-09-17 (Inventory MVP + Buying core cycle both
+   accepted 2026-09-16) — read-only module shell, Work Orders list, and Work Order detail
+   shipped (packages 1-2). Still gated: create/submit/cancel, Job Card detail, BOM,
+   Workstations, and OEE remain separate future packages, not open-ended
 5. Do not expand secondary masters/reports unless explicitly requested
 
 Any agent that proposes work outside this mission must justify it and wait for approval.
@@ -275,8 +278,12 @@ Prefer:
 - Ensure stock impact is correct
 - Keep reports light
 
-### Package D — Manufacturing (Locked for now)
-- Do not start unless Inventory MVP is accepted
+### Package D — Manufacturing (Unlocked 2026-09-17)
+- Condition met: Inventory MVP + Buying core cycle both accepted 2026-09-16
+- Shipped so far: module shell, read-only Work Orders list, read-only Work Order detail
+  (packages 1-2)
+- Still to come, each its own scoped package: create/submit/cancel actions, Job Card
+  list/detail, BOM view, Workstations, downtime logging, live status/OEE
 
 ---
 

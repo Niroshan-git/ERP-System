@@ -388,6 +388,52 @@ export function workOrderStatus(doc: { status: string }): StatusDisplay {
   return { label: doc.status, tone: WORK_ORDER_STATUS_TONE[doc.status] ?? "neutral" };
 }
 
+/**
+ * Mirrors ERPNext Desk's own "Start" button visibility rule for Material Transfer for
+ * Manufacture (`erpnext.work_order.set_custom_buttons` in `work_order.js`, live-read on the
+ * Hetzner instance) rather than guessing at status logic:
+ *
+ * ```
+ * doc.docstatus === 1 && !["Closed","Completed"].includes(doc.status) && doc.status !==
+ * "Stopped" && !doc.skip_transfer && doc.transfer_material_against !== "Job Card" &&
+ * !doc.track_semi_finished_goods && required_items.some(i => transferred_qty < required_qty)
+ * ```
+ *
+ * Desk shows "Additional Material Transfer" instead once nothing is pending but
+ * `Manufacturing Settings.transfer_extra_materials_percentage` still allows headroom — out of
+ * scope here (that setting is 0% on this instance, live-confirmed in the Package 4
+ * investigation) so this only covers the plain "still has pending materials" case.
+ */
+export function canTransferMaterials(doc: {
+  docstatus: number;
+  status: string;
+  skip_transfer?: 0 | 1;
+  transfer_material_against?: string;
+  track_semi_finished_goods?: 0 | 1;
+  required_items?: { required_qty: number; transferred_qty?: number }[];
+}): { allowed: boolean; reason?: string } {
+  if (doc.docstatus !== 1) {
+    return { allowed: false, reason: "Work Order must be submitted before transferring materials." };
+  }
+  if (["Closed", "Completed", "Stopped"].includes(doc.status)) {
+    return { allowed: false, reason: `Not available while the Work Order is ${doc.status}.` };
+  }
+  if (doc.skip_transfer) {
+    return { allowed: false, reason: "This Work Order skips the material transfer step." };
+  }
+  if (doc.transfer_material_against === "Job Card") {
+    return { allowed: false, reason: "Material is transferred per Job Card for this Work Order, not here." };
+  }
+  if (doc.track_semi_finished_goods) {
+    return { allowed: false, reason: "Not available for Work Orders tracking semi-finished goods." };
+  }
+  const pending = (doc.required_items ?? []).some((i) => (i.transferred_qty ?? 0) < i.required_qty);
+  if (!pending) {
+    return { allowed: false, reason: "All required materials have already been transferred." };
+  }
+  return { allowed: true };
+}
+
 export function purchaseInvoiceStatus(doc: {
   status: string;
   docstatus: DocStatus;

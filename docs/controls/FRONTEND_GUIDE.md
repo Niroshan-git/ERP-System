@@ -119,7 +119,7 @@ Build strictly in this order. Do not jump ahead.
 | 1        | **Sales**           | Quotation → Sales Order → Delivery Note → Sales Invoice + Customers + Items + basic pricing | Core flow shipped and live-verified; Pick & Pack, partial fulfillment, discounts, quotation-lost also shipped |
 | 2        | **Buying**          | Material Request → Request for Quotation → Supplier Quotation → Purchase Order → Purchase Receipt → Purchase Invoice + Suppliers | Core flow (Material Request → ... → Purchase Invoice) + Suppliers shipped and live-verified |
 | 3        | **Stock**           | Stock balance (live, Bin-backed), Warehouses (simplified/flat), Stock Entry (Material Issue/Receipt/Transfer only) with Batch/Serial No tracking on lines | **Reordered ahead of Manufacturing 2026-09-16** — same precedent as Buying's own reorder; building now, see §10a |
-| 4        | **Manufacturing**   | Work Order, Job Card, simple BOM, downtime logging, live status / basic OEE | Pushed back behind Stock 2026-09-16 — OEE calc logic planned (M0 done), M1–M4 not started, frontend screens not started |
+| 4        | **Manufacturing**   | Work Order, Job Card, simple BOM, downtime logging, live status / basic OEE | Unlocked 2026-09-17 (Inventory MVP + Buying core cycle both accepted 2026-09-16). Packages 1-2 shipped: module shell, read-only Work Orders list, read-only Work Order detail (Materials/Operations/Job Cards/Quality Readiness) with list navigation wired. Read-only only — no create/submit/cancel; Job Card detail, BOM pages, Workstations, and OEE (M1-M4) not started |
 | 5        | **Accounting (Light)** | Payment Entry, outstanding invoices, simple receivables/payables | Not started |
 | 6        | **Dashboard**       | Operational KPIs, sales & production summary                    | Ahead of schedule — Sales Flow scene map, Reports hub, and Selling workspace home already shipped in parallel (guide explicitly allows this) |
 
@@ -287,10 +287,41 @@ Treat Sales/Buying as the reference implementation for every other rule in this 
 
 ## 11. Manufacturing Module – Following Module
 
-Once Stock's core flow ships, reuse the exact same patterns as Sales:
+**Status update (2026-09-17):** Stock's core flow shipped and the module started. `work-orders/`
+(list + read-only `[name]` detail — Materials/Operations/Related Job Cards/Quality Readiness
+tabs) is live, following the same patterns as Sales/Buying/Stock. `work-orders/new` (Create,
+package 3) shipped same day — production item/BOM selection restricted to items with
+`default_bom` set, read-only BOM materials/operations preview scaled client-side from the
+BOM's own `items`/`operations` tables, optional Material Readiness (`getBinQty`), creates as
+Draft only (`createDoc`, never `submitDoc`). Live-confirmed: ERPNext populates `required_items`
+itself from `bom_no`+`qty` on insert, but NOT `operations` (that table stays empty on a plain
+REST insert — a future Job Card package must account for this, not assume it's populated).
+Still not started at that point: Work Order submit/cancel, `job-cards/` (list + detail), BOM
+view, Workstations, downtime logging, live status/OEE — each its own scoped future package.
 
-- `work-orders/` (list + new + [name])
-- `job-cards/`
+**Update (2026-09-17, later same day) — Material Transfer for Manufacture shipped:** a Work
+Order material-change investigation first established that editing `Work Order.required_items`
+directly is blocked by core Frappe once a Work Order is submitted (`UpdateAfterSubmitError`,
+live-confirmed) — ERPNext's real, supported path is entirely Stock-Entry-driven. Built on that
+finding: `/manufacturing/work-orders/[name]/transfer-materials` calls ERPNext's own whitelisted
+`erpnext...work_order.make_stock_entry` (the same method Desk's "Start" button calls) to get a
+pre-filled, ERPNext-computed Material Transfer for Manufacture Stock Entry — outstanding
+required qty, already-transferred qty, and Bin-backed available stock all read straight from
+that response, never recomputed client-side. Supports partial transfer, Work-Order-specific
+"additional" materials (tagged `ADDITIONAL`, never merged into BOM-standard rows, never touching
+the BOM itself — confirmed byte-unchanged across every live test), and a Draft-vs-Submit
+distinction where only a submitted Stock Entry is ever presented as having moved stock. Item
+substitution (`Item Alternative`) remains unbuilt — 0 `Item Alternative` records and no
+`allow_alternative_item` items exist on this instance, a master-data prerequisite, not a code
+gap. Work Order Detail's Materials tab now shows Required/Transferred/Remaining/Consumed/
+Source/Readiness with a related "Material Transfers" Stock Entry list. Still not started:
+Manufacture/finished-goods Stock Entry, Job Cards, BOM view, Workstations, downtime logging,
+live status/OEE.
+
+Reuse the exact same patterns as Sales for what's still ahead:
+
+- `work-orders/new` (create) and write actions (Submit/Cancel/Start/Stop/Complete)
+- `job-cards/` (list + [name])
 - Simple BOM view
 - Downtime logging
 - Live status / basic OEE display
