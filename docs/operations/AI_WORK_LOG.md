@@ -23,9 +23,9 @@ for their respective subjects. Git is authoritative for actual code changes.
 
 | Package | Module | Description | Claude Status | Codex Status | Overall Status | Commit/Boundary | Open Findings | Needs Verification | Last Updated |
 |---|---|---|---|---|---|---|---:|---|---|
-| Manufacturing Package 2 | Manufacturing (frontend) | Work Order detail view — read-only, 6 tabs (Details/Materials/Operations/Job Cards/Quality Readiness/Comments) | CLAUDE_HANDOFF | `CODEX_REVIEW_COMPLETE` | `RETURNED_TO_CLAUDE` | `25b882e` (bundled with Pkg 3, Pkg 5) | 2 | Live QA not independently rerun | 2026-09-17 |
-| Manufacturing Package 3 | Manufacturing (frontend) | Work Order Create — Draft-only, BOM-scaled Materials/Operations preview, optional Material Readiness | CLAUDE_HANDOFF | `CODEX_REVIEW_COMPLETE` | `RETURNED_TO_CLAUDE` | `25b882e` (bundled with Pkg 2, Pkg 5) | 2 | Persisted Work Order operations behavior | 2026-09-17 |
-| Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | CLAUDE_HANDOFF | `CODEX_REVIEW_COMPLETE` | `RETURNED_TO_CLAUDE` | `25b882e` (bundled with Pkg 2, Pkg 3) | 3 | Accounting impact; duplicate-item transfer behavior; live QA not independently rerun | 2026-09-17 |
+| Manufacturing Package 2 | Manufacturing (frontend) | Work Order detail view — read-only, 6 tabs (Details/Materials/Operations/Job Cards/Quality Readiness/Comments) | `CLAUDE_HANDOFF` (remediated) | `CODEX_REVIEW_COMPLETE` (pre-remediation) | `RETURNED_TO_CLAUDE` (re-handed-off, pending re-review) | `25b882e` → remediation `517f2ea` (bundled with Pkg 3, Pkg 5) | 0 corrected, 0 remaining for this package | Live QA not independently rerun | 2026-09-17 |
+| Manufacturing Package 3 | Manufacturing (frontend) | Work Order Create — Draft-only, BOM-scaled Materials/Operations preview, optional Material Readiness | `CLAUDE_HANDOFF` (remediated) | `CODEX_REVIEW_COMPLETE` (pre-remediation) | `RETURNED_TO_CLAUDE` (re-handed-off, pending re-review) | `25b882e` → remediation `517f2ea` (bundled with Pkg 2, Pkg 5) | 0 corrected, 0 remaining for this package | `MFG-UNV-007` — operations `time_in_mins` scaling convention | 2026-09-17 |
+| Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | `CLAUDE_HANDOFF` (remediated) | `CODEX_REVIEW_COMPLETE` (pre-remediation) | `RETURNED_TO_CLAUDE` (re-handed-off, pending re-review) | `25b882e` → remediation `517f2ea` (bundled with Pkg 2, Pkg 3) | 1 corrected (CX-MFG-001), 1 NEEDS_VERIFICATION remains (CX-MFG-006/`MFG-UNV-008`) | Accounting impact (`MFG-UNV-005`); duplicate-item transfer behavior (`MFG-UNV-008`) | 2026-09-17 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -268,11 +268,12 @@ impact remains `MFG-UNV-005` / `NEEDS_VERIFICATION`.
 
 ### Claude Corrections — governance-closure pass (2026-09-17)
 
-Corrections submitted against this review's findings, uncommitted in the working tree as of this
-note (see `QA_LOG.md`'s matching 2026-09-17 correction entry for developer-QA evidence — real
-live-instance re-verification of these fixes is Codex's re-review to confirm, not self-certified
-here per this policy's Re-Review section). `npm run lint`, `npx tsc --noEmit`, and `npm run build`
-all re-run clean after every change below.
+Corrections submitted against this review's findings and **committed as `517f2ea`** on branch
+`frontend` (on top of the original package boundary `25b882e`) — see `QA_LOG.md`'s matching
+2026-09-17 correction entry for developer-QA evidence. Real live-instance re-verification of
+these fixes is Codex's re-review to confirm, not self-certified here per this policy's
+Re-Review section. `npm run lint`, `npx tsc --noEmit`, and `npm run build` all re-run clean
+after every change below, and again immediately before this commit.
 
 - **`CX-MFG-001` (HIGH, OPEN → corrected, pending re-review):** `transfer-materials/actions.ts`'s
   `buildStockEntryFields` is now `async` and re-derives `company`/`bom_no`/`use_multi_level_bom`/
@@ -319,3 +320,16 @@ all re-run clean after every change below.
 for Packages 2/3/5 above should be read as re-handed-off pending Codex's independent
 verification, not self-certified as `RESOLVED` — only Codex's re-review may set that per this
 policy's Re-Review section.
+
+**Remediation commit:** `517f2ea` — "fix(manufacturing): remediate Codex package review
+findings". 15 files (see `git show --stat 517f2ea`): `PROGRESS.md`, `QA_LOG.md`,
+`apps/frontend/README.md`, `apps/frontend/src/app/(app)/manufacturing/work-orders/actions.ts`,
+`.../work-orders/[name]/page.tsx`, `.../work-orders/[name]/transfer-materials/{actions.ts,
+page.tsx}`, `apps/frontend/src/components/MaterialTransferForm.tsx`,
+`apps/frontend/src/lib/actions/bomLookup.ts`, `docs/backend/05-manufacturing/{work-order,
+job-card,material-transfer}.md`, `docs/backend/99-unverified/unverified-behaviours.md`,
+`docs/ceylon-stack-documentation.html`, `docs/operations/AI_WORK_LOG.md` (this file, committed
+in the same commit up to the point before this paragraph). Not pushed to `origin/frontend` —
+governance did not direct a push. Working tree was clean before staging, and only these 15
+files (all already known to this review as part of the remediation scope) were staged and
+committed — no unrelated or pre-existing changes included.
