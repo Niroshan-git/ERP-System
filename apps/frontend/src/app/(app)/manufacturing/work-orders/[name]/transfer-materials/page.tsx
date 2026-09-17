@@ -153,11 +153,8 @@ export default async function TransferMaterialsPage({ params }: { params: Promis
           production_item: doc.production_item,
           item_name: doc.item_name,
           qty: doc.qty,
-          company: doc.company,
           bom_no: preview.bom_no,
-          use_multi_level_bom: preview.use_multi_level_bom,
           wip_warehouse: preview.to_warehouse ?? doc.wip_warehouse ?? "",
-          fg_completed_qty: preview.fg_completed_qty,
         }}
         rows={rows}
         itemOptions={itemOptions}

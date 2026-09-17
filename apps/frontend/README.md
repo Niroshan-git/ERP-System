@@ -54,8 +54,10 @@ sessions to ship fast:
 - Login (`/login`) — the logo-reveal animation, email/password against
   ERPNext.
 - App shell (`src/app/(app)/layout.tsx`) — sidebar grouped Sales / Items &
-  Pricing / Setup (mirroring ERPNext's own Selling workspace), Manufacturing
-  greyed "coming soon" + topbar (user name, logout). The notification bell
+  Pricing / Setup (mirroring ERPNext's own Selling workspace); Manufacturing
+  is a real, clickable module (unlocked 2026-09-17 — see "Manufacturing
+  module" below), not the greyed "coming soon" placeholder it started as.
+  Topbar (user name, logout). The notification bell
   is a visual placeholder only — real Notification Log data needs per-user
   ERPNext identity (see the auth limitation above), so it's left inert
   rather than shipped showing the wrong person's notifications.

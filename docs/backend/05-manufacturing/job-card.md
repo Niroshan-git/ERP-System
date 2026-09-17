@@ -39,6 +39,12 @@ this as a full Job Card baseline.
   entered yet — not a query failure). Note: `apps/mcp-server`'s own `get_work_order_detail`/
   `get_job_card_detail` tools take the Item-level approach instead, for a different, narrower
   purpose — the two are not inconsistent, they answer different questions.
+  **Fixed 2026-09-17** (governance-closure finding `CX-MFG-003`): the numerator was originally
+  computed across *all* Job Cards with `quality_inspection` set, not scoped to the same
+  `quality_inspection_template`-carrying population as the denominator — a Job Card with a
+  recorded inspection but no template could inflate the ratio above the real population (e.g.
+  "3 of 2"). Numerator is now `jobCardsWithTemplate.filter(jc => jc.quality_inspection)`, not
+  `jobCards.filter(...)`.
 
 ## Relationships
 

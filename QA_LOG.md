@@ -253,3 +253,58 @@ Central QA log. Append one entry per QA run — date, package/flow tested, pass/
   PROGRESS.md's matching entry). Meets Definition of Ready (`AGENT_OPERATING_GUIDE.md` §8) for
   the Material Transfer for Manufacture scope specifically — not a claim that Manufacturing or
   Production Execution as a whole is done.
+
+## 2026-09-17 (later) — Manufacturing Packages 2/3/5 governance-closure corrections (Codex findings CX-MFG-001–006)
+
+- **What was tested**: static verification only — `npm run lint`, `npx tsc --noEmit`, and
+  `npm run build` all re-run clean after every fix below. **No live ERPNext re-verification was
+  performed this session** (no SSH/`bench console` access available — a credential-exploration
+  action was correctly denied by the harness's permission classifier when checked for). This is
+  explicitly **NOT RUN** for live-instance evidence; Codex's independent re-review (per
+  `docs/controls/AI_AGENT_HANDOFF_POLICY.md`'s Re-Review section) is the next required step
+  before these corrections can be treated as verified, not this session's own say-so.
+- **Context**: Codex's independent review of commit `25b882e` (Manufacturing Packages 2, 3, 5)
+  returned `CHANGES REQUIRED` with findings `CX-MFG-001` through `CX-MFG-006` (see
+  `docs/operations/AI_WORK_LOG.md`). This entry covers the corrections made in response, all
+  still uncommitted in the working tree as of this entry.
+- **`CX-MFG-001` (HIGH) — fixed**: `transfer-materials/actions.ts` previously trusted
+  client-submitted hidden fields (`company`/`bom_no`/`use_multi_level_bom`/`to_warehouse`/
+  `fg_completed_qty`) to build the Stock Entry, using the trustworthy bound `workOrderName`
+  route argument only for revalidation/redirect. Now re-derives all of those from a fresh
+  `getMaterialTransferPreview(workOrderName)` call (re-invoking ERPNext's own
+  `make_stock_entry`) keyed off that same bound argument — matching the established pattern
+  already used by `createDeliveryNoteFromSalesOrderAction` (re-fetch the parent doc server-side,
+  never trust a client round-trip of its own fields). Hidden fields removed from
+  `MaterialTransferForm.tsx` entirely; only `posting_date`/`remarks`/`items`
+  (`item_code`/`qty`/`s_warehouse` per row) are still real client input.
+- **`CX-MFG-002` (HIGH) — fixed**: `work-orders/actions.ts`'s `createWorkOrderAction` previously
+  never sent `operations` on Work Order create, even though ERPNext leaves that table empty on a
+  plain REST insert (live-confirmed in Package 3's own QA) and `WorkOrderForm.tsx` previews BOM
+  operations as if they matter. Now builds an `operations` array from a fresh
+  `getBomDetails(bom_no)` call, `time_in_mins` scaled by `qty / bom.quantity`. Flagged
+  `MFG-UNV-007` — the scaling convention is reasoned (matches how `required_items` already
+  scales) but not live-verified against Desk's own copy behavior.
+- **`CX-MFG-003` (MEDIUM) — fixed**: Work Order Detail's Quality Readiness ratio numerator
+  (`jobCardsWithInspection`) was computed across all Job Cards with `quality_inspection` set,
+  not scoped to the same `quality_inspection_template`-carrying population as the denominator —
+  a Job Card with a recorded inspection but no template could report a ratio above 100% of the
+  real population. Numerator now filters within `jobCardsWithTemplate`.
+- **`CX-MFG-004` (DOCUMENTATION) — fixed**: `apps/frontend/README.md`'s "App shell" bullet no
+  longer describes Manufacturing as greyed "coming soon"; `docs/ceylon-stack-documentation.html`'s
+  Work Orders list status line no longer claims no "+ New" action exists. Three stale
+  "not committed"/"pending release-tracker" notes in `PROGRESS.md` (Packages 2, 3, 5) corrected
+  to name commit `25b882e`.
+- **`CX-MFG-006` (NEEDS_VERIFICATION) — hardened, not resolved**: React `key`s in the Work Order
+  Detail Materials tab and `MaterialTransferForm.tsx` now use row index instead of `item_code`;
+  `MaterialTransferForm.tsx`'s per-row state (`qtyByIndex`/`warehouseByIndex`) is now index-keyed
+  throughout, so a duplicate `item_code` in the preview (a live-confirmed real possibility per
+  Package 4's investigation) can no longer collapse two rows' state into one. Whether ERPNext's
+  own `make_stock_entry` can actually return duplicate `item_code` rows remains unconfirmed —
+  logged as `MFG-UNV-008`.
+- **Not addressed**: `CX-MFG-005` (handoff traceability — no formal `CLAUDE PACKAGE HANDOFF` or
+  work-log entry existed) — closed by this session's own `AI_WORK_LOG.md` additions (per-package
+  ledger rows, a detailed Package 5 record) and the `CLAUDE PACKAGE HANDOFF` produced at the end
+  of this session, not a code change.
+- **Sign-off**: no `qa-tester`/live-instance verification this session (see above). Corrections
+  are handed off for Codex's independent re-review against the same `25b882e` package boundary —
+  not self-certified as resolved.

@@ -268,11 +268,15 @@ export default async function WorkOrderDetailPage({
             </tr>
           </thead>
           <tbody>
-            {(doc.required_items ?? []).map((ri) => {
+            {(doc.required_items ?? []).map((ri, i) => {
               const transferredQty = ri.transferred_qty ?? 0;
               const remaining = Math.max(ri.required_qty - transferredQty, 0);
+              // Keyed by row index, not item_code — Work Order Item duplicates are a
+              // live-confirmed real possibility (item substitution leaving two rows with the
+              // same item_code, see PROGRESS.md's Package 4 investigation), which would
+              // otherwise collide as a React key (governance-closure finding, CX-MFG-006).
               return (
-                <tr key={ri.item_code} className="border-b border-border last:border-0">
+                <tr key={i} className="border-b border-border last:border-0">
                   <td className={cell}>
                     {ri.is_additional_item ? (
                       <span className="mr-2 rounded bg-alert/10 px-1.5 py-0.5 text-xs font-semibold text-alert">
@@ -404,7 +408,11 @@ export default async function WorkOrderDetailPage({
   );
 
   const jobCardsWithTemplate = jobCards.filter((jc) => jc.quality_inspection_template);
-  const jobCardsWithInspection = jobCards.filter((jc) => jc.quality_inspection);
+  // Scoped to jobCardsWithTemplate, not all jobCards — a Job Card that recorded an inspection
+  // without carrying a template would otherwise inflate the numerator against a denominator
+  // that never counted it, producing a readiness ratio above the real population (e.g. "3 of
+  // 2") — governance-closure code-review finding, CX-MFG-003.
+  const jobCardsWithInspection = jobCardsWithTemplate.filter((jc) => jc.quality_inspection);
 
   /**
    * Truthful, not inferred: reads each Job Card's own `quality_inspection_template`/

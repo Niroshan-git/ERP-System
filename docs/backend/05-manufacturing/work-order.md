@@ -66,12 +66,15 @@ Canonical `work_order_operation`, 1:N under `work_order`. Frappe child DocType
 | Batch Size | `batch_size` | `batch_size` | |
 | Planned/Actual Start/End | `planned_start_time` etc. | same | |
 
-**`MFG-UNV-004a`** — `NEEDS_VERIFICATION`: this table stays **empty on a plain REST insert**
-even when the BOM has operations. Live-confirmed (Package 3 QA): ERPNext's `validate()`
-auto-populates `required_items` from the BOM but does **not** auto-populate `operations` the
-same way — that table is normally filled by Desk's own client-side form script, not by
-`validate()` alone. A future Job Card package must populate `operations` explicitly rather than
-assume a REST-created Work Order already carries it.
+**`MFG-UNV-004a`** — historical, superseded 2026-09-17: this table stayed **empty on a plain
+REST insert** even when the BOM had operations. Live-confirmed (Package 3 QA): ERPNext's
+`validate()` auto-populates `required_items` from the BOM but does **not** auto-populate
+`operations` the same way — that table is normally filled by Desk's own client-side form
+script, not by `validate()` alone. **Fixed** (governance-closure finding `CX-MFG-002`):
+`createWorkOrderAction` now explicitly builds and sends `operations` itself, copied from the
+BOM's own `operations` (re-fetched server-side via `getBomDetails`, not a client-submitted
+copy), with `time_in_mins` scaled by `qty / bom.quantity` — see `MFG-UNV-007` for the
+NEEDS_VERIFICATION status of that specific scaling convention.
 
 ## Business rules
 
@@ -113,7 +116,7 @@ assume a REST-created Work Order already carries it.
 
 | Action | Built in this frontend? | Behavior |
 |---|---|---|
-| Create | **Yes** | `createDoc("Work Order", {...})` → `docstatus 0`. ERPNext's `validate()` auto-populates `required_items`; `operations` stays empty (`MFG-UNV-004a`). |
+| Create | **Yes** | `createDoc("Work Order", {...})` → `docstatus 0`. ERPNext's `validate()` auto-populates `required_items`; `operations` is now sent explicitly by this app (see `MFG-UNV-004a`, fixed 2026-09-17). |
 | Save (Draft edit) | No | Not exposed; see `MFG-VAL-003` for what would happen if it were. |
 | Submit | No | Future package. Submitting is what actually makes `canTransferMaterials()` return true, and is a prerequisite Desk-side action this app assumes already happened for a Work Order it displays. |
 | Cancel | No | Future package. |

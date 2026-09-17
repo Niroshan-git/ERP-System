@@ -67,6 +67,38 @@ not fixed, since it was judged cosmetic.
 **How to verify:** Not urgent; revisit if headroom (`MFG-UNV-003`) is ever raised above 0%, which
 would change how "already satisfied" is judged client-side too.
 
+### MFG-UNV-007 — Work Order Operation `time_in_mins` qty-scaling convention on create
+**Status:** `NEEDS_VERIFICATION` (Codex governance-closure finding `CX-MFG-002`, fixed 2026-09-17)
+**What's uncertain:** `work-orders/actions.ts`'s `createWorkOrderAction` now sends an `operations`
+array on Work Order create (previously omitted — ERPNext's own `validate()` populates
+`required_items` from `bom_no`+`qty` on a plain REST insert but leaves `operations` empty,
+live-confirmed). Each `time_in_mins` is scaled by `qty / bom.quantity` — the same ratio this
+package already uses for `required_items`' quantities — but this specific scaling convention for
+*operation time* has not been independently confirmed against Desk's own client-side BOM→Work
+Order copy behavior (no SSH/`bench console` access in the session that made this fix). It is a
+reasoned choice (BOM operation time is defined against the BOM's own reference `quantity`), not a
+verified one.
+**How to verify:** Create a real Work Order from Desk itself (not this app) against a BOM with
+operations, at a qty different from the BOM's reference quantity, and compare the resulting Work
+Order Operation `time_in_mins` values to what this app's scaling produces for the same inputs.
+
+### MFG-UNV-008 — Duplicate `item_code` rows in `required_items` / Material Transfer preview
+**Status:** `NEEDS_VERIFICATION` (Codex governance-closure finding `CX-MFG-006`, partially
+mitigated 2026-09-17)
+**What's uncertain:** Package 4's investigation live-confirmed that a Draft-stage item
+substitution can leave two `Work Order Item` rows sharing the same `item_code` (nothing merges
+them). Whether ERPNext's own `make_stock_entry` (the RPC `getMaterialTransferPreview` calls) ever
+returns two `items` rows with the same `item_code` in its response — as opposed to merging them
+server-side before returning — has not been confirmed. Mitigated defensively regardless: React
+`key`s in both the Work Order Detail Materials tab and `MaterialTransferForm.tsx` now use row
+index rather than `item_code`, and `MaterialTransferForm.tsx`'s per-row qty/warehouse state
+(`qtyByIndex`/`warehouseByIndex`) is now index-keyed too, so a duplicate `item_code` can no longer
+collapse two rows' state into one — but whether the scenario can actually reach this screen at all
+remains unconfirmed.
+**How to verify:** Reproduce Package 4's substitution steps live (leaving a duplicate `item_code`
+in `required_items`), then call `make_stock_entry` against that Work Order and inspect whether the
+response's `items` array contains one merged row or two duplicate rows.
+
 ## General
 
 Add new entries here as they're discovered during other domain baselines (Sales, Inventory,

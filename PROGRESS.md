@@ -1268,9 +1268,10 @@ validate. `AGENT_OPERATING_GUIDE.md` §8 doesn't list Manufacturing as a core fl
 full QA cycle yet; browser verification wasn't done (no login attempted this session), but
 every field/query this page relies on was confirmed live via the MCP tools above.
 
-`docs/ceylon-stack-documentation.html` changelog row corrected to match this entry. Notion
-still pending a `release-tracker` pass for this package specifically. Not committed — commit
-wasn't requested this session.
+`docs/ceylon-stack-documentation.html` changelog row corrected to match this entry. **Committed
+2026-09-17 in `25b882e`** (bundled with packages 3 and 5) — the HTML status/changelog update
+above landed in that same commit. Notion sync for this package remained outstanding until the
+governance-closure pass on 2026-09-17 (see `docs/operations/AI_WORK_LOG.md`).
 
 **Next Manufacturing package** (not started): Work Order create/submit/cancel, Job Card
 list/detail, BOM, Workstations, and eventually live status/OEE — each its own scoped package
@@ -1332,8 +1333,10 @@ finding (the `operations` gap above) fed back into this package's own code comme
 left as a surprise for later. **Result: PASS.** Fixed the one inaccurate doc comment QA flagged
 (`actions.ts` previously implied ERPNext auto-populates `operations` too — corrected).
 
-Not committed — commit wasn't requested this session. `docs/ceylon-stack-documentation.html`
-and Notion sync pending a `release-tracker` pass for this package.
+**Committed 2026-09-17 in `25b882e`** (bundled with packages 2 and 5) — the
+`docs/ceylon-stack-documentation.html` status/changelog update for this package landed in that
+same commit. Notion sync for this package remained outstanding until the governance-closure pass
+on 2026-09-17 (see `docs/operations/AI_WORK_LOG.md`).
 
 ## Manufacturing frontend Package 4 — Work Order Material Change investigation (2026-09-17): STOPPED before write UI, no code changed
 
@@ -1543,5 +1546,70 @@ transferred* required items before tagging a re-added item `ADDITIONAL` — cosm
 ERPNext's own server-side item_code matching decides the real outcome (and would reject an
 already-satisfied line as excess under the current 0% headroom setting either way).
 
-Not committed — commit wasn't requested. `docs/ceylon-stack-documentation.html` and Notion sync
-pending a `release-tracker` pass.
+**Committed 2026-09-17 in `25b882e`** (bundled with packages 2 and 3) — the
+`docs/ceylon-stack-documentation.html` status/changelog update for this package landed in that
+same commit. Notion sync for this package remained outstanding until the governance-closure pass
+on 2026-09-17 (see `docs/operations/AI_WORK_LOG.md`).
+
+## Manufacturing frontend Packages 2/3/5 — governance-closure corrections (2026-09-17, later)
+
+Codex's independent review of commit `25b882e` (per `docs/controls/AI_AGENT_HANDOFF_POLICY.md`)
+returned `CHANGES REQUIRED` with six findings (`CX-MFG-001` through `CX-MFG-006`, see
+`docs/operations/AI_WORK_LOG.md`). This session addressed them — still uncommitted as of this
+entry, pending Codex's re-review of the same package boundary.
+
+- **`CX-MFG-001` (HIGH) — Material-transfer server actions trusted client-submitted hidden
+  fields**: `transfer-materials/actions.ts` built the Stock Entry from `company`/`bom_no`/
+  `use_multi_level_bom`/`to_warehouse`/`fg_completed_qty` hidden `<input>`s — a tamperable
+  client copy — using the trustworthy bound `workOrderName` route argument only for
+  revalidation/redirect, never to constrain the actual document being created. Fixed by
+  re-deriving all of those fields from a fresh `getMaterialTransferPreview(workOrderName)` call
+  (re-invoking ERPNext's own `make_stock_entry`) keyed off the bound argument — the same
+  re-fetch-the-parent-server-side pattern already established by
+  `createDeliveryNoteFromSalesOrderAction`. Per-row `item_code`/`qty`/`s_warehouse` remain the
+  only real client input; master-data fields for each row now come from the fresh preview (for a
+  pending/required item) or a fresh `getItemLineDefaults` lookup (for an additional item), never
+  from the client. Hidden fields for the header trimmed out of `MaterialTransferForm.tsx`
+  entirely — dead code removed, not just unused.
+- **`CX-MFG-002` (HIGH) — Work Order Create previewed BOM operations it never persisted**:
+  `WorkOrderForm.tsx` shows an Operations preview read from the BOM, but
+  `createWorkOrderAction` never sent `operations` on create — ERPNext's own `validate()` leaves
+  that table empty on a plain REST insert (live-confirmed, Package 3's own QA), so the created
+  Work Order was not behaviorally equivalent to what the user was shown. Fixed by building an
+  `operations` array server-side from a fresh `getBomDetails(bom_no)` call, `time_in_mins` scaled
+  by `qty / bom.quantity` (mirroring `required_items`' own scaling). Flagged
+  `MFG-UNV-007` in `docs/backend/99-unverified/unverified-behaviours.md` — the scaling
+  convention is reasoned, not live-verified (no SSH/`bench console` access this session).
+- **`CX-MFG-003` (MEDIUM) — Quality Readiness ratio miscounted**: the numerator counted every
+  Job Card with a recorded `quality_inspection`, not scoped to the same
+  `quality_inspection_template`-carrying population as the denominator — a Job Card with an
+  inspection but no template could push the ratio above the real population (e.g. "3 of 2").
+  Fixed: numerator now filters within `jobCardsWithTemplate`.
+- **`CX-MFG-004` (DOCUMENTATION) — stale release/README text**: `apps/frontend/README.md`'s "App
+  shell" bullet still described Manufacturing as greyed "coming soon";
+  `docs/ceylon-stack-documentation.html`'s Work Orders list status line still claimed no "+ New"
+  action existed even though Work Order Create shipped in the same commit. Both corrected. Three
+  stale "not committed"/"pending release-tracker" notes in this file (this package's own Package
+  2/3/5 entries) also corrected to name commit `25b882e` — see those entries above.
+- **`CX-MFG-006` (NEEDS_VERIFICATION) — duplicate `item_code` rows indexed unsafely**: Package
+  4's investigation had already live-confirmed a Draft-stage item substitution can leave two
+  `Work Order Item` rows sharing an `item_code` (nothing merges them), but the Work Order Detail
+  Materials tab and `MaterialTransferForm.tsx` both used `item_code` as the React `key`, and the
+  transfer form's per-row qty/warehouse state was keyed by `item_code` too — a real duplicate
+  would have silently collapsed two rows' state into one, losing one row's qty/warehouse on edit.
+  Hardened (not resolved): both now key by row index instead. Whether ERPNext's own
+  `make_stock_entry` can itself return duplicate `item_code` rows in its response remains
+  unconfirmed — logged as `MFG-UNV-008`, left `NEEDS_VERIFICATION`.
+- **Not a code change**: `CX-MFG-005` (no formal `CLAUDE PACKAGE HANDOFF` or `AI_WORK_LOG.md`
+  entry existed for this package) — closed by this session's `AI_WORK_LOG.md` additions and the
+  `CLAUDE PACKAGE HANDOFF` produced at the end of this session.
+
+**Verification**: `npm run lint`, `npx tsc --noEmit`, and `npm run build` all clean after every
+fix. No live ERPNext re-verification this session — no SSH/`bench console` access available (a
+credential-exploration action was correctly denied when attempted). See `QA_LOG.md`'s matching
+entry. `code-reviewer` was not re-run as a separate pass this session — these are direct
+corrections against Codex's own named findings, not new undiscovered surface area; Codex's
+re-review is the next required check per `AI_AGENT_HANDOFF_POLICY.md`, not a second Claude-side
+review of its own fix.
+
+Not committed — see this session's `CLAUDE PACKAGE HANDOFF` for the full change boundary.

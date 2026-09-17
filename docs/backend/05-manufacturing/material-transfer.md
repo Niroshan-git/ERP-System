@@ -40,20 +40,31 @@ directly.
 
 ## Field mapping — submit payload (`buildStockEntryFields` → `POST /api/resource/Stock Entry`)
 
+**Server-derived vs. client-supplied (updated 2026-09-17, `CX-MFG-001` fix):** only
+`posting_date`, `remarks`, and each line's `item_code`/`qty`/`s_warehouse` are real client input.
+`company`/`bom_no`/`use_multi_level_bom`/`to_warehouse`/`fg_completed_qty` and every other
+per-line field (`item_name`/`uom`/`stock_uom`/`conversion_factor`) are re-derived server-side
+inside `buildStockEntryFields` from a **fresh** `make_stock_entry` call (and, for a non-pending
+line, a fresh `Item` lookup) keyed off the route's own trustworthy bound `workOrderName` —
+never trusted from a client-submitted hidden field. This closed a real gap: a tampered hidden
+`<input>` previously could have posted the transfer against the wrong company/warehouse or with
+a stale `fg_completed_qty`, since only the bound `workOrderName` argument (verified server-side
+by Next.js) was actually trustworthy before this fix — the rest were plain form fields.
+
 | Frontend field | Frappe field | Notes |
 |---|---|---|
 | (fixed) | `naming_series` | `"MAT-STE-.YYYY.-"` |
-| Company | `company` | |
-| Posting date | `posting_date` | Required |
+| — | `company` | Server-derived from a fresh `make_stock_entry` call, not client input |
+| Posting date | `posting_date` | Required, real client input |
 | (fixed) | `purpose` / `stock_entry_type` | Both `"Material Transfer for Manufacture"` |
-| Work Order | `work_order` | Required |
-| (fixed) | `from_bom` | `1` |
-| BOM | `bom_no` | |
-| Use multi-level BOM | `use_multi_level_bom` | |
-| WIP warehouse | `to_warehouse` | Applied uniformly to every line's `t_warehouse` |
-| **Production qty** | `fg_completed_qty` | **Required by this app; throws if missing/zero** — see `MFG-STK-001` |
-| Remarks | `remarks` | Optional free text |
-| Line: item/qty/UOM/source warehouse | `items[].item_code` / `qty` / `uom`/`stock_uom`/`conversion_factor` / `s_warehouse` | `transfer_qty = qty × conversion_factor`; `t_warehouse` set from header |
+| — | `work_order` | The bound route parameter, never a form field |
+| (fixed) | `from_bom` | From the fresh `make_stock_entry` response |
+| — | `bom_no` | Server-derived, not client input |
+| — | `use_multi_level_bom` | Server-derived, not client input |
+| — | `to_warehouse` | Server-derived; applied uniformly to every line's `t_warehouse` |
+| — | `fg_completed_qty` | **Server-derived, not client input** — see `MFG-STK-001` |
+| Remarks | `remarks` | Optional free text, real client input |
+| Line: item/qty/source warehouse | `items[].item_code` / `qty` / `s_warehouse` | Real client input. A row matching a pending item from the fresh preview is capped at ERPNext's own proposed qty and takes `item_name`/`uom`/`stock_uom`/`conversion_factor` from that preview row; a row not in the pending list (an additional item) has those fields re-derived via a fresh `Item` lookup — never from the client |
 
 ## Business rules
 

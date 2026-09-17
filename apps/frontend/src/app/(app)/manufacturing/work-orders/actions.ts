@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createDoc, ErpNextError } from "@/lib/erpnext";
+import { getBomDetails } from "@/lib/actions/bomLookup";
 
 export type FormState = { error?: string } | undefined;
 
@@ -23,7 +24,25 @@ function toErpDatetime(value: string): string {
   return `${value.replace("T", " ")}:00`;
 }
 
-function buildWorkOrderFields(formData: FormData) {
+/**
+ * Live-confirmed (2026-09-17 QA): ERPNext's own `validate()` populates `required_items` from
+ * `bom_no`+`qty` server-side on a plain REST insert, but NOT `operations` — that table stays
+ * empty even when the BOM has operations (pulling BOM operations into a Work Order is normally
+ * driven by Desk's own client-side form script, not `validate()`). WorkOrderForm.tsx previews
+ * the BOM's operations to the user before create, which made the created Work Order behaviorally
+ * inequivalent to what was shown (governance-closure code-review finding, CX-MFG-002) — fixed
+ * here by re-fetching the same BOM server-side (via the already-existing `getBomDetails`, not a
+ * client-submitted copy) and copying its `operations` onto the create payload, scaled by
+ * qty/bom.quantity the same way `required_items`' own quantities scale. `sequence_id` is carried
+ * through unscaled to preserve the BOM's routing order. Fields left unset (`hour_rate`,
+ * `planned_operating_cost`, `status`) are ERPNext's own to derive from the Workstation/Operation
+ * masters and its own controller logic during `validate()` — not recomputed here, consistent
+ * with this package's standing rule of reusing ERPNext's own math rather than reimplementing it.
+ * NEEDS_VERIFICATION: the qty-scaling convention for `time_in_mins` mirrors the materials
+ * preview's own scaling but has not been live-QA'd against the real instance the way the
+ * materials scaling was (see docs/backend/99-unverified/unverified-behaviours.md).
+ */
+async function buildWorkOrderFields(formData: FormData) {
   const production_item = String(formData.get("production_item") ?? "").trim();
   const bom_no = String(formData.get("bom_no") ?? "").trim();
   const qty = Number(String(formData.get("qty") ?? "").trim());
@@ -43,6 +62,14 @@ function buildWorkOrderFields(formData: FormData) {
   if (!company) throw new Error("Company is required.");
   if (!plannedStartRaw) throw new Error("Planned start date is required.");
 
+  const bomDetail = await getBomDetails(bom_no);
+  const scale = qty / (bomDetail?.quantity || 1);
+  const operations = (bomDetail?.operations ?? []).map((op) => ({
+    operation: op.operation,
+    workstation: op.workstation || undefined,
+    time_in_mins: Math.round((op.time_in_mins ?? 0) * scale * 100) / 100,
+  }));
+
   return {
     naming_series: "MFG-WO-.YYYY.-",
     company,
@@ -57,25 +84,18 @@ function buildWorkOrderFields(formData: FormData) {
     wip_warehouse,
     fg_warehouse,
     use_multi_level_bom,
+    ...(operations.length > 0 ? { operations } : {}),
   };
 }
 
-/**
- * Create-only — leaves the Work Order at docstatus 0 (Draft). No submit/cancel here, that's
- * a future scoped package (see FRONTEND_GUIDE.md §11). This app never sends `required_items`/
- * `operations` itself. Live-confirmed (2026-09-17 QA): ERPNext's own `validate()` populates
- * `required_items` from `bom_no`+`qty` server-side on a plain REST insert, but NOT
- * `operations` — that table stays empty even when the BOM has operations (pulling BOM
- * operations into a Work Order is normally driven by Desk's own client-side form script, not
- * `validate()`). The Operations preview in WorkOrderForm.tsx reads straight from the BOM doc
- * for display, not from the created Work Order, so this doesn't affect this package — but a
- * future Job Card / operation-tracking package must not assume Work Orders created here carry
- * populated `operations` rows.
- */
+/** Create-only — leaves the Work Order at docstatus 0 (Draft). No submit/cancel here, that's
+ * a future scoped package (see FRONTEND_GUIDE.md §11). This app never sends `required_items`
+ * itself — ERPNext's own `validate()` populates it from `bom_no`+`qty` on insert. `operations`
+ * is now sent explicitly (see buildWorkOrderFields's doc comment above). */
 export async function createWorkOrderAction(_prevState: FormState, formData: FormData): Promise<FormState> {
-  let fields: ReturnType<typeof buildWorkOrderFields>;
+  let fields: Awaited<ReturnType<typeof buildWorkOrderFields>>;
   try {
-    fields = buildWorkOrderFields(formData);
+    fields = await buildWorkOrderFields(formData);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Invalid form input." };
   }

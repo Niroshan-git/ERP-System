@@ -33,12 +33,16 @@ export type BomOperationRow = { operation: string; workstation?: string; time_in
 export type BomDetail = { name: string; quantity: number; items: BomItemRow[]; operations: BomOperationRow[] } | null;
 
 /**
- * Full BOM doc (header `quantity` + `items`/`operations` child tables) for the read-only
- * preview on Work Order create. Client-side scaling against the Work Order's own `qty` is
- * flat arithmetic on this doc's top-level `items` only (`bomItem.qty * (workOrderQty /
- * bom.quantity)`) — deliberately not multi-level BOM explosion, which ERPNext itself does
- * server-side after the Work Order is created (`required_items`/`operations` are populated
- * by ERPNext's own `validate()`, not sent by this app).
+ * Full BOM doc (header `quantity` + `items`/`operations` child tables). Used both for
+ * WorkOrderForm.tsx's read-only preview (client-side scaling against the Work Order's own
+ * `qty` is flat arithmetic on this doc's top-level `items` only —
+ * `bomItem.qty * (workOrderQty / bom.quantity)`, deliberately not multi-level BOM explosion,
+ * which ERPNext itself does server-side for `required_items`) and by
+ * `work-orders/actions.ts`'s `createWorkOrderAction`, which re-fetches this same BOM
+ * server-side to build the create payload's `operations` array — ERPNext's own `validate()`
+ * populates `required_items` from `bom_no`+`qty` on insert, but leaves `operations` empty on a
+ * plain REST insert (live-confirmed), so this app sends `operations` itself rather than assume
+ * ERPNext will.
  */
 export async function getBomDetails(bomName: string): Promise<BomDetail> {
   if (!bomName) return null;

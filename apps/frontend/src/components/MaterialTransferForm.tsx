@@ -52,22 +52,16 @@ export function MaterialTransferForm({
   saveDraftAction,
   submitAction,
 }: {
+  // Display-only — company/bom_no/use_multi_level_bom/fg_completed_qty aren't sent from here
+  // any more; actions.ts re-derives them server-side from a fresh make_stock_entry call keyed
+  // off the route's own Work Order (see actions.ts's buildStockEntryFields doc comment).
   workOrder: {
     name: string;
     production_item: string;
     item_name?: string;
     qty: number;
-    company: string;
     bom_no: string;
-    use_multi_level_bom: 0 | 1;
     wip_warehouse: string;
-    /** ERPNext's own `make_stock_entry` sets this on the Stock Entry it builds (defaults to
-     * the Work Order's remaining qty to produce) — required for `Stock Entry.update_work_order`
-     * to run `add_additional_items`/`update_work_order_qty` at all (it's gated behind
-     * `if self.fg_completed_qty:`, live-confirmed in the Package 5 QA pass: omitting it
-     * silently skipped additional-item attachment entirely). Passed through unchanged, never
-     * recomputed here. */
-    fg_completed_qty: number;
   };
   rows: RequiredMaterialRow[];
   itemOptions: ItemOption[];
@@ -84,11 +78,16 @@ export function MaterialTransferForm({
     undefined,
   );
 
-  const [qtyByItem, setQtyByItem] = useState<Record<string, number>>(() =>
-    Object.fromEntries(rows.map((r) => [r.item_code, r.qty])),
+  // Keyed by row index, not item_code — Work Order Item duplicates (two required_items rows
+  // sharing an item_code) are a live-confirmed real possibility (see PROGRESS.md's Package 4
+  // investigation, item substitution leaving a duplicate row). Keying this state by item_code
+  // would silently collapse both rows onto one entry, losing one row's qty/warehouse the
+  // moment either was edited (governance-closure code-review finding, CX-MFG-006).
+  const [qtyByIndex, setQtyByIndex] = useState<Record<number, number>>(() =>
+    Object.fromEntries(rows.map((r, i) => [i, r.qty])),
   );
-  const [warehouseByItem, setWarehouseByItem] = useState<Record<string, string>>(() =>
-    Object.fromEntries(rows.map((r) => [r.item_code, r.s_warehouse ?? ""])),
+  const [warehouseByIndex, setWarehouseByIndex] = useState<Record<number, string>>(() =>
+    Object.fromEntries(rows.map((r, i) => [i, r.s_warehouse ?? ""])),
   );
 
   const [additionalRows, setAdditionalRows] = useState<AdditionalRow[]>([]);
@@ -156,36 +155,35 @@ export function MaterialTransferForm({
   // from the submitted payload (parseTransferRows on the server filters it out too) — flagged
   // here instead so the user sees why a quantity they set isn't being transferred, rather than
   // it vanishing without explanation.
-  const missingWarehouseRows = rows.filter(
-    (r) => !r.requiresBatchOrSerial && (qtyByItem[r.item_code] ?? 0) > 0 && !(warehouseByItem[r.item_code] || ""),
-  );
+  const missingWarehouseRows = rows
+    .map((r, i) => ({ r, i }))
+    .filter(({ r, i }) => !r.requiresBatchOrSerial && (qtyByIndex[i] ?? 0) > 0 && !(warehouseByIndex[i] || ""))
+    .map(({ r }) => r);
 
+  // Only item_code/qty/s_warehouse — the user's actual choices. item_name/uom/stock_uom/
+  // conversion_factor, company, bom_no, and to_warehouse are no longer sent: actions.ts now
+  // re-derives all of that server-side from a fresh make_stock_entry / Item lookup keyed off
+  // the route's own Work Order, rather than trusting a client-round-tripped copy of ERPNext's
+  // own computed values (governance-closure code-review finding).
   const requiredForSubmit = rows
-    .filter((r) => !r.requiresBatchOrSerial && (qtyByItem[r.item_code] ?? 0) > 0 && warehouseByItem[r.item_code])
-    .map((r) => ({
+    .map((r, i) => ({ r, i }))
+    .filter(({ r, i }) => !r.requiresBatchOrSerial && (qtyByIndex[i] ?? 0) > 0 && warehouseByIndex[i])
+    .map(({ r, i }) => ({
       item_code: r.item_code,
-      item_name: r.item_name,
-      qty: round4(qtyByItem[r.item_code] ?? 0),
-      uom: r.uom,
-      stock_uom: r.stock_uom,
-      conversion_factor: r.conversion_factor,
-      s_warehouse: warehouseByItem[r.item_code] ?? "",
+      qty: round4(qtyByIndex[i] ?? 0),
+      s_warehouse: warehouseByIndex[i] ?? "",
     }));
 
   const additionalForSubmit = additionalRows.map((r) => ({
     item_code: r.item_code,
-    item_name: r.item_name,
     qty: round4(r.qty),
-    uom: r.uom,
-    stock_uom: r.stock_uom,
-    conversion_factor: r.conversion_factor,
     s_warehouse: r.s_warehouse,
   }));
 
   const itemsJson = useMemo(
     () => JSON.stringify([...requiredForSubmit, ...additionalForSubmit]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [qtyByItem, warehouseByItem, additionalRows],
+    [qtyByIndex, warehouseByIndex, additionalRows],
   );
 
   const remarks = useMemo(() => {
@@ -206,12 +204,6 @@ export function MaterialTransferForm({
   // same payload without duplicating the field list by hand.
   const hiddenFields = (
     <>
-      <input type="hidden" name="work_order" value={workOrder.name} />
-      <input type="hidden" name="company" value={workOrder.company} />
-      <input type="hidden" name="bom_no" value={workOrder.bom_no} />
-      <input type="hidden" name="use_multi_level_bom" value={workOrder.use_multi_level_bom ? "1" : "0"} />
-      <input type="hidden" name="to_warehouse" value={workOrder.wip_warehouse} />
-      <input type="hidden" name="fg_completed_qty" value={workOrder.fg_completed_qty} />
       <input type="hidden" name="posting_date" value={today} />
       <input type="hidden" name="remarks" value={remarks} />
       <input type="hidden" name="items" value={itemsJson} />
@@ -262,12 +254,12 @@ export function MaterialTransferForm({
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {rows.map((r, i) => {
                 const remaining = round4(r.required_qty - r.transferred_qty);
-                const warehouse = warehouseByItem[r.item_code] ?? "";
-                const qty = qtyByItem[r.item_code] ?? 0;
+                const warehouse = warehouseByIndex[i] ?? "";
+                const qty = qtyByIndex[i] ?? 0;
                 return (
-                  <tr key={r.item_code} className="border-b border-border last:border-0 align-top">
+                  <tr key={`${r.item_code}-${i}`} className="border-b border-border last:border-0 align-top">
                     <td className={cell}>
                       <div className="text-graphite-900">
                         {r.item_code} — {r.item_name}
@@ -289,7 +281,7 @@ export function MaterialTransferForm({
                         className={selectClass}
                         value={warehouse}
                         disabled={r.requiresBatchOrSerial}
-                        onChange={(e) => setWarehouseByItem((prev) => ({ ...prev, [r.item_code]: e.target.value }))}
+                        onChange={(e) => setWarehouseByIndex((prev) => ({ ...prev, [i]: e.target.value }))}
                       >
                         <option value="">Select…</option>
                         {warehouses.map((w) => (
@@ -312,7 +304,7 @@ export function MaterialTransferForm({
                         value={qty}
                         onChange={(e) => {
                           const v = Math.max(0, Math.min(r.qty, Number(e.target.value) || 0));
-                          setQtyByItem((prev) => ({ ...prev, [r.item_code]: v }));
+                          setQtyByIndex((prev) => ({ ...prev, [i]: v }));
                         }}
                         className={`${inputClass} text-right`}
                       />
