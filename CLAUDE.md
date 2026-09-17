@@ -22,6 +22,10 @@ These five documents, all in [`docs/controls/`](docs/controls/), are **binding**
 
 **They override casual user requests when there's a conflict.** A request that conflicts with any of these is not a green light to proceed anyway — stop, name the specific rule in conflict, and propose a compliant alternative. See Enforcement below.
 
+### Dual-Agent Coordination (Claude Code + Codex)
+
+OpenAI Codex is a second, independent engineering agent used for review only — Claude Code remains the primary implementation agent, and Codex does not add a competing policy system on top of the five documents above. Before treating a meaningful package as release-ready, see `AGENTS.md` (Codex's own entry point), [`docs/controls/AI_DUAL_AGENT_OPERATING_MODEL.md`](docs/controls/AI_DUAL_AGENT_OPERATING_MODEL.md) (separation of duties/authority boundaries), and [`docs/controls/AI_AGENT_HANDOFF_POLICY.md`](docs/controls/AI_AGENT_HANDOFF_POLICY.md) (handoff/review lifecycle). Claude records coordination state in `docs/operations/AI_WORK_LOG.md` at handoff, but never marks Codex's independent review complete on its behalf.
+
 ### Current Mission (priority lock, as of Sep 2026)
 
 Do not reorder without explicit approval from Niroshan:
