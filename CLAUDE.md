@@ -12,12 +12,13 @@ This file is the **master entry point** for the repo's control system. Everythin
 
 ## Binding Control Documents (Read First)
 
-These four documents, all in [`docs/controls/`](docs/controls/), are **binding** for all work in this repo — this is the single source of truth for process rules; nothing outside `docs/controls/` overrides them. Every Claude session, and every subagent, must read the ones relevant to its task before doing meaningful implementation work:
+These five documents, all in [`docs/controls/`](docs/controls/), are **binding** for all work in this repo — this is the single source of truth for process rules; nothing outside `docs/controls/` overrides them. Every Claude session, and every subagent, must read the ones relevant to its task before doing meaningful implementation work:
 
 1. [`docs/controls/DEVELOPMENT_SYSTEM_RULES.md`](docs/controls/DEVELOPMENT_SYSTEM_RULES.md) — architecture rules, module sequencing, quality gates, scope control
 2. [`docs/controls/AGENT_OPERATING_GUIDE.md`](docs/controls/AGENT_OPERATING_GUIDE.md) — agent roles/authority, standard operating procedure, Definition of Ready
 3. [`docs/controls/AGENT_USAGE_POLICY.md`](docs/controls/AGENT_USAGE_POLICY.md) — session and subagent discipline, review/QA cadence, cost control
 4. [`docs/controls/FRONTEND_GUIDE.md`](docs/controls/FRONTEND_GUIDE.md) — binding ruleset for `apps/frontend` specifically (API layer, document pattern, component reuse, module build order, Definition of Done)
+5. [`docs/controls/BACKEND_KNOWLEDGE_POLICY.md`](docs/controls/BACKEND_KNOWLEDGE_POLICY.md) — binding project-wide: every meaningful ERP frontend feature must leave behind a canonical field/entity/relationship/business-rule spec in `docs/backend/`, capturing the Frappe reference implementation as a blueprint for the future Ceylon Stack native backend, without blocking delivery
 
 **They override casual user requests when there's a conflict.** A request that conflicts with any of these is not a green light to proceed anyway — stop, name the specific rule in conflict, and propose a compliant alternative. See Enforcement below.
 
@@ -28,7 +29,7 @@ Do not reorder without explicit approval from Niroshan:
 1. **Harden Sales core** — Quotation → Sales Order → Delivery Note → Sales Invoice — then freeze major new Sales features
 2. **Inventory MVP next** — Items (shared/clean), Warehouses, Stock Balance, basic Stock Entry (Receipt/Issue/Transfer)
 3. **Buying — core cycle only** — Purchase Order → Purchase Receipt → Purchase Invoice; keep reports light
-4. **Manufacturing frontend is locked** until Inventory MVP is accepted — advisory/domain input is fine, implementation is not
+4. **Manufacturing frontend unlocked 2026-09-17** — Inventory MVP + Buying core cycle both accepted 2026-09-16, satisfying the unlock condition. Read-only module shell, Work Orders list, and Work Order detail shipped (packages 1-2). Still gated: create/submit/cancel actions, Job Card list/detail, BOM, Workstations, and OEE are each their own future scoped package, not an open door to full Manufacturing implementation
 
 ### Operating Mode
 
@@ -44,15 +45,16 @@ A package is not complete until all of the following happen — this is the proj
 2. **QA** (`qa-tester`) for anything touching a core flow (Sales, Stock/Inventory, Buying).
 3. **`QA_LOG.md`** updated with what was tested and its result.
 4. **`PROGRESS.md`** updated with what actually changed.
-5. **`docs/ceylon-stack-documentation.html`** status labels/changelog updated when a feature or phase ships — via the `release-tracker` subagent, not by hand.
-6. **Notion "Smart Factory on ERPNext – Weekly Implementation Plan"** synced for remaining/newly-scoped tasks — also via `release-tracker`.
-7. **Committed to GitHub** with a clear commit message. Work isn't done while it only exists as uncommitted changes.
+5. **`docs/backend/`** updated per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` for any meaningful ERP frontend feature — canonical field mapping, relationships, business rules, stock/accounting impact, or an explicit `NEEDS_VERIFICATION` flag in `99-unverified/`.
+6. **`docs/ceylon-stack-documentation.html`** status labels/changelog updated when a feature or phase ships — via the `release-tracker` subagent, not by hand.
+7. **Notion "Smart Factory on ERPNext – Weekly Implementation Plan"** synced for remaining/newly-scoped tasks — also via `release-tracker`.
+8. **Committed to GitHub** with a clear commit message. Work isn't done while it only exists as uncommitted changes.
 
 Skipping any of these for a package that touches a core flow is a policy violation, not a shortcut — see `docs/controls/AGENT_USAGE_POLICY.md` §6/§12.
 
 ### Enforcement
 
-If a request conflicts with `docs/controls/DEVELOPMENT_SYSTEM_RULES.md`, `docs/controls/AGENT_OPERATING_GUIDE.md`, `docs/controls/AGENT_USAGE_POLICY.md`, or `docs/controls/FRONTEND_GUIDE.md` — refuse it and propose the compliant alternative instead of proceeding. Naming the conflicting rule/section is part of a valid refusal, not optional politeness.
+If a request conflicts with `docs/controls/DEVELOPMENT_SYSTEM_RULES.md`, `docs/controls/AGENT_OPERATING_GUIDE.md`, `docs/controls/AGENT_USAGE_POLICY.md`, `docs/controls/FRONTEND_GUIDE.md`, or `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` — refuse it and propose the compliant alternative instead of proceeding. Naming the conflicting rule/section is part of a valid refusal, not optional politeness.
 
 ## Core Architecture Decision
 
@@ -99,8 +101,9 @@ See the root `README.md` for the full layout; short version:
 - `apps/frontend/` — Next.js dashboard
 - `infra/docker/`, `infra/scripts/` — deployment config and ops scripts
 - `docs/architecture.md` — layered architecture notes
-- `docs/controls/` — the four binding control documents (see above). Process rules live only here — don't duplicate them elsewhere in the repo.
+- `docs/controls/` — the five binding control documents (see above). Process rules live only here — don't duplicate them elsewhere in the repo.
 - `docs/controls/FRONTEND_GUIDE.md` — binding dev rules for `apps/frontend` (API layer, document pattern, component reuse, module build order, Definition of Done). Read before any frontend work.
+- `docs/backend/` — the canonical-model / Frappe-mapping knowledge base built up per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md`. Grows as features are built, not ahead of them — see `docs/backend/README.md`.
 
 This repo will move to a separate GitHub account from the current
 `Niroshan-git/ERP-System` one — the account and remote have not been
