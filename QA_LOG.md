@@ -385,3 +385,61 @@ applied the same day; no code logic changed and no new QA was required for it.
   accepted the implementation outright — no BLOCKER/CRITICAL/HIGH findings; the only acceptance
   blocker raised was this package-closure documentation gap (`CX-MD-001`, `MEDIUM`), which this
   entry closes.
+
+## 2026-09-19 — Master Data Canonicalization — Business Partner domain (Customers, Customer Groups, Suppliers, Contacts, Addresses, Territories)
+
+- **Package tested**: `apps/frontend` route/navigation move of Customers, Customer Groups,
+  Contacts, Addresses, and Territories from `/sales/*`, and Suppliers from `/buying/suppliers`,
+  to canonical `/master-data/*` routes, plus compatibility redirects and every known inbound
+  link (`CustomerForm`/`SupplierForm` action-import paths, `CustomersTable`/`SuppliersTable` row
+  links, `ReportTable`'s `INTERNAL_ROUTES` map, `salesFlowMap.ts`, `sellingWorkspace.ts`,
+  `masterDataWorkspace.ts`, `Sidebar.tsx`'s Selling/Buying/Master Data nav groups, and the
+  post-login default redirect). No ERPNext-side `createDoc`/`updateDoc`/`getDoc` payload
+  changed — verified by diff against the pre-move files, not by inspection alone — so this is a
+  Next.js routing change only, not a data-behavior change. Supplier Group investigated
+  (confirmed live as a real ERPNext doctype via `get_doctype_fields`) and deliberately not
+  built — no existing screen to relocate; see `PROGRESS.md`.
+- **Result**: **PASS**. No code fixes required in this pass.
+- **Evidence — Claude (2026-09-19, pre-handoff)**:
+  1. `npm run lint` — PASS.
+  2. `npx tsc --noEmit` — PASS (after clearing a stale `.next` type cache still referencing the
+     six deleted route paths — expected artifact staleness, not a real error).
+  3. `npm run build` — PASS, exit 0; all 18 new `/master-data/{customers,customer-groups,
+     contacts,addresses,territories,suppliers}` list/detail/new routes present in the route
+     output; zero `/sales/customers`, `/sales/customer-groups`, `/sales/contacts`,
+     `/sales/addresses`, `/sales/territories`, or `/buying/suppliers` routes remain.
+  4. Legacy redirect verification (production build server, curl): `/sales/customers` → 307 →
+     `/master-data/customers`; `/sales/customers/CUST-0001` → 307 →
+     `/master-data/customers/CUST-0001` (dynamic segment preserved); `/sales/customer-groups` →
+     307 → `/master-data/customer-groups`; `/sales/contacts/new` → 307 →
+     `/master-data/contacts/new`; `/sales/addresses` → 307 → `/master-data/addresses`;
+     `/sales/territories` → 307 → `/master-data/territories`;
+     `/buying/suppliers/SUP-0001?foo=bar` → 307 → `/master-data/suppliers/SUP-0001?foo=bar`
+     (dynamic segment and query string both preserved).
+  5. Canonical route auth-gating verification: `/master-data/customers` correctly hits the same
+     `/login?next=...` auth gate every other protected route in this app does — not a 404, not
+     an unauthenticated bypass.
+  6. Repository-wide stale-route search: zero remaining runtime-code references to any of the
+     six old route prefixes. Two non-runtime hits found and left alone —
+     `docs/architecture/decisions/README.md` (pre-existing modified file outside this package's
+     boundary, per its own isolation instruction) and
+     `docs/brand/package/CeylonStack-Grouped-Sidebar.html` (a static design mockup, same
+     category the Item-domain package's own search already classified for the same file).
+- **Contact/Address relationship model verified live, not assumed**: `get_doctype_fields`
+  confirms both `Contact` and `Address` carry a `links` Dynamic Link child table (many-to-many
+  against any party doctype), not a single-owner foreign key — this frontend's existing
+  Contact/Address screens were already generic before this move (no Customer-only/Supplier-only
+  fields), so the route relocation does not corrupt or assume away this relationship model.
+- **NEEDS_VERIFICATION (non-blocking)**: a full authenticated browser create/edit click-path
+  through `/master-data/{customers,customer-groups,contacts,addresses,territories,suppliers}/*`
+  (actually submitting each form through a real login session) has not been performed — no
+  session credentials available in this environment, consistent with every prior package in
+  this repository's history. `qa-tester` was not invoked for the same reason its live-instance
+  checks would only re-confirm ERPNext behavior this package didn't touch (payloads are
+  byte-identical to the pre-move code).
+- **Cleanup**: none required — no ERPNext document was created, updated, or deleted by this
+  package; only Next.js routing/navigation code moved.
+- **Sign-off**: `code-reviewer`/self-review found no code-level blockers — pattern consistent
+  with the accepted Item-domain package's own review outcome. Awaiting Codex's independent
+  review; not self-declared accepted (see `docs/operations/AI_WORK_LOG.md`'s matching entry for
+  the full Claude Package Handoff).

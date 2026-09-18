@@ -3,17 +3,14 @@ import { paginate, parsePage, parsePageSize } from "@/lib/pagination";
 import { MasterTable } from "@/components/MasterTable";
 import { PaginationControls } from "@/components/PaginationControls";
 
-type ContactRow = {
+type CustomerGroupRow = {
   name: string;
-  first_name: string | null;
-  last_name: string | null;
-  email_id: string | null;
-  phone: string | null;
-  mobile_no: string | null;
-  company_name: string | null;
+  parent_customer_group: string | null;
+  is_group: 0 | 1;
+  default_price_list: string | null;
 };
 
-export default async function ContactsPage({
+export default async function CustomerGroupsPage({
   searchParams,
 }: {
   searchParams: Promise<{ page?: string; page_size?: string }>;
@@ -24,38 +21,29 @@ export default async function ContactsPage({
   const startIndex = (page - 1) * pageSize;
 
   const [rowsPlusOne, totalCount] = await Promise.all([
-    listDocs<ContactRow>("Contact", {
-      fields: ["name", "first_name", "last_name", "email_id", "phone", "mobile_no", "company_name"],
+    listDocs<CustomerGroupRow>("Customer Group", {
+      fields: ["name", "parent_customer_group", "is_group", "default_price_list"],
       limit: pageSize + 1,
       start: startIndex,
-      orderBy: "modified desc",
+      orderBy: "name asc",
     }),
-    getCount("Contact"),
+    getCount("Customer Group"),
   ]);
   const { rows, hasNextPage } = paginate(rowsPlusOne, pageSize);
 
   return (
     <>
       <MasterTable
-        title="Contacts"
+        title="Customer Groups"
         rows={rows}
-        newHref="/sales/contacts/new"
-        rowLink={(row) => `/sales/contacts/${encodeURIComponent(row.name)}`}
-        emptyLabel="No contacts yet."
+        newHref="/master-data/customer-groups/new"
+        rowLink={(row) => `/master-data/customer-groups/${encodeURIComponent(row.name)}`}
+        emptyLabel="No customer groups yet."
         columns={[
           { key: "name", label: "ID", mono: true },
-          {
-            key: "first_name",
-            label: "Name",
-            render: (row) => [row.first_name, row.last_name].filter(Boolean).join(" ") || "—",
-          },
-          { key: "email_id", label: "Email" },
-          {
-            key: "phone",
-            label: "Phone",
-            render: (row) => row.phone || row.mobile_no || "—",
-          },
-          { key: "company_name", label: "Company" },
+          { key: "parent_customer_group", label: "Parent Group" },
+          { key: "is_group", label: "Is Group", render: (row) => (row.is_group ? "Yes" : "No") },
+          { key: "default_price_list", label: "Default Price List" },
         ]}
         startIndex={startIndex}
       />

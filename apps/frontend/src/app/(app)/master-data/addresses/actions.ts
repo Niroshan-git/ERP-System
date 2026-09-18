@@ -42,8 +42,8 @@ export async function createAddressAction(_prevState: FormState, formData: FormD
     return { error: humanizeError(e, "address") };
   }
 
-  revalidatePath("/sales/addresses");
-  redirect(`/sales/addresses/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/addresses");
+  redirect(`/master-data/addresses/${encodeURIComponent(name)}`);
 }
 
 export async function updateAddressAction(
@@ -61,7 +61,7 @@ export async function updateAddressAction(
     return { error: humanizeError(e, "address") };
   }
 
-  revalidatePath("/sales/addresses");
-  revalidatePath(`/sales/addresses/${encodeURIComponent(name)}`);
-  redirect(`/sales/addresses/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/addresses");
+  revalidatePath(`/master-data/addresses/${encodeURIComponent(name)}`);
+  redirect(`/master-data/addresses/${encodeURIComponent(name)}`);
 }

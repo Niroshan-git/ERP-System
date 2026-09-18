@@ -45,7 +45,7 @@ function LoginForm() {
         return;
       }
 
-      router.push(searchParams.get("next") || "/sales/customers");
+      router.push(searchParams.get("next") || "/master-data/customers");
       router.refresh();
     } finally {
       setIsSubmitting(false);

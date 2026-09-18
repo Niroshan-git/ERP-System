@@ -18,7 +18,7 @@ export const SELLING_WORKSPACE_CARDS: WorkspaceCard[] = [
   {
     title: "Selling",
     links: [
-      { label: "Customer", href: "/sales/customers" },
+      { label: "Customer", href: "/master-data/customers" },
       { label: "Quotation", href: "/sales/quotations" },
       { label: "Sales Order", href: "/sales/orders" },
       { label: "Sales Invoice", href: "/sales/invoices" },
@@ -59,10 +59,10 @@ export const SELLING_WORKSPACE_CARDS: WorkspaceCard[] = [
       { label: "Terms and Conditions Template" },
       { label: "Sales Taxes and Charges Template" },
       { label: "UTM Source" },
-      { label: "Customer Group", href: "/sales/customer-groups" },
-      { label: "Contact", href: "/sales/contacts" },
-      { label: "Address", href: "/sales/addresses" },
-      { label: "Territory", href: "/sales/territories" },
+      { label: "Customer Group", href: "/master-data/customer-groups" },
+      { label: "Contact", href: "/master-data/contacts" },
+      { label: "Address", href: "/master-data/addresses" },
+      { label: "Territory", href: "/master-data/territories" },
       { label: "Campaign", href: "/sales/campaigns" },
     ],
   },

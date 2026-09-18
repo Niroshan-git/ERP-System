@@ -37,8 +37,8 @@ export async function createSupplierAction(_prevState: FormState, formData: Form
     return { error: humanizeError(e) };
   }
 
-  revalidatePath("/buying/suppliers");
-  redirect(`/buying/suppliers/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/suppliers");
+  redirect(`/master-data/suppliers/${encodeURIComponent(name)}`);
 }
 
 export async function updateSupplierAction(
@@ -55,7 +55,7 @@ export async function updateSupplierAction(
     return { error: humanizeError(e) };
   }
 
-  revalidatePath("/buying/suppliers");
-  revalidatePath(`/buying/suppliers/${encodeURIComponent(name)}`);
-  redirect(`/buying/suppliers/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/suppliers");
+  revalidatePath(`/master-data/suppliers/${encodeURIComponent(name)}`);
+  redirect(`/master-data/suppliers/${encodeURIComponent(name)}`);
 }

@@ -106,7 +106,7 @@ export const FLOW_RECORDS: Record<FlowNodeKey, FlowRecord> = {
     icon: Users,
     kind: "Master data",
     area: "Sales",
-    href: "/sales/customers",
+    href: "/master-data/customers",
     purpose: "Maintain the customer, contacts, addresses, payment terms and price list used by every sales document.",
     effects: ["No inventory movement.", "No accounting posting from maintaining a customer record."],
     note: "Set up the customer (and item master data/prices) before creating a Quotation or Sales Order against them.",

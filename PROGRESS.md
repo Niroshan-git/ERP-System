@@ -1763,3 +1763,126 @@ through a real login session) was not performed — no session credentials avail
 environment, consistent with every prior package in this repository's history. See
 `docs/operations/AI_WORK_LOG.md`'s matching entry for the full file-by-file change list and
 Codex handoff.
+
+## Master Data canonical routing — Business Partner domain (Customers, Customer Groups, Suppliers, Contacts, Addresses, Territories) (2026-09-19)
+
+Customers, Customer Groups, Contacts, Addresses, and Territories moved from `/sales/*`, and
+Suppliers from `/buying/suppliers`, to their own canonical `/master-data/*` routes — the
+second Master Data Canonicalization package, following the accepted Item-domain pattern
+(`ddfeed4`/`5f20afa`/`4036c81`). No ERPNext-side behavior changed — `createDoc`/`updateDoc`/
+`getDoc` calls and field payloads inside each moved `actions.ts` are byte-identical to before;
+only the owning route moved.
+
+**Investigation performed first, per the authorizing package brief.** Every current
+Customer/Customer Group/Supplier/Contact/Address/Territory route, action, and inbound
+reference was mapped before any file moved (see the matching `docs/operations/AI_WORK_LOG.md`
+entry for the full inventory). Two relationship questions the brief specifically called out
+were investigated live rather than assumed:
+
+- **Contact/Address ↔ Customer/Supplier is Frappe's Dynamic Link model, not a foreign key.**
+  Live `get_doctype_fields` calls confirm both `Contact` and `Address` carry a `links` child
+  table (`fieldtype: "Table"`, `options: "Dynamic Link"`), and `Dynamic Link` itself carries
+  `link_doctype` (any DocType) + `link_name` — i.e. one Contact or Address can reference any
+  number of Customers, Suppliers, or other party doctypes; it is not owned by exactly one of
+  either. `Contact` additionally carries its own single `address` Link field (a contact's own
+  primary address) and `is_primary_contact`; `Address` carries `is_primary_address`/
+  `is_shipping_address`. This frontend's Contact/Address screens are already generic
+  (`MasterTable`/`masterActions`, no Customer-only or Supplier-only fields), so canonicalizing
+  their route to `/master-data/contacts` and `/master-data/addresses` reflects this shared
+  model rather than corrupting it — no schema or form-field change was made.
+- **Customer Group and Territory are Frappe tree doctypes** (`is_group`/`parent_customer_group`/
+  `lft`/`rgt` and `is_group`/`parent_territory`/`lft`/`rgt` respectively) — unchanged by this
+  move; both already used the shared `MasterTable` component before and after.
+
+**Supplier Group investigated and deliberately NOT built.** Live `get_doctype_fields` confirms
+`Supplier Group` is a real ERPNext doctype (same tree shape as Customer Group:
+`supplier_group_name`/`parent_supplier_group`/`is_group`/`lft`/`rgt`, plus a `Party Account`
+child table for default payable accounts) and is referenced by `Supplier.supplier_group` today
+via a plain text-or-dropdown field (`SupplierForm.tsx`'s `LinkOrTextField`). But this frontend
+has never built a screen for it — no `/buying/supplier-groups` or equivalent ever existed. Per
+the authorizing brief's own instruction not to blindly create routes with no existing
+implementation, and `docs/master-data-architecture.md` §9 gap #3's same conclusion ("building
+\[Supplier Group's\] first screen is new feature work, not a reorganization"), Supplier Group
+was left out of this package. It would be a small, low-risk future package (identical shape to
+the existing Customer Group/Territory screens — reuse `MasterTable`/`masterActions` as-is) but
+is out of scope here.
+
+**No CRM module exists in this frontend** — confirmed by directory listing, not assumed — so
+the mission brief's CRM → Customer navigation example has no code to update; recorded here as
+the current state, not implemented.
+
+**Exhaustive cross-module link audit performed first**, before moving anything: 21 inbound
+references across `CustomerForm.tsx`/`SupplierForm.tsx` (action-import type paths),
+`CustomersTable.tsx`/`SuppliersTable.tsx` (row links), `ReportTable.tsx`'s `INTERNAL_ROUTES`
+map (`Customer` entry), `lib/salesFlowMap.ts` (Sales Flow scene's Customer master-data step),
+`lib/sellingWorkspace.ts` (5 entries: Customer, Customer Group, Contact, Address, Territory),
+`lib/masterDataWorkspace.ts` (Business Partners card, now direct canonical links not link-outs),
+`components/Sidebar.tsx` (Selling's "Customers & contacts" group, Selling's "setup" group's
+Territories entry, Buying's "Suppliers & contacts" group, Master Data's own "Business partners"
+group, plus 2 stale explanatory comments), and `app/login/page.tsx`'s post-login default
+redirect. No Breadcrumb components exist inside any of the six moved route folders (verified —
+none of these list/new/detail pages use `Breadcrumb`, unlike `master-data/page.tsx` itself), so
+none needed updating. All twelve `new`/`[name]` sub-pages already imported their `actions.ts`
+via relative `"../actions"` paths, so the file move alone didn't break them.
+
+**Compatibility redirects** added to `next.config.ts` for all six entities' list/detail/new
+paths (`/sales/customers(/...)`, `/sales/customer-groups(/...)`, `/sales/contacts(/...)`,
+`/sales/addresses(/...)`, `/sales/territories(/...)`, `/buying/suppliers(/...)` → their
+`/master-data/*` equivalents, `permanent: false`/307, same reasoning as the Item domain's
+redirects) — live-verified via curl against a production server build: list, a dynamic-segment
+detail example (`CUST-0001`/`SUP-0001`), `new`, and a query-string example (`?foo=bar`) all
+redirect correctly with the segment/query string preserved, and the new canonical routes
+correctly hit the same `/login?next=...` auth gate every other protected route does (not a
+404, not an unauthenticated bypass).
+
+**`docs/controls/FRONTEND_GUIDE.md` corrected** (§9 Sales "Masters" list — now only
+`sales-persons`/`sales-partners`/`campaigns`/`settings`, since those are internal-team/
+marketing constructs that stay Sales-owned per `docs/master-data-architecture.md`'s own
+exclusion list; §10 Buying's Suppliers bullet — now points at `master-data/suppliers/`) to
+stop claiming these six entities live under `sales/`/`buying/`.
+
+**Backend documentation:** following the same precedent the Item-domain package set (see its
+own entry above — `docs/backend/01-master-data/` was deliberately not created there either,
+since that domain doc is `docs/master-data-architecture.md`'s own separate, not-yet-authorized
+§8 deliverable), no `docs/backend/` files were created or edited by this package. The Dynamic
+Link relationship evidence, the Customer Group/Territory tree-doctype confirmation, and the
+Supplier Group gap above are recorded here as source material for whenever that domain doc is
+authorized.
+
+Checks: `npm run lint` — PASSED. `npx tsc --noEmit` — PASSED (after clearing a stale `.next`
+type cache that still referenced the six deleted route paths — expected artifact staleness,
+confirmed clean, not a real error). `npm run build` — PASSED, exit 0; all 18 new
+`/master-data/{customers,customer-groups,contacts,addresses,territories,suppliers}` list/
+detail/new routes present in the route output; zero `/sales/customers`, `/sales/customer-
+groups`, `/sales/contacts`, `/sales/addresses`, `/sales/territories`, or `/buying/suppliers`
+routes remain; only the same pre-existing `erpnextFetch network error` static-generation
+diagnostics as every prior round. Live curl verification of redirects and auth-gating (above)
+— PASS. No `qa-tester` run, matching the Item-domain package's own reasoning: the ERPNext-side
+create/update payloads are unchanged from before the move (verified by diff against the
+pre-move file content), so the only real risk surface was the Next.js routing itself, which was
+directly verified live; a full authenticated browser click-path was not performed — no session
+credentials available in this environment, consistent with every prior package in this
+repository's history.
+
+**Repository-wide stale-route search**: two non-runtime references found and deliberately left
+alone — `docs/architecture/decisions/README.md` (a pre-existing modified file outside this
+package's boundary at session start, per this package's own isolation instruction — inspected,
+not touched) and `docs/brand/package/CeylonStack-Grouped-Sidebar.html` (a static design mockup,
+same category the Item-domain package's own stale-route search already classified and left
+alone for the same file). `docs/master-data-architecture.md` (untracked, pre-existing) still
+proposes a nested `/master-data/business-partners/customers` route shape in its own §5 — this
+package implemented the flat `/master-data/customers` shape instead, matching both the
+authorizing brief's explicit target routes and the flat precedent the accepted Item domain
+already set (`/master-data/items`, not `/master-data/products/items`); the architecture doc
+itself was read for design authority but not modified, per the same preservation instruction
+the Item-domain package followed for the same file.
+
+Files: `apps/frontend/next.config.ts`; 24 files (4 each × 6 entities) moved from
+`apps/frontend/src/app/(app)/{sales/{customers,customer-groups,contacts,addresses,
+territories},buying/suppliers}/` to `apps/frontend/src/app/(app)/master-data/{customers,
+customer-groups,contacts,addresses,territories,suppliers}/`; `apps/frontend/src/components/
+{CustomerForm,SupplierForm,CustomersTable,SuppliersTable,ReportTable,Sidebar}.tsx`;
+`apps/frontend/src/lib/{salesFlowMap,sellingWorkspace,masterDataWorkspace}.ts`;
+`apps/frontend/src/app/login/page.tsx`; `docs/controls/FRONTEND_GUIDE.md`; `PROGRESS.md`;
+`docs/operations/AI_WORK_LOG.md`. See `docs/operations/AI_WORK_LOG.md`'s matching entry for the
+full Claude/Codex handoff record.

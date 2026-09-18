@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import type { FormState } from "@/app/(app)/sales/customers/actions";
+import type { FormState } from "@/app/(app)/master-data/customers/actions";
 
 const CUSTOMER_TYPES = ["Company", "Individual", "Partnership"];
 

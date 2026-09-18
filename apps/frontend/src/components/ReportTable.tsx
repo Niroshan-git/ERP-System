@@ -12,7 +12,7 @@ const INTERNAL_ROUTES: Record<string, string> = {
   "Sales Order": "/sales/orders",
   "Sales Invoice": "/sales/invoices",
   Quotation: "/sales/quotations",
-  Customer: "/sales/customers",
+  Customer: "/master-data/customers",
   Item: "/master-data/items",
 };
 

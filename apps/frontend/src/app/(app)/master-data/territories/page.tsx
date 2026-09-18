@@ -36,8 +36,8 @@ export default async function TerritoriesPage({
       <MasterTable
         title="Territories"
         rows={rows}
-        newHref="/sales/territories/new"
-        rowLink={(row) => `/sales/territories/${encodeURIComponent(row.name)}`}
+        newHref="/master-data/territories/new"
+        rowLink={(row) => `/master-data/territories/${encodeURIComponent(row.name)}`}
         emptyLabel="No territories yet."
         columns={[
           { key: "name", label: "ID", mono: true },

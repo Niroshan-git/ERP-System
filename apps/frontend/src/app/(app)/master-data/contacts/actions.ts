@@ -21,8 +21,8 @@ export async function createContactAction(_prevState: FormState, formData: FormD
     return { error: humanizeError(e, "contact") };
   }
 
-  revalidatePath("/sales/contacts");
-  redirect(`/sales/contacts/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/contacts");
+  redirect(`/master-data/contacts/${encodeURIComponent(name)}`);
 }
 
 export async function updateContactAction(
@@ -39,7 +39,7 @@ export async function updateContactAction(
     return { error: humanizeError(e, "contact") };
   }
 
-  revalidatePath("/sales/contacts");
-  revalidatePath(`/sales/contacts/${encodeURIComponent(name)}`);
-  redirect(`/sales/contacts/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/contacts");
+  revalidatePath(`/master-data/contacts/${encodeURIComponent(name)}`);
+  redirect(`/master-data/contacts/${encodeURIComponent(name)}`);
 }

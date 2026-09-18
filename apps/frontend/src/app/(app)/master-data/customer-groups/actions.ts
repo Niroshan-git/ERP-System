@@ -22,8 +22,8 @@ export async function createCustomerGroupAction(_prevState: FormState, formData:
     return { error: humanizeError(e, "customer group") };
   }
 
-  revalidatePath("/sales/customer-groups");
-  redirect(`/sales/customer-groups/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/customer-groups");
+  redirect(`/master-data/customer-groups/${encodeURIComponent(name)}`);
 }
 
 export async function updateCustomerGroupAction(
@@ -40,7 +40,7 @@ export async function updateCustomerGroupAction(
     return { error: humanizeError(e, "customer group") };
   }
 
-  revalidatePath("/sales/customer-groups");
-  revalidatePath(`/sales/customer-groups/${encodeURIComponent(name)}`);
-  redirect(`/sales/customer-groups/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/customer-groups");
+  revalidatePath(`/master-data/customer-groups/${encodeURIComponent(name)}`);
+  redirect(`/master-data/customer-groups/${encodeURIComponent(name)}`);
 }

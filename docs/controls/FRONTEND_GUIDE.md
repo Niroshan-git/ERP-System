@@ -245,7 +245,7 @@ The current architecture (Next.js → ERPNext REST API on Hetzner CX23) is suffi
 
 ### Already present (frontend branch, verified 2026-09-15)
 - Core cycle folders: `quotations`, `orders`, `delivery-notes`, `invoices`, `pick-lists`
-- Masters: `customers`, `contacts`, `addresses`, `customer-groups`, `territories`, `sales-persons`, `sales-partners`, `campaigns`, `settings`. `items`, `item-groups`, and `price-lists` moved to `master-data/` 2026-09-18 (Master Data Canonicalization package) — the old `sales/*` paths redirect, not removed outright.
+- Masters: `sales-persons`, `sales-partners`, `campaigns`, `settings` — internal-team/marketing constructs, stay Sales-owned. `items`, `item-groups`, and `price-lists` moved to `master-data/` 2026-09-18 (Master Data Canonicalization package, Item domain); `customers`, `customer-groups`, `contacts`, `addresses`, and `territories` moved to `master-data/` 2026-09-19 (Business Partner domain) — the old `sales/*` paths redirect, not removed outright.
 - Supporting components and `lib` helpers exist and are shared, not duplicated per-doctype
 - Shipped beyond the original happy path: Pick & Pack (picked_qty/delivered_qty write-back, live-verified), partial fulfillment across multiple partial SO/Invoice, discount fields, quotation "Set as Lost", Sales Flow scene-based process map, Reports hub (17/18 reports live)
 
@@ -267,7 +267,7 @@ When starting Buying, reuse the exact same patterns as Sales — same list/detai
 - `purchase-orders/` (mirrors `sales/orders/`, incl. create-receipt / create-invoice sub-routes, bulk close/reopen)
 - `purchase-receipts/` (mirrors `sales/delivery-notes/`)
 - `purchase-invoices/` (mirrors `sales/invoices/`)
-- `suppliers/` (master, bespoke form/table like Customers — not the generic `MasterTable`)
+- Suppliers (bespoke form/table like Customers — not the generic `MasterTable`) moved to `master-data/suppliers/` 2026-09-19 (Business Partner domain package) — the old `buying/suppliers` path redirects, not removed outright.
 
 **Every new field name, enum value, status-color rule, and whitelisted method path must be verified against the live ERPNext instance before being coded** — never assumed to match Sales' field names 1:1 (e.g. Purchase Order Item's partial-fulfillment fields are not guaranteed to be called `ordered_qty`/`so_detail` the way Sales Order Item's are). Use `mcp__ceylon-stack__get_doctype_fields`/`list_doctypes`, or read the live DocType JSON / `*_list.js`, the same way `lib/erpStatus.ts`'s comments document Sales having done.
 

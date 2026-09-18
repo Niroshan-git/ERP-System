@@ -109,10 +109,10 @@ const SALES_NAV_GROUPS: NavGroupDef[] = [
     label: "Customers & contacts",
     icon: Users,
     items: [
-      { href: "/sales/customers", label: "Customers", icon: Building2 },
-      { href: "/sales/contacts", label: "Contacts", icon: Contact },
-      { href: "/sales/addresses", label: "Addresses", icon: MapPin },
-      { href: "/sales/customer-groups", label: "Customer Groups", icon: UsersRound },
+      { href: "/master-data/customers", label: "Customers", icon: Building2 },
+      { href: "/master-data/contacts", label: "Contacts", icon: Contact },
+      { href: "/master-data/addresses", label: "Addresses", icon: MapPin },
+      { href: "/master-data/customer-groups", label: "Customer Groups", icon: UsersRound },
     ],
   },
   {
@@ -146,7 +146,7 @@ const SALES_NAV_GROUPS: NavGroupDef[] = [
     icon: Settings2,
     items: [
       { href: "/sales/sales-persons", label: "Sales Team", icon: UserRound },
-      { href: "/sales/territories", label: "Territories", icon: Map },
+      { href: "/master-data/territories", label: "Territories", icon: Map },
       { href: "/sales/settings", label: "Selling Settings", icon: SlidersHorizontal },
     ],
   },
@@ -154,9 +154,11 @@ const SALES_NAV_GROUPS: NavGroupDef[] = [
 
 // Phase 3 of the Buying + multi-module nav plan: the first real Buying nav group —
 // Suppliers master plus the shared Contacts/Addresses pages (those two are generic
-// Frappe doctypes, not Customer-exclusive, so Buying points at the same /sales/contacts
-// and /sales/addresses routes rather than forking its own copies). Material Requests,
-// RFQs, Purchase Orders, etc. land in later phases as those doctypes are built.
+// Frappe doctypes, not Customer-exclusive, so Buying points at the same canonical
+// /master-data/contacts and /master-data/addresses routes rather than forking its own
+// copies). Material Requests, RFQs, Purchase Orders, etc. land in later phases as those
+// doctypes are built. Suppliers/Contacts/Addresses all repointed at their canonical
+// /master-data/* routes by the Business Partner domain package, 2026-09-19.
 // Phase 4 of the Buying + multi-module nav plan: all six Buying-cycle doctypes now have
 // real routes — Material Request -> Request for Quotation -> Supplier Quotation ->
 // Purchase Order -> Purchase Receipt -> Purchase Invoice, the full real chain order.
@@ -181,9 +183,9 @@ const BUYING_NAV_GROUPS: NavGroupDef[] = [
     label: "Suppliers & contacts",
     icon: Users,
     items: [
-      { href: "/buying/suppliers", label: "Suppliers", icon: Warehouse },
-      { href: "/sales/contacts", label: "Contacts", icon: Contact },
-      { href: "/sales/addresses", label: "Addresses", icon: MapPin },
+      { href: "/master-data/suppliers", label: "Suppliers", icon: Warehouse },
+      { href: "/master-data/contacts", label: "Contacts", icon: Contact },
+      { href: "/master-data/addresses", label: "Addresses", icon: MapPin },
     ],
   },
   {
@@ -197,7 +199,7 @@ const BUYING_NAV_GROUPS: NavGroupDef[] = [
 // Phase 1 of the Stock + multi-module nav plan: Stock movement (Stock Entries, Stock
 // Balance) ordered first, matching every other module's own "cycle group before masters"
 // convention. "Items" is a link-out to the canonical /master-data/items route (same
-// precedent Buying already set for /sales/contacts and /sales/addresses) — Item is a
+// precedent Buying already set for /master-data/contacts and /master-data/addresses) — Item is a
 // shared master, not forked per module. Batches/Serial Nos stay owned here — per
 // docs/master-data-architecture.md's Batch/Serial classification, they're transaction-
 // generated (Frappe's own `reference_doctype`/`reference_name` fields on both doctypes,
@@ -248,12 +250,17 @@ const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
 // Master Data module. Started as a navigation-foundation-only package (MD-1) where every
 // item here linked OUT to a route still owned by Sales/Buying/Stock. The Master Data
 // Canonicalization package (2026-09-18) moved Items/Item Groups/Price Lists to their own
-// canonical /master-data/* routes — this is now the one true owning route for those three,
-// not a link-out — and every other module that references them (Selling's own "Items &
-// pricing" group, Stock's "Items" link-out, Manufacturing's Work Order detail page) points
-// here too. Business Partners (Customers, Suppliers, Contacts, Addresses, Territories) and
-// Inventory Structure (Warehouses) remain link-outs to their still-Sales/Buying/Stock-owned
-// routes — their own canonical-move packages haven't run yet, see
+// canonical /master-data/* routes, and the Business Partner domain package (2026-09-19)
+// did the same for Customers/Customer Groups/Suppliers/Contacts/Addresses/Territories —
+// every entity below is now owned here, not a link-out, and every other module that
+// references them (Selling's "Customers & contacts"/"setup" groups, Buying's "Suppliers &
+// contacts" group, Selling's own "Items & pricing" group, Stock's "Items" link-out,
+// Manufacturing's Work Order detail page) points here too. Supplier Group is a real
+// ERPNext doctype (verified live via get_doctype_fields, referenced by
+// Supplier.supplier_group) but has no frontend screen at all — building one is new feature
+// work, not a relocation, so it's deliberately left out rather than added as a dead link;
+// see PROGRESS.md. Inventory Structure (Warehouses) remains a link-out to its still-Stock-
+// owned route — that canonical-move package hasn't run yet, see
 // docs/master-data-architecture.md §9. Entities with no existing route at all (UOM, BOM,
 // Operation, Workstation, Company, Cost Center, Project, Currency, Tax, Payment Terms) are
 // deliberately omitted rather than padded with "Soon" placeholders — same precedent
@@ -274,12 +281,12 @@ const MASTER_DATA_NAV_GROUPS: NavGroupDef[] = [
     label: "Business partners",
     icon: Handshake,
     items: [
-      { href: "/sales/customers", label: "Customers", icon: UserRound },
-      { href: "/sales/customer-groups", label: "Customer Groups", icon: UsersRound },
-      { href: "/buying/suppliers", label: "Suppliers", icon: Building2 },
-      { href: "/sales/contacts", label: "Contacts", icon: Contact },
-      { href: "/sales/addresses", label: "Addresses", icon: MapPin },
-      { href: "/sales/territories", label: "Territories", icon: Map },
+      { href: "/master-data/customers", label: "Customers", icon: UserRound },
+      { href: "/master-data/customer-groups", label: "Customer Groups", icon: UsersRound },
+      { href: "/master-data/suppliers", label: "Suppliers", icon: Building2 },
+      { href: "/master-data/contacts", label: "Contacts", icon: Contact },
+      { href: "/master-data/addresses", label: "Addresses", icon: MapPin },
+      { href: "/master-data/territories", label: "Territories", icon: Map },
     ],
   },
   {

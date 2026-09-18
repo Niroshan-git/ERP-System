@@ -26,7 +26,7 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Manufacturing Package 2 | Manufacturing (frontend) | Work Order detail view — read-only, 6 tabs (Details/Materials/Operations/Job Cards/Quality Readiness/Comments) | `CLAUDE_HANDOFF` (remediated) | `CODEX_REVIEW_COMPLETE` (re-review) | `ACCEPTED` as part of combined re-review; combined release remains blocked by Packages 3/5 | `25b882e` → remediation `517f2ea` (bundled with Pkg 3, Pkg 5); `2fbe2a6` coordination only | 1 resolved (`CX-MFG-003`) | Live QA not independently rerun | 2026-09-17 |
 | Manufacturing Package 3 | Manufacturing (frontend) | Work Order Create — Draft-only, BOM-scaled Materials/Operations preview, optional Material Readiness | `DOCUMENTATION_CLOSURE` | `CODEX_REVIEW_COMPLETE` (2026-09-18 final re-review) | `ACCEPTED` — `CX-MFG-002` closed; package has no remaining blocking findings | `25b882e` → `517f2ea` → `3a04733` → final correction `a2b5cb8` → doc-wording closure `2cf044e`; `0e78988` coordination only | None — `CX-MFG-002` `CLOSED`: `base_hour_rate → hour_rate` and top-level source BOM → operation `bom` independently confirmed | `MFG-UNV-007` remains non-blocking — foreign-currency and Desk/native persistence comparison not runtime-exercised; native-method module-path probe wording corrected 2026-09-18 to scope it to the two tested dotted paths only, not a Document-bound method | 2026-09-18 |
 | Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-18 second re-review) | `ACCEPTED` — `CX-MFG-001` closed 2026-09-18; combined release with Packages 2/3 no longer blocked now that `CX-MFG-002` is also closed | `25b882e` → `517f2ea` → re-remediation `3a04733`; `d0fb4bf` coordination only | None blocking — `CX-MFG-001` `CLOSED`: in-action session verification, fresh Work Order eligibility, fresh native preview, and aggregate per-item running ceiling independently confirmed | Accounting impact (`MFG-UNV-005`); ERPNext duplicate-item response (`MFG-UNV-008`); live runtime re-verification remains post-correction QA | 2026-09-18 |
-| Master Data Canonicalization — Item domain | Master Data (frontend, cross-module) | Items/Item Groups/Price Lists moved from `/sales/*` to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated (`ReportTable`, Work Order, Sidebar, workspace cards); Batch/Serial No investigated and deliberately not moved | `DOCUMENTATION_CLOSURE` (CX-MD-001 remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-19; remediation pending re-review) | `DOCUMENTATION_CLOSURE` — implementation accepted; `QA_LOG.md` and release documentation now updated, awaiting Codex re-review of this remediation | `5507352` (MD-1) → implementation `ddfeed4` → coordination `5f20afa` → doc remediation (this commit) | `CX-MD-001` (`MEDIUM`): remediated, pending Codex re-review confirmation | Full authenticated browser click-path (create/edit Item through the new route) remains non-blocking `NEEDS_VERIFICATION`; no session credentials used during review | 2026-09-19 |
+| Master Data Canonicalization — Item domain | Master Data (frontend, cross-module) | Items/Item Groups/Price Lists moved from `/sales/*` to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated (`ReportTable`, Work Order, Sidebar, workspace cards); Batch/Serial No investigated and deliberately not moved | `DOCUMENTATION_CLOSURE` (CX-MD-001 remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-19 final re-review) | `ACCEPTED` — implementation and documentation closure complete; package closed | `5507352` (MD-1) → implementation `ddfeed4` → coordination `5f20afa` → documentation remediation `4036c81` | None open — `CX-MD-001` `CLOSED` by `4036c81` | Full authenticated browser click-path (create/edit Item through the new route) remains non-blocking `NEEDS_VERIFICATION`; no session credentials used during review | 2026-09-19 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -815,7 +815,7 @@ Final review state: `CHANGES REQUIRED` for documentation closure only. See `CX-M
 | ID | Severity | Area | Finding | Owner | Status |
 |---|---|---|---|---|---|
 | (code-reviewer, self-review) | — | Governance | Initial subagent block on stale authorization record in this ledger, resolved by recording the authorization actually received — see the MD-1 package record above for the same pattern. Not applicable to this package's own commit. | — | `RESOLVED` (prior package) |
-| `CX-MD-001` | `MEDIUM` | Documentation / package closure | `QA_LOG.md` has no entry for this meaningful route/navigation package, and release documentation remains explicitly pending, contrary to the package-closure requirements in `CLAUDE.md` and `AI_AGENT_HANDOFF_POLICY.md`. The implementation itself is accepted; the smallest remediation is to record the route/build/redirect QA evidence in `QA_LOG.md`, complete the required release-documentation/external-plan synchronization, and return only those documentation changes for re-review. | Claude | `OPEN` |
+| `CX-MD-001` | `MEDIUM` | Documentation / package closure | `QA_LOG.md` had no entry for this meaningful route/navigation package, and release documentation was pending, contrary to the package-closure requirements in `CLAUDE.md` and `AI_AGENT_HANDOFF_POLICY.md`. Commit `4036c81` added accurate Claude/Codex QA evidence, completed the scoped release documentation, and recorded authorized release-tracker synchronization of the external plan. | Claude | `CLOSED` — independently verified by Codex 2026-09-19 |
 
 No findings from this package's own code-level review beyond what's noted above — awaiting
 Codex's independent pass.
@@ -870,3 +870,203 @@ package acceptance itself remains Codex's independent call, not self-certified h
 Codex for re-review of this documentation-only remediation. Do not start Customer/Supplier/
 Contact/Address/Territory/Warehouse route moves (MD-3 onward), Work Order Action UX, Job Cards,
 BOM, Workstations, OEE, CRM, or Finance without separate explicit authorization.
+
+### Codex final re-review — 2026-09-19
+
+Commit `4036c81` was independently verified as a documentation/coordination-only direct child of
+`5f20afa`, changing exactly `QA_LOG.md`, `docs/ceylon-stack-documentation.html`, and this work
+log. It contains no application, `next.config.ts`, generated-graph, or unrelated file changes.
+The QA entry accurately records the previously executed Claude and Codex checks and retains the
+authenticated browser create/edit path as non-blocking `NEEDS_VERIFICATION`. The release entry is
+correctly limited to Item, Item Group, and Price List and leaves all other Master Data domains
+deferred. The work log records the authorized release-tracker's Notion synchronization with MD-2
+complete and MD-3 through MD-10 remaining; direct external querying was unavailable, and this
+authorized coordination evidence is sufficient under the handoff model.
+
+Final re-review state: `PASS`. `CX-MD-001` is `CLOSED`. Final accepted boundary: implementation
+`ddfeed4`, coordination `5f20afa`, documentation remediation `4036c81`. The Item-domain Master
+Data Canonicalization package is closed. No next package is authorized by this acceptance.
+
+## Package: Master Data Canonicalization — Business Partner domain (Customers, Customer Groups, Suppliers, Contacts, Addresses, Territories)
+
+### Objective
+
+Explicitly authorized follow-on package (per the accepted Item-domain package's own closing
+instruction above — "do not start ... without separate explicit authorization" — the
+authorizing request for this package names that accepted boundary directly: implementation
+`ddfeed4`, coordination `5f20afa`, documentation remediation `4036c81`, final accepted boundary
+`4036c81`). Apply the same canonical-ownership pattern to the Business Partner domain: Customer,
+Customer Group, Supplier, Supplier Group, Contact, Address, Territory. Scope explicitly bundles
+what `docs/master-data-architecture.md` §9 had separately numbered MD-3 (Customer/Customer
+Group), MD-4 (Supplier), and MD-5 (Contact/Address/Territory) into one package, per this
+package's own authorizing brief — justified by Contact/Address being genuinely shared between
+Customer and Supplier (see Findings below), so splitting them across three packages would have
+meant touching the same shared files three times.
+
+### Claude
+
+Started/Completed: 2026-09-19.
+
+**Phase 1 investigation** (required before any code change, per the authorizing brief). Current
+git state confirmed: only the same pre-existing dirty/untracked files already present at the
+start of the Item-domain package remain (`CLAUDE.md`, `docs/architecture/decisions/README.md`
+modified; `docs/ceylon-stack-master-backlog.md`, `docs/ceylon-stack-master-plan.md`,
+`docs/master-data-architecture.md` untracked) — none touched by this package. Confirmed the
+accepted parent boundary (`4036c81`) via `git log`. Read the accepted Item-domain implementation
+(`ddfeed4`) via `git show --stat` as the reference pattern. Mapped every current Business
+Partner route: `Customer`/`Customer Group`/`Contact`/`Address`/`Territory` all lived under
+`apps/frontend/src/app/(app)/sales/{customers,customer-groups,contacts,addresses,territories}/`
+(4 files each: `page.tsx`, `actions.ts`, `new/page.tsx`, `[name]/page.tsx`); `Supplier` lived
+under `apps/frontend/src/app/(app)/buying/suppliers/` (same 4-file shape). No `Supplier Group`
+route existed anywhere in the app (confirmed by directory search, not assumed). No CRM module
+exists in this frontend at all (confirmed by directory listing).
+
+**Live relationship investigation (not guessed), per the brief's explicit instruction**:
+- `mcp__ceylon-stack__get_doctype_fields("Supplier Group")` confirms a real ERPNext tree doctype
+  (`supplier_group_name`/`parent_supplier_group`/`is_group`/`lft`/`rgt`, plus a `Party Account`
+  child table), same shape as `Customer Group`/`Territory`, referenced by `Supplier.
+  supplier_group` — but with zero frontend screens ever built for it.
+- `get_doctype_fields("Contact")` and `get_doctype_fields("Address")` both confirm a `links`
+  field (`fieldtype: "Table"`, `options: "Dynamic Link"`); `get_doctype_fields("Dynamic Link")`
+  confirms `link_doctype` (any DocType, via a `Link` to `DocType`) + `link_name` (a `Dynamic
+  Link` typed by `link_doctype`) — i.e. genuinely many-to-many against any party doctype, not a
+  single-owner foreign key. `Contact` additionally carries its own single `address` field (its
+  own primary address) and `is_primary_contact`; `Address` carries `is_primary_address`/
+  `is_shipping_address`. Cross-checked against live data: `list_documents("Contact", ...)`
+  against the two existing Contact records confirmed the `links` table is genuinely empty today
+  (no Customer/Supplier records have been linked to a Contact yet in this instance) — evidence
+  the schema supports the many-to-many model, not evidence it's populated yet.
+- This frontend's existing `Contact`/`Address` screens were already doctype-generic before this
+  package (shared `MasterTable`/`masterActions`, no Customer-only or Supplier-only fields,
+  already linked from both Sales' and Buying's sidebars pre-move) — canonicalizing their route
+  reflects this existing shared model, it does not invent one.
+- `Customer Group` and `Territory` confirmed as ordinary Frappe tree doctypes
+  (`is_group`/`parent_*`/`lft`/`rgt`) — unchanged by this move, no relationship investigation
+  needed beyond confirming the existing `MasterTable` usage was already correct.
+
+**Design decision — Supplier Group deliberately NOT built.** Per the brief's own repeated
+instruction not to "blindly create routes that do not correspond to existing supported
+functionality," and matching `docs/master-data-architecture.md` §9 gap #3's own conclusion,
+Supplier Group was investigated, confirmed real, and left out — no route was ever built for it
+to relocate, so building one now would be new feature work, not a canonicalization move. Flagged
+as a small, low-risk future package (identical shape to Customer Group/Territory).
+
+**Implementation.** 24 files (4 each × 6 entities) moved from `apps/frontend/src/app/(app)/
+{sales/{customers,customer-groups,contacts,addresses,territories},buying/suppliers}/` to
+`apps/frontend/src/app/(app)/master-data/{customers,customer-groups,contacts,addresses,
+territories,suppliers}/`. `git mv` failed with a Windows file-lock `Permission denied` on this
+session's environment (same class of issue as some prior sessions in this repo's history);
+worked around via `cp -r` into the new path + `git rm --cached` + `rm -rf` of the old path +
+`git add` of the new — `git status` confirmed all 24 as detected renames (`R`, not separate
+add/delete pairs), preserving history the same way `git mv` would have. Every `redirect()`/
+`revalidatePath()` call inside each moved `actions.ts`, and every `newHref`/row-link string
+inside each moved `page.tsx`, updated from `/sales/...`/`/buying/...` to `/master-data/...`.
+Updated every inbound reference found in Phase 1: `components/CustomerForm.tsx` and
+`SupplierForm.tsx` (action-import type paths), `CustomersTable.tsx`/`SuppliersTable.tsx` (row
+links), `ReportTable.tsx` (`INTERNAL_ROUTES.Customer`), `lib/salesFlowMap.ts` (Sales Flow
+scene's Customer master-data step href only — its descriptive `area: "Sales"` field left
+unchanged, since it labels a business-process stage, not route ownership, matching precedent:
+the Item-domain package didn't add an Item flow-scene entry either), `lib/sellingWorkspace.ts`
+(5 entries: Customer, Customer Group, Contact, Address, Territory), `lib/masterDataWorkspace.ts`
+(Business Partners card — now direct canonical links, not link-outs), `components/Sidebar.tsx`
+(Selling's "Customers & contacts" group, Selling's "setup" group's Territories entry, Buying's
+"Suppliers & contacts" group, Master Data's own "Business partners" group, and 2 stale
+explanatory comments describing the old ownership), and `app/login/page.tsx`'s post-login
+default redirect. No Breadcrumb components exist inside any of the six moved route folders
+(verified directly — confirmed absent, unlike `master-data/page.tsx` itself), so none needed
+updating. Added `redirects()` entries to `next.config.ts` for all six entities' list/detail/new
+paths (`permanent: false`/307, same reasoning as the Item domain's redirects).
+
+**One self-caught defect during implementation**: the first draft of the updated
+`masterDataWorkspace.ts` doc-comment contained the literal substring `*/` inside prose
+(`/sales/*//buying/*`), which prematurely closed the JSDoc block comment and broke ESLint
+parsing (`Parsing error: Expression expected`). Caught by the mandatory `npm run lint` pass
+before proceeding, not by inspection; fixed by adding a space between the two path globs.
+
+**Documentation.** `docs/controls/FRONTEND_GUIDE.md` corrected in the two places
+`docs/master-data-architecture.md` §9 had flagged: §9's Sales "Masters" list (now only
+`sales-persons`/`sales-partners`/`campaigns`/`settings` — internal-team/marketing constructs
+that stay Sales-owned, matching the architecture doc's own exclusion list) and §10's Buying
+Suppliers bullet (now points at `master-data/suppliers/`). `docs/backend/01-master-data/` was
+**not** created — same reasoning the Item-domain package recorded for the same decision: that
+domain doc is `docs/master-data-architecture.md`'s own separate, not-yet-authorized §8
+deliverable; the live Dynamic Link/Supplier Group evidence above is recorded in `PROGRESS.md`
+instead, as source material for whenever that domain doc is authorized.
+`docs/master-data-architecture.md`, `docs/ceylon-stack-master-backlog.md`,
+`docs/ceylon-stack-master-plan.md`, and `docs/architecture/decisions/README.md` were read for
+design authority but not modified, per the authorizing brief's explicit package-isolation
+instruction.
+
+**Checks run:** `npm run lint` — PASSED (after the self-caught fix above). `npx tsc --noEmit` —
+PASSED after clearing a stale `.next` type cache that still referenced the six deleted route
+paths (expected artifact staleness, not a real error). `npm run build` — PASSED, exit 0; all 18
+new `/master-data/{customers,customer-groups,contacts,addresses,territories,suppliers}`
+list/detail/new routes present; zero `/sales/customers`, `/sales/customer-groups`,
+`/sales/contacts`, `/sales/addresses`, `/sales/territories`, or `/buying/suppliers` routes
+remain; only the same pre-existing `erpnextFetch network error` static-generation diagnostics as
+every prior round. **Live verification**: built and started a production server on a scratch
+port, curl-verified `/sales/customers` → 307 → `/master-data/customers`,
+`/sales/customers/CUST-0001` → 307 → `/master-data/customers/CUST-0001` (dynamic segment
+preserved), `/sales/customer-groups` → 307 → `/master-data/customer-groups`,
+`/sales/contacts/new` → 307 → `/master-data/contacts/new`, `/sales/addresses` → 307 →
+`/master-data/addresses`, `/sales/territories` → 307 → `/master-data/territories`,
+`/buying/suppliers/SUP-0001?foo=bar` → 307 → `/master-data/suppliers/SUP-0001?foo=bar` (dynamic
+segment and query string both preserved), and `/master-data/customers` itself correctly hits the
+same `/login` auth gate every other protected route does (not a 404). No live ERPNext mutation
+was performed — the create/update payloads inside the moved `actions.ts` files are unchanged
+from before the move (verified by diff against the pre-move file content). A full authenticated
+browser click-path was not performed — no session credentials available in this environment;
+`qa-tester` was not invoked for the same reason the Item-domain package recorded: its
+live-instance checks would only re-confirm ERPNext behavior this package didn't touch.
+
+**Repository-wide stale-route search**: zero remaining runtime-code references to any of the six
+old route prefixes. Two non-runtime hits found and left alone: `docs/architecture/decisions/
+README.md` (pre-existing modified file outside this package's boundary, per the isolation
+instruction — inspected, not touched) and `docs/brand/package/CeylonStack-Grouped-Sidebar.html`
+(a static design mockup — same category the Item-domain package's own search already classified
+and left alone for the same file). `docs/master-data-architecture.md` itself still proposes a
+nested `/master-data/business-partners/customers` route shape in its own §5 — this package
+implemented the flat `/master-data/customers` shape instead, matching the authorizing brief's
+explicit target-routes list and the flat precedent the accepted Item domain already set; the
+architecture doc was read but not modified, per the same preservation instruction the Item-domain
+package followed for the same file.
+
+**Graph refresh.** `graphify --update` — not yet run as of this entry; will be run before commit,
+matching the Item-domain package's own AST-only refresh (no LLM/subagent cost).
+
+Files: `apps/frontend/next.config.ts`; 24 files moved (listed above); `apps/frontend/src/
+components/{CustomerForm,SupplierForm,CustomersTable,SuppliersTable,ReportTable,Sidebar}.tsx`;
+`apps/frontend/src/lib/{salesFlowMap,sellingWorkspace,masterDataWorkspace}.ts`;
+`apps/frontend/src/app/login/page.tsx`; `docs/controls/FRONTEND_GUIDE.md`; `PROGRESS.md`;
+`QA_LOG.md`; `docs/operations/AI_WORK_LOG.md`; `graphify-out/*` (pending).
+
+### Codex
+
+Not yet reviewed. Per this package's own stop condition: do not start Supplier Group, Warehouse/
+Inventory Structure, Manufacturing Masters, Finance Masters, CRM, Workflow, or any other Master
+Data package until Codex independently reviews and accepts this one.
+
+### Documentation Checklist
+
+Backend: `NOT_REQUIRED` for a new domain doc, same reasoning as the Item-domain package (see
+above) — live relationship evidence recorded in `PROGRESS.md` instead.
+Frontend: `UPDATED` — `docs/controls/FRONTEND_GUIDE.md` §9/§10.
+QA_LOG: `UPDATED` — 2026-09-19 entry added.
+PROGRESS: `UPDATED` — 2026-09-19 entry added.
+Architecture Decision: `NOT_REQUIRED` — no new ADR; `docs/architecture/decisions/README.md`
+preserved untouched per instruction.
+Release Documentation: pending — `release-tracker` to be invoked before this package is
+considered handed off.
+External plan (Notion): pending — via the same `release-tracker` invocation.
+
+### Final State
+
+Implementation: `COMPLETE` (Business Partner domain: Customer, Customer Group, Supplier,
+Contact, Address, Territory. Supplier Group explicitly investigated and deliberately not built —
+its own future package). Independent Review: not yet started. Documentation: `UPDATED`
+(FRONTEND_GUIDE, PROGRESS, QA_LOG, this log). Release: pending.
+
+**Not self-declared accepted.** Package acceptance belongs to Codex's independent review, not
+this entry. Do not start Supplier Group, Warehouse/Inventory Structure canonicalization,
+Manufacturing Masters, Finance Masters, CRM, or any other Master Data package without separate
+explicit authorization.

@@ -38,8 +38,8 @@ export default async function AddressesPage({
       <MasterTable
         title="Addresses"
         rows={rows}
-        newHref="/sales/addresses/new"
-        rowLink={(row) => `/sales/addresses/${encodeURIComponent(row.name)}`}
+        newHref="/master-data/addresses/new"
+        rowLink={(row) => `/master-data/addresses/${encodeURIComponent(row.name)}`}
         emptyLabel="No addresses yet."
         columns={[
           { key: "name", label: "ID", mono: true },

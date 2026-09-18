@@ -22,8 +22,8 @@ export async function createTerritoryAction(_prevState: FormState, formData: For
     return { error: humanizeError(e, "territory") };
   }
 
-  revalidatePath("/sales/territories");
-  redirect(`/sales/territories/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/territories");
+  redirect(`/master-data/territories/${encodeURIComponent(name)}`);
 }
 
 export async function updateTerritoryAction(
@@ -40,7 +40,7 @@ export async function updateTerritoryAction(
     return { error: humanizeError(e, "territory") };
   }
 
-  revalidatePath("/sales/territories");
-  revalidatePath(`/sales/territories/${encodeURIComponent(name)}`);
-  redirect(`/sales/territories/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/territories");
+  revalidatePath(`/master-data/territories/${encodeURIComponent(name)}`);
+  redirect(`/master-data/territories/${encodeURIComponent(name)}`);
 }

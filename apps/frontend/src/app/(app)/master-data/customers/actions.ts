@@ -37,8 +37,8 @@ export async function createCustomerAction(_prevState: FormState, formData: Form
     return { error: humanizeError(e) };
   }
 
-  revalidatePath("/sales/customers");
-  redirect(`/sales/customers/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/customers");
+  redirect(`/master-data/customers/${encodeURIComponent(name)}`);
 }
 
 export async function updateCustomerAction(
@@ -55,7 +55,7 @@ export async function updateCustomerAction(
     return { error: humanizeError(e) };
   }
 
-  revalidatePath("/sales/customers");
-  revalidatePath(`/sales/customers/${encodeURIComponent(name)}`);
-  redirect(`/sales/customers/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/customers");
+  revalidatePath(`/master-data/customers/${encodeURIComponent(name)}`);
+  redirect(`/master-data/customers/${encodeURIComponent(name)}`);
 }

@@ -23,7 +23,7 @@ const columns: ColumnDef<CustomerRow>[] = [
     label: "ID",
     core: true,
     render: (c) => (
-      <Link href={`/sales/customers/${encodeURIComponent(c.name)}`} className="font-mono text-signal hover:underline">
+      <Link href={`/master-data/customers/${encodeURIComponent(c.name)}`} className="font-mono text-signal hover:underline">
         {c.name}
       </Link>
     ),
