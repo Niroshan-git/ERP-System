@@ -28,7 +28,7 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-18 second re-review) | `ACCEPTED` — `CX-MFG-001` closed 2026-09-18; combined release with Packages 2/3 no longer blocked now that `CX-MFG-002` is also closed | `25b882e` → `517f2ea` → re-remediation `3a04733`; `d0fb4bf` coordination only | None blocking — `CX-MFG-001` `CLOSED`: in-action session verification, fresh Work Order eligibility, fresh native preview, and aggregate per-item running ceiling independently confirmed | Accounting impact (`MFG-UNV-005`); ERPNext duplicate-item response (`MFG-UNV-008`); live runtime re-verification remains post-correction QA | 2026-09-18 |
 | Master Data Canonicalization — Item domain | Master Data (frontend, cross-module) | Items/Item Groups/Price Lists moved from `/sales/*` to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated (`ReportTable`, Work Order, Sidebar, workspace cards); Batch/Serial No investigated and deliberately not moved | `DOCUMENTATION_CLOSURE` (CX-MD-001 remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-19 final re-review) | `ACCEPTED` — implementation and documentation closure complete; package closed | `5507352` (MD-1) → implementation `ddfeed4` → coordination `5f20afa` → documentation remediation `4036c81` | None open — `CX-MD-001` `CLOSED` by `4036c81` | Full authenticated browser click-path (create/edit Item through the new route) remains non-blocking `NEEDS_VERIFICATION`; no session credentials used during review | 2026-09-19 |
 | Master Data Canonicalization — Business Partner domain | Master Data (frontend, cross-module) | Customers/Customer Groups/Contacts/Addresses/Territories moved from `/sales/*`, Suppliers from `/buying/suppliers`, to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated | `CLAUDE_HANDOFF` | `CODEX_REVIEW_COMPLETE` (2026-09-19) | `ACCEPTED` — `PASS WITH NON-BLOCKING FINDINGS`; review text committed unchanged by `f078610` | `a99656d` (implementation) → `4984963` (coordination/final accepted boundary) → review-record carriage `f078610` | None blocking | Full authenticated browser click-path not run; middleware `next`-param query-string drop (pre-existing, out of scope) | 2026-09-19 |
-| Master Data Canonicalization — Inventory Structure domain (Warehouse) | Master Data (frontend, cross-module) | Warehouse moved from `/stock/warehouses` to canonical `/master-data/warehouses`; compatibility redirect; inbound links updated (`masterDataWorkspace.ts`, `Sidebar.tsx` ×2 groups, Work Order detail ×4 `DocLink`s); Batch/Serial No re-confirmed and deliberately not moved | `CLAUDE_HANDOFF` (`CX-MD-WH-003` remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-19 implementation review); re-review of remediation pending | `CHANGES REQUIRED` — implementation accepted; external-plan synchronization evidence recorded (HTML confirmed updated; Notion MD-6 outcome unverifiable this session, recorded as such, not claimed complete) | `f078610` (implementation) → `8cf45de` (coordination) → documentation remediation (this entry); no final accepted boundary yet | `CX-MD-WH-003` — remediation submitted, awaiting Codex re-review, not self-declared closed | Full authenticated browser click-path not run; `account`/`warehouse_type`/`customer` remain pre-existing unexposed fields/future enhancements; Notion MD-6 sync outcome unverified this session | 2026-09-19 |
+| Master Data Canonicalization — Inventory Structure domain (Warehouse) | Master Data (frontend, cross-module) | Warehouse moved from `/stock/warehouses` to canonical `/master-data/warehouses`; compatibility redirect; inbound links updated (`masterDataWorkspace.ts`, `Sidebar.tsx` ×2 groups, Work Order detail ×4 `DocLink`s); Batch/Serial No re-confirmed and deliberately not moved | `CLAUDE_HANDOFF` (`CX-MD-WH-003` remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-19 narrow re-review) | `CHANGES REQUIRED — EXTERNAL ACTION REQUIRED` — implementation and repository documentation accepted; required Notion synchronization outcome remains unverified | `f078610` (implementation) → `8cf45de` (coordination) → remediation `7447574`; no final accepted boundary yet | `CX-MD-WH-003` remains `OPEN` pending direct Notion MD-6 verification/correction | Full authenticated browser click-path not run; `account`/`warehouse_type`/`customer` remain pre-existing unexposed fields/future enhancements; Notion MD-6 sync outcome `NEEDS_VERIFICATION` | 2026-09-19 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -1313,6 +1313,111 @@ recorded precedent for a shared append-only ledger (`CX-MD-WH-002`).
 **Returned to Codex for independent re-review of `CX-MD-WH-003` only.** Not self-declared
 resolved — only Codex may close a finding it raised, per this policy's Re-Review section. Do not
 start BOM, Manufacturing Masters, or any other package until Codex responds.
+
+### Codex narrow re-review — `CX-MD-WH-003` (2026-09-19)
+
+Remediation commit `7447574ce84e5e89f64c9745c384942fb5edc78a` is a direct descendant of
+`8cf45de498dc9511e9312cb1f3034e842a370ee9`, which descends from
+`f07861050393aa492898030200ca53edc2080e7e`. Its committed file scope is exactly this coordination
+ledger (`126` insertions, `8` deletions); it changes no application, route, configuration,
+Warehouse, Manufacturing, Inventory, backend, Graphify, release-HTML, dependency, or planning
+file. The eight deletions are legitimate state transitions: two package-ledger rows were replaced
+with their current coordination states and six Warehouse Codex placeholders were replaced by the
+independent review record. No finding, authorship, prior acceptance, Business Partner history, or
+`NEEDS_VERIFICATION` evidence was deleted or concealed.
+
+The repository-controlled release result is independently verified from commit `f078610`: the
+Warehouse entry changed from `Live` to `Building`, expressly pending Codex review, and the
+2026-09-19 changelog records the Warehouse canonical-route package. Remediation `7447574`
+accurately records the maximum available Notion evidence without fabrication: release-tracker
+invocation is claimed in the prior handoff, but the connector was unavailable, no repository or
+available transcript evidence proves the MD-6 API outcome, and MD-6 therefore remains
+`NEEDS_VERIFICATION`.
+
+The current `docs/master-data-architecture.md` planning text groups Warehouse, Batch, and Serial
+No under MD-6. The accepted implementation milestone covers Warehouse only. Batch and Serial No
+remain Inventory-owned operational/hybrid entities and were not canonicalized. Therefore the
+grouped MD-6 checkbox must not be marked wholly complete merely for this Warehouse milestone; the
+external plan must represent Warehouse as complete/pending acceptance separately, or leave the
+grouped item incomplete with a precise partial-progress note.
+
+Governance outcome: `CX-MD-WH-003` remains `OPEN`. `CLAUDE.md` package-closure rule 7 requires the
+Notion plan to be synchronized, and `AI_AGENT_HANDOFF_POLICY.md` requires the existing
+external-plan synchronization process at documentation closure. The dual-agent control requires
+uncertainty to remain `NEEDS_VERIFICATION` and prohibits converting it into a pass merely to close
+a package. Honest recording is valid remediation evidence but is not proof that the required
+external action succeeded. Required external action: when Notion access is available, inspect MD-6
+and record the actual page state/API result; correct it if necessary so Warehouse is represented
+as the completed implementation milestone without representing Batch or Serial No as completed.
+
+Final re-review state: `CHANGES REQUIRED — EXTERNAL ACTION REQUIRED`. Runtime implementation is
+not reopened and no application remediation is requested. Warehouse is not yet finally accepted;
+no final accepted commit boundary or next-package authorization is issued.
+
+### Notion MD-6 verification — `CX-MD-WH-003` (2026-09-19, connector available this session)
+
+Scope: this entry only. No application code, route, config, Sidebar, Master Data UI,
+Manufacturing, Inventory, backend/API, or Graphify file was read for editing or changed. No BOM,
+Manufacturing Masters, Batch, or Serial No canonicalization package started — an unrelated
+incoming session prompt requesting exactly that was declined pending this verification and a
+founder decision (see that session's own record for the refusal and options presented).
+
+**What was found:** unlike the prior remediation pass above, the `claude.ai Notion` MCP connector
+was connected in this session. `notion-search` (query "Weekly Implementation Plan") returned the
+target page unambiguously — id `3d8abcbc-fb54-8196-ac8b-c78696dbed26`, title "🏭 Smart Factory on
+ERPNext – Weekly Implementation Plan" — and `notion-fetch` against that id returned the full live
+page content (`page_last_edited_at: 2026-09-18T22:18:15.311Z`).
+
+The live MD-6 line, under the page's "Master Data Navigation Module — Frontend, MD-1" section,
+already reads (verbatim, only the surrounding em-dash prose is condensed for length here — the
+full sentence is in the live page):
+
+> `- [x] ~~MD-6 (Warehouse/Batch/Serial No domains)~~` — Warehouse only: moved from
+> `/stock/warehouses` to canonical `/master-data/warehouses` (2026-09-19)... Batch and Serial No
+> re-investigated and deliberately NOT moved — reconfirmed as transaction-generated/operational
+> entities (Frappe's `reference_doctype`/`reference_name` fields, Serial No's own lifecycle
+> status), not structural masters, per the Item-domain package's own boundary and
+> `docs/master-data-architecture.md` §2/§7 — so MD-6's Batch/Serial scope resolves as "stays in
+> Inventory," not deferred... **Not yet independently reviewed by Codex** — shipped and internally
+> QA-tested (`QA_LOG.md`'s 2026-09-19 entry, PASS), pending the same independent review cycle MD-2
+> went through before its own Codex acceptance.
+
+This already satisfies every distinction `CX-MD-WH-003`/the Notion handoff file required:
+
+- Warehouse is represented as implementation-complete **and explicitly pending Codex
+  acceptance** — not marked fully `ACCEPTED`/closed.
+- Batch is explicitly represented as **not** canonicalized ("deliberately NOT moved," "stays in
+  Inventory").
+- Serial No is explicitly represented as **not** canonicalized (same sentence covers both).
+- The grouped MD-6 heading is struck through per this document's own established idiom (used
+  identically for MD-3/4/5 and other settled-but-not-fully-accepted lines elsewhere on the same
+  page) to mean "this line's scope determination is settled," not "fully accepted" — the
+  qualifying prose after the em dash carries the actual, accurate disposition in every case,
+  including this one.
+
+**Exact edit performed: none.** The live page already states the intended distinction accurately;
+writing a no-op edit merely to demonstrate write access would not be the "smallest accurate edit"
+the handoff called for. State before and state after this verification are therefore identical —
+confirmed by reading the page once, not by inference.
+
+**Open discrepancy noted, not resolved here:** the page's own `page_last_edited_at`
+(2026-09-18T22:18:15Z) predates the 2026-09-19 dates referenced inside the MD-6 text itself, and
+the prior remediation pass above recorded the connector as unavailable in every session that had
+touched this finding so far. Whoever actually made this edit and when is not established by this
+verification — only that the live content, as it stands right now, is accurate. This does not
+change the governance outcome below.
+
+**Governance outcome:** `CX-MD-WH-003` is now `RESOLVED` — the specific external action required
+(confirm live Notion MD-6 state correctly distinguishes Warehouse from Batch/Serial No, without
+overclaiming acceptance) has been independently verified against the live page, not assumed. This
+does **not** self-declare the Warehouse package `ACCEPTED`; that determination remains Codex's per
+`docs/controls/AI_DUAL_AGENT_OPERATING_MODEL.md`. This also does **not** authorize BOM, Batch,
+Serial No, Manufacturing Masters, or any other new package — none was started as a result of this
+verification, consistent with the handoff file's explicit instruction.
+
+`docs/operations/CX-MD-WH-003_NOTION_HANDOFF.md` is deleted by this same commit, per its own
+"Status" line ("delete once CX-MD-WH-003 is closed and its evidence is recorded in
+`docs/operations/AI_WORK_LOG.md`").
 
 ### Documentation Checklist
 
