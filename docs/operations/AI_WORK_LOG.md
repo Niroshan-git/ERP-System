@@ -1564,10 +1564,10 @@ Handoff: `BOM FRONTEND FEATURE GAP` (Gate B). See Findings/Notes below for the e
 capability and a recommended future package shape. Nothing in this package requires Codex to
 verify a code diff — only the accuracy of the investigation's documentation claims (schema
 values, route non-existence, classification) against the live instance and the repository.
-Commit/Boundary: not yet committed at the time of this entry (see `PROGRESS.md` for the commit
-hash once created). Parent boundary unchanged from `2a7076c87b4e74fb7ab2ba9e61e40355b5015468` —
-this package added no code, so there is no new implementation boundary to record, only a
-documentation delta on top of the same accepted Warehouse boundary.
+Commit/Boundary: `583b5e3` (docs-only commit, includes this log entry itself). Parent boundary
+unchanged from `2a7076c87b4e74fb7ab2ba9e61e40355b5015468` — this package added no code, so there
+is no new implementation boundary to record, only a documentation delta on top of the same
+accepted Warehouse boundary.
 
 ### Codex
 
