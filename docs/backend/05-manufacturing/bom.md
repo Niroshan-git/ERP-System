@@ -216,7 +216,7 @@ Masters package:
 
 | Doctype | Classification | Notes |
 |---|---|---|
-| `Operation` | **B — backend-supported, frontend-missing** | Real independent master (`istable: 0`, module `Manufacturing`). Referenced today only as a Link fieldname (`BOM Operation.operation`, `BOM Item.operation`) — never fetched, listed, or displayed by name anywhere in the frontend. |
+| `Operation` | **B — backend-supported, frontend-missing** | Real independent master (`istable: 0`, module `Manufacturing`). Its value is rendered read-only in `WorkOrderForm.tsx`'s BOM operations preview and the Work Order detail page's Operations tab, and referenced as a Link fieldname (`BOM Operation.operation`, `BOM Item.operation`) — but there is no independent Operation list, detail/entity page, CRUD, or canonical master route anywhere in the frontend. |
 | `Routing` | **B — backend-supported, frontend-missing** | Real independent master. `BOM.routing` is a Link to it; the one real BOM has `routing: null` (uses inline `operations` instead). No frontend read of `Routing` at all. |
 | `Workstation` (+ `Workstation Type`) | **B — backend-supported, frontend-missing** | Real independent masters. `BOM Operation.workstation`/`workstation_type` and `Work Order Operation.workstation` are Links to them; the frontend reads/displays the *value* (already covered in `work-order.md`'s Operations tab) but never fetches/lists/links the `Workstation` record itself — matches `CLAUDE.md`'s explicit "Workstations — not touched by the frontend at all yet." |
 

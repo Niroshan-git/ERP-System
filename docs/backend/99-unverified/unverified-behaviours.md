@@ -45,10 +45,10 @@ completion, OEE feed) have not been investigated.
 **How to verify:** Scoped investigation when the Job Card frontend package is picked up, per the
 Current Mission priority lock.
 
-*(BOM's own lifecycle was split out into `MFG-UNV-008` below after the 2026-09-19 BOM domain
+*(BOM's own lifecycle was split out into `MFG-UNV-009` below after the 2026-09-19 BOM domain
 investigation narrowed — but did not fully resolve — what's uncertain.)*
 
-### MFG-UNV-008 — BOM document lifecycle, multi-level explosion, and costing recompute
+### MFG-UNV-009 — BOM document lifecycle, multi-level explosion, and costing recompute
 **Status:** `NEEDS_VERIFICATION` (schema-verified, behavior-unverified — narrowed from the
 former `MFG-UNV-004` by the 2026-09-19 Manufacturing Masters (BOM) investigation package, which
 concluded Gate B: no usable BOM frontend exists, so this remained read-only investigation)

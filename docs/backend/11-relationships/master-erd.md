@@ -56,7 +56,7 @@ erDiagram
 - **BOM as an entity (BOM_ITEM/BOM_OPERATION child tables, `quantity` base-qty header field) is
   read-only in the frontend today** — used only for the Work Order create preview
   (`getBomDetails`). BOM's own versioning/approval/costing workflow is `NEEDS_VERIFICATION`
-  (`MFG-UNV-004`). Full schema/lifecycle/costing/multi-level investigation (2026-09-19, no
+  (`MFG-UNV-009`). Full schema/lifecycle/costing/multi-level investigation (2026-09-19, no
   implementation) in [`docs/backend/05-manufacturing/bom.md`](../05-manufacturing/bom.md).
 - **`BOM_ITEM.bom_no` is the nested/sub-assembly BOM pointer** (self-referential to `BOM`) —
   schema-confirmed, not behavior-verified: the one real BOM on this instance has zero sub-assembly

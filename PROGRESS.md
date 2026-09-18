@@ -2027,7 +2027,7 @@ behavior itself is `NEEDS_VERIFICATION`, not observable); costing fields (`raw_m
 `BACKEND-SUPPORTED, FRONTEND-MISSING`; `Production Plan` is a real independent doctype with zero
 frontend footprint anywhere in the repo. Captured in a new
 `docs/backend/05-manufacturing/bom.md` baseline, cross-referenced from `master-erd.md`,
-`unverified-behaviours.md` (new `MFG-UNV-008`, split from the former BOM-and-Job-Card
+`unverified-behaviours.md` (new `MFG-UNV-009`, split from the former BOM-and-Job-Card
 `MFG-UNV-004`), and `migration-status.md`.
 
 Checks: not applicable — no frontend file changed, so there is no lint/type-check/build/route

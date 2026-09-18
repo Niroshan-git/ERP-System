@@ -1550,7 +1550,7 @@ instance (only one real BOM exists on it, with zero sub-assembly components, so 
 behavior is schema-verified only). Captured in a new
 `docs/backend/05-manufacturing/bom.md` baseline; cross-referenced from
 `docs/backend/11-relationships/master-erd.md`, `docs/backend/99-unverified/unverified-behaviours.md`
-(split `MFG-UNV-004` into Job-Card-only and a new `MFG-UNV-008` for BOM), and
+(split `MFG-UNV-004` into Job-Card-only and a new `MFG-UNV-009` for BOM), and
 `docs/backend/15-migration/migration-status.md`.
 Files: `docs/backend/05-manufacturing/bom.md` (new); `docs/backend/05-manufacturing/README.md`;
 `docs/backend/11-relationships/master-erd.md`; `docs/backend/99-unverified/unverified-behaviours.md`;
@@ -1571,19 +1571,68 @@ accepted Warehouse boundary.
 
 ### Codex
 
-Review Started: not yet.
-Review Completed: not yet.
-Review State: pending.
-Tests Independently Executed: not yet — there is no code diff to test; a documentation-accuracy
-review (do the schema claims and "no BOM route exists" claim in `bom.md`/this entry actually
-match the live instance and repository) is what would be in scope.
-Documentation Updated: not yet (Codex's own pass, if any).
+Review Started: 2026-09-19.
+Review Completed: 2026-09-19.
+Review State: `CHANGES REQUIRED` — Gate B confirmed; documentation/traceability remediation only.
+Tests Independently Executed: Git ancestry/file-scope checks (`PASSED`); repository BOM route and
+frontend-footprint search (`PASSED`); changed-file/runtime-scope check (`PASSED`); backend-policy,
+ERD, migration, unresolved-register, Graphify-cache, progress, QA, and coordination review
+(`FAILED` on canonical unresolved-ID uniqueness; otherwise passed or non-blocking as recorded).
+Frontend lint/typecheck/build/route probes: `NOT APPLICABLE` — no frontend/runtime file changed.
+Documentation Updated: this Codex-owned coordination/review state only.
 
 ### Findings
 
 | ID | Severity | Area | Finding | Owner | Status |
 |---|---|---|---|---|---|
-| — | — | — | No findings raised yet — awaiting Codex's independent review of this investigation-only package. | — | — |
+| `CX-MD-BOM-001` | `MEDIUM` / documentation | Canonical unresolved-behaviour identity | The new BOM uncertainty was assigned `MFG-UNV-008`, but that permanent ID already identifies the accepted duplicate-`item_code`/Material Transfer preview uncertainty. Both headings now coexist in `unverified-behaviours.md`; earlier `PROGRESS.md`, `QA_LOG.md`, and work-log references still use `MFG-UNV-008` for the older issue, and Graphify collapses the duplicate ID to the older concept. `master-erd.md` also still points BOM workflow uncertainty to the former combined `MFG-UNV-004`. Minimum remediation: preserve the existing duplicate-item `MFG-UNV-008`; assign the BOM lifecycle/multi-level/costing entry the next unused permanent ID, update only BOM-related references (including ERD/progress/QA/work log), and refresh the affected semantic cache so both concepts remain distinct. | Claude | `OPEN` — blocks knowledge-package acceptance; no application change required |
+| `CX-MD-BOM-002` | `LOW` / documentation | Existing frontend footprint | `bom.md` says `Operation` is “never ... displayed by name anywhere in the frontend,” but `WorkOrderForm.tsx` renders `op.operation` in the BOM preview and Work Order detail renders `op.operation` in its Operations tab. The Gate B classification remains correct because no Operation entity list/detail/CRUD surface exists. Correct the wording to the already-accurate ERD formulation: read-only-by-value fragments exist, but no entity management route/fetch/link exists. | Claude | `OPEN` — include in the same documentation-only remediation |
+
+### Codex independent review result — 2026-09-19
+
+Git establishes the exact linear boundary
+`2a7076c87b4e74fb7ab2ba9e61e40355b5015468` →
+`583b5e34a57681f600bbfcd3f782c190f2b0e55b` →
+`25381b1c810a8437c9279c0322f32ef236978b56`. The first commit contains only
+documentation/coordination plus Graphify semantic-cache/stat-index artifacts; the second changes
+only the BOM package's commit-boundary text in this ledger. No `apps/frontend`, route/config,
+dependency, shared runtime, backend implementation, BOM, Work Order, Production Plan, Operation,
+Routing, Workstation, Warehouse, Batch, or Serial No behavior changed.
+
+Gate B is confirmed. The parent repository has no BOM list/new/detail/edit page, no
+`/manufacturing/boms` or `/master-data/boms` route, and no BOM `DocLink`. `bomLookup.ts` performs
+read-only submitted/active BOM lookup and document reads solely to support Work Order creation;
+Work Order list/detail and Material Transfer render `bom_no` as unlinked text. Production Plan has
+no frontend footprint. Operation and Workstation values appear as read-only fragments inside BOM
+preview/Work Order child rows, while Operation, Routing, and Workstation have no independent
+entity-management frontend. No new frontend should have been built under this authorization.
+
+The BOM/BOM Item/BOM Operation baseline correctly models BOM Item and BOM Operation as child
+entities, distinguishes the schema-confirmed nested `BOM Item.bom_no` pointer from untested
+multi-level explosion, and leaves lifecycle transitions and costing recomputation behavior
+unverified. Migration remains `FRAPPE_REFERENCE`, investigated with a frontend feature gap, not
+canonicalized/migrated/complete. The ERD is materially sound and appropriately qualifies the
+Production Plan relationship, subject to the stale/duplicate unresolved-ID references in
+`CX-MD-BOM-001`.
+
+Graphify's new semantic cache includes `bom.md` and the affected documentation, while
+`graph.json` remains unchanged and therefore does not yet expose the new BOM document. The full
+rebuild shrink-guard claim is recorded in commit `583b5e3` but no standalone rebuild log is
+committed. This is non-blocking because Graphify is a navigation aid, the guard avoided dropping
+81 unrelated pre-existing nodes, and the new semantic extraction is cached. A bounded refresh of
+the corrected unresolved-behaviour semantic cache is required with `CX-MD-BOM-001`; unrelated
+brand-asset repair and a forced destructive full rebuild are not required for this package.
+
+Release HTML correctly continues to list BOM Management as `Planned`/not started. Because this
+package shipped no product/runtime capability and introduced no new planned scope, release HTML
+and external-plan mutation are `NOT REQUIRED`. Frontend lint/typecheck/build/browser checks are
+also `NOT APPLICABLE`; the independent checks appropriate to this package are repository and
+documentation consistency checks.
+
+Final state: `CHANGES REQUIRED` for documentation/traceability only. `GATE B = CONFIRMED` and
+`BOM FRONTEND = NOT IMPLEMENTED`. No application remediation is requested. After the two narrow
+documentation corrections, the smallest useful separately authorized future feature remains a
+read-only BOM detail/entity page; this review does not authorize it or any other package.
 
 ### Documentation Checklist
 
@@ -1652,3 +1701,111 @@ itself was already modified at session start (the CX-MD-WH-003 Warehouse closure
 authored in a prior session) — this package's own addition is the new section above, appended
 without altering any pre-existing text in this file, same non-destructive-append pattern as
 every prior package in this ledger.
+
+## Package: BOM Investigation / Gate B — Claude Remediation of `CX-MD-BOM-001` / `CX-MD-BOM-002`
+
+### Objective
+
+Address the two `CHANGES REQUIRED` findings from Codex's independent review of the BOM
+Investigation / Gate B package (immediately above): `CX-MD-BOM-001` (`MEDIUM`, permanent
+unresolved-behaviour ID collision) and `CX-MD-BOM-002` (`LOW`, `bom.md` understating Operation's
+existing read-only Work Order footprint). Documentation/traceability only — no application,
+frontend, or backend runtime change authorized or made. Gate B itself was already `CONFIRMED` by
+Codex and is unaffected by this remediation.
+
+### Claude
+
+Started: 2026-09-19. Completed: 2026-09-19.
+
+Verified the reviewed boundary before editing: `2a7076c87b4e74fb7ab2ba9e61e40355b5015468` →
+`583b5e34a57681f600bbfcd3f782c190f2b0e55b` → `25381b1c810a8437c9279c0322f32ef236978b56` confirmed
+as a linear ancestor chain via `git merge-base --is-ancestor`. Re-read this Codex review (Findings
+table + independent review result, above) and re-inspected `git status`/`git diff` before making
+any change.
+
+**`CX-MD-BOM-001` — ID collision, `RESOLVED`.** Independently re-verified Codex's reported next
+free ID by enumerating every `### MFG-UNV-NNN` heading in
+`docs/backend/99-unverified/unverified-behaviours.md`: `001`–`007` each appear once, `008`
+appeared twice (the collision), `009` was unused — confirmed `MFG-UNV-009` was still free at
+remediation time, matching Codex's reported number. Renamed the misassigned BOM entry
+(`### MFG-UNV-008 — BOM document lifecycle, multi-level explosion, and costing recompute`) to
+`### MFG-UNV-009`, and corrected its own forward-pointer note under `MFG-UNV-004`
+(`unverified-behaviours.md`) to say "split out into `MFG-UNV-009`". The original,
+pre-existing `MFG-UNV-008` (Duplicate `item_code` rows in `required_items` / Material Transfer
+preview, `CX-MFG-006`) was left byte-for-byte untouched — repository-wide search after the change
+confirms every remaining `MFG-UNV-008` reference in the repo (`unverified-behaviours.md` itself,
+`PROGRESS.md`, `QA_LOG.md`, `docs/master-data-architecture.md`, and this log's own Material
+Transfer entries) refers only to that original Material Transfer finding, never to BOM.
+
+Updated the stale ERD cross-reference Codex flagged: `docs/backend/11-relationships/master-erd.md`
+pointed BOM's versioning/approval/costing uncertainty at the former combined `MFG-UNV-004`
+(pre-split) — corrected to `MFG-UNV-009`. Updated the two other current-state (non-Codex-authored)
+narrative references to the misassigned ID: `PROGRESS.md`'s and this log's own "Claude" narrative
+for the original BOM investigation package (both said "new `MFG-UNV-008`, split from the former
+BOM-and-Job-Card `MFG-UNV-004`") now say `MFG-UNV-009`. `QA_LOG.md` and
+`docs/master-data-architecture.md` were searched and contain no BOM-specific `MFG-UNV-008`
+reference to correct — left untouched.
+
+**Historical Codex review evidence preserved, not rewritten.** The `CX-MD-BOM-001` row in the
+Findings table above, and the "Codex independent review result" narrative above it, still read
+exactly as Codex wrote them — including the literal text "assigned `MFG-UNV-008`" describing the
+finding itself. That is the historical record of what Codex found and is not corrected text; only
+current-state/forward-reference documentation (the unresolved-behaviour register itself, the ERD,
+and the two narrative progress entries) was updated to the new ID.
+
+**`CX-MD-BOM-002` — Operation footprint wording, `RESOLVED`.**
+`docs/backend/05-manufacturing/bom.md`'s Operation/Routing/Workstation classification table
+previously said Operation is "never fetched, listed, or displayed by name anywhere in the
+frontend," which is inaccurate — `WorkOrderForm.tsx`'s BOM operations preview and the Work Order
+detail page's Operations tab both render `op.operation` read-only. Corrected the wording to state
+that Operation's value is rendered read-only in those two surfaces, while no independent Operation
+list, detail/entity page, CRUD, or canonical master route exists — preserving the classification
+itself (`B — backend-supported, frontend-missing`) exactly as Codex's remediation instruction
+required. No other file in the repository states this classification, so no other reference
+needed correction.
+
+**Graphify — bounded semantic-cache refresh, not a full rebuild.** Per Codex's finding that the
+duplicate `MFG-UNV-008` ID caused graphify to collapse the BOM concept into the older Material
+Transfer concept, refreshed only the affected semantic cache after the ID correction above.
+Confirmed via `graphify.cache.check_semantic_cache` that the five edited files
+(`unverified-behaviours.md`, `master-erd.md`, `bom.md`, `PROGRESS.md`, this log) were cache misses
+against their new content (expected — cache is content-hash-keyed). Dispatched one
+`general-purpose` extraction subagent (per the graphify skill's Part B / extraction-spec
+contract, one chunk since 5 files is well under the 20-25 chunk size) to re-extract semantic
+content for those five files only, producing 27 nodes / 48 edges / 3 hyperedges, then merged the
+result into the cache via `graphify.cache.save_semantic_cache`. Re-ran `check_semantic_cache`
+afterward: all five files now hit, and `docs_backend_99_unverified_mfg_unv_008` /
+`docs_backend_99_unverified_mfg_unv_009` are confirmed as two distinct cached node IDs with no
+edge asserting equivalence between them. `graphify-out/graph.json` was deliberately **not**
+rebuilt or merged — Codex's review explicitly said the full graph remaining stale is non-blocking
+for this package (navigation aid, not source of truth) and a full/forced rebuild is not required;
+only the semantic cache that fed the ID collision was in scope. No `.graphify_chunk_*.json` temp
+file was left on disk (cleaned up after the cache merge).
+
+Files changed: `docs/backend/99-unverified/unverified-behaviours.md`,
+`docs/backend/11-relationships/master-erd.md`, `docs/backend/05-manufacturing/bom.md`,
+`PROGRESS.md`, this log (new section below the reviewed Codex entry, that entry itself
+untouched), and new entries under `graphify-out/cache/semantic/`. Zero files under
+`apps/frontend/` touched; zero backend runtime files touched; `graphify-out/graph.json` and
+`graphify-out/GRAPH_REPORT.md` untouched (bounded cache refresh, not a rebuild, per Codex's own
+instruction). `QA_LOG.md` and `docs/master-data-architecture.md` inspected, found to need no
+change, left untouched. The four pre-existing unrelated dirty/untracked files (`CLAUDE.md`,
+`docs/architecture/decisions/README.md`, `docs/ceylon-stack-master-backlog.md`,
+`docs/ceylon-stack-master-plan.md`, `docs/master-data-architecture.md`) were re-verified present
+and untouched before committing.
+
+Commit/Boundary: recorded in a follow-up coordination entry once committed, same pattern as every
+prior package in this ledger.
+
+### Final State
+
+Implementation: `NOT APPLICABLE` — documentation/traceability remediation only, no application or
+runtime code touched. Gate B remains `CONFIRMED` (unaffected by this remediation).
+Independent Review: pending Codex re-review of this remediation.
+Documentation: `UPDATED` per the Claude section above.
+
+**Not self-declared `ACCEPTED`.** This remediation is returned to Codex for independent
+re-verification, per this package's own instruction. Do not start the BOM detail page, BOM CRUD,
+Operation/Routing/Workstation, or any other Manufacturing package on the strength of this entry —
+this remains a documentation-only correction of a prior investigation's ID bookkeeping, not a new
+authorization.
