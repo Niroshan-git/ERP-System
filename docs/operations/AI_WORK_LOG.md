@@ -1794,8 +1794,11 @@ change, left untouched. The four pre-existing unrelated dirty/untracked files (`
 `docs/ceylon-stack-master-plan.md`, `docs/master-data-architecture.md`) were re-verified present
 and untouched before committing.
 
-Commit/Boundary: recorded in a follow-up coordination entry once committed, same pattern as every
-prior package in this ledger.
+Commit/Boundary: `5f94c4e` (documentation/traceability-only commit, includes this log entry
+itself except this line). Parent boundary unchanged from
+`25381b1c810a8437c9279c0322f32ef236978b56` (the accepted BOM investigation / Gate B boundary
+Codex reviewed) — this remediation added no application code, so there is no new implementation
+boundary to record, only a documentation delta on top of that same reviewed boundary.
 
 ### Final State
 
