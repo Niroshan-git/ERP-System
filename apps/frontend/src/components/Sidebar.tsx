@@ -15,6 +15,7 @@ import {
   ChevronsUpDown,
   ClipboardList,
   Contact,
+  Database,
   Factory,
   FileMinus,
   FilePenLine,
@@ -239,11 +240,58 @@ const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
+// Master Data navigation-foundation package (MD-1, per docs/master-data-architecture.md):
+// a new module, but every item here links OUT to an existing route already owned by
+// Sales/Buying/Stock — same "shared master, not forked per module" precedent Stock and
+// Buying already established for Items/Contacts/Addresses. No route moves, no redirects;
+// this is purely an additional, canonical-feeling entry point onto data that already
+// exists. Entities with no existing route at all (UOM, BOM, Operation, Workstation,
+// Company, Cost Center, Project, Currency, Tax, Payment Terms) are deliberately omitted
+// rather than padded with "Soon" placeholders — same precedent MANUFACTURING_NAV_GROUPS
+// set (don't list what isn't asked for/doesn't exist yet); each is its own future MD
+// package per docs/master-data-architecture.md §9.
+const MASTER_DATA_NAV_GROUPS: NavGroupDef[] = [
+  {
+    id: "products",
+    label: "Products & pricing",
+    icon: Tags,
+    items: [
+      { href: "/sales/items", label: "Items", icon: Box },
+      { href: "/sales/item-groups", label: "Item Groups", icon: Tags },
+      { href: "/sales/price-lists", label: "Price Lists", icon: ReceiptText },
+    ],
+  },
+  {
+    id: "partners",
+    label: "Business partners",
+    icon: Handshake,
+    items: [
+      { href: "/sales/customers", label: "Customers", icon: UserRound },
+      { href: "/sales/customer-groups", label: "Customer Groups", icon: UsersRound },
+      { href: "/buying/suppliers", label: "Suppliers", icon: Building2 },
+      { href: "/sales/contacts", label: "Contacts", icon: Contact },
+      { href: "/sales/addresses", label: "Addresses", icon: MapPin },
+      { href: "/sales/territories", label: "Territories", icon: Map },
+    ],
+  },
+  {
+    id: "inventory-structure",
+    label: "Inventory structure",
+    icon: Warehouse,
+    items: [
+      { href: "/stock/warehouses", label: "Warehouses", icon: Warehouse },
+      { href: "/stock/batches", label: "Batches", icon: Layers },
+      { href: "/stock/serial-nos", label: "Serial Nos", icon: ScanBarcode },
+    ],
+  },
+];
+
 const MODULES: ModuleDef[] = [
   { id: "sales", label: "Selling", homeHref: "/sales", icon: ShoppingCart, groups: SALES_NAV_GROUPS },
   { id: "buying", label: "Buying", homeHref: "/buying", icon: ShoppingBag, groups: BUYING_NAV_GROUPS },
   { id: "stock", label: "Inventory", homeHref: "/stock", icon: Boxes, groups: STOCK_NAV_GROUPS },
   { id: "manufacturing", label: "Manufacturing", homeHref: "/manufacturing", icon: Factory, groups: MANUFACTURING_NAV_GROUPS },
+  { id: "master-data", label: "Master Data", homeHref: "/master-data", icon: Database, groups: MASTER_DATA_NAV_GROUPS },
 ];
 
 const DEFAULT_MODULE_ID = "sales";

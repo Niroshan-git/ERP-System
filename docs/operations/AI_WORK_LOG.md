@@ -597,3 +597,96 @@ Final Manufacturing package state: reviewed blocker package `CLOSED / ACCEPTED`.
 Manufacturing verification: non-blocking `NEEDS_VERIFICATION` only (`MFG-UNV-005`, `MFG-UNV-007`,
 `MFG-UNV-008`). No further Manufacturing implementation package, Master Data, CRM, Finance, or
 other roadmap work started — that authorization is separate and has not been given.
+
+## Package: Master Data Navigation Foundation (MD-1) + Work Order Action UX — authorization and scope split (2026-09-18)
+
+**Authorization received** (superseding the "not started, authorization separate" note directly
+above): a new session request explicitly authorized "Master Data Navigation Foundation + Work
+Order Action UX" as a package, citing `docs/master-data-architecture.md` and ADR-007 as design
+authority and explicitly stating this is not authorization for CRM/Finance/AI/workflow/reporting/
+mobile/broad Manufacturing expansion.
+
+**Scope-split performed before any implementation**, per the request's own Part H instruction
+("first return an investigation summary... stop after the investigation if governance requires
+approval first"): the combined request bundles two distinct missions — Master Data Navigation and
+a new Manufacturing Work Order lifecycle package (action bar, possible Submit, possible Manufacture
+Stock Entry, possible Job Card actions) — which conflicts with `docs/controls/AGENT_USAGE_POLICY.md`
+§3/§4.1/§8's one-mission-per-session rule (its own listed *invalid* example: "Start Manufacturing
+while finishing Inventory and polishing Sales" is structurally the same pattern), and Work Order
+Action UX's Job Card/Manufacture pieces risk stepping into `CLAUDE.md`'s Current Mission lock,
+which names Job Cards as "their own future scoped package, not an open door to full Manufacturing
+implementation." An investigation summary (existing nav architecture, existing/missing master
+routes, current Work Order action implementation, live ERPNext Work Order/Job Card state via the
+`ceylon-stack` MCP server, native-method availability) was returned, then the human principal was
+asked which single package to authorize this session — **`MD-1: Master Data nav shell only`
+selected.** Work Order Action UX (Parts C–G of the original request) was **not started** and
+remains to be re-authorized as its own separate package.
+
+### Claude — MD-1 implementation
+
+Started/Completed: 2026-09-18. Per `docs/master-data-architecture.md`'s own recommended
+sequencing (MD-1: "new empty master-data Sidebar module + home page. No existing route touched.
+Very low risk. Depends on: None"): added a new `master-data` module to `Sidebar.tsx`'s `MODULES`
+array with 3 nav groups (Products & pricing, Business partners, Inventory structure) whose items
+all link OUT to routes that already exist under `/sales/*`, `/buying/*`, `/stock/*` — same
+"shared master, not forked per module" precedent `STOCK_NAV_GROUPS`/`BUYING_NAV_GROUPS` already
+established for Items/Contacts/Addresses. No existing route, component, or nav group was moved,
+redirected, or altered. New home page `apps/frontend/src/app/(app)/master-data/page.tsx` renders
+the same card-grid pattern `sales/page.tsx`'s "Reports & Masters" section already uses, via a new
+static data file `apps/frontend/src/lib/masterDataWorkspace.ts` (reuses the `WorkspaceCard`/
+`WorkspaceLink` types already exported from `lib/sellingWorkspace.ts`, type-only import). Entities
+with no existing route at all (UOM, BOM, Operation, Workstation, Workstation Type, Company, Cost
+Center, Project, Currency, Tax, Payment Terms) are deliberately omitted rather than shown as dead
+links or "Coming soon" placeholders — matches the existing `MANUFACTURING_NAV_GROUPS` precedent
+("deliberately holds just the one item rather than padding it with 'Soon' placeholders not asked
+for in this package") and the request's own "do not expose unsupported entities merely because
+they appear in this list" instruction. Each is its own future MD package per
+`docs/master-data-architecture.md` §9 (MD-7/MD-9), not started here.
+
+Files: `apps/frontend/src/components/Sidebar.tsx` (48 insertions, 0 deletions — pure addition),
+`apps/frontend/src/lib/masterDataWorkspace.ts` (new), `apps/frontend/src/app/(app)/master-data/page.tsx`
+(new).
+
+Checks: `npm run lint` — PASSED. `npx tsc --noEmit` — PASSED. `npm run build` — PASSED, exit 0,
+`/master-data` present in the route output, no new diagnostics. Dev server started and
+`GET /master-data` confirmed returning a `307` redirect to `/login?next=%2Fmaster-data` — the
+same auth-gate behavior every other protected route in this app exhibits (this app has no
+credentials available in this session to go further than confirming the route is correctly wired
+into the same middleware, consistent with how every prior package's automated verification in
+this repo has worked without live browser credentials).
+
+### Codex / code-reviewer
+
+`code-reviewer` reviewed the working-tree diff before commit. Initial verdict: `BLOCK` — flagged
+that this ledger's own immediately-preceding entries (written before this session's new
+authorization arrived) said Master Data work had not been authorized, and that
+`docs/master-data-architecture.md` §11 defers `Sidebar.tsx`/route edits to "MD Package 1+ with
+explicit governance sign-off." This was a legitimate documentation-traceability catch, not a false
+alarm to override — resolved by recording the authorization actually received this session (this
+entry) rather than by dismissing the finding. Code-level review (assuming authorization) found no
+defects: all 12 hrefs across the new nav groups/workspace cards verified to resolve to real
+existing routes (no dead links), diff confirmed pure-addition (no Sales/Buying/Stock/Manufacturing
+route or nav group altered), pattern consistency confirmed against `STOCK_NAV_GROUPS`/
+`BUYING_NAV_GROUPS` and `sales/page.tsx`, TypeScript import correctness confirmed, no
+master-data duplication/forking per `FRONTEND_GUIDE.md`. No secrets found in the diff.
+
+### Documentation Checklist
+
+Backend: `NOT_REQUIRED` — no new ERPNext field/entity/relationship/business-rule introduced; this
+package only adds frontend routing to already-documented masters.
+Frontend: `UPDATED` — see `PROGRESS.md`.
+QA_LOG: `NOT_REQUIRED` — pure navigation addition, no data mutation, no core-flow (Sales/Stock/
+Buying) change; `qa-tester` not invoked per `CLAUDE.md`'s "QA required for core-flow changes" rule.
+PROGRESS: `UPDATED`.
+Release Documentation: pending `release-tracker` invocation (separate from this entry).
+
+### Final State
+
+Implementation: `COMPLETE` (MD-1 only). Independent Review: `code-reviewer` — no code-level
+defects, authorization gap resolved by this record. Documentation: `UPDATED`. Release: pending
+`release-tracker` + commit.
+
+Work Order Action UX (original request Parts C–G) remains **not started** — requires its own
+separate authorization/package per the scope-split above. Do not begin it, Job Cards, BOM,
+Workstations, OEE, CRM, Finance, or any further Master Data package (MD-2 through MD-10) without
+that explicit authorization.

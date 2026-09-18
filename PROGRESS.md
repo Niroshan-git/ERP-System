@@ -1673,3 +1673,35 @@ native-method probe's scope — narrowed to "rules out these two module-level do
 invocations specifically, not a Document-bound method" per Codex's own non-blocking documentation
 caution. Comment-only change; `npm run lint`/`npx tsc --noEmit`/`npm run build` re-confirmed clean
 afterward. No application logic touched.
+
+## Master Data navigation foundation — MD-1 (2026-09-18)
+
+New "Master Data" module added to the Sidebar alongside Selling/Buying/Inventory/Manufacturing —
+a canonical entry point onto shared master records, per `docs/master-data-architecture.md`'s
+lowest-risk recommended first package. It's a pure addition: every link in the new module's three
+groups (Products & Pricing — Items/Item Groups/Price Lists; Business Partners — Customers/
+Customer Groups/Suppliers/Contacts/Addresses/Territories; Inventory Structure — Warehouses/
+Batches/Serial Nos) points at a route that already exists and is already owned by Sales/Buying/
+Stock — nothing was moved, forked, or redirected. New home page (`/master-data`) renders these as
+a card grid, same visual pattern as the Selling module's "Reports & Masters" section. Entities
+with no existing screen (UOM, BOM, Operation, Workstation, Company, Cost Center, Project,
+Currency, Tax, Payment Terms) are deliberately left out rather than shown as dead links — each is
+its own future package (`docs/master-data-architecture.md` §9, MD-2 through MD-10).
+
+This package was carved out of a larger combined request ("Master Data Navigation Foundation +
+Work Order Action UX") that also asked for a new Manufacturing Work Order lifecycle package
+(action bar, Submit, Manufacture Stock Entry, Job Card actions) — bundling the two violated
+`AGENT_USAGE_POLICY.md`'s one-mission-per-session rule and risked stepping into Job Cards, which
+`CLAUDE.md`'s Current Mission lock names as its own future scoped package. An investigation
+summary was returned first and the requester chose to proceed with MD-1 only; the Work Order
+Action UX half was not started and needs its own separate authorization.
+
+`code-reviewer` initially blocked on a legitimate catch — `docs/operations/AI_WORK_LOG.md`'s own
+prior entries said Master Data work hadn't been authorized yet — resolved by recording the
+authorization actually received this session in the ledger, not by overriding the finding.
+Code-level review found no defects: no dead links (all 12 hrefs verified against real routes), no
+existing route/component altered, pattern consistent with `STOCK_NAV_GROUPS`/`BUYING_NAV_GROUPS`
+and `sales/page.tsx`. `npm run lint`/`npx tsc --noEmit`/`npm run build` all clean; dev server
+confirmed `/master-data` returns the same `/login` auth-gate redirect every other protected route
+does. No `qa-tester` run — pure navigation addition, no core-flow (Sales/Stock/Buying) change, no
+data mutation. See `docs/operations/AI_WORK_LOG.md`'s matching 2026-09-18 entry for full detail.
