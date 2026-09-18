@@ -49,8 +49,8 @@ export async function createWarehouseAction(_prevState: FormState, formData: For
     return { error: humanizeError(e) };
   }
 
-  revalidatePath("/stock/warehouses");
-  redirect(`/stock/warehouses/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/warehouses");
+  redirect(`/master-data/warehouses/${encodeURIComponent(name)}`);
 }
 
 export async function updateWarehouseAction(
@@ -71,7 +71,7 @@ export async function updateWarehouseAction(
     return { error: humanizeError(e) };
   }
 
-  revalidatePath("/stock/warehouses");
-  revalidatePath(`/stock/warehouses/${encodeURIComponent(name)}`);
-  redirect(`/stock/warehouses/${encodeURIComponent(name)}?saved=1`);
+  revalidatePath("/master-data/warehouses");
+  revalidatePath(`/master-data/warehouses/${encodeURIComponent(name)}`);
+  redirect(`/master-data/warehouses/${encodeURIComponent(name)}?saved=1`);
 }

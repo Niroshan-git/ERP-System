@@ -6,9 +6,12 @@ import { MASTER_DATA_WORKSPACE_CARDS } from "@/lib/masterDataWorkspace";
  * Master Data module home page. Started as a navigation-only shell (MD-1) where every
  * link routed to an existing Sales/Buying/Stock-owned page. The Master Data
  * Canonicalization package (2026-09-18) moved Items/Item Groups/Price Lists to their own
- * canonical /master-data/* routes — see docs/master-data-architecture.md and this
- * package's entry in PROGRESS.md/docs/operations/AI_WORK_LOG.md for the full ownership
- * map and what's still pending (Business Partners, Warehouses).
+ * canonical /master-data/* routes; the Business Partner domain package (2026-09-19) did
+ * the same for Customers/Customer Groups/Suppliers/Contacts/Addresses/Territories; the
+ * Inventory Structure domain package (also 2026-09-19) did the same for Warehouses — see
+ * docs/master-data-architecture.md and each package's entry in PROGRESS.md/
+ * docs/operations/AI_WORK_LOG.md for the full ownership map. Batches and Serial Nos stay
+ * link-outs to Stock — they're operational entities, not structural masters.
  */
 export default function MasterDataHomePage() {
   return (

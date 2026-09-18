@@ -39,8 +39,8 @@ export default async function WarehousesPage({
       <MasterTable
         title="Warehouses"
         rows={rows}
-        newHref="/stock/warehouses/new"
-        rowLink={(row) => `/stock/warehouses/${encodeURIComponent(row.name)}`}
+        newHref="/master-data/warehouses/new"
+        rowLink={(row) => `/master-data/warehouses/${encodeURIComponent(row.name)}`}
         emptyLabel="No warehouses yet."
         columns={[
           { key: "name", label: "ID", mono: true },

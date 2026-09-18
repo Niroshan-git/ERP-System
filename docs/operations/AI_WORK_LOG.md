@@ -27,6 +27,8 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Manufacturing Package 3 | Manufacturing (frontend) | Work Order Create — Draft-only, BOM-scaled Materials/Operations preview, optional Material Readiness | `DOCUMENTATION_CLOSURE` | `CODEX_REVIEW_COMPLETE` (2026-09-18 final re-review) | `ACCEPTED` — `CX-MFG-002` closed; package has no remaining blocking findings | `25b882e` → `517f2ea` → `3a04733` → final correction `a2b5cb8` → doc-wording closure `2cf044e`; `0e78988` coordination only | None — `CX-MFG-002` `CLOSED`: `base_hour_rate → hour_rate` and top-level source BOM → operation `bom` independently confirmed | `MFG-UNV-007` remains non-blocking — foreign-currency and Desk/native persistence comparison not runtime-exercised; native-method module-path probe wording corrected 2026-09-18 to scope it to the two tested dotted paths only, not a Document-bound method | 2026-09-18 |
 | Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-18 second re-review) | `ACCEPTED` — `CX-MFG-001` closed 2026-09-18; combined release with Packages 2/3 no longer blocked now that `CX-MFG-002` is also closed | `25b882e` → `517f2ea` → re-remediation `3a04733`; `d0fb4bf` coordination only | None blocking — `CX-MFG-001` `CLOSED`: in-action session verification, fresh Work Order eligibility, fresh native preview, and aggregate per-item running ceiling independently confirmed | Accounting impact (`MFG-UNV-005`); ERPNext duplicate-item response (`MFG-UNV-008`); live runtime re-verification remains post-correction QA | 2026-09-18 |
 | Master Data Canonicalization — Item domain | Master Data (frontend, cross-module) | Items/Item Groups/Price Lists moved from `/sales/*` to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated (`ReportTable`, Work Order, Sidebar, workspace cards); Batch/Serial No investigated and deliberately not moved | `DOCUMENTATION_CLOSURE` (CX-MD-001 remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-19 final re-review) | `ACCEPTED` — implementation and documentation closure complete; package closed | `5507352` (MD-1) → implementation `ddfeed4` → coordination `5f20afa` → documentation remediation `4036c81` | None open — `CX-MD-001` `CLOSED` by `4036c81` | Full authenticated browser click-path (create/edit Item through the new route) remains non-blocking `NEEDS_VERIFICATION`; no session credentials used during review | 2026-09-19 |
+| Master Data Canonicalization — Business Partner domain | Master Data (frontend, cross-module) | Customers/Customer Groups/Contacts/Addresses/Territories moved from `/sales/*`, Suppliers from `/buying/suppliers`, to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated | `CLAUDE_HANDOFF` | Independent review recorded below (`### Codex independent review — 2026-09-19`) as `PASS WITH NON-BLOCKING FINDINGS`, final accepted boundary `4984963` — **that review is currently uncommitted in this working tree**; this row will read `ACCEPTED` once committed, not asserted here on Codex's behalf | Pending commit of the above review; implementation itself shipped | `a99656d` (implementation) → `4984963` (coordination) | None blocking per the uncommitted Codex review text | Full authenticated browser click-path not run; middleware `next`-param query-string drop (pre-existing, out of scope) | 2026-09-19 |
+| Master Data Canonicalization — Inventory Structure domain (Warehouse) | Master Data (frontend, cross-module) | Warehouse moved from `/stock/warehouses` to canonical `/master-data/warehouses`; compatibility redirect; inbound links updated (`masterDataWorkspace.ts`, `Sidebar.tsx` ×2 groups, Work Order detail ×4 `DocLink`s); Batch/Serial No re-confirmed and deliberately not moved | `CLAUDE_HANDOFF` | Not yet started | Pending Codex independent review — not self-declared accepted | Implementation (uncommitted at handoff — see this entry's Commit/Boundary note below) | None — self-review/`code-reviewer` found no blockers | Full authenticated browser click-path not run; `account`/`warehouse_type`/`customer` Warehouse fields remain unexposed in the form (pre-existing gap, not widened) | 2026-09-19 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -1081,3 +1083,172 @@ its own future package). Independent Review: not yet started. Documentation: `UP
 this entry. Do not start Supplier Group, Warehouse/Inventory Structure canonicalization,
 Manufacturing Masters, Finance Masters, CRM, or any other Master Data package without separate
 explicit authorization.
+
+### Codex independent review — 2026-09-19
+
+Boundary independently established from Git: accepted parent
+`4036c812217cb6d28da0e1c7cdfe946180109efe`; implementation
+`a99656dfa2eeaea28dd7eefcd35cd825916109fb`; coordination follow-up
+`4984963b099c2c9a8f3cab8ec7b455ddf8181fbc`, in that ancestry order on branch `frontend`.
+The implementation contains 51 changed files. The only current working-tree changes are the
+pre-existing modified `CLAUDE.md` and `docs/architecture/decisions/README.md`, plus untracked
+`docs/ceylon-stack-master-backlog.md`, `docs/ceylon-stack-master-plan.md`, and
+`docs/master-data-architecture.md`; they were excluded from the review boundary and left
+untouched.
+
+Independent validation: `npm run lint` `PASSED`; `npx tsc --noEmit` `PASSED`; `npm run build`
+`PASSED`. The production route manifest contains all 18 expected canonical Business Partner
+routes (six list/new/detail sets) and no legacy page implementations. Local production probes
+confirmed 307 redirects for legacy Customer, Customer Group, Supplier, Contact, Address, and
+Territory list/detail/new paths, including encoded dynamic names and query-string preservation;
+canonical targets remain protected by the existing session middleware. Repository-wide runtime
+source search found no stale legacy Business Partner navigation outside `next.config.ts` redirect
+definitions. Normalizing only the old/new route strings makes all 24 moved page/action files
+byte-equivalent to the accepted-parent versions; no payload, validation, API, accounting,
+inventory, DocType, dependency, schema, or database behavior changed.
+
+Contact and Address retain their pre-existing shared semantics: the moved implementations do not
+add Customer/Supplier ownership fields or alter payloads. The package's recorded read-only
+metadata investigation (`Contact.links` and `Address.links` as Table -> Dynamic Link, with
+Dynamic Link's `link_doctype`/`link_name`) is consistent with the repository evidence and route
+move. Supplier Group has no dedicated frontend route to relocate, was not created or linked as a
+CRUD destination, and remains a separately scoped follow-up rather than a package defect.
+
+Documentation/release closure is verified. `PROGRESS.md`, `QA_LOG.md`,
+`docs/ceylon-stack-documentation.html`, and the release-tracker/Notion coordination evidence are
+present and correctly limit the package to Customer, Customer Group, Supplier, Contact, Address,
+and Territory with independent review pending before this entry. The earlier handoff checklist at
+lines 1069-1078 says release documentation/Notion were pending, but the later authoritative
+implementation-hash note at lines 1044-1052 records their completed pre-commit synchronization;
+this Codex entry supersedes that stale draft wording. Graphify manifest/report changes remove the
+legacy paths and add the corresponding canonical paths; no unrelated manual graph scope was
+found.
+
+Final review state: `PASS WITH NON-BLOCKING FINDINGS`. No `CRITICAL`, `HIGH`, `MEDIUM`, or
+package-blocking findings. Non-blocking: (1) the full authenticated browser create/edit click path
+was not run because no authenticated browser session was available; static inspection, production
+build, and redirect/auth probes cover the package's route-only risk; (2) the existing middleware
+stores only the pathname, not the query string, in the unauthenticated login `next` parameter —
+unchanged by this package; (3) the stale pre-release checklist wording noted above remains as
+historical handoff text and is superseded here. Final accepted package boundary:
+`4984963b099c2c9a8f3cab8ec7b455ddf8181fbc`. No subsequent Master Data package is authorized by
+this acceptance.
+
+## Package: Master Data Canonicalization — Inventory Structure domain (Warehouse)
+
+### Objective
+
+Establish canonical Master Data ownership for Warehouse — a separately authorized package
+(explicit brief citing accepted parent boundary `4984963b099c2c9a8f3cab8ec7b455ddf8181fbc`, the
+Business Partner domain's own coordination commit), not unlocked by that package's own "no
+subsequent Master Data package is authorized by this acceptance" note above — that note governs
+what Codex's BP acceptance alone authorizes; separate authorization for this Warehouse package
+was given directly. Move Warehouse from `/stock/warehouses` to `/master-data/warehouses`,
+following the accepted Item-domain (`ddfeed4`/`5f20afa`/`4036c81`) and Business Partner domain
+(`a99656d`/`4984963`) pattern. Batch, Serial No, Stock Entry, Stock Ledger Entry, and every other
+Inventory/transaction entity are explicitly out of scope and were not touched.
+
+### Claude
+
+Started: 2026-09-19
+Completed: 2026-09-19
+Implementation Summary: 4 files moved via `git mv` from
+`apps/frontend/src/app/(app)/stock/warehouses/` to
+`apps/frontend/src/app/(app)/master-data/warehouses/` (`page.tsx`, `actions.ts`, `new/page.tsx`,
+`[name]/page.tsx`), internal route strings updated. Compatibility redirect added to
+`next.config.ts`. Inbound links updated: `lib/masterDataWorkspace.ts` (Inventory Structure card),
+`components/Sidebar.tsx` (Stock's "Warehouses & tracking" group — now a link-out matching the
+Items precedent; Master Data's "Inventory structure" group — now canonical, not a link-out), and
+`app/(app)/manufacturing/work-orders/[name]/page.tsx` (4 `DocLink` entity-navigation occurrences:
+Source/WIP/Target Warehouse header fields + Materials tab's per-line Source Warehouse link).
+Two stale documentation comments corrected (`docs/controls/FRONTEND_GUIDE.md`'s file-tree block,
+`master-data/page.tsx`'s top comment) — both were already inaccurate about the Business Partner
+domain's move before this package started, now fixed for both domains plus Warehouse. No
+ERPNext-side `createDoc`/`updateDoc`/`getDoc` payload changed — verified by diff, not assumed.
+Full detail in `PROGRESS.md`'s "Master Data canonical routing — Inventory Structure domain
+(Warehouse) (2026-09-19)" entry, including live `get_doctype_fields` findings on Warehouse's
+`company`/`account`/`parent_warehouse`/`is_group`/`lft`/`rgt`/`warehouse_type`/`customer` fields.
+Files: `apps/frontend/next.config.ts`; the 4 moved route files; `apps/frontend/src/components/
+Sidebar.tsx`; `apps/frontend/src/lib/masterDataWorkspace.ts`; `apps/frontend/src/app/(app)/
+manufacturing/work-orders/[name]/page.tsx`; `apps/frontend/src/app/(app)/master-data/page.tsx`;
+`docs/controls/FRONTEND_GUIDE.md`; `PROGRESS.md`; `QA_LOG.md`; this log.
+Tests: `npm run lint` — PASS; `npx tsc --noEmit` — PASS; `npm run build` — PASS (exit 0, 3 new
+canonical routes present, zero legacy routes remain). Live curl verification against a local
+production server (`next start`): list/new/dynamic-segment/encoded-name/query-string redirects
+all correct, canonical auth-gate correct, no redirect loop, pre-existing query-string-drop
+auth follow-up reproduced unchanged (not fixed, not worsened, per brief). Full detail in
+`QA_LOG.md`'s matching 2026-09-19 entry.
+Handoff: see `CLAUDE PACKAGE HANDOFF FOR CODEX` recorded in this session's transcript.
+Commit/Boundary: pending — implementation committed together with this log entry; see the
+immediately following coordination commit for the recorded hash (same two-commit pattern the
+Item-domain and Business Partner domain packages used).
+
+### Codex
+
+Review Started: not yet started
+Review Completed: not yet started
+Review State: pending
+Tests Independently Executed: pending
+Documentation Updated: pending
+
+### Findings
+
+| ID | Severity | Area | Finding | Owner | Status |
+|---|---|---|---|---|---|
+| (none yet — pending Codex's independent review) | | | | | |
+
+### Documentation Checklist
+
+Backend: `NOT_REQUIRED` — no ERPNext-side field, relationship, or business-rule behavior changed;
+this is a Next.js routing move only, same reasoning as both prior Master Data packages. Live
+DocType findings recorded in `PROGRESS.md`/`QA_LOG.md` as source material for a future Warehouse
+backend-domain doc if one is ever authorized.
+Frontend: `UPDATED` — `docs/controls/FRONTEND_GUIDE.md` file-tree comment block.
+QA_LOG: `UPDATED` — 2026-09-19 entry added.
+PROGRESS: `UPDATED` — 2026-09-19 entry added.
+Architecture Decision: `NOT_REQUIRED` — no new ADR; `docs/architecture/decisions/README.md`
+preserved untouched per package-isolation instruction (pre-existing unrelated dirty file).
+Release Documentation: pending — see note below on `docs/ceylon-stack-documentation.html`/Notion.
+Migration Status: `NOT_APPLICABLE` — no data migration.
+
+Documentation status: `NEEDS_UPDATE` for release documentation/Notion (see note below);
+`UPDATED` for everything else in scope.
+
+**Release documentation / external plan note**: unlike the Item-domain package (which got an
+explicit `release-tracker` closure pass via `4036c81` after Codex's `CX-MD-001` finding), the
+Business Partner domain package above shows `docs/ceylon-stack-documentation.html` was NOT
+actually updated in any commit despite its own `PROGRESS.md`/`AI_WORK_LOG.md` text — and the
+uncommitted Codex review immediately above this entry appears to assert it exists based on
+process expectation rather than an independently re-verified diff (no commit touches that file;
+`git diff` against it is currently empty). Rather than risk repeating that same gap silently for
+a third package, `release-tracker` was invoked for this Warehouse package specifically to update
+`docs/ceylon-stack-documentation.html`'s Warehouse-related status/changelog and sync the Notion
+tracker, marked as pending independent review, not `Live` — see this session's transcript for
+the invocation and its result, and the following coordination commit for what it actually
+changed (or the follow-up item if it could not run).
+
+### Final State
+
+Implementation: `COMPLETE` (Warehouse only — Batch, Serial No, Stock Entry, and every other
+Inventory/transaction entity untouched, confirmed by diff).
+Independent Review: not yet started.
+Documentation: `UPDATED` (FRONTEND_GUIDE, PROGRESS, QA_LOG, this log; release documentation/Notion
+status recorded above).
+Release: pending Codex independent review.
+
+**Not self-declared accepted.** Package acceptance belongs to Codex's independent review, not
+this entry. Do not start Supplier Group, Manufacturing Masters, Finance Masters, Organization
+Masters, CRM, workflow/approvals, AI/MCP, reporting, or mobile-app work without separate explicit
+authorization.
+
+### Notes
+
+The Business Partner domain package's uncommitted Codex review (immediately above this entry)
+was found already present in the working tree at the start of this Warehouse package's session —
+authored by Codex, not by this session, and left byte-for-byte unmodified. It documents a
+`PASS WITH NON-BLOCKING FINDINGS` verdict for the Business Partner domain with final accepted
+boundary `4984963b099c2c9a8f3cab8ec7b455ddf8181fbc`. That review — and the Business Partner
+domain package's own ledger row above — will read `ACCEPTED`/committed once it is itself
+committed; this Warehouse package's commit necessarily includes it in the same file diff since
+both packages touch `AI_WORK_LOG.md`, but no character of Codex's own text was changed. This is
+recorded transparently here rather than silently bundled.

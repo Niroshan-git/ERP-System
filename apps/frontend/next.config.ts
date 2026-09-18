@@ -5,7 +5,8 @@ const nextConfig: NextConfig = {
    * Compatibility redirects for the Master Data Canonicalization package. Items, Item
    * Groups, and Price Lists moved from /sales/* on 2026-09-18; Customers, Customer Groups,
    * Contacts, Addresses, and Territories moved from /sales/*, and Suppliers from
-   * /buying/suppliers, on 2026-09-19 (Business Partner domain) — see
+   * /buying/suppliers, on 2026-09-19 (Business Partner domain); Warehouses moved from
+   * /stock/warehouses, also on 2026-09-19 (Inventory Structure domain) — see
    * docs/master-data-architecture.md. `permanent: false` (307) is used deliberately rather
    * than `true` (308) — this app has no automated test coverage and no production traffic
    * yet to have created real bookmarks/backlinks to redirect, so a permanent redirect isn't
@@ -68,6 +69,12 @@ const nextConfig: NextConfig = {
       {
         source: "/buying/suppliers/:path*",
         destination: "/master-data/suppliers/:path*",
+        permanent: false,
+      },
+      { source: "/stock/warehouses", destination: "/master-data/warehouses", permanent: false },
+      {
+        source: "/stock/warehouses/:path*",
+        destination: "/master-data/warehouses/:path*",
         permanent: false,
       },
     ];

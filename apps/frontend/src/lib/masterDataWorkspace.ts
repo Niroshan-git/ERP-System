@@ -1,16 +1,19 @@
 import type { WorkspaceCard } from "@/lib/sellingWorkspace";
 
 /**
- * Master Data module home page cards. Items/Item Groups/Price Lists (2026-09-18) and now
+ * Master Data module home page cards. Items/Item Groups/Price Lists (2026-09-18),
  * Customers/Customer Groups/Suppliers/Contacts/Addresses/Territories (Business Partner
- * domain, 2026-09-19) are canonically owned under /master-data/* itself — moved from
- * /sales/* and /buying/*, with compatibility redirects left at the old paths (see
+ * domain, 2026-09-19), and now Warehouses (Inventory Structure domain, 2026-09-19) are
+ * canonically owned under /master-data/* itself — moved from /sales/*, /buying/*, and
+ * /stock/warehouses respectively, with compatibility redirects left at the old paths (see
  * next.config.ts). Supplier Group has no dedicated screen anywhere in this frontend yet
  * (verified live: the doctype exists in ERPNext and Supplier references it, but no route
  * was ever built) — building its first screen is new feature work, not a relocation, so
  * it's deliberately left out of this card rather than added as a new dead/soon link; see
- * PROGRESS.md. Inventory Structure links still point at their current Stock-owned routes —
- * that canonical-move package hasn't run yet, see `docs/master-data-architecture.md` §9.
+ * PROGRESS.md. Batches and Serial Nos remain link-outs to their current Stock-owned
+ * routes — they're transaction-generated/operational entities, not structural masters
+ * (see `docs/master-data-architecture.md` §2/§7), so they were deliberately NOT moved
+ * alongside Warehouse.
  * Entities with no existing route at all (UOM, BOM, Operation, Workstation, Company, Cost
  * Center, Project, Currency, Tax, Payment Terms) are deliberately left out rather than
  * shown as dead links or "Coming soon" — each is its own future MD package.
@@ -38,7 +41,7 @@ export const MASTER_DATA_WORKSPACE_CARDS: WorkspaceCard[] = [
   {
     title: "Inventory Structure",
     links: [
-      { label: "Warehouses", href: "/stock/warehouses" },
+      { label: "Warehouses", href: "/master-data/warehouses" },
       { label: "Batches", href: "/stock/batches" },
       { label: "Serial Nos", href: "/stock/serial-nos" },
     ],

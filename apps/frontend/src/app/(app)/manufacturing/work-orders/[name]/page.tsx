@@ -213,19 +213,19 @@ export default async function WorkOrderDetailPage({
         {doc.source_warehouse && (
           <DocField
             label="Source Warehouse"
-            value={<DocLink href={`/stock/warehouses/${encodeURIComponent(doc.source_warehouse)}`}>{doc.source_warehouse}</DocLink>}
+            value={<DocLink href={`/master-data/warehouses/${encodeURIComponent(doc.source_warehouse)}`}>{doc.source_warehouse}</DocLink>}
           />
         )}
         {doc.wip_warehouse && (
           <DocField
             label="WIP Warehouse"
-            value={<DocLink href={`/stock/warehouses/${encodeURIComponent(doc.wip_warehouse)}`}>{doc.wip_warehouse}</DocLink>}
+            value={<DocLink href={`/master-data/warehouses/${encodeURIComponent(doc.wip_warehouse)}`}>{doc.wip_warehouse}</DocLink>}
           />
         )}
         {doc.fg_warehouse && (
           <DocField
             label="Target Warehouse"
-            value={<DocLink href={`/stock/warehouses/${encodeURIComponent(doc.fg_warehouse)}`}>{doc.fg_warehouse}</DocLink>}
+            value={<DocLink href={`/master-data/warehouses/${encodeURIComponent(doc.fg_warehouse)}`}>{doc.fg_warehouse}</DocLink>}
           />
         )}
         <DocField label="Planned start" value={doc.planned_start_date || "—"} mono />
@@ -295,7 +295,7 @@ export default async function WorkOrderDetailPage({
                   <td className={`${cell} text-right font-mono tabular-nums`}>{ri.consumed_qty ?? 0}</td>
                   <td className={cell}>
                     {ri.source_warehouse ? (
-                      <DocLink href={`/stock/warehouses/${encodeURIComponent(ri.source_warehouse)}`}>
+                      <DocLink href={`/master-data/warehouses/${encodeURIComponent(ri.source_warehouse)}`}>
                         {ri.source_warehouse}
                       </DocLink>
                     ) : (

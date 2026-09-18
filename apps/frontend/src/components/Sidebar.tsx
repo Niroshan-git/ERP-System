@@ -198,14 +198,14 @@ const BUYING_NAV_GROUPS: NavGroupDef[] = [
 
 // Phase 1 of the Stock + multi-module nav plan: Stock movement (Stock Entries, Stock
 // Balance) ordered first, matching every other module's own "cycle group before masters"
-// convention. "Items" is a link-out to the canonical /master-data/items route (same
-// precedent Buying already set for /master-data/contacts and /master-data/addresses) — Item is a
-// shared master, not forked per module. Batches/Serial Nos stay owned here — per
-// docs/master-data-architecture.md's Batch/Serial classification, they're transaction-
-// generated (Frappe's own `reference_doctype`/`reference_name` fields on both doctypes,
-// plus Serial No's own Active/Delivered/Consumed/Expired lifecycle status, live-confirmed
-// via get_doctype_fields), not static masters — Master Data Canonicalization package,
-// 2026-09-18.
+// convention. "Items" and "Warehouses" are link-outs to their canonical /master-data/*
+// routes (same precedent Buying already set for /master-data/contacts and
+// /master-data/addresses) — both are shared masters, not forked per module. Batches/Serial
+// Nos stay owned here — per docs/master-data-architecture.md's Batch/Serial
+// classification, they're transaction-generated (Frappe's own `reference_doctype`/
+// `reference_name` fields on both doctypes, plus Serial No's own Active/Delivered/
+// Consumed/Expired lifecycle status, live-confirmed via get_doctype_fields), not static
+// masters — Master Data Canonicalization package, 2026-09-18/19.
 const STOCK_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "cycle",
@@ -221,7 +221,7 @@ const STOCK_NAV_GROUPS: NavGroupDef[] = [
     label: "Warehouses & tracking",
     icon: Warehouse,
     items: [
-      { href: "/stock/warehouses", label: "Warehouses", icon: Warehouse },
+      { href: "/master-data/warehouses", label: "Warehouses", icon: Warehouse },
       { href: "/stock/batches", label: "Batches", icon: Layers },
       { href: "/stock/serial-nos", label: "Serial Nos", icon: ScanBarcode },
       { href: "/master-data/items", label: "Items", icon: Box },
@@ -250,21 +250,23 @@ const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
 // Master Data module. Started as a navigation-foundation-only package (MD-1) where every
 // item here linked OUT to a route still owned by Sales/Buying/Stock. The Master Data
 // Canonicalization package (2026-09-18) moved Items/Item Groups/Price Lists to their own
-// canonical /master-data/* routes, and the Business Partner domain package (2026-09-19)
-// did the same for Customers/Customer Groups/Suppliers/Contacts/Addresses/Territories —
-// every entity below is now owned here, not a link-out, and every other module that
-// references them (Selling's "Customers & contacts"/"setup" groups, Buying's "Suppliers &
-// contacts" group, Selling's own "Items & pricing" group, Stock's "Items" link-out,
-// Manufacturing's Work Order detail page) points here too. Supplier Group is a real
-// ERPNext doctype (verified live via get_doctype_fields, referenced by
-// Supplier.supplier_group) but has no frontend screen at all — building one is new feature
-// work, not a relocation, so it's deliberately left out rather than added as a dead link;
-// see PROGRESS.md. Inventory Structure (Warehouses) remains a link-out to its still-Stock-
-// owned route — that canonical-move package hasn't run yet, see
-// docs/master-data-architecture.md §9. Entities with no existing route at all (UOM, BOM,
-// Operation, Workstation, Company, Cost Center, Project, Currency, Tax, Payment Terms) are
-// deliberately omitted rather than padded with "Soon" placeholders — same precedent
-// MANUFACTURING_NAV_GROUPS set.
+// canonical /master-data/* routes, the Business Partner domain package (2026-09-19) did
+// the same for Customers/Customer Groups/Suppliers/Contacts/Addresses/Territories, and the
+// Inventory Structure domain package (also 2026-09-19) did the same for Warehouses —
+// every entity below except Batches/Serial Nos is now owned here, not a link-out, and
+// every other module that references them (Selling's "Customers & contacts"/"setup"
+// groups, Buying's "Suppliers & contacts" group, Selling's own "Items & pricing" group,
+// Stock's "Items"/"Warehouses" link-outs, Manufacturing's Work Order detail page) points
+// here too. Supplier Group is a real ERPNext doctype (verified live via get_doctype_fields,
+// referenced by Supplier.supplier_group) but has no frontend screen at all — building one
+// is new feature work, not a relocation, so it's deliberately left out rather than added
+// as a dead link; see PROGRESS.md. Batches and Serial Nos remain link-outs to their
+// still-Stock-owned routes — per docs/master-data-architecture.md's own classification
+// (§2/§7) they're transaction-generated/operational entities, not structural masters, so
+// they were deliberately NOT moved alongside Warehouse. Entities with no existing route at
+// all (UOM, BOM, Operation, Workstation, Company, Cost Center, Project, Currency, Tax,
+// Payment Terms) are deliberately omitted rather than padded with "Soon" placeholders —
+// same precedent MANUFACTURING_NAV_GROUPS set.
 const MASTER_DATA_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "products",
@@ -294,7 +296,7 @@ const MASTER_DATA_NAV_GROUPS: NavGroupDef[] = [
     label: "Inventory structure",
     icon: Warehouse,
     items: [
-      { href: "/stock/warehouses", label: "Warehouses", icon: Warehouse },
+      { href: "/master-data/warehouses", label: "Warehouses", icon: Warehouse },
       { href: "/stock/batches", label: "Batches", icon: Layers },
       { href: "/stock/serial-nos", label: "Serial Nos", icon: ScanBarcode },
     ],

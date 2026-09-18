@@ -1886,3 +1886,116 @@ customer-groups,contacts,addresses,territories,suppliers}/`; `apps/frontend/src/
 `apps/frontend/src/app/login/page.tsx`; `docs/controls/FRONTEND_GUIDE.md`; `PROGRESS.md`;
 `docs/operations/AI_WORK_LOG.md`. See `docs/operations/AI_WORK_LOG.md`'s matching entry for the
 full Claude/Codex handoff record.
+
+## Master Data canonical routing — Inventory Structure domain (Warehouse) (2026-09-19)
+
+Warehouse moved from `/stock/warehouses` to its own canonical `/master-data/warehouses` route
+— the third Master Data Canonicalization package, following the accepted Item-domain
+(`ddfeed4`/`5f20afa`/`4036c81`) and Business Partner domain (`a99656d`/`4984963`) packages. No
+ERPNext-side behavior changed — `createDoc`/`updateDoc`/`getDoc` calls and field payloads in
+`actions.ts` are byte-identical to before; only the owning route moved.
+
+**Investigation performed first, per the authorizing package brief.** Live `get_doctype_fields`
+confirms `Warehouse` carries: `company` (required Link), `account` (optional Link to `Account`
+— not currently exposed in this frontend's form, a pre-existing gap, not introduced or
+widened here), `parent_warehouse` (optional self-referential Link) plus `is_group`, `lft`/`rgt`
+(genuine Frappe nested-set tree fields), `warehouse_type` (Link to `Warehouse Type` — also not
+currently in the form), `customer` (optional Link, for consignment-style warehouses — also not
+in the form), and no `docstatus`/submit workflow at all (create/update only), matching the
+existing action file's own comment. This package changed none of that — the current form's
+field set (`warehouse_name`, `company`, `parent_warehouse`, `is_group`, `disabled`) is unchanged;
+`account`/`warehouse_type`/`customer` remain out of scope as their own possible future package,
+not something this routing move should silently add.
+
+**Warehouse is structural master data, not a stock transaction — the classification this
+package sets does not change what Inventory owns.** Stock Entry, Stock Ledger Entry, Batch, and
+Serial No remain Inventory-owned per the accepted Item-domain package's own boundary; this
+package did not touch any of their routes, forms, or actions. Batch and Serial No were
+re-verified as still transaction-generated/operational (Frappe's `reference_doctype`/
+`reference_name` fields, Serial No's own lifecycle status) and were deliberately NOT moved
+alongside Warehouse, matching `docs/master-data-architecture.md`'s own §2/§7 classification.
+
+**Hierarchy semantics preserved, not redesigned.** `parent_warehouse` and `is_group` remain
+exposed as form fields exactly as before the move (both `new`/`[name]` pages' `FieldSpec`
+arrays are unchanged content, only relocated). The list view remains the pre-existing flat
+table (no tree/indent UI) — that was already an established, documented simplification before
+this package ran (`FRONTEND_GUIDE.md`'s own note: "the list stays a flat table … matching
+'simplified'"), not something this routing-only package introduced or was asked to relitigate.
+
+**Exhaustive cross-module link audit performed first.** A repository-wide literal search for
+`stock/warehouses` found exactly 5 non-route-implementation hits before any file moved:
+`lib/masterDataWorkspace.ts` (the "Inventory Structure" card's Warehouses link — already
+anticipating this exact move per its own prior comment), `components/Sidebar.tsx` (two nav
+groups: Stock's own "Warehouses & tracking" group, and Master Data's "Inventory structure"
+group — both already anticipating this move per prior comments referencing
+`docs/master-data-architecture.md` §9), and `app/(app)/manufacturing/work-orders/[name]/page.tsx`
+(4 `DocLink` entity-navigation occurrences: Source/WIP/Target Warehouse header fields plus the
+Materials tab's per-line Source Warehouse link). All 4 files updated. No other file in the
+40 that reference the `Warehouse` field/selector needed changing — confirmed by inspection that
+`MaterialTransferForm`, `StockEntryForm`, `DeliveryNoteForm`, `StockBalanceTable`, and every
+Stock/Buying/Sales `actions.ts` use Warehouse only as a transaction field or `fetchLinkOptions`
+selector, never as entity navigation, per the brief's explicit "selectors remain selectors"
+instruction. `ReportTable.tsx`'s `INTERNAL_ROUTES` map does not currently include a `Warehouse`
+entry at all (only `Sales Order`/`Sales Invoice`/`Quotation`/`Customer`/`Item`) — this is an
+absence, not a stale reference, so nothing there needed correcting; adding one would be new
+navigation the brief explicitly said not to invent, left as a possible small future enhancement.
+
+**Compatibility redirect** added to `next.config.ts` for `/stock/warehouses(/...)` →
+`/master-data/warehouses(/...)`, `permanent: false`/307, same reasoning as the two prior
+packages' redirects — live-verified via curl against a production build: list, `new`, a dynamic
+segment (`WH-RM-001`), an encoded name containing a space and hyphen
+(`Raw Material Warehouse - CS`), and a query string (`?saved=1&foo=bar`) all redirect correctly
+with the segment/query preserved, no redirect loop, and the canonical route correctly hits the
+same `/login?next=...` auth gate every other protected route does. The pre-existing, out-of-scope
+`next` param query-string-drop behavior (Codex's earlier finding) was independently reproduced
+here too (`?saved=1` on a canonical detail URL is dropped from the login `next` param) —
+confirmed unchanged, not worsened, and not fixed, per the brief's explicit instruction.
+
+**`docs/controls/FRONTEND_GUIDE.md` corrected** (the `master-data/` file-tree comment block,
+which was already stale about the Business Partner domain's move and is now further corrected
+for Warehouse) and `apps/frontend/src/app/(app)/master-data/page.tsx`'s own top-of-file comment
+(same staleness, same fix) — both previously said Business Partners/Warehouses "remain
+link-outs" or were "still pending," which was already inaccurate before this package started.
+
+**Backend documentation:** following the same precedent both prior packages set, no
+`docs/backend/` files were created or edited — no ERPNext-side field, relationship, or
+business-rule behavior changed; this is a Next.js routing move only. The DocType findings above
+(the confirmed `account`/`warehouse_type`/`customer`/tree fields) are recorded here as source
+material for whenever a Warehouse backend-domain doc is authorized.
+
+Checks: `npm run lint` — PASSED. `npx tsc --noEmit` — PASSED (after clearing `.next`, matching
+the same expected artifact-staleness precedent as both prior packages). `npm run build` —
+PASSED, exit 0; 3 new `/master-data/warehouses{,/new,/[name]}` routes present, zero
+`/stock/warehouses` routes remain. Live curl verification of redirects, encoded-name/query
+preservation, and auth-gating (above) — PASS, run against a local production server
+(`next start`) since this environment has no route to the live Hetzner instance either way. No
+`qa-tester` run, matching both prior packages' reasoning: the ERPNext-side create/update
+payloads are unchanged from before the move, so the only real risk surface was the Next.js
+routing itself, which was directly verified live; a full authenticated browser click-path was
+not performed — no session credentials available in this environment, consistent with every
+prior package in this repository's history.
+
+**Repository-wide stale-route search**: besides the 4 files fixed above, the only remaining
+`stock/warehouses` matches are: `next.config.ts` (the redirect source itself, intentional),
+`masterDataWorkspace.ts`'s own explanatory comment (historical, intentional), this file's and
+the prior two packages' own historical PROGRESS.md entries (left alone, not rewritten, per the
+"do not rewrite legitimate historical records" instruction), `docs/controls/AGENT_USAGE_POLICY.md`
+line ~161 (an illustrative "valid package size" example, not a real route claim — left alone as
+a low-priority documentation follow-up, not a functional stale reference), and
+`docs/master-data-architecture.md` (untracked, pre-existing, preserved unmodified per this
+package's own isolation instruction — it independently proposed a nested
+`/master-data/inventory-structure/warehouses` route shape in its own §5, which this package did
+NOT follow, instead matching the flat precedent both prior accepted packages already set and the
+authorizing brief's own explicit target route, `/master-data/warehouses`).
+
+Files: `apps/frontend/next.config.ts`; 4 files moved from
+`apps/frontend/src/app/(app)/stock/warehouses/` to
+`apps/frontend/src/app/(app)/master-data/warehouses/` (`page.tsx`, `actions.ts`, `new/page.tsx`,
+`[name]/page.tsx`) with internal `/stock/warehouses` references updated to
+`/master-data/warehouses`; `apps/frontend/src/components/Sidebar.tsx`;
+`apps/frontend/src/lib/masterDataWorkspace.ts`;
+`apps/frontend/src/app/(app)/manufacturing/work-orders/[name]/page.tsx`;
+`apps/frontend/src/app/(app)/master-data/page.tsx`; `docs/controls/FRONTEND_GUIDE.md`;
+`PROGRESS.md`; `docs/operations/AI_WORK_LOG.md`. See `docs/operations/AI_WORK_LOG.md`'s matching
+entry for the full Claude/Codex handoff record. Not yet independently reviewed by Codex —
+shipped and internally verified (see `QA_LOG.md`), not self-declared accepted.

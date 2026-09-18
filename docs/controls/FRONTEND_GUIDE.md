@@ -93,10 +93,15 @@ apps/frontend/src/
 │   │   ├── master-data/            # canonical shared-master routes — see
 │   │   │                           # docs/master-data-architecture.md. Items/Item Groups/Price
 │   │   │                           # Lists moved here from sales/ 2026-09-18 (Master Data
-│   │   │                           # Canonicalization package); old /sales/* paths 307-redirect.
-│   │   │                           # Customers/Suppliers/Contacts/Addresses/Territories/Warehouses
-│   │   │                           # remain link-outs to their current Sales/Buying/Stock routes —
-│   │   │                           # their own canonical-move packages haven't run yet.
+│   │   │                           # Canonicalization package); Customers/Customer Groups/
+│   │   │                           # Contacts/Addresses/Territories (from sales/) and Suppliers
+│   │   │                           # (from buying/suppliers) moved 2026-09-19 (Business Partner
+│   │   │                           # domain); Warehouses moved from stock/warehouses, also
+│   │   │                           # 2026-09-19 (Inventory Structure domain). Old paths
+│   │   │                           # 307-redirect. Batches/Serial Nos remain link-outs to their
+│   │   │                           # current Stock-owned routes — transaction-generated/
+│   │   │                           # operational entities, not structural masters, so they were
+│   │   │                           # deliberately not moved.
 │   │   ├── reports/                # Reports hub (17/18 live)
 │   │   ├── buying/                 # shipped — core cycle + Suppliers live-verified
 │   │   ├── stock/                  # building — reordered ahead of Manufacturing 2026-09-16, see §4/§10a

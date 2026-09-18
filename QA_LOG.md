@@ -443,3 +443,64 @@ applied the same day; no code logic changed and no new QA was required for it.
   with the accepted Item-domain package's own review outcome. Awaiting Codex's independent
   review; not self-declared accepted (see `docs/operations/AI_WORK_LOG.md`'s matching entry for
   the full Claude Package Handoff).
+
+## 2026-09-19 — Master Data Canonicalization — Inventory Structure domain (Warehouse)
+
+- **Package tested**: `apps/frontend` route/navigation move of Warehouse from
+  `/stock/warehouses` to canonical `/master-data/warehouses`, plus a compatibility redirect and
+  every known inbound link (`masterDataWorkspace.ts`'s Inventory Structure card, `Sidebar.tsx`'s
+  Stock "Warehouses & tracking" group and Master Data "Inventory structure" group, and 4
+  `DocLink` entity-navigation occurrences on Manufacturing's Work Order detail page). No
+  ERPNext-side `createDoc`/`updateDoc`/`getDoc` payload changed — verified by diff against the
+  pre-move files — so this is a Next.js routing change only. Batch and Serial No investigated
+  and deliberately NOT moved — confirmed (again) as transaction-generated/operational entities
+  per the accepted Item-domain package's own boundary, not structural masters.
+- **Result**: **PASS**. No code fixes required in this pass.
+- **Evidence — Claude (2026-09-19, pre-handoff)**:
+  1. `npm run lint` — PASS.
+  2. `npx tsc --noEmit` — PASS (after clearing `.next`, expected artifact staleness).
+  3. `npm run build` — PASS, exit 0; `/master-data/warehouses`, `/master-data/warehouses/new`,
+     `/master-data/warehouses/[name]` present in the route output; zero `/stock/warehouses`
+     routes remain.
+  4. Legacy redirect verification (local production build server via `next start`, curl):
+     `/stock/warehouses` → 307 → `/master-data/warehouses`; `/stock/warehouses/new` → 307 →
+     `/master-data/warehouses/new`; `/stock/warehouses/WH-RM-001` → 307 →
+     `/master-data/warehouses/WH-RM-001` (dynamic segment preserved);
+     `/stock/warehouses/Raw%20Material%20Warehouse%20-%20CS` → 307 →
+     `/master-data/warehouses/Raw%20Material%20Warehouse%20-%20CS` (encoded space/hyphen name
+     preserved uncorrupted); `/stock/warehouses/WH-RM-001?saved=1&foo=bar` → 307 →
+     `/master-data/warehouses/WH-RM-001?saved=1&foo=bar` (query string preserved). No redirect
+     loop observed at any canonical destination.
+  5. Canonical route auth-gating verification: `/master-data/warehouses` and
+     `/master-data/warehouses/new` both correctly hit the same `/login?next=...` auth gate every
+     other protected route in this app does — not a 404, not an unauthenticated bypass.
+  6. Pre-existing, out-of-scope auth follow-up reproduced (not fixed, not worsened): the
+     middleware's login `next` param drops query strings — confirmed here too
+     (`/master-data/warehouses/WH-RM-001?saved=1` → `next=%2Fmaster-data%2Fwarehouses%2FWH-RM-001`,
+     `?saved=1` dropped), consistent with the pre-existing issue this package's brief explicitly
+     said to record, not remediate.
+  7. Repository-wide stale-route search: zero remaining runtime-code references to
+     `/stock/warehouses`. Non-runtime hits found and left alone: `next.config.ts` (the redirect
+     rule itself), `masterDataWorkspace.ts`'s own explanatory comment, this file's/PROGRESS.md's
+     own historical entries for the two prior packages, `docs/controls/AGENT_USAGE_POLICY.md`'s
+     illustrative package-sizing example, and `docs/master-data-architecture.md` (untracked,
+     pre-existing, preserved unmodified per package-isolation instruction).
+- **Warehouse DocType findings (live, `get_doctype_fields`, not assumed)**: `company` (required
+  Link), `account` (optional Link to `Account` — not in this frontend's form, pre-existing gap,
+  not widened here), `parent_warehouse` (optional self-referential Link), `is_group`, `lft`/`rgt`
+  (genuine Frappe nested-set tree), `warehouse_type` (Link to `Warehouse Type` — also not in the
+  form), `customer` (optional Link, consignment-style warehouses — also not in the form), no
+  `docstatus` at all (create/update only, matching the pre-existing action file's own comment).
+  None of this was changed by this package — form fields are byte-identical to before the move.
+- **NEEDS_VERIFICATION (non-blocking)**: a full authenticated browser create/edit click-path
+  through `/master-data/warehouses/*` has not been performed — no session credentials available
+  in this environment, consistent with every prior package in this repository's history.
+  `qa-tester` was not invoked for the same reason its live-instance checks would only
+  re-confirm ERPNext behavior this package didn't touch (payloads are byte-identical to the
+  pre-move code).
+- **Cleanup**: none required — no ERPNext document was created, updated, or deleted by this
+  package; only Next.js routing/navigation code moved.
+- **Sign-off**: `code-reviewer`/self-review found no code-level blockers — pattern consistent
+  with both accepted/pending prior Master Data packages. Awaiting Codex's independent review;
+  not self-declared accepted (see `docs/operations/AI_WORK_LOG.md`'s matching entry for the full
+  Claude Package Handoff).
