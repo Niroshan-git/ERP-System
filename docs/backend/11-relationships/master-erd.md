@@ -22,6 +22,12 @@ erDiagram
     BOM ||--o{ BOM_ITEM : "items (1:N)"
     BOM ||--o{ BOM_OPERATION : "operations (1:N)"
     BOM }o--|| ITEM : "N:1 (bom.item)"
+    BOM }o--o| ROUTING : "N:1 optional (bom.routing)"
+    BOM_ITEM }o--|| ITEM : "N:1 (bom_item.item_code)"
+    BOM_ITEM }o--o| BOM : "N:1 optional self-referential (bom_item.bom_no, sub-assembly/nested BOM)"
+    BOM_OPERATION }o--|| OPERATION : "N:1 (bom_operation.operation)"
+    BOM_OPERATION }o--o| WORKSTATION : "N:1 optional (bom_operation.workstation)"
+    PRODUCTION_PLAN }o--|| BOM : "N:1 (per Production Plan Item, NEEDS_VERIFICATION — no frontend, no test data)"
     JOB_CARD }o--|| WORK_ORDER : "N:1 (job_card.work_order)"
     JOB_CARD }o--o| WORKSTATION : "N:1 optional (job_card.workstation)"
     JOB_CARD }o--o| QUALITY_INSPECTION_TEMPLATE : "N:1 optional (job_card.quality_inspection_template)"
@@ -50,7 +56,21 @@ erDiagram
 - **BOM as an entity (BOM_ITEM/BOM_OPERATION child tables, `quantity` base-qty header field) is
   read-only in the frontend today** — used only for the Work Order create preview
   (`getBomDetails`). BOM's own versioning/approval/costing workflow is `NEEDS_VERIFICATION`
-  (`MFG-UNV-004`).
+  (`MFG-UNV-004`). Full schema/lifecycle/costing/multi-level investigation (2026-09-19, no
+  implementation) in [`docs/backend/05-manufacturing/bom.md`](../05-manufacturing/bom.md).
+- **`BOM_ITEM.bom_no` is the nested/sub-assembly BOM pointer** (self-referential to `BOM`) —
+  schema-confirmed, not behavior-verified: the one real BOM on this instance has zero sub-assembly
+  components, so multi-level explosion, circular-reference protection, and default-BOM selection
+  for a multi-BOM sub-assembly item are all `NEEDS_VERIFICATION`.
+- **`Operation`, `Routing`, and `Workstation`/`Workstation Type` are real, independent Manufacturing
+  masters**, not child entities — confirmed via `list_doctypes` (`istable: 0`). All three are
+  read-only-by-value in the frontend today (e.g. Work Order Operation's `workstation` field is
+  displayed) with no dedicated list/detail route of their own for any of them — classified
+  `BACKEND-SUPPORTED, FRONTEND-MISSING` for a future Manufacturing Masters package, not built or
+  canonicalized here.
+- **`Production Plan` is a real, independent doctype with zero frontend footprint** — confirmed
+  via `list_doctypes`; no route, action, or component references it anywhere in
+  `apps/frontend`. Not modeled further here; a future Manufacturing package's scope, not this one.
 - **Warehouse appears in three independent FK roles on Work Order** (`source_warehouse`,
   `wip_warehouse`, `fg_warehouse`) — each optional, each a plain Link to the same `Warehouse`
   doctype, not three different entities.

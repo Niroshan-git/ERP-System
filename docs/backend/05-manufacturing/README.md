@@ -14,6 +14,11 @@ exists in the current build"):
   Stock Entry flow triggered from Work Order Detail). Fields, business rules, stock impact.
 - [`job-card.md`](job-card.md) — read-only fields only (surfaced on the Work Order detail page's
   Job Cards tab). Job Card's own lifecycle is out of scope until it gets its own frontend package.
+- [`bom.md`](bom.md) — 2026-09-19 investigation baseline (BOM/BOM Item/BOM Operation schema,
+  lifecycle, costing, multi-level, Production Plan relationship, Operation/Routing/Workstation
+  classification). **Investigated only, not implemented** — the Manufacturing Masters (BOM)
+  package concluded Gate B (no usable BOM frontend exists to canonicalize); see `PROGRESS.md`
+  and `docs/operations/AI_WORK_LOG.md` for the full handoff.
 
 ## What's explicitly NOT covered
 
@@ -22,7 +27,8 @@ Per the Current Mission priority lock in `CLAUDE.md` ("Manufacturing frontend un
 list/detail, BOM, Workstations, and OEE are each their own future scoped package"):
 
 - **BOM as its own entity/page** — no create/edit/versioning UI; only read via `getDoc("BOM", ...)`
-  for the Work Order create preview.
+  for the Work Order create preview. Domain investigated (schema, lifecycle, costing, multi-level,
+  Production Plan relationship) 2026-09-19 without building any frontend — see [`bom.md`](bom.md).
 - **Job Card list/detail pages** — no dedicated route exists; fields are read only via the Work
   Order detail page.
 - **Workstations** — not touched by the frontend at all yet.

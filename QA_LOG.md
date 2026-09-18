@@ -504,3 +504,52 @@ applied the same day; no code logic changed and no new QA was required for it.
   with both accepted/pending prior Master Data packages. Awaiting Codex's independent review;
   not self-declared accepted (see `docs/operations/AI_WORK_LOG.md`'s matching entry for the full
   Claude Package Handoff).
+
+## Master Data canonicalization — Manufacturing Masters (BOM) investigation (2026-09-19)
+
+- **Package type**: investigation-only, `Gate B` reached (no usable BOM frontend exists to
+  canonicalize). No code changed, so no functional test scenarios were run.
+- **What was verified**:
+  1. Repository-wide search of `apps/frontend/src` for any BOM route (`/manufacturing/boms`,
+     `/master-data/boms`, or any other path) — zero matches. Confirmed no list, detail, new, or
+     edit page exists for BOM anywhere.
+  2. Confirmed the only existing BOM code is `apps/frontend/src/lib/actions/bomLookup.ts`
+     (`listBomsForItem`/`getBomDetails`), read directly and traced to its sole caller,
+     `WorkOrderForm.tsx`'s Work Order create flow.
+  3. Confirmed `bom_no` renders as plain text (`<span>`/`DocField`), not a `DocLink`, in
+     `WorkOrdersTable.tsx` (line ~87), the Work Order detail page (line ~206), and
+     `MaterialTransferForm.tsx` (line ~227) — cross-checked against the same page's own
+     locally-defined `DocLink` helper (used for `production_item`, `sales_order`, and warehouse
+     fields on the same page) to confirm the BOM field is genuinely un-linked, not just styled
+     differently.
+  4. Cross-module audit: no report, dashboard, or workspace-definition file in
+     `apps/frontend/src/app/(app)/reports` references BOM. Every other "bom" hit repo-wide in
+     `src/` is either a comment/doc-string noting BOM is a future package, or the `default_bom`
+     selector field used to filter "manufacturable" items on Work Order create
+     (`itemLookup.ts`'s `listManufacturableItemOptions`) — a genuine selector, correctly left
+     unchanged.
+  5. Live schema verification (`mcp__ceylon-stack__get_doctype_fields`) against `BOM`, `BOM Item`,
+     `BOM Operation` on the real Hetzner instance — confirmed submittable lifecycle
+     (`amended_from` field present), child-table structure, the `BOM Item.bom_no` nested-BOM
+     pointer, and the full costing field set. Cross-checked against `list_documents` — only one
+     real BOM exists (`BOM-FG-STEEL-BRACKET-ASSY-001`, `docstatus: 1`), with zero sub-assembly
+     components, so multi-level explosion behavior could not be observed and is recorded as
+     `NEEDS_VERIFICATION` (`MFG-UNV-008`) rather than assumed.
+  6. `list_doctypes` (module `Manufacturing`) confirmed `Operation`, `Routing`, `Workstation`,
+     `Workstation Type`, and `Production Plan` are all real independent doctypes
+     (`istable: 0`), not child tables — supporting their classification as
+     `BACKEND-SUPPORTED, FRONTEND-MISSING` future packages rather than something foldable into
+     this one.
+- **Not performed, and correctly so for an investigation-only Gate B outcome**: `npm run lint`,
+  `npx tsc --noEmit`, `npm run build`, route-manifest inspection, redirect probes, and
+  authenticated browser testing — none apply when zero frontend files changed. `qa-tester` was
+  not invoked for the same reason: there is no write path, no new route, and no changed payload
+  to exercise against the live instance.
+- **Cleanup**: none required — no ERPNext document was created, read-written, updated, or deleted
+  by this package beyond ordinary read-only schema/list queries.
+- **Sign-off**: self-reviewed against the package's own internal checklist (BOM Item/Operation
+  still child entities, BOM identity unchanged, no selector converted to unneeded navigation, no
+  Batch/Serial/Warehouse regression — all confirmed by the "zero files under `apps/frontend/`
+  changed" diff check). Awaiting Codex's independent review of the investigation's accuracy
+  (there is no code diff to review); not self-declared accepted (see
+  `docs/operations/AI_WORK_LOG.md`'s matching entry for the full Claude Package Handoff).

@@ -1999,3 +1999,52 @@ Files: `apps/frontend/next.config.ts`; 4 files moved from
 `PROGRESS.md`; `docs/operations/AI_WORK_LOG.md`. See `docs/operations/AI_WORK_LOG.md`'s matching
 entry for the full Claude/Codex handoff record. Not yet independently reviewed by Codex —
 shipped and internally verified (see `QA_LOG.md`), not self-declared accepted.
+
+## Master Data canonicalization — Manufacturing Masters (BOM) investigation (2026-09-19)
+
+**Gate B reached — investigation only, no implementation.** Authorized to investigate whether
+BOM could be canonicalized under `Master Data / Manufacturing Masters`, same pattern as
+Warehouse under `Inventory Structure`. Verified the accepted parent boundary
+(`2a7076c87b4e74fb7ab2ba9e61e40355b5015468`) was exactly `HEAD` before starting, then searched
+`apps/frontend/src` end to end: there is no `/manufacturing/boms`, no `/master-data/boms`, and no
+BOM list/detail/create/edit page anywhere in the frontend. The only existing BOM surface area is
+`apps/frontend/src/lib/actions/bomLookup.ts` (`listBomsForItem`/`getBomDetails`), a read-only
+lookup used exclusively inside Work Order Create's BOM selector/preview, plus `bom_no` rendered
+as unlinked plain text (not a `DocLink`) on the Work Order list, Work Order detail page, and
+`MaterialTransferForm.tsx`. This matches what `docs/backend/05-manufacturing/README.md` already
+said before this package started. There was nothing to relocate — a BOM route move requires a
+BOM route to already exist, and none does. No frontend code was written or moved.
+
+Instead, live-verified the actual BOM domain model against the real ERPNext instance
+(`mcp__ceylon-stack__get_doctype_fields`/`list_documents`/`list_doctypes`, 2026-09-19): BOM is a
+submittable doctype with `amended_from`; `BOM Item`/`BOM Operation` are genuine child entities
+(matching this app's existing narrow `BomItemRow`/`BomOperationRow` reads); `BOM Item.bom_no` is
+the nested/sub-assembly BOM pointer (schema-confirmed, but the one real BOM on this instance —
+`BOM-FG-STEEL-BRACKET-ASSY-001` — has zero sub-assembly components, so multi-level explosion
+behavior itself is `NEEDS_VERIFICATION`, not observable); costing fields (`raw_material_cost`,
+`total_cost`, etc.) are real, backend-computed, and not currently read by the frontend at all;
+`Operation`/`Routing`/`Workstation` are confirmed independent Manufacturing masters classified
+`BACKEND-SUPPORTED, FRONTEND-MISSING`; `Production Plan` is a real independent doctype with zero
+frontend footprint anywhere in the repo. Captured in a new
+`docs/backend/05-manufacturing/bom.md` baseline, cross-referenced from `master-erd.md`,
+`unverified-behaviours.md` (new `MFG-UNV-008`, split from the former BOM-and-Job-Card
+`MFG-UNV-004`), and `migration-status.md`.
+
+Checks: not applicable — no frontend file changed, so there is no lint/type-check/build/route
+delta to verify. `docs/ceylon-stack-documentation.html` was checked and already accurately shows
+"BOM Management" as `Planned`/"not started"; nothing changed there, so `release-tracker` was not
+invoked (no Live/Building/Planned status actually moved).
+
+**Recommended next step, if a BOM package is separately authorized**: smallest useful increment
+is a BOM detail/view page (header + Components/Operations tables, optionally the costing fields
+`bom.md` now documents), which alone would let the three existing unlinked `bom_no` displays
+become real entity links. Full BOM list/create/edit is a larger, separately-scoped decision given
+how complex ERPNext's own BOM authoring screen is.
+
+Files: `docs/backend/05-manufacturing/bom.md` (new); `docs/backend/05-manufacturing/README.md`;
+`docs/backend/11-relationships/master-erd.md`; `docs/backend/99-unverified/unverified-behaviours.md`;
+`docs/backend/15-migration/migration-status.md`; `PROGRESS.md`; `QA_LOG.md`;
+`docs/operations/AI_WORK_LOG.md`. Zero files under `apps/frontend/` touched — confirmed by
+`git status`/`git diff` before closing this package. See `docs/operations/AI_WORK_LOG.md`'s
+matching entry for the full Claude/Codex handoff record. Not yet independently reviewed by
+Codex — there is no code diff to review, only documentation-accuracy claims to verify.

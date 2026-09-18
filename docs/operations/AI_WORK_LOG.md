@@ -28,7 +28,7 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-18 second re-review) | `ACCEPTED` — `CX-MFG-001` closed 2026-09-18; combined release with Packages 2/3 no longer blocked now that `CX-MFG-002` is also closed | `25b882e` → `517f2ea` → re-remediation `3a04733`; `d0fb4bf` coordination only | None blocking — `CX-MFG-001` `CLOSED`: in-action session verification, fresh Work Order eligibility, fresh native preview, and aggregate per-item running ceiling independently confirmed | Accounting impact (`MFG-UNV-005`); ERPNext duplicate-item response (`MFG-UNV-008`); live runtime re-verification remains post-correction QA | 2026-09-18 |
 | Master Data Canonicalization — Item domain | Master Data (frontend, cross-module) | Items/Item Groups/Price Lists moved from `/sales/*` to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated (`ReportTable`, Work Order, Sidebar, workspace cards); Batch/Serial No investigated and deliberately not moved | `DOCUMENTATION_CLOSURE` (CX-MD-001 remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-19 final re-review) | `ACCEPTED` — implementation and documentation closure complete; package closed | `5507352` (MD-1) → implementation `ddfeed4` → coordination `5f20afa` → documentation remediation `4036c81` | None open — `CX-MD-001` `CLOSED` by `4036c81` | Full authenticated browser click-path (create/edit Item through the new route) remains non-blocking `NEEDS_VERIFICATION`; no session credentials used during review | 2026-09-19 |
 | Master Data Canonicalization — Business Partner domain | Master Data (frontend, cross-module) | Customers/Customer Groups/Contacts/Addresses/Territories moved from `/sales/*`, Suppliers from `/buying/suppliers`, to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated | `CLAUDE_HANDOFF` | `CODEX_REVIEW_COMPLETE` (2026-09-19) | `ACCEPTED` — `PASS WITH NON-BLOCKING FINDINGS`; review text committed unchanged by `f078610` | `a99656d` (implementation) → `4984963` (coordination/final accepted boundary) → review-record carriage `f078610` | None blocking | Full authenticated browser click-path not run; middleware `next`-param query-string drop (pre-existing, out of scope) | 2026-09-19 |
-| Master Data Canonicalization — Inventory Structure domain (Warehouse) | Master Data (frontend, cross-module) | Warehouse moved from `/stock/warehouses` to canonical `/master-data/warehouses`; compatibility redirect; inbound links updated (`masterDataWorkspace.ts`, `Sidebar.tsx` ×2 groups, Work Order detail ×4 `DocLink`s); Batch/Serial No re-confirmed and deliberately not moved | `CLAUDE_HANDOFF` (`CX-MD-WH-003` remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-19 narrow re-review) | `CHANGES REQUIRED — EXTERNAL ACTION REQUIRED` — implementation and repository documentation accepted; required Notion synchronization outcome remains unverified | `f078610` (implementation) → `8cf45de` (coordination) → remediation `7447574`; no final accepted boundary yet | `CX-MD-WH-003` remains `OPEN` pending direct Notion MD-6 verification/correction | Full authenticated browser click-path not run; `account`/`warehouse_type`/`customer` remain pre-existing unexposed fields/future enhancements; Notion MD-6 sync outcome `NEEDS_VERIFICATION` | 2026-09-19 |
+| Master Data Canonicalization — Inventory Structure domain (Warehouse) | Master Data (frontend, cross-module) | Warehouse moved from `/stock/warehouses` to canonical `/master-data/warehouses`; compatibility redirect; inbound links updated (`masterDataWorkspace.ts`, `Sidebar.tsx` ×2 groups, Work Order detail ×4 `DocLink`s); Batch/Serial No re-confirmed and deliberately not moved | `DOCUMENTATION_CLOSURE` complete | `CODEX_REVIEW_COMPLETE` (2026-09-19 final closure review) | `ACCEPTED` — `CX-MD-WH-003` closed; implementation, repository documentation, and external-plan verification complete | `f078610` (implementation) → `8cf45de` (coordination) → remediation `7447574` → final accepted boundary `2a7076c` | None blocking — `CX-MD-WH-003` `CLOSED` by live Notion MD-6 read evidence in `2a7076c` | Full authenticated browser click-path not run; `account`/`warehouse_type`/`customer` remain pre-existing unexposed fields/future enhancements | 2026-09-19 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -1419,6 +1419,44 @@ verification, consistent with the handoff file's explicit instruction.
 "Status" line ("delete once CX-MD-WH-003 is closed and its evidence is recorded in
 `docs/operations/AI_WORK_LOG.md`").
 
+### Codex final closure review — `CX-MD-WH-003` (2026-09-19)
+
+Git verifies the complete ancestry `4984963b099c2c9a8f3cab8ec7b455ddf8181fbc` →
+`f07861050393aa492898030200ca53edc2080e7e` →
+`8cf45de498dc9511e9312cb1f3034e842a370ee9` →
+`7447574ce84e5e89f64c9745c384942fb5edc78a` →
+`2a7076c87b4e74fb7ab2ba9e61e40355b5015468`. Commit `2a7076c` changes only this coordination
+ledger (`106` insertions, `1` deletion); no application, runtime, route, config, dependency,
+Warehouse, Batch, Serial No, BOM, Manufacturing, Inventory, backend, release-HTML, or Graphify
+file changed. All previously passed runtime findings therefore carry forward without re-opening.
+
+The new record supplies the missing external-plan result as an actual live-read audit record, not
+an inference from release-tracker invocation: it identifies successful `notion-search` and
+`notion-fetch` operations, the unique page id/title, returned `page_last_edited_at`, and the
+observed MD-6 content. That content accurately records Warehouse as moved to Master Data and
+pending Codex acceptance while explicitly recording Batch and Serial No as deliberately not moved
+and remaining Inventory-owned. A successful read that confirms the required external state is
+already correct satisfies synchronization; governance does not require a meaningless write.
+
+The temporary `docs/operations/CX-MD-WH-003_NOTION_HANDOFF.md` was never tracked in either the
+parent or closure commit and has no Git history; it is absent from the current worktree. Therefore
+`2a7076c` contains no committed deletion despite the commit message's cleanup description. Removal
+of that untracked temporary handoff is governance-compliant because its required result and audit
+details are preserved in this canonical ledger.
+
+The pre-existing Codex narrow re-review text was carried into `2a7076c` unchanged before Claude's
+new Notion evidence. Its Codex authorship and historical `CHANGES REQUIRED — EXTERNAL ACTION
+REQUIRED` state remain visible; Claude did not rewrite the finding or self-declare package
+acceptance. The single committed deletion is the Warehouse ledger-row state transition, not a
+historical-evidence deletion. This is consistent with the previously accepted shared-ledger
+carriage pattern.
+
+Final result: `CX-MD-WH-003` is `CLOSED`. Warehouse package state is `ACCEPTED`, final accepted
+boundary `2a7076c87b4e74fb7ab2ba9e61e40355b5015468`. The authenticated Warehouse browser smoke path
+remains a non-blocking `NEEDS_VERIFICATION`; no package-closure blocker remains. The repository is
+eligible for a separately authorized next package, but this review does not authorize or start
+BOM, Manufacturing Masters, Batch, Serial No, or any other implementation.
+
 ### Documentation Checklist
 
 Backend: `NOT_REQUIRED` — no ERPNext-side field, relationship, or business-rule behavior changed;
@@ -1474,3 +1512,143 @@ domain package's own ledger row above — will read `ACCEPTED`/committed once it
 committed; this Warehouse package's commit necessarily includes it in the same file diff since
 both packages touch `AI_WORK_LOG.md`, but no character of Codex's own text was changed. This is
 recorded transparently here rather than silently bundled.
+
+## Package: Master Data Canonicalization — Manufacturing Masters (BOM)
+
+### Objective
+
+Investigate whether Bill of Materials (BOM) can be canonicalized under
+`Master Data / Manufacturing Masters` the same way Warehouse was canonicalized under
+`Master Data / Inventory Structure`. Explicitly gated: build nothing new if no usable BOM
+frontend already exists to relocate — investigation and backend knowledge capture only in that
+case, per the authorizing brief's own Gate A / Gate B structure.
+
+### Claude
+
+Started: 2026-09-19.
+Completed: 2026-09-19 (investigation only; no implementation).
+Implementation Summary: **Gate B reached — no implementation performed.** Verified the accepted
+parent boundary (`2a7076c87b4e74fb7ab2ba9e61e40355b5015468`, Warehouse domain final acceptance)
+is exactly `HEAD` on branch `frontend` before starting. Repository-wide search of
+`apps/frontend/src` found **no BOM list/new/detail/edit route anywhere** — not under
+`/manufacturing/boms`, not under `/master-data/boms`, not under any other path. The only BOM
+surface area in the frontend is `apps/frontend/src/lib/actions/bomLookup.ts`
+(`listBomsForItem`/`getBomDetails`), a read-only lookup used exclusively inside
+`WorkOrderForm.tsx`'s Work Order create flow, plus unlinked plain-text (`DocField`, not
+`DocLink`) display of `bom_no` on the Work Order list (`WorkOrdersTable.tsx`), Work Order detail
+page, and `MaterialTransferForm.tsx`. `docs/backend/05-manufacturing/README.md` already stated
+this gap accurately before this package started ("BOM as its own entity/page — no create/edit/
+versioning UI"). There is nothing to relocate, redirect, or repoint — building a BOM
+list/detail/create UI is new feature work requiring its own separate authorization, not a route
+move, so no code was written, no route was created, no redirect was added, and no entity link
+was added (there is no canonical BOM route to link `bom_no` to yet). Live-verified the BOM/BOM
+Item/BOM Operation DocType schema, lifecycle (submittable, `amended_from` present), costing
+fields, the `BOM Item.bom_no` nested-BOM pointer, and classified `Operation`/`Routing`/
+`Workstation` as backend-supported-frontend-missing and `Production Plan` as untouched, all via
+`mcp__ceylon-stack__get_doctype_fields`/`list_documents`/`list_doctypes` against the real Hetzner
+instance (only one real BOM exists on it, with zero sub-assembly components, so multi-level
+behavior is schema-verified only). Captured in a new
+`docs/backend/05-manufacturing/bom.md` baseline; cross-referenced from
+`docs/backend/11-relationships/master-erd.md`, `docs/backend/99-unverified/unverified-behaviours.md`
+(split `MFG-UNV-004` into Job-Card-only and a new `MFG-UNV-008` for BOM), and
+`docs/backend/15-migration/migration-status.md`.
+Files: `docs/backend/05-manufacturing/bom.md` (new); `docs/backend/05-manufacturing/README.md`;
+`docs/backend/11-relationships/master-erd.md`; `docs/backend/99-unverified/unverified-behaviours.md`;
+`docs/backend/15-migration/migration-status.md`; this log; `PROGRESS.md`; `QA_LOG.md`. Zero files
+under `apps/frontend/` touched — confirmed by `git status`/`git diff` before closing this package.
+Tests: Not applicable — no frontend code changed, so `npm run lint`/`npx tsc --noEmit`/
+`npm run build`/route-manifest/redirect-probe checks have nothing new to verify. This differs from
+every prior canonicalization package in this ledger (Item/Business Partner/Warehouse), which all
+had real route moves to test.
+Handoff: `BOM FRONTEND FEATURE GAP` (Gate B). See Findings/Notes below for the exact missing
+capability and a recommended future package shape. Nothing in this package requires Codex to
+verify a code diff — only the accuracy of the investigation's documentation claims (schema
+values, route non-existence, classification) against the live instance and the repository.
+Commit/Boundary: not yet committed at the time of this entry (see `PROGRESS.md` for the commit
+hash once created). Parent boundary unchanged from `2a7076c87b4e74fb7ab2ba9e61e40355b5015468` —
+this package added no code, so there is no new implementation boundary to record, only a
+documentation delta on top of the same accepted Warehouse boundary.
+
+### Codex
+
+Review Started: not yet.
+Review Completed: not yet.
+Review State: pending.
+Tests Independently Executed: not yet — there is no code diff to test; a documentation-accuracy
+review (do the schema claims and "no BOM route exists" claim in `bom.md`/this entry actually
+match the live instance and repository) is what would be in scope.
+Documentation Updated: not yet (Codex's own pass, if any).
+
+### Findings
+
+| ID | Severity | Area | Finding | Owner | Status |
+|---|---|---|---|---|---|
+| — | — | — | No findings raised yet — awaiting Codex's independent review of this investigation-only package. | — | — |
+
+### Documentation Checklist
+
+Backend: `UPDATED` — new `docs/backend/05-manufacturing/bom.md` baseline; this is the primary
+deliverable of this package per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md`, since no frontend
+code shipped to document otherwise.
+Frontend: `NOT_APPLICABLE` — no frontend code changed; `FRONTEND_GUIDE.md` has nothing new to
+record (no route moved, no component added).
+ERD: `UPDATED` — `docs/backend/11-relationships/master-erd.md` (BOM Item's nested-BOM
+self-reference, `Operation`/`Routing`/`Workstation`/`Production Plan` relationships added,
+all schema-confirmed not previously modeled).
+Business Rules: captured inline in `bom.md` (status/configuration field table) rather than a
+separate business-rules doc, matching `work-order.md`'s existing precedent for this domain.
+QA_LOG: `UPDATED` — 2026-09-19 entry added (investigation-only, no test scenarios to run).
+PROGRESS: `UPDATED` — 2026-09-19 entry added.
+Architecture Decision: `NOT_REQUIRED` — no new ADR; `docs/architecture/decisions/README.md`
+preserved untouched per package-isolation instruction (pre-existing unrelated dirty file, same
+as every prior package in this ledger).
+Migration Status: `UPDATED` — `docs/backend/15-migration/migration-status.md`'s Manufacturing row
+split to call out BOM's 2026-09-19 investigation separately from Job Card/Workstations/OEE.
+Release Documentation: `NOT_REQUIRED` — nothing shipped to users; `docs/ceylon-stack-documentation.html`
+already accurately lists "BOM Management" as `Planned`/"not started" before this package started,
+and that remains true after it (investigation, not a feature). `release-tracker` not invoked —
+no Live/Building/Planned status actually changed. Notion tracker not touched for the same reason.
+
+Documentation status: `UPDATED` for everything in scope; `NOT_REQUIRED`/`NOT_APPLICABLE` for
+release documentation and frontend respectively, both for the same underlying reason (no shipped
+user-facing change).
+
+### Final State
+
+Implementation: `NOT_STARTED` (deliberately — Gate B). No frontend code, route, or redirect was
+added, moved, or removed. Confirmed by `git status`/`git diff` showing zero changes under
+`apps/frontend/`.
+Independent Review: not yet started.
+Documentation: `UPDATED` (new `bom.md` baseline, ERD, unverified-behaviours, migration-status,
+PROGRESS, QA_LOG, this log).
+Release: not applicable — nothing shipped.
+
+**Not self-declared accepted or rejected — there is no implementation to accept.** This entry
+records an investigation outcome (`BOM FRONTEND FEATURE GAP`) for Codex to independently verify
+against the live instance and repository. Do not start a BOM Management frontend build, Job Card,
+Workstations, OEE, Operation, Routing, Batch, Serial No, Supplier Group, Finance Masters, or any
+other package on the strength of this entry alone — a BOM Management build specifically requires
+its own separate explicit authorization per this package's own brief ("A new feature build
+requires explicit authorization").
+
+### Notes
+
+**Exact missing capability (for whoever authorizes a future BOM Management package):** a BOM
+list page (filterable by item/is_active/is_default), a BOM detail/view page (header fields +
+Components/Operations child-table display, ideally with the costing fields `bom.md` documents
+but the current `bomLookup.ts` doesn't fetch), and — separately, and only if genuinely wanted,
+since ERPNext BOM authoring is one of its more complex Desk screens — BOM create/edit. At
+minimum, a BOM detail page would let the Work Order list/detail/`MaterialTransferForm` BOM
+fields finally become real `DocLink`s instead of the unlinked plain text they are today, which
+is the single most immediately useful increment if a future package wants to start small rather
+than building full CRUD at once.
+
+Two unrelated, pre-existing dirty/untracked files were re-verified present and untouched at both
+the start and end of this session, matching the authorizing brief's own expectation that this
+state might have changed since it was written: modified `CLAUDE.md` and
+`docs/architecture/decisions/README.md`; untracked `docs/ceylon-stack-master-backlog.md`,
+`docs/ceylon-stack-master-plan.md`, and `docs/master-data-architecture.md`. `docs/operations/AI_WORK_LOG.md`
+itself was already modified at session start (the CX-MD-WH-003 Warehouse closure entry above,
+authored in a prior session) — this package's own addition is the new section above, appended
+without altering any pre-existing text in this file, same non-destructive-append pattern as
+every prior package in this ledger.

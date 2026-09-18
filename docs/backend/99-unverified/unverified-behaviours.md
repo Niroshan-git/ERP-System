@@ -36,16 +36,39 @@ value is non-zero has not been exercised.
 instance and re-run the excess-quantity transfer scenario from
 `docs/backend/05-manufacturing/material-transfer.md`'s test scenarios.
 
-### MFG-UNV-004 — Job Card and BOM document lifecycle
+### MFG-UNV-004 — Job Card document lifecycle
 **Status:** `NEEDS_VERIFICATION`
 **What's uncertain:** Job Card fields are read (via the Work Order detail page's Job Cards tab
 and `apps/mcp-server`'s `get_job_card_detail`/`list_job_cards` tools) but Job Card's own
 Create/Save/Submit/Cancel lifecycle, validations, and downstream effects (time logs, operation
-completion, OEE feed) have not been investigated. Same for BOM as its own entity — only read via
-`getDoc("BOM", ...)` for the Work Order create preview; BOM's own versioning/approval/costing
-lifecycle is undocumented.
-**How to verify:** Scoped investigation when the Job Card or BOM frontend package is picked up,
-per the Current Mission priority lock.
+completion, OEE feed) have not been investigated.
+**How to verify:** Scoped investigation when the Job Card frontend package is picked up, per the
+Current Mission priority lock.
+
+*(BOM's own lifecycle was split out into `MFG-UNV-008` below after the 2026-09-19 BOM domain
+investigation narrowed — but did not fully resolve — what's uncertain.)*
+
+### MFG-UNV-008 — BOM document lifecycle, multi-level explosion, and costing recompute
+**Status:** `NEEDS_VERIFICATION` (schema-verified, behavior-unverified — narrowed from the
+former `MFG-UNV-004` by the 2026-09-19 Manufacturing Masters (BOM) investigation package, which
+concluded Gate B: no usable BOM frontend exists, so this remained read-only investigation)
+**What's confirmed** (live `get_doctype_fields`/`list_documents`, 2026-09-19): BOM is a
+submittable doctype (`amended_from` field present); the one real BOM on this instance is
+`docstatus: 1`; `BOM Item`/`BOM Operation` are genuine child entities; `BOM Item.bom_no` is the
+schema-confirmed nested/sub-assembly BOM pointer; costing fields (`raw_material_cost`,
+`total_cost`, etc.) are real and backend-computed. Full detail in
+`docs/backend/05-manufacturing/bom.md`.
+**What's still uncertain:** (1) actual Draft→Submit→Cancel→Amend validation and downstream effects
+on Work Orders/Job Cards already referencing a since-cancelled/amended BOM — no write/transition
+was exercised, per this investigation's read-only, no-backend-modification scope; (2) real
+multi-level BOM explosion, circular-reference protection, and default-BOM selection for a
+multi-BOM sub-assembly item — the one real BOM has zero sub-assembly components, so there is no
+real nested data to observe; (3) BOM costing's actual recompute trigger (Desk "Update Cost"
+action vs. scheduled job vs. submit-time only) and whether the one real BOM's `total_cost`
+currently reflects live valuation rates.
+**How to verify:** Scoped investigation (and any resulting write-testing) when a BOM Management
+frontend package is separately authorized and built, per the Current Mission priority lock —
+not before, since no such package exists to exercise these paths against.
 
 ### MFG-UNV-005 — Accounting (GL) impact of Material Transfer for Manufacture
 **Status:** `NEEDS_VERIFICATION`
