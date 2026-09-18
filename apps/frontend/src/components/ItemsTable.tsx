@@ -24,7 +24,7 @@ const columns: ColumnDef<ItemRow>[] = [
     label: "Item code",
     core: true,
     render: (item) => (
-      <Link href={`/sales/items/${encodeURIComponent(item.name)}`} className="font-mono text-signal hover:underline">
+      <Link href={`/master-data/items/${encodeURIComponent(item.name)}`} className="font-mono text-signal hover:underline">
         {item.name}
       </Link>
     ),

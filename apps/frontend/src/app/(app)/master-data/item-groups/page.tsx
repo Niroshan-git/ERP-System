@@ -35,8 +35,8 @@ export default async function ItemGroupsPage({
       <MasterTable
         title="Item Groups"
         rows={rows}
-        newHref="/sales/item-groups/new"
-        rowLink={(row) => `/sales/item-groups/${encodeURIComponent(row.name)}`}
+        newHref="/master-data/item-groups/new"
+        rowLink={(row) => `/master-data/item-groups/${encodeURIComponent(row.name)}`}
         emptyLabel="No item groups yet."
         columns={[
           { key: "name", label: "ID", mono: true },

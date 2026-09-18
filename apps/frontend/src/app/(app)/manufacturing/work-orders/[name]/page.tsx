@@ -190,7 +190,7 @@ export default async function WorkOrderDetailPage({
   );
 
   const itemCell = (
-    <DocLink href={`/sales/items/${encodeURIComponent(doc.production_item)}`}>
+    <DocLink href={`/master-data/items/${encodeURIComponent(doc.production_item)}`}>
       {doc.item_name || doc.production_item}
       {doc.item_name && doc.item_name !== doc.production_item && (
         <span className="ml-1 text-graphite-500">({doc.production_item})</span>

@@ -1705,3 +1705,61 @@ and `sales/page.tsx`. `npm run lint`/`npx tsc --noEmit`/`npm run build` all clea
 confirmed `/master-data` returns the same `/login` auth-gate redirect every other protected route
 does. No `qa-tester` run — pure navigation addition, no core-flow (Sales/Stock/Buying) change, no
 data mutation. See `docs/operations/AI_WORK_LOG.md`'s matching 2026-09-18 entry for full detail.
+
+## Master Data canonical routing — Items, Item Groups, Price Lists (2026-09-18)
+
+Items, Item Groups, and Price Lists moved from `/sales/*` to their own canonical
+`/master-data/*` routes — the first "Products & Pricing" slice of the Master Data
+Canonicalization package (Item domain chosen first: highest reference count across the app,
+and the flagship example in the authorizing request). No ERPNext-side behavior changed —
+`createDoc`/`updateDoc`/`getDoc` calls, field payloads, and validation are byte-for-byte
+identical to before; only the owning route/URL moved.
+
+**Exhaustive cross-module link audit performed first** (12 files across `ItemsTable.tsx`,
+`ReportTable.tsx`'s `INTERNAL_ROUTES` map — used by 7 report pages, the Work Order detail
+page's Production Item field, `Sidebar.tsx` — 3 separate nav-group mentions, and both
+workspace-card files) before moving anything, so every inbound reference to these three
+entities was known and updated in the same pass — none discovered after the fact.
+
+**Compatibility redirects** added to `next.config.ts` (`/sales/items(/...)`,
+`/sales/item-groups(/...)`, `/sales/price-lists(/...)` → their `/master-data/*` equivalents,
+`permanent: false`/307 since this app has no live traffic yet to have earned a permanent
+redirect) — live-verified via curl against the dev server: list, detail (`RM-STEEL-001`
+example), and `new` sub-routes all redirect correctly, and the new canonical routes correctly
+hit the same auth gate every other protected route does.
+
+**Batch and Serial No deliberately NOT moved.** Investigated rather than assumed: both
+doctypes carry Frappe's `reference_doctype`/`reference_name` (Dynamic Link) fields — live-
+confirmed via `get_doctype_fields` — meaning a Batch/Serial No's very existence is normally a
+side effect of a transaction (a Stock Entry, Purchase Receipt, etc.), not a user filling out a
+master form from scratch. Serial No additionally carries a transactional lifecycle `status`
+enum (`Active/Inactive/Consumed/Delivered/Expired`) that Item/Customer/Warehouse have no
+equivalent of. This confirms (not just reasons) the "hybrid master" classification
+`docs/master-data-architecture.md` had already proposed — they stay under Inventory
+(`/stock/batches`, `/stock/serial-nos`), not moved to Master Data.
+
+**Customer/Customer Group/Supplier/Contact/Address/Territory/Warehouse deliberately not
+moved either** — each is its own separate future package (matching
+`docs/master-data-architecture.md`'s own MD-3 through MD-6 sequencing), not bundled into this
+one. `Sidebar.tsx`'s Master Data "Business partners"/"Inventory structure" groups still link
+out to their current Sales/Buying/Stock routes.
+
+**`docs/controls/FRONTEND_GUIDE.md` corrected** (§3 tree diagram, §9 Sales masters list) to
+stop claiming Items/Item Groups/Price Lists live under `sales/` — the specific, narrow
+correction `docs/master-data-architecture.md` §9 flagged as needing to happen "once any
+implementation package lands." A separate, unrelated stale claim found in the same section
+(Manufacturing "not started") was left alone and flagged as a documentation follow-up, not
+fixed here, per this package's own scope limit.
+
+Checks: `npm run lint` — PASSED. `npx tsc --noEmit` — PASSED (after clearing a stale `.next`
+type-cache that still referenced the deleted `sales/items` files — expected, not a real error).
+`npm run build` — PASSED, exit 0, all 9 new `/master-data/*` routes present, zero `/sales/items`
+`/sales/item-groups`/`/sales/price-lists` routes remain, no new diagnostics. Live curl
+verification of redirects and auth-gating (above) — PASS. No `qa-tester` run: the ERPNext-side
+create/update payloads are unchanged from before the move (verified by diff, not by inspection
+alone), so the only real risk surface was the Next.js routing itself, which was directly
+verified live; a full authenticated browser click-path (actually submitting the Item form
+through a real login session) was not performed — no session credentials available in this
+environment, consistent with every prior package in this repository's history. See
+`docs/operations/AI_WORK_LOG.md`'s matching entry for the full file-by-file change list and
+Codex handoff.

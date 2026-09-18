@@ -23,8 +23,8 @@ export async function createPriceListAction(_prevState: FormState, formData: For
     return { error: humanizeError(e, "price list") };
   }
 
-  revalidatePath("/sales/price-lists");
-  redirect(`/sales/price-lists/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/price-lists");
+  redirect(`/master-data/price-lists/${encodeURIComponent(name)}`);
 }
 
 export async function updatePriceListAction(
@@ -42,7 +42,7 @@ export async function updatePriceListAction(
     return { error: humanizeError(e, "price list") };
   }
 
-  revalidatePath("/sales/price-lists");
-  revalidatePath(`/sales/price-lists/${encodeURIComponent(name)}`);
-  redirect(`/sales/price-lists/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/price-lists");
+  revalidatePath(`/master-data/price-lists/${encodeURIComponent(name)}`);
+  redirect(`/master-data/price-lists/${encodeURIComponent(name)}`);
 }

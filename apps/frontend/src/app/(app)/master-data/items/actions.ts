@@ -47,8 +47,8 @@ export async function createItemAction(_prevState: FormState, formData: FormData
     return { error: humanizeError(e) };
   }
 
-  revalidatePath("/sales/items");
-  redirect(`/sales/items/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/items");
+  redirect(`/master-data/items/${encodeURIComponent(name)}`);
 }
 
 export async function updateItemAction(
@@ -82,7 +82,7 @@ export async function updateItemAction(
     return { error: humanizeError(e) };
   }
 
-  revalidatePath("/sales/items");
-  revalidatePath(`/sales/items/${encodeURIComponent(name)}`);
-  redirect(`/sales/items/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/items");
+  revalidatePath(`/master-data/items/${encodeURIComponent(name)}`);
+  redirect(`/master-data/items/${encodeURIComponent(name)}`);
 }

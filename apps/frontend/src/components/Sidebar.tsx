@@ -120,9 +120,9 @@ const SALES_NAV_GROUPS: NavGroupDef[] = [
     label: "Items & pricing",
     icon: Package,
     items: [
-      { href: "/sales/items", label: "Items", icon: Box },
-      { href: "/sales/item-groups", label: "Item Groups", icon: Boxes },
-      { href: "/sales/price-lists", label: "Price Lists", icon: Tags },
+      { href: "/master-data/items", label: "Items", icon: Box },
+      { href: "/master-data/item-groups", label: "Item Groups", icon: Boxes },
+      { href: "/master-data/price-lists", label: "Price Lists", icon: Tags },
     ],
   },
   {
@@ -196,9 +196,14 @@ const BUYING_NAV_GROUPS: NavGroupDef[] = [
 
 // Phase 1 of the Stock + multi-module nav plan: Stock movement (Stock Entries, Stock
 // Balance) ordered first, matching every other module's own "cycle group before masters"
-// convention. "Items" is a link-out to the existing /sales/items route (same precedent
-// Buying already set for /sales/contacts and /sales/addresses) — Item is a shared master,
-// not forked per module.
+// convention. "Items" is a link-out to the canonical /master-data/items route (same
+// precedent Buying already set for /sales/contacts and /sales/addresses) — Item is a
+// shared master, not forked per module. Batches/Serial Nos stay owned here — per
+// docs/master-data-architecture.md's Batch/Serial classification, they're transaction-
+// generated (Frappe's own `reference_doctype`/`reference_name` fields on both doctypes,
+// plus Serial No's own Active/Delivered/Consumed/Expired lifecycle status, live-confirmed
+// via get_doctype_fields), not static masters — Master Data Canonicalization package,
+// 2026-09-18.
 const STOCK_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "cycle",
@@ -217,7 +222,7 @@ const STOCK_NAV_GROUPS: NavGroupDef[] = [
       { href: "/stock/warehouses", label: "Warehouses", icon: Warehouse },
       { href: "/stock/batches", label: "Batches", icon: Layers },
       { href: "/stock/serial-nos", label: "Serial Nos", icon: ScanBarcode },
-      { href: "/sales/items", label: "Items", icon: Box },
+      { href: "/master-data/items", label: "Items", icon: Box },
     ],
   },
   {
@@ -240,25 +245,28 @@ const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
-// Master Data navigation-foundation package (MD-1, per docs/master-data-architecture.md):
-// a new module, but every item here links OUT to an existing route already owned by
-// Sales/Buying/Stock — same "shared master, not forked per module" precedent Stock and
-// Buying already established for Items/Contacts/Addresses. No route moves, no redirects;
-// this is purely an additional, canonical-feeling entry point onto data that already
-// exists. Entities with no existing route at all (UOM, BOM, Operation, Workstation,
-// Company, Cost Center, Project, Currency, Tax, Payment Terms) are deliberately omitted
-// rather than padded with "Soon" placeholders — same precedent MANUFACTURING_NAV_GROUPS
-// set (don't list what isn't asked for/doesn't exist yet); each is its own future MD
-// package per docs/master-data-architecture.md §9.
+// Master Data module. Started as a navigation-foundation-only package (MD-1) where every
+// item here linked OUT to a route still owned by Sales/Buying/Stock. The Master Data
+// Canonicalization package (2026-09-18) moved Items/Item Groups/Price Lists to their own
+// canonical /master-data/* routes — this is now the one true owning route for those three,
+// not a link-out — and every other module that references them (Selling's own "Items &
+// pricing" group, Stock's "Items" link-out, Manufacturing's Work Order detail page) points
+// here too. Business Partners (Customers, Suppliers, Contacts, Addresses, Territories) and
+// Inventory Structure (Warehouses) remain link-outs to their still-Sales/Buying/Stock-owned
+// routes — their own canonical-move packages haven't run yet, see
+// docs/master-data-architecture.md §9. Entities with no existing route at all (UOM, BOM,
+// Operation, Workstation, Company, Cost Center, Project, Currency, Tax, Payment Terms) are
+// deliberately omitted rather than padded with "Soon" placeholders — same precedent
+// MANUFACTURING_NAV_GROUPS set.
 const MASTER_DATA_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "products",
     label: "Products & pricing",
     icon: Tags,
     items: [
-      { href: "/sales/items", label: "Items", icon: Box },
-      { href: "/sales/item-groups", label: "Item Groups", icon: Tags },
-      { href: "/sales/price-lists", label: "Price Lists", icon: ReceiptText },
+      { href: "/master-data/items", label: "Items", icon: Box },
+      { href: "/master-data/item-groups", label: "Item Groups", icon: Tags },
+      { href: "/master-data/price-lists", label: "Price Lists", icon: ReceiptText },
     ],
   },
   {

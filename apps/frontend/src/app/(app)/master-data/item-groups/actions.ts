@@ -22,8 +22,8 @@ export async function createItemGroupAction(_prevState: FormState, formData: For
     return { error: humanizeError(e, "item group") };
   }
 
-  revalidatePath("/sales/item-groups");
-  redirect(`/sales/item-groups/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/item-groups");
+  redirect(`/master-data/item-groups/${encodeURIComponent(name)}`);
 }
 
 export async function updateItemGroupAction(
@@ -40,7 +40,7 @@ export async function updateItemGroupAction(
     return { error: humanizeError(e, "item group") };
   }
 
-  revalidatePath("/sales/item-groups");
-  revalidatePath(`/sales/item-groups/${encodeURIComponent(name)}`);
-  redirect(`/sales/item-groups/${encodeURIComponent(name)}`);
+  revalidatePath("/master-data/item-groups");
+  revalidatePath(`/master-data/item-groups/${encodeURIComponent(name)}`);
+  redirect(`/master-data/item-groups/${encodeURIComponent(name)}`);
 }

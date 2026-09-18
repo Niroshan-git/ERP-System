@@ -3,12 +3,12 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { MASTER_DATA_WORKSPACE_CARDS } from "@/lib/masterDataWorkspace";
 
 /**
- * Master Data module home page (MD-1, navigation-foundation package — see
- * docs/master-data-architecture.md). Every link here routes to an existing canonical
- * record already owned by Sales/Buying/Stock — this page is a shared entry point onto
- * that same data, not a duplicate master or a new data model. No route was moved: a
- * user landing here via Manufacturing's "Master Data" module and a user landing on
- * `/sales/items` directly reach the exact same page.
+ * Master Data module home page. Started as a navigation-only shell (MD-1) where every
+ * link routed to an existing Sales/Buying/Stock-owned page. The Master Data
+ * Canonicalization package (2026-09-18) moved Items/Item Groups/Price Lists to their own
+ * canonical /master-data/* routes — see docs/master-data-architecture.md and this
+ * package's entry in PROGRESS.md/docs/operations/AI_WORK_LOG.md for the full ownership
+ * map and what's still pending (Business Partners, Warehouses).
  */
 export default function MasterDataHomePage() {
   return (

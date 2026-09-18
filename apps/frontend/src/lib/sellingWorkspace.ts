@@ -41,10 +41,10 @@ export const SELLING_WORKSPACE_CARDS: WorkspaceCard[] = [
   {
     title: "Items and Pricing",
     links: [
-      { label: "Item", href: "/sales/items" },
+      { label: "Item", href: "/master-data/items" },
       { label: "Item Price" },
-      { label: "Price List", href: "/sales/price-lists" },
-      { label: "Item Group", href: "/sales/item-groups" },
+      { label: "Price List", href: "/master-data/price-lists" },
+      { label: "Item Group", href: "/master-data/item-groups" },
       { label: "Product Bundle" },
       { label: "Promotional Scheme" },
       { label: "Pricing Rule" },

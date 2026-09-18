@@ -8,7 +8,7 @@ export type ItemLineDefaults = {
   rate: number;
   /**
    * Real Item master flags (confirmed via the live DocType JSON — see
-   * apps/frontend/src/app/(app)/sales/items/actions.ts) carried through here so a later
+   * apps/frontend/src/app/(app)/master-data/items/actions.ts) carried through here so a later
    * Delivery Note line can know whether to show a batch/serial picker as soon as an item
    * is picked — that picker itself is later work (Phase 2C), not built yet; these three
    * fields are the prerequisite plumbing for it.

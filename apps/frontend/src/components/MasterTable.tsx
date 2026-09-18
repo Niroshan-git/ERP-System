@@ -22,7 +22,7 @@ function slugify(title: string): string {
 /**
  * Generic list-view table for flat/self-referencing master data doctypes
  * (Customer Group, Territory, Item Group, Price List, etc.). Mirrors the
- * table chrome established by sales/customers/page.tsx and sales/items/page.tsx —
+ * table chrome established by sales/customers/page.tsx and master-data/items/page.tsx —
  * keep those two doctypes' hand-rolled tables as-is; this is for the rest.
  */
 export function MasterTable<T extends Record<string, unknown>>({

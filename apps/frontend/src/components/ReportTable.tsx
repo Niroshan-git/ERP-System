@@ -13,7 +13,7 @@ const INTERNAL_ROUTES: Record<string, string> = {
   "Sales Invoice": "/sales/invoices",
   Quotation: "/sales/quotations",
   Customer: "/sales/customers",
-  Item: "/sales/items",
+  Item: "/master-data/items",
 };
 
 const NUMERIC_TYPES = new Set(["Currency", "Float", "Int", "Percent"]);

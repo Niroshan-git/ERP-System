@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import type { FormState } from "@/app/(app)/sales/items/actions";
+import type { FormState } from "@/app/(app)/master-data/items/actions";
 
 export function ItemForm({
   action,

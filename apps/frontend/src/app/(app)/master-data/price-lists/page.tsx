@@ -38,8 +38,8 @@ export default async function PriceListsPage({
       <MasterTable
         title="Price Lists"
         rows={rows}
-        newHref="/sales/price-lists/new"
-        rowLink={(row) => `/sales/price-lists/${encodeURIComponent(row.name)}`}
+        newHref="/master-data/price-lists/new"
+        rowLink={(row) => `/master-data/price-lists/${encodeURIComponent(row.name)}`}
         emptyLabel="No price lists yet."
         columns={[
           { key: "name", label: "ID", mono: true },

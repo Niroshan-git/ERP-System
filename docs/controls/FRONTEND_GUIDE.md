@@ -81,7 +81,7 @@ apps/frontend/src/
 │   ├── (app)/
 │   │   ├── layout.tsx             # Sidebar + Topbar shell
 │   │   ├── page.tsx               # Main dashboard
-│   │   ├── sales/                 # 17 doctype folders — see §9
+│   │   ├── sales/                 # transactional doctype folders — see §9
 │   │   │   ├── quotations/
 │   │   │   │   ├── page.tsx       # List
 │   │   │   │   ├── [name]/page.tsx
@@ -89,11 +89,21 @@ apps/frontend/src/
 │   │   │   ├── orders/
 │   │   │   ├── delivery-notes/
 │   │   │   ├── invoices/
-│   │   │   ├── customers/, items/, pick-lists/, price-lists/, ...
+│   │   │   ├── customers/, customer-groups/, contacts/, addresses/, territories/, pick-lists/, ...
+│   │   ├── master-data/            # canonical shared-master routes — see
+│   │   │                           # docs/master-data-architecture.md. Items/Item Groups/Price
+│   │   │                           # Lists moved here from sales/ 2026-09-18 (Master Data
+│   │   │                           # Canonicalization package); old /sales/* paths 307-redirect.
+│   │   │                           # Customers/Suppliers/Contacts/Addresses/Territories/Warehouses
+│   │   │                           # remain link-outs to their current Sales/Buying/Stock routes —
+│   │   │                           # their own canonical-move packages haven't run yet.
 │   │   ├── reports/                # Reports hub (17/18 live)
 │   │   ├── buying/                 # shipped — core cycle + Suppliers live-verified
 │   │   ├── stock/                  # building — reordered ahead of Manufacturing 2026-09-16, see §4/§10a
 │   │   └── manufacturing/          # not started — pushed behind Stock 2026-09-16, see §4
+│   │       # (NOTE, out of this package's scope: Work Orders and Material Transfer have
+│   │       # since shipped — this line is stale and flagged as a documentation follow-up,
+│   │       # not fixed here per the Master Data Canonicalization package's own scope limit.)
 ├── components/                    # 54 reusable UI components — see §7
 ├── lib/
 │   ├── erpnext.ts                 # ALL ERPNext API calls — see §5
@@ -235,7 +245,7 @@ The current architecture (Next.js → ERPNext REST API on Hetzner CX23) is suffi
 
 ### Already present (frontend branch, verified 2026-09-15)
 - Core cycle folders: `quotations`, `orders`, `delivery-notes`, `invoices`, `pick-lists`
-- Masters: `customers`, `contacts`, `addresses`, `items`, `item-groups`, `customer-groups`, `price-lists`, `territories`, `sales-persons`, `sales-partners`, `campaigns`, `settings`
+- Masters: `customers`, `contacts`, `addresses`, `customer-groups`, `territories`, `sales-persons`, `sales-partners`, `campaigns`, `settings`. `items`, `item-groups`, and `price-lists` moved to `master-data/` 2026-09-18 (Master Data Canonicalization package) — the old `sales/*` paths redirect, not removed outright.
 - Supporting components and `lib` helpers exist and are shared, not duplicated per-doctype
 - Shipped beyond the original happy path: Pick & Pack (picked_qty/delivered_qty write-back, live-verified), partial fulfillment across multiple partial SO/Invoice, discount fields, quotation "Set as Lost", Sales Flow scene-based process map, Reports hub (17/18 reports live)
 

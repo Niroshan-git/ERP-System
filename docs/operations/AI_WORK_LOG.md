@@ -26,6 +26,7 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Manufacturing Package 2 | Manufacturing (frontend) | Work Order detail view — read-only, 6 tabs (Details/Materials/Operations/Job Cards/Quality Readiness/Comments) | `CLAUDE_HANDOFF` (remediated) | `CODEX_REVIEW_COMPLETE` (re-review) | `ACCEPTED` as part of combined re-review; combined release remains blocked by Packages 3/5 | `25b882e` → remediation `517f2ea` (bundled with Pkg 3, Pkg 5); `2fbe2a6` coordination only | 1 resolved (`CX-MFG-003`) | Live QA not independently rerun | 2026-09-17 |
 | Manufacturing Package 3 | Manufacturing (frontend) | Work Order Create — Draft-only, BOM-scaled Materials/Operations preview, optional Material Readiness | `DOCUMENTATION_CLOSURE` | `CODEX_REVIEW_COMPLETE` (2026-09-18 final re-review) | `ACCEPTED` — `CX-MFG-002` closed; package has no remaining blocking findings | `25b882e` → `517f2ea` → `3a04733` → final correction `a2b5cb8` → doc-wording closure `2cf044e`; `0e78988` coordination only | None — `CX-MFG-002` `CLOSED`: `base_hour_rate → hour_rate` and top-level source BOM → operation `bom` independently confirmed | `MFG-UNV-007` remains non-blocking — foreign-currency and Desk/native persistence comparison not runtime-exercised; native-method module-path probe wording corrected 2026-09-18 to scope it to the two tested dotted paths only, not a Document-bound method | 2026-09-18 |
 | Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-18 second re-review) | `ACCEPTED` — `CX-MFG-001` closed 2026-09-18; combined release with Packages 2/3 no longer blocked now that `CX-MFG-002` is also closed | `25b882e` → `517f2ea` → re-remediation `3a04733`; `d0fb4bf` coordination only | None blocking — `CX-MFG-001` `CLOSED`: in-action session verification, fresh Work Order eligibility, fresh native preview, and aggregate per-item running ceiling independently confirmed | Accounting impact (`MFG-UNV-005`); ERPNext duplicate-item response (`MFG-UNV-008`); live runtime re-verification remains post-correction QA | 2026-09-18 |
+| Master Data Canonicalization — Item domain | Master Data (frontend, cross-module) | Items/Item Groups/Price Lists moved from `/sales/*` to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated (`ReportTable`, Work Order, Sidebar, workspace cards); Batch/Serial No investigated and deliberately not moved | `CLAUDE_HANDOFF` | `PLANNED` | `CLAUDE_HANDOFF` — awaiting Codex independent review | `5507352` (MD-1) → this package's commit `<pending>` | None yet — awaiting Codex review | Full authenticated browser click-path (create/edit Item through the new route) not performed — no session credentials available this session; ERPNext-side payloads unchanged from before the move (verified by diff) | 2026-09-18 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -690,3 +691,146 @@ Work Order Action UX (original request Parts C–G) remains **not started** — 
 separate authorization/package per the scope-split above. Do not begin it, Job Cards, BOM,
 Workstations, OEE, CRM, Finance, or any further Master Data package (MD-2 through MD-10) without
 that explicit authorization.
+
+## Package: Master Data Canonicalization — Item domain (Items, Item Groups, Price Lists)
+
+### Objective
+
+Fix Master Data route/screen ownership per an explicitly authorized package: shared enterprise
+entities (Item, Customer, Supplier, Warehouse, ...) should have one canonical route/screen owned
+by Master Data, not one owned by whichever transactional module happened to build it first.
+Scope for this pass: investigate the full ownership map, then implement the smallest safe
+package establishing the pattern — chosen as the Item domain (Items, Item Groups, Price Lists,
+the "Products & Pricing" group), since it's the highest-reference-count, flagship example in the
+authorizing request. Customer/Supplier/Contact/Address/Territory/Warehouse and Batch/Serial No
+were explicitly investigated for classification but not moved — each is its own future package.
+
+### Claude
+
+Started/Completed: 2026-09-18.
+
+**Phase 1 investigation** (required before any code change, per the authorizing request):
+current git state confirmed clean apart from the same three pre-existing uncommitted files
+tracked since the prior Manufacturing package (`CLAUDE.md`, `docs/architecture/decisions/
+README.md`, plus the untracked `docs/master-data-architecture.md`/master-plan/master-backlog) —
+none touched. An exhaustive file:line audit (via a dedicated Explore pass) of every inbound
+reference to all 12 current master-entity route prefixes was performed before moving anything —
+see the full inventory in this session's transcript; the short version: `ItemsTable.tsx`,
+`ReportTable.tsx`'s `INTERNAL_ROUTES` map (shared by 7 report pages), the Work Order detail
+page's Production Item field, `Sidebar.tsx` (3 separate mentions per entity across
+Selling/Stock/Master Data), and both workspace-card files (`sellingWorkspace.ts`,
+`masterDataWorkspace.ts`) were the complete blast radius for Items/Item Groups/Price Lists — no
+transactional list/detail page anywhere else in the app links to any of the 12 prefixes.
+`next.config.ts` had no existing `redirects()` — confirmed via full-file read, not assumed.
+
+**Batch/Serial No classification — investigated, not moved.** Live `get_doctype_fields` calls
+against the installed instance confirmed both `Batch` and `Serial No` carry Frappe's
+`reference_doctype`/`reference_name` (Dynamic Link) fields, and `Serial No` additionally carries
+a transactional `status` enum (`Active/Inactive/Consumed/Delivered/Expired`) — hard schema
+evidence, not a guess, that both are transaction-generated identities (created as a side effect
+of a Stock Entry/Purchase Receipt, etc.) rather than user-authored static masters like
+Item/Customer. This confirms the "hybrid master" classification `docs/master-data-architecture.md`
+had already proposed by reasoning alone; this session added live verification. Decision: Batch
+and Serial No stay under Inventory (`/stock/batches`, `/stock/serial-nos`), not moved to Master
+Data — documented inline in `Sidebar.tsx`'s `STOCK_NAV_GROUPS` comment and in `PROGRESS.md`.
+
+**Implementation.** Moved 12 files (4 each for Items/Item Groups/Price Lists — `page.tsx`,
+`actions.ts`, `new/page.tsx`, `[name]/page.tsx`) from `apps/frontend/src/app/(app)/sales/{items,
+item-groups,price-lists}/` to `apps/frontend/src/app/(app)/master-data/{items,item-groups,
+price-lists}/` via `git rm` + fresh `Write` (preserves git history via the rename-detection
+`git diff`/`git log --follow` already perform on high-similarity add+delete pairs, not a manual
+`git mv` — content is byte-identical apart from the path-string updates below). Every
+`redirect()`/`revalidatePath()` call inside each moved `actions.ts` updated from `/sales/...` to
+`/master-data/...`. Updated every inbound reference found in Phase 1:
+`components/ItemsTable.tsx` (row link), `components/ItemForm.tsx` (type-only import path),
+`components/ReportTable.tsx` (`INTERNAL_ROUTES.Item`), `manufacturing/work-orders/[name]/page.tsx`
+(Production Item `DocLink`), `components/Sidebar.tsx` (Selling "Items & pricing" group, Stock's
+Items link-out, Master Data's own "Products & pricing" group — all three now point at the
+canonical route, not each other), `lib/masterDataWorkspace.ts`, `lib/sellingWorkspace.ts`, and a
+stale doc-comment path in `lib/actions/itemLookup.ts`. Added `redirects()` to `next.config.ts`
+for all three entities' list/detail/new paths (`permanent: false`/307 — no live traffic yet to
+have earned a permanent redirect).
+
+**Documentation.** `docs/controls/FRONTEND_GUIDE.md` corrected in the two specific places
+`docs/master-data-architecture.md` §9 had flagged as needing an update "once any implementation
+package lands": §3's folder-structure tree (added `master-data/`, removed `items/`/`price-lists/`
+from the `sales/` example line) and §9's Sales "Masters" list (removed the three moved entities,
+noted the redirect). An unrelated stale claim found in the same section (Manufacturing "not
+started," clearly false given Packages 1/2/3/5 have since shipped) was deliberately left alone
+and flagged as a documentation follow-up rather than fixed — out of this package's scope per its
+own isolation rule. `docs/master-data-architecture.md`, `docs/architecture/decisions/README.md`,
+and the two master-plan/backlog docs were read for design authority but not modified, per the
+authorizing request's explicit instruction to preserve their existing uncommitted state.
+`docs/backend/01-master-data/` was **not** created — that domain doc is
+`docs/master-data-architecture.md`'s own separate, not-yet-authorized deliverable (§8); creating
+even a partial version of it risked conflicting with that planned structure. The Batch/Serial
+live evidence and the canonical-ownership decisions are recorded here and in `PROGRESS.md`
+instead, as source material for whenever that domain doc is authorized.
+
+**Graph refresh.** `graphify --update` run AST-only (no LLM/subagent cost, per `CLAUDE.md`'s own
+distinction between a code package and a doc-heavy one) — correctly pruned the 12 deleted
+`sales/{items,item-groups,price-lists}` file nodes and added the 12 new `master-data/*` ones;
+final graph 1631 nodes / 4390 edges / 139 communities. Community labels left as generic
+placeholders (not relabeled) — a cosmetic gap, not a data-integrity one.
+
+**Checks run:** `npm run lint` — PASSED. `npx tsc --noEmit` — PASSED after clearing a stale
+`.next` type cache that still referenced the deleted files (expected artifact-staleness, not a
+real error — confirmed by a clean `rm -rf .next && npm run build`). `npm run build` — PASSED,
+exit 0; all 9 new `/master-data/{items,item-groups,price-lists}` list/detail/new routes present;
+zero `/sales/items`, `/sales/item-groups`, `/sales/price-lists` routes remain; only the same
+pre-existing `erpnextFetch network error` static-generation diagnostics as every prior round.
+**Live verification:** dev server started, curl-verified `/sales/items` → 307 → `/master-data/
+items`, `/sales/items/RM-STEEL-001` → 307 → `/master-data/items/RM-STEEL-001` (dynamic segment
+preserved), `/sales/item-groups` → 307 → `/master-data/item-groups`, `/sales/price-lists/new` →
+307 → `/master-data/price-lists/new`, and `/master-data/items` itself correctly hits the same
+`/login` auth gate every other protected route does (not a 404). No live ERPNext mutation was
+performed — the create/update payloads inside the moved `actions.ts` files are unchanged from
+before the move (verified by diff against the pre-move file content), so there was no new
+ERPNext-side behavior to exercise. A full authenticated browser click-path (actually submitting
+the Item form through a real login session) was not performed — no session credentials available
+in this environment; `qa-tester` was not invoked for the same reason its live-instance checks
+would only re-confirm ERPNext behavior this package didn't touch.
+
+Files: `apps/frontend/next.config.ts`; 12 new files under `apps/frontend/src/app/(app)/
+master-data/{items,item-groups,price-lists}/**`; 12 deleted files under `apps/frontend/src/app/
+(app)/sales/{items,item-groups,price-lists}/**`; `apps/frontend/src/components/{ItemsTable,
+ItemForm,ReportTable,Sidebar}.tsx`; `apps/frontend/src/app/(app)/manufacturing/work-orders/
+[name]/page.tsx`; `apps/frontend/src/lib/{masterDataWorkspace,sellingWorkspace}.ts`;
+`apps/frontend/src/lib/actions/itemLookup.ts`; `docs/controls/FRONTEND_GUIDE.md`; `PROGRESS.md`;
+`docs/operations/AI_WORK_LOG.md`; `graphify-out/*` (graph refresh).
+
+### Codex
+
+Independent review: not yet run. Handed off below for review of this package boundary.
+
+### Findings
+
+| ID | Severity | Area | Finding | Owner | Status |
+|---|---|---|---|---|---|
+| (code-reviewer, self-review) | — | Governance | Initial subagent block on stale authorization record in this ledger, resolved by recording the authorization actually received — see the MD-1 package record above for the same pattern. Not applicable to this package's own commit. | — | `RESOLVED` (prior package) |
+
+No findings from this package's own code-level review beyond what's noted above — awaiting
+Codex's independent pass.
+
+### Documentation Checklist
+
+Backend: `NOT_REQUIRED` for a new domain doc (see reasoning above); Batch/Serial evidence
+recorded here and in `PROGRESS.md` as source material for a future `docs/backend/01-master-data/`
+pass.
+Frontend: `UPDATED` — `docs/controls/FRONTEND_GUIDE.md` §3/§9.
+QA_LOG: `NOT_REQUIRED` — no ERPNext-side behavior changed; reasoning above.
+PROGRESS: `UPDATED`.
+Architecture Decision: `NOT_REQUIRED` — no new ADR; `docs/architecture/decisions/README.md`
+preserved untouched per instruction.
+Release Documentation: pending `release-tracker` invocation, separate from this record.
+
+### Final State
+
+Implementation: `COMPLETE` (Item domain only — Customer/Supplier/Contact/Address/Territory/
+Warehouse/Batch/Serial No explicitly deferred). Independent Review: `AWAITING_CODEX`.
+Documentation: `UPDATED`. Release: pending `release-tracker` + commit.
+
+**Not self-declared accepted.** Handed off for Codex's independent review of this package
+boundary. Do not start Customer/Supplier/Contact/Address/Territory/Warehouse route moves, Work
+Order Action UX, Job Cards, BOM, Workstations, OEE, CRM, or Finance without separate explicit
+authorization.
