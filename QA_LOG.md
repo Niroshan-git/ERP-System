@@ -308,3 +308,31 @@ Central QA log. Append one entry per QA run — date, package/flow tested, pass/
 - **Sign-off**: no `qa-tester`/live-instance verification this session (see above). Corrections
   are handed off for Codex's independent re-review against the same `25b882e` package boundary —
   not self-certified as resolved.
+
+## 2026-09-18 — Manufacturing Packages 2/3/5 — CX-MFG-001/CX-MFG-002 remediation and final closure
+
+Two further correction passes followed Codex's re-reviews of `517f2ea` (see `PROGRESS.md`'s
+matching 2026-09-18 entries for full detail):
+
+- **Second pass (`3a04733`)**: Codex closed `CX-MFG-001` and returned `CX-MFG-002` `CHANGES
+  REQUIRED` again — the expanded operations copy still scaled every operation unconditionally and
+  sent an incomplete field set. Fixed and expanded against live `get_doctype_fields` schema
+  evidence. `npm run lint`/`npx tsc --noEmit`/`npm run build` clean. No live ERPNext mutation
+  (no SSH/`bench console` access).
+- **Third pass (`a2b5cb8`)**: Codex's second re-review found the expanded mapping still copied
+  `BOM Operation.hour_rate` instead of `base_hour_rate`, and omitted the `bom` reference. Fixed;
+  verified against live schema evidence and a read-only check of the one real BOM on this instance
+  (`parent === bom_no`, `hour_rate === base_hour_rate` on this same-currency instance). `npm run
+  lint`/`npx tsc --noEmit`/`npm run build` clean. No live Work Order create performed.
+
+**Codex's final re-review of `a2b5cb8`: `PASS WITH NON-BLOCKING FINDINGS`.** `CX-MFG-001` and
+`CX-MFG-002` both `CLOSED` — Manufacturing Packages 2/3/5's reviewed package boundary has no
+remaining blocking findings.
+
+**Sign-off**: static verification only across all three 2026-09-18 passes (lint/type-check/build)
+— **no live-instance QA (`qa-tester`) was re-run** against any of these corrections. Remaining
+`NEEDS_VERIFICATION` items (`MFG-UNV-005`, `MFG-UNV-007`, `MFG-UNV-008`) are explicitly
+non-blocking per Codex's own final review and require either a foreign-currency/`fixed_time` BOM
+or SSH/`bench console` access this session did not have — not represented here as tested. A
+documentation-only wording correction (narrowing an overstated native-method-absence claim) was
+applied the same day; no code logic changed and no new QA was required for it.

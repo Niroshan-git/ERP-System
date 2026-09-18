@@ -1612,4 +1612,64 @@ corrections against Codex's own named findings, not new undiscovered surface are
 re-review is the next required check per `AI_AGENT_HANDOFF_POLICY.md`, not a second Claude-side
 review of its own fix.
 
-Not committed — see this session's `CLAUDE PACKAGE HANDOFF` for the full change boundary.
+**Committed 2026-09-17 in `517f2ea`** (on top of `25b882e`). See the two follow-on entries below —
+Codex's re-review of this commit found `CX-MFG-002` still incomplete, requiring two further
+correction passes before final acceptance.
+
+## Manufacturing Packages 2/3/5 — Codex re-review + second remediation pass (2026-09-18)
+
+Codex's independent re-review of `517f2ea` (per `docs/operations/AI_WORK_LOG.md`) closed
+`CX-MFG-001` outright but returned `CHANGES REQUIRED` on `CX-MFG-002`: `work-orders/actions.ts`'s
+BOM→Work Order `operations` copy sent only `operation`/`workstation`/scaled `time_in_mins`,
+scaling every operation's time unconditionally (including `fixed_time` operations, which
+shouldn't scale). Fixed by copying the full set of `BOM Operation` fields that also exist on
+`Work Order Operation` and aren't ERPNext-lifecycle-computed (`workstation_type`, `sequence_id`,
+`batch_size`, `hour_rate`, `quality_inspection_required`, `is_subcontracted`,
+`skip_material_transfer`, `backflush_from_wip_warehouse`, per-operation warehouse overrides,
+`description`), field existence confirmed live via the `ceylon-stack` MCP server's
+`get_doctype_fields`, and gating `time_in_mins` scaling on the source operation's `fixed_time`
+flag. Also hardened `CX-MFG-001`'s material-transfer actions with an in-action session
+re-check, a fresh Work Order eligibility re-check, and a running per-item quantity ledger against
+duplicate submitted rows (Codex's specific required outcomes from its `CX-MFG-001` re-review).
+`npm run lint`/`npx tsc --noEmit`/`npm run build` clean. **Committed in `3a04733`.**
+
+## Manufacturing Package 3 — final `CX-MFG-002` correction (2026-09-18, third pass)
+
+Codex's second re-review of `3a04733` closed `CX-MFG-001` for good but found the expanded
+`CX-MFG-002` operations mapping still wrong on two specific points, both confirmed against live
+schema evidence: it copied `BOM Operation.hour_rate` (transaction currency) instead of
+`base_hour_rate` (company currency) onto `Work Order Operation.hour_rate`, and it omitted the
+operation-level BOM reference (native `BOM Operation.parent → Work Order Operation.bom`). Fixed:
+`hour_rate` now sources from `base_hour_rate`; every copied operation now sets `bom: bom_no`
+(structurally equal to `parent` under this app's non-exploded, single-top-level-BOM scope,
+live-confirmed against the one real BOM on this instance). Before applying a manual fix, two
+candidate native BOM→Work-Order population methods were probed directly against the live instance
+as module-level dotted-path calls and both confirmed unavailable there (`AttributeError`) —
+narrower evidence than "no native path exists at all," since a Frappe Document-bound method
+(Desk's own `frm.call()` boundary) was not tested; manual mapping was retained on that basis, with
+the document-method boundary left open for future investigation. `npm run lint`/`npx tsc
+--noEmit`/`npm run build` clean; no live Work Order create performed this session (no
+foreign-currency or `fixed_time` BOM exists on this instance to exercise it). **Committed in
+`a2b5cb8`.**
+
+**Codex's final re-review of `a2b5cb8`: `PASS WITH NON-BLOCKING FINDINGS`. `CX-MFG-001` and
+`CX-MFG-002` are both `CLOSED`** — no blocking findings remain against Manufacturing Packages
+2/3/5's reviewed package boundary. Remaining items are non-blocking `NEEDS_VERIFICATION`:
+`MFG-UNV-005` (material-transfer GL/accounting impact), `MFG-UNV-007` (native
+Desk/Document-method persistence comparison and the foreign-currency runtime scenario — no
+suitable BOM exists on this instance to exercise either), and `MFG-UNV-008` (whether ERPNext's own
+`make_stock_entry` can itself emit duplicate `item_code` rows). See
+`docs/operations/AI_WORK_LOG.md`'s Package 3 row and detailed record, and
+`docs/backend/99-unverified/unverified-behaviours.md`'s `MFG-UNV-007`, for the full breakdown.
+This closure concerns the reviewed package boundary — it is not a claim that all Manufacturing
+functionality or QA is complete; Job Cards, BOM management, Workstations, OEE, and Work Order
+Submit/Cancel remain unbuilt, each its own future scoped package per the Current Mission priority
+lock.
+
+**Documentation closure pass (2026-09-18):** corrected two backend-doc/code-comment locations
+(`docs/backend/05-manufacturing/work-order.md`, `docs/backend/99-unverified/unverified-behaviours.md`,
+and the `buildWorkOrderFields` doc comment in `work-orders/actions.ts`) that overstated the
+native-method probe's scope — narrowed to "rules out these two module-level dotted-path
+invocations specifically, not a Document-bound method" per Codex's own non-blocking documentation
+caution. Comment-only change; `npm run lint`/`npx tsc --noEmit`/`npm run build` re-confirmed clean
+afterward. No application logic touched.

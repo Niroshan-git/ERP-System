@@ -10,7 +10,10 @@ VERIFIED` for `MFG-TEST-001`–`005` (see Test Scenarios) · `Runtime Test: PART
 2026-09-18 Work Order Operation field-copy correction (`MFG-VAL-006`, `MFG-UNV-007`) —
 schema/reference fields (`bom`, `base_hour_rate`) read-only-verified live against the one real BOM
 on this instance; lint/type-check/build clean; no live Work Order create was performed this
-session (see the Regression coverage note under Test scenarios)
+session (see the Regression coverage note under Test scenarios) · **Independent review:
+`CX-MFG-001`/`CX-MFG-002` `CLOSED`** (Codex final re-review, 2026-09-18, commit `a2b5cb8`) — this
+covers the reviewed field-mapping correction, not the remaining `MFG-UNV-007` runtime scenarios
+below, which stay `NEEDS_VERIFICATION` and non-blocking
 
 ## Field mapping
 
@@ -100,7 +103,12 @@ on two points: it copied `BOM Operation.hour_rate` (transaction currency) instea
 `base_hour_rate` (company currency), and it omitted the operation-level BOM reference
 (`BOM Operation.parent → Work Order Operation.bom`). **Final correction 2026-09-18 (third pass):**
 `hour_rate` now sources from `base_hour_rate`, and every operation now sets `bom: bom_no` — see
-`MFG-VAL-006` and `MFG-UNV-007` for the full reasoning and what remains unverified.
+`MFG-VAL-006` and `MFG-UNV-007` for the full reasoning and what remains unverified. **Codex's
+final re-review (2026-09-18) closed `CX-MFG-002`** against this third-pass correction — no
+blocking findings remain on this field-copy mapping. This closure concerns the reviewed field
+mapping itself; it does not certify the broader native-persistence-comparison and
+foreign-currency-runtime items still open under `MFG-UNV-007` as tested — those remain
+non-blocking `NEEDS_VERIFICATION`.
 
 - **`MFG-VAL-006`** — `fixed_time` scaling exemption. `REQUIRED_CEYLON_BEHAVIOR` (reasoned from
   the field's own schema and label, not independently confirmed against ERPNext's native
@@ -214,11 +222,17 @@ package has been `npm run lint` / `npx tsc --noEmit` / `npm run build` plus a li
 the Hetzner instance (see `QA_LOG.md`), not unit/integration tests. This fix follows the same
 pattern: lint, type-check, and build all pass clean (see this package's `CLAUDE PACKAGE HANDOFF`).
 The final (third) pass additionally used two read-only, non-mutating live checks against the real
-instance: (1) two candidate native BOM→Work-Order population methods were called directly and
-both confirmed genuinely absent (`AttributeError`) on the installed ERPNext modules, ruling out
-Option A with evidence rather than assumption; (2) the one real BOM's operation rows were read
-directly, confirming `parent === bom_no` (validating the `bom` mapping) and `hour_rate ===
-base_hour_rate` on this same-currency instance (meaning the costing fix is not yet
+instance: (1) two candidate native BOM→Work-Order population methods were called directly at their
+**module-level dotted paths** (`/api/method/<dotted.path>` GET) and both returned `AttributeError`,
+confirming those two specific invocation paths are unavailable on the installed ERPNext modules —
+this rules out those paths only, not an identically named method exposed as a Frappe
+**Document-bound method** (the separate `run_doc_method` boundary Desk's own `frm.call()` uses),
+which was not tested; see `docs/backend/99-unverified/unverified-behaviours.md`'s `MFG-UNV-007`
+for the precise scope of this evidence. Ceylon Stack retained the manual parity mapping for this
+package's currently supported create flow on that basis, leaving the document-method boundary open
+for future investigation rather than treating it as ruled out. (2) the one real BOM's operation
+rows were read directly, confirming `parent === bom_no` (validating the `bom` mapping) and
+`hour_rate === base_hour_rate` on this same-currency instance (meaning the costing fix is not yet
 runtime-observable here — no live Work Order create was performed this session to avoid creating
 another test document without QA sign-off). Introducing a test framework remains out of scope.
 Live QA re-run creating an actual Work Order against a real BOM with a `fixed_time` operation and,

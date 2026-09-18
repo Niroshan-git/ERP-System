@@ -68,10 +68,13 @@ not fixed, since it was judged cosmetic.
 would change how "already satisfied" is judged client-side too.
 
 ### MFG-UNV-007 — Work Order Operation field-copy convention on create
-**Status:** `NEEDS_VERIFICATION` (Codex governance-closure finding `CX-MFG-002`; first fix
-2026-09-17 returned `CHANGES REQUIRED`; re-fix 2026-09-18 returned `CHANGES REQUIRED` again on the
-costing/BOM-reference mapping specifically; final correction 2026-09-18 — see
-`docs/backend/05-manufacturing/work-order.md`'s Work Order Operation table and `MFG-VAL-006`)
+**Status:** `NEEDS_VERIFICATION`, non-blocking (Codex governance-closure finding `CX-MFG-002`;
+first fix 2026-09-17 returned `CHANGES REQUIRED`; re-fix 2026-09-18 returned `CHANGES REQUIRED`
+again on the costing/BOM-reference mapping specifically; final correction 2026-09-18 accepted by
+Codex's final re-review — `CX-MFG-002` is `CLOSED` as a finding, commit `a2b5cb8` — but the
+underlying field-copy convention documented here still carries open, non-blocking runtime
+verification; see `docs/backend/05-manufacturing/work-order.md`'s Work Order Operation table and
+`MFG-VAL-006`)
 
 **Source/schema-verified (via `get_doctype_fields` against the installed instance, 2026-09-18):**
 - `BOM Operation` has both `hour_rate` (Currency, linked to the BOM's transaction currency) and
@@ -82,13 +85,21 @@ costing/BOM-reference mapping specifically; final correction 2026-09-18 — see
 - `Work Order Operation` has its own `bom` field (Link → BOM) with no equivalent field on `BOM
   Operation` — `BOM Operation`'s own owning-BOM reference is the Frappe child-table meta field
   `parent`, not a declared schema field (so it never appeared in the `get_doctype_fields` dump).
-- Two candidate native population entry points were tested directly against the live instance
-  (read-only GET, both errored before any write) and confirmed **not to exist** on this install:
+- Two candidate native population entry points were tested directly against the live instance as
+  **module-level dotted-path calls** (read-only GET against `/api/method/<dotted.path>`, both
+  errored before any write) and confirmed unavailable **at that specific invocation boundary**:
   `erpnext.manufacturing.doctype.work_order.work_order.get_items_and_operations_from_bom` and
   `erpnext.manufacturing.doctype.bom.bom.make_work_order` both returned
   `AttributeError: module '...' has no attribute '...'` — the installed Python modules genuinely
-  have no method at either dotted path. This is why the fix is a manual field mapping rather than
-  a native method call.
+  export no function at either dotted path. **Scope of this evidence, precisely:** this rules out
+  those two module-level invocation paths only. It does **not** prove that an identically named
+  method is unavailable as a **Frappe Document-bound method** — the boundary ERPNext Desk actually
+  uses for form-triggered calls like `frm.call({doc, method: "..."})`, which POSTs to a different
+  endpoint (`run_doc_method`) than a plain module-level `/api/method/<dotted.path>` GET. Desk may
+  invoke `get_items_and_operations_from_bom` (or an equivalent) as such a document method; that
+  boundary was not tested this session and remains open for future investigation. Given that gap,
+  Ceylon Stack retained the manual parity mapping below for this package's currently supported
+  create flow rather than build against an unverified native path.
 
 **Runtime-verified (read-only GET against the one real BOM on this instance,
 `BOM-FG-STEEL-BRACKET-ASSY-001`, 2026-09-18):** both of its operation rows have `parent ===
@@ -109,23 +120,34 @@ Operation.base_hour_rate`, not `hour_rate`), `quality_inspection_required`, `is_
 `skip_material_transfer`, `backflush_from_wip_warehouse`,
 `source_warehouse`/`wip_warehouse`/`fg_warehouse`, `description`.
 
-**Still genuinely unconfirmed:** (1) whether ERPNext's own native BOM→Work Order copy (Desk's
-client-side form script, `work_order.js`) sends this exact field set and applies the same
-`fixed_time` scaling rule — reasoned from schema/labels and confirmed absent as a whitelisted
-server method, but `work_order.js`'s own client-side copy logic was not read (no SSH/`bench
-console`/vendored-source access this session); (2) whether `validate()` itself overrides any of
-the supplied fields (particularly `hour_rate`/`batch_size`) from the Workstation or Operation
-master regardless of what this app sends; (3) the foreign-transaction-currency scenario end to
-end (a BOM priced in a currency other than the company's default) — reasoned correct from the
-field schema, not runtime-exercised, because no such BOM exists on this instance.
+**Still genuinely unconfirmed (all non-blocking for the accepted `CX-MFG-002` correction):**
+1. **Native persistence comparison.** Whether ERPNext's own native BOM→Work Order copy (Desk's
+   client-side form script, `work_order.js`, and/or a Document-bound method it calls) sends this
+   exact field set and applies the same `fixed_time` scaling rule for: fixed operations,
+   scaled/non-fixed operations, operation costing, the BOM reference, and the routing/warehouse/
+   operation flags — reasoned from schema/labels and narrowed by the module-level-only probe
+   above, but neither `work_order.js`'s client-side logic nor a Document-bound method invocation
+   was read or tested this session (no SSH/`bench console`/vendored-source access). A supported
+   document-method boundary for native invocation remains a legitimate avenue for a future
+   package, not ruled out by this session's evidence.
+2. **Work Order validation/controller override behavior.** Whether `validate()` itself overrides
+   any of the supplied fields (particularly `hour_rate`/`batch_size`) from the Workstation or
+   Operation master regardless of what this app sends.
+3. **Foreign-currency runtime scenario.** A BOM priced in a transaction currency other than the
+   company's default (`conversion_rate != 1`) end to end — reasoned correct from the field schema
+   (`Work Order Operation.hour_rate` should end up equal to the source `BOM
+   Operation.base_hour_rate`), not runtime-exercised, because no such BOM exists on this instance.
 
 **How to verify:** (1) Create a real Work Order from Desk itself (not this app) against a BOM that
 has at least one `fixed_time` operation, at a qty different from the BOM's reference quantity, and
-diff the resulting Work Order Operation rows against this app's create payload for the same
-inputs. (2) Create or price a BOM in a non-LKR transaction currency with a non-1 `conversion_rate`
-and confirm the created Work Order Operation's `hour_rate` matches that BOM's `base_hour_rate`,
-not its `hour_rate`. No BOM with a `fixed_time` operation or a foreign transaction currency
-currently exists on this instance.
+diff the resulting Work Order Operation rows — including costing, BOM reference, and routing/
+warehouse/operation flags — against this app's create payload for the same inputs. (2) Create or
+price a BOM in a non-LKR transaction currency with a non-1 `conversion_rate` and confirm the
+created Work Order Operation's `hour_rate` equals that BOM's `base_hour_rate`, not its
+`hour_rate`. (3) If pursued, investigate whether `get_items_and_operations_from_bom` (or an
+equivalent) exists as a Document-bound method reachable via Frappe's `run_doc_method` boundary,
+as a supported native alternative to the current manual mapping. No BOM with a `fixed_time`
+operation or a foreign transaction currency currently exists on this instance.
 
 ### MFG-UNV-008 — Duplicate `item_code` rows in `required_items` / Material Transfer preview
 **Status:** `NEEDS_VERIFICATION` (Codex governance-closure finding `CX-MFG-006`, partially

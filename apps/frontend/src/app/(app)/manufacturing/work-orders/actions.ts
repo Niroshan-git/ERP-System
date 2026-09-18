@@ -93,15 +93,20 @@ function toErpDatetime(value: string): string {
  * governance instructions):** looked for a supported ERPNext whitelisted method that performs
  * this BOM→Work-Order operation copy natively, to avoid re-deriving the mapping by hand. No
  * vendored ERPNext source and no SSH/bench console access exist in this session, so two
- * plausible native entry points were tested directly against the live installed instance
- * (read-only — both raise before any write): `erpnext.manufacturing.doctype.work_order
- * .work_order.get_items_and_operations_from_bom` and `erpnext.manufacturing.doctype.bom.bom
+ * plausible native entry points were tested directly against the live installed instance as
+ * **module-level dotted-path calls** (`/api/method/<dotted.path>` GET, read-only — both raise
+ * before any write): `erpnext.manufacturing.doctype.work_order.work_order
+ * .get_items_and_operations_from_bom` and `erpnext.manufacturing.doctype.bom.bom
  * .make_work_order`. Both returned `AttributeError: module '...' has no attribute '...'` —
- * i.e. the installed version's Python modules genuinely have no method at either dotted path,
- * not a permission or argument error. That is hard evidence the method doesn't exist at those
- * names on this install, not a guess. Per this package's explicit instruction not to introduce
- * "a fragile unsupported endpoint merely to avoid manual mapping," further blind guessing at
- * undocumented method names against the production instance was judged the wrong tradeoff —
+ * i.e. the installed version's Python modules genuinely export no function at either dotted
+ * path, not a permission or argument error. That rules out those two specific invocation paths,
+ * not a guess — but it does NOT prove an identically named method is unavailable as a Frappe
+ * **Document-bound method** (the separate `run_doc_method` boundary Desk's own `frm.call()`
+ * uses for form-triggered calls); that boundary was not tested this session and remains a
+ * legitimate avenue for future investigation. Per this package's explicit instruction not to
+ * introduce "a fragile unsupported endpoint merely to avoid manual mapping," further blind
+ * guessing at undocumented method names/boundaries against the production instance was judged
+ * the wrong tradeoff for this package —
  * **Option B (manual parity mapping) was selected**, corrected field-by-field against verified
  * schema evidence rather than assumption.
  */

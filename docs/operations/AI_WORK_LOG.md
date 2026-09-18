@@ -24,8 +24,8 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Package | Module | Description | Claude Status | Codex Status | Overall Status | Commit/Boundary | Open Findings | Needs Verification | Last Updated |
 |---|---|---|---|---|---|---|---:|---|---|
 | Manufacturing Package 2 | Manufacturing (frontend) | Work Order detail view — read-only, 6 tabs (Details/Materials/Operations/Job Cards/Quality Readiness/Comments) | `CLAUDE_HANDOFF` (remediated) | `CODEX_REVIEW_COMPLETE` (re-review) | `ACCEPTED` as part of combined re-review; combined release remains blocked by Packages 3/5 | `25b882e` → remediation `517f2ea` (bundled with Pkg 3, Pkg 5); `2fbe2a6` coordination only | 1 resolved (`CX-MFG-003`) | Live QA not independently rerun | 2026-09-17 |
-| Manufacturing Package 3 | Manufacturing (frontend) | Work Order Create — Draft-only, BOM-scaled Materials/Operations preview, optional Material Readiness | `CLAUDE_HANDOFF` (final remediation, 3rd pass) | `RETURNED_TO_CLAUDE` (2026-09-18 second re-review); final correction pending Codex re-review | `RETURNED_TO_CLAUDE` — `CX-MFG-002` correction submitted, awaiting Codex confirmation | `25b882e` → `517f2ea` → `3a04733` → final correction `a2b5cb8` | `CX-MFG-002` corrected pending re-review — `hour_rate` now sources `BOM Operation.base_hour_rate`; every operation now sets `bom: bom_no` (native `parent` equivalent under this app's non-exploded scope) | `MFG-UNV-007` remains — foreign-currency scenario and Desk-native field-copy behavior still not runtime-exercised (no such BOM exists on this instance) | 2026-09-18 |
-| Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-18 second re-review) | `ACCEPTED` for `CX-MFG-001`; combined release remains blocked by Package 3 / `CX-MFG-002` | `25b882e` → `517f2ea` → re-remediation `3a04733`; `d0fb4bf` coordination only | `CX-MFG-001` `CLOSED` — in-action session verification, fresh Work Order eligibility, fresh native preview, and aggregate per-item running ceiling independently confirmed | Accounting impact (`MFG-UNV-005`); ERPNext duplicate-item response (`MFG-UNV-008`); live runtime re-verification remains post-correction QA | 2026-09-18 |
+| Manufacturing Package 3 | Manufacturing (frontend) | Work Order Create — Draft-only, BOM-scaled Materials/Operations preview, optional Material Readiness | `DOCUMENTATION_CLOSURE` | `CODEX_REVIEW_COMPLETE` (2026-09-18 final re-review) | `ACCEPTED` — `CX-MFG-002` closed; package has no remaining blocking findings | `25b882e` → `517f2ea` → `3a04733` → final correction `a2b5cb8` → doc-wording closure `<pending>`; `0e78988` coordination only | None — `CX-MFG-002` `CLOSED`: `base_hour_rate → hour_rate` and top-level source BOM → operation `bom` independently confirmed | `MFG-UNV-007` remains non-blocking — foreign-currency and Desk/native persistence comparison not runtime-exercised; native-method module-path probe wording corrected 2026-09-18 to scope it to the two tested dotted paths only, not a Document-bound method | 2026-09-18 |
+| Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-18 second re-review) | `ACCEPTED` — `CX-MFG-001` closed 2026-09-18; combined release with Packages 2/3 no longer blocked now that `CX-MFG-002` is also closed | `25b882e` → `517f2ea` → re-remediation `3a04733`; `d0fb4bf` coordination only | None blocking — `CX-MFG-001` `CLOSED`: in-action session verification, fresh Work Order eligibility, fresh native preview, and aggregate per-item running ceiling independently confirmed | Accounting impact (`MFG-UNV-005`); ERPNext duplicate-item response (`MFG-UNV-008`); live runtime re-verification remains post-correction QA | 2026-09-18 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -509,3 +509,91 @@ follow-up edit to this ledger, matching the `517f2ea`/`2fbe2a6` and `3a04733`/`d
 Handed back to Codex for independent re-review of `CX-MFG-002` only. Not self-declared closed —
 only Codex may set that per this policy's Re-Review section. Do not start another Manufacturing
 package, Master Data, CRM, or Finance work until Codex responds.
+
+### Codex Final Re-Review — remediation `a2b5cb8` (2026-09-18)
+
+Boundary independently verified on branch `frontend`: implementation commit `a2b5cb8`, parent
+`d0fb4bf`; coordination-only follow-up `0e78988` changes only this ledger. The five changed files
+match the authorized `CX-MFG-002` remediation. Pre-existing uncommitted planning/architecture
+files remain outside both commits. Final review state: `PASS WITH NON-BLOCKING FINDINGS`.
+
+Independent checks: `npm run lint` — PASSED; `npx tsc --noEmit` — PASSED; `npm run build` —
+PASSED with existing dynamic-route/network diagnostics and the middleware deprecation warning.
+No automated test runner exists and no live Work Order mutation was performed.
+
+`CX-MFG-002`: `CLOSED`. `buildWorkOrderFields` now maps `BOM Operation.base_hour_rate` to Work
+Order Operation `hour_rate` and sets `bom: bom_no`. `getBomDetails(bom_no)` fetches one selected
+top-level BOM document and maps only that document's embedded `operations`; it performs no
+multi-level operation explosion. Therefore every mapped row's Frappe child `parent` is that same
+`bom_no`, including when the separate `use_multi_level_bom` header checkbox is selected, because
+the Ceylon Stack operation-copy path remains deliberately top-level-only.
+
+The absent foreign-currency fixture remains legitimate non-blocking `MFG-UNV-007` runtime
+verification: installed schema evidence and upstream native mapping establish the corrected
+direction, while the live LKR/1.0 BOM cannot make the difference observable. Non-blocking
+documentation caution: the two `AttributeError` probes prove that no module-level whitelisted
+attributes exist at those dotted paths; they do not by themselves prove that an identically named
+Work Order document method is absent. This does not affect the correctness of the manual mapping,
+but canonical wording should be narrowed during normal documentation closure.
+
+### Claude Documentation/Release Closure — accepted Manufacturing blocker remediation (2026-09-18)
+
+Scope: documentation and release-tracking closure only, following Codex's final acceptance above.
+No Manufacturing application code modified, no new Manufacturing package started, no Master
+Data/CRM/Finance/workflow/AI/reporting/mobile work started. `CX-MFG-001` was not reopened.
+
+**Wording correction (Codex's non-blocking documentation caution, addressed):** the two
+`AttributeError` module-level dotted-path probes were being described, in three places, in terms
+broad enough to read as ruling out native BOM→Work-Order population entirely. Narrowed in all
+three to state precisely what was and wasn't tested — these two specific
+`/api/method/<dotted.path>` GET calls are confirmed unavailable; a Frappe **Document-bound**
+method (the separate `run_doc_method` boundary Desk's own `frm.call()` uses for form-triggered
+calls, e.g. an identically-named `get_items_and_operations_from_bom` invoked as a bound method)
+was not tested and remains a legitimate avenue for future investigation, not ruled out. Ceylon
+Stack's manual parity mapping is retained on that basis for the currently supported create flow.
+Corrected in:
+- `docs/backend/99-unverified/unverified-behaviours.md` — `MFG-UNV-007`'s source/schema-verified
+  bullet, "still genuinely unconfirmed" list (renumbered into the three governance-specified
+  categories: native persistence comparison, controller override behavior, foreign-currency
+  runtime scenario), and "How to verify" section (added the document-method boundary as a future
+  investigation step). `MFG-UNV-005` and `MFG-UNV-008` untouched.
+- `docs/backend/05-manufacturing/work-order.md` — the Regression coverage note under Test
+  scenarios, plus a new closure note on the `MFG-UNV-004a` narrative and the top-of-doc
+  `Verification` line recording `CX-MFG-001`/`CX-MFG-002` `CLOSED` (commit `a2b5cb8`) without
+  overstating it as covering the still-open `MFG-UNV-007` runtime items.
+- `apps/frontend/src/app/(app)/manufacturing/work-orders/actions.ts` — `buildWorkOrderFields`'s
+  doc comment narrowed identically. **Comment-only change; no logic touched.** `npm run
+  lint`/`npx tsc --noEmit`/`npm run build` all re-ran clean immediately after, confirming no
+  behavioral change.
+
+`MFG-UNV-007` was **not** closed — its remaining native-persistence-comparison,
+controller-override, and foreign-currency-runtime items are preserved exactly as
+Codex's final review requires, now organized under the review's own categories. `MFG-UNV-005`
+and `MFG-UNV-008` were reviewed and left untouched — no new evidence resolves either.
+
+**Progress/QA sync:** `PROGRESS.md` gained two new entries covering the 2026-09-18 second
+(`3a04733`) and third (`a2b5cb8`) remediation passes and Codex's final acceptance (the prior
+2026-09-17 entry incorrectly said "Not committed" — corrected to name `517f2ea`). `QA_LOG.md`
+gained a matching 2026-09-18 entry recording that verification across all three 2026-09-18 passes
+was static-only (lint/type-check/build) — explicitly not representing unexecuted live scenarios as
+tested, per this closure task's instruction. This ledger's Package 3 row status changed to
+`DOCUMENTATION_CLOSURE`; Package 5's row corrected — it no longer shows "blocked by Package 3 /
+CX-MFG-002" now that CX-MFG-002 is closed.
+
+**Release tracking:** `release-tracker` invoked separately for `docs/ceylon-stack-documentation.html`
+changelog/status and the Notion "Weekly Implementation Plan" sync — see its own entry/commit
+note below rather than duplicating its output here.
+
+**Working-tree isolation:** confirmed via `git status` before and after — `CLAUDE.md`,
+`docs/architecture/decisions/README.md`, `docs/master-data-architecture.md`,
+`docs/ceylon-stack-master-plan.md`, `docs/ceylon-stack-master-backlog.md` remain untouched,
+uncommitted, and unmodified by this session.
+
+**Checks run:** `npm run lint` — PASSED. `npx tsc --noEmit` — PASSED. `npm run build` — PASSED,
+exit 0, same pre-existing diagnostics as every prior round, nothing new. No ERPNext calls of any
+kind were made this session (documentation-only task).
+
+Final Manufacturing package state: reviewed blocker package `CLOSED / ACCEPTED`. Remaining
+Manufacturing verification: non-blocking `NEEDS_VERIFICATION` only (`MFG-UNV-005`, `MFG-UNV-007`,
+`MFG-UNV-008`). No further Manufacturing implementation package, Master Data, CRM, Finance, or
+other roadmap work started — that authorization is separate and has not been given.
