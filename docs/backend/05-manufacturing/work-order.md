@@ -6,7 +6,9 @@
 (detail, read-only), `/manufacturing/work-orders/new` (create)
 **Verification:** `Documentation: VERIFIED` · `Source Code: PARTIALLY_VERIFIED` (fields
 confirmed live; controller logic confirmed only for the paths exercised below) · `Runtime Test:
-VERIFIED` (see Test Scenarios)
+VERIFIED` for `MFG-TEST-001`–`005` (see Test Scenarios) · `Runtime Test: NOT RUN` for the
+2026-09-18 Work Order Operation field-copy fix (`MFG-VAL-006`, `MFG-UNV-007`) — lint/type-
+check/build only, see the Regression coverage note under Test scenarios
 
 ## Field mapping
 
@@ -54,27 +56,52 @@ Canonical `work_order_item`, 1:N under `work_order`. Frappe child DocType `Work 
 ### Child entity: Work Order Operation (`operations`)
 
 Canonical `work_order_operation`, 1:N under `work_order`. Frappe child DocType
-`Work Order Operation`.
+`Work Order Operation`. Field list live-confirmed via `get_doctype_fields` (2026-09-18,
+`CX-MFG-002` re-remediation) against both `Work Order Operation` and `BOM Operation` — the
+columns below are every field this app now copies from the source BOM Operation on create,
+plus the lifecycle fields ERPNext itself sets that this app never sends.
 
-| Frontend field | Canonical field | Frappe field | Notes |
-|---|---|---|---|
-| Operation | `operation` | `operation` | |
-| Workstation | `workstation` | `workstation` | |
-| Status | `status` | `status` | |
-| Time (mins) | `time_in_mins` | `time_in_mins` | |
-| Completed Qty | `completed_qty` | `completed_qty` | |
-| Batch Size | `batch_size` | `batch_size` | |
-| Planned/Actual Start/End | `planned_start_time` etc. | same | |
+| Frontend field | Canonical field | Frappe field | Set by this app on create? | Notes |
+|---|---|---|---|---|
+| Operation | `operation` | `operation` | Yes | |
+| Workstation | `workstation` | `workstation` | Yes | |
+| Workstation Type | `workstation_type` | `workstation_type` | Yes (2026-09-18) | Previously dropped — `CX-MFG-002` |
+| Sequence | `sequence_id` | `sequence_id` | Yes (2026-09-18) | Previously claimed carried-through by this doc's own comment but never actually mapped — `CX-MFG-002` |
+| Status | `status` | `status` | No | ERPNext's own controller sets this |
+| Time (mins) | `time_in_mins` | `time_in_mins` | Yes | Scaled `qty / bom.quantity` **unless** the source `BOM Operation.fixed_time` is set, in which case sent unscaled (2026-09-18 fix — see `MFG-VAL-006` below) |
+| Completed Qty | `completed_qty` | `completed_qty` | No | ERPNext's own controller sets this |
+| Batch Size | `batch_size` | `batch_size` | Yes (2026-09-18) | Previously dropped — `CX-MFG-002` |
+| Hour Rate | `hour_rate` | `hour_rate` | Yes (2026-09-18) | Previously dropped — `CX-MFG-002`; see `MFG-UNV-007` for whether ERPNext's own `validate()` overrides it from the Workstation regardless |
+| Quality Inspection Required | `quality_inspection_required` | `quality_inspection_required` | Yes (2026-09-18) | Previously dropped — feeds the Quality Readiness tab's `jobCardsWithTemplate` population once Job Cards are generated from this operation |
+| Is Subcontracted | `is_subcontracted` | `is_subcontracted` | Yes (2026-09-18) | Previously dropped |
+| Skip Material Transfer | `skip_material_transfer` | `skip_material_transfer` | Yes (2026-09-18) | Previously dropped |
+| Backflush From WIP Warehouse | `backflush_from_wip_warehouse` | `backflush_from_wip_warehouse` | Yes (2026-09-18) | Previously dropped |
+| Source/WIP/FG Warehouse (per-operation override) | `source_warehouse`/`wip_warehouse`/`fg_warehouse` | same | Yes (2026-09-18) | Previously dropped |
+| Description | `description` | `description` | Yes (2026-09-18) | Previously dropped |
+| Planned/Actual Start/End, Planned Operating Cost | `planned_start_time` etc. | same | No | ERPNext's own controller derives these during `validate()` |
+| FG/Semi-FG per-operation routing | `finished_good` / `finished_good_qty` / `bom_no` | same | **Deliberately not copied** | Semi-finished-goods routing — this app doesn't build multi-level/semi-finished Work Orders (same no-BOM-explosion boundary as `required_items`, see `MFG-CALC-001`) |
 
-**`MFG-UNV-004a`** — historical, superseded 2026-09-17: this table stayed **empty on a plain
-REST insert** even when the BOM had operations. Live-confirmed (Package 3 QA): ERPNext's
-`validate()` auto-populates `required_items` from the BOM but does **not** auto-populate
-`operations` the same way — that table is normally filled by Desk's own client-side form
-script, not by `validate()` alone. **Fixed** (governance-closure finding `CX-MFG-002`):
-`createWorkOrderAction` now explicitly builds and sends `operations` itself, copied from the
-BOM's own `operations` (re-fetched server-side via `getBomDetails`, not a client-submitted
-copy), with `time_in_mins` scaled by `qty / bom.quantity` — see `MFG-UNV-007` for the
-NEEDS_VERIFICATION status of that specific scaling convention.
+**`MFG-UNV-004a`** — historical, superseded 2026-09-17, then again 2026-09-18: this table
+stayed **empty on a plain REST insert** even when the BOM had operations. Live-confirmed
+(Package 3 QA): ERPNext's `validate()` auto-populates `required_items` from the BOM but does
+**not** auto-populate `operations` the same way — that table is normally filled by Desk's own
+client-side form script, not by `validate()` alone. **Fixed** (governance-closure finding
+`CX-MFG-002`, first pass 2026-09-17): `createWorkOrderAction` began explicitly building and
+sending `operations`, copied from the BOM's own `operations` (re-fetched server-side via
+`getBomDetails`, not a client-submitted copy). **Codex's re-review of that first pass** found it
+incomplete — only `operation`/`workstation`/scaled `time_in_mins` were sent, and every
+operation's time was scaled unconditionally, including `fixed_time` operations that shouldn't
+scale at all. **Re-fixed 2026-09-18**: the full field set in the table above is now copied,
+field-by-field against the two doctypes' live schemas rather than assumed — see `MFG-VAL-006`
+and `MFG-UNV-007`.
+
+- **`MFG-VAL-006`** — `fixed_time` scaling exemption. `REQUIRED_CEYLON_BEHAVIOR` (reasoned from
+  the field's own schema and label, not independently confirmed against ERPNext's native
+  controller — see `MFG-UNV-007`): `BOM Operation.fixed_time` (Check) has no corresponding field
+  on `Work Order Operation` at all (live-confirmed via `get_doctype_fields`) — its only possible
+  purpose is to gate whether `time_in_mins` scales with the Work Order's quantity at copy time.
+  This app now reads it purely as a scaling switch: `fixed_time` true → the BOM's own
+  `time_in_mins` is sent unscaled; otherwise → scaled by `qty / bom.quantity`, same as before.
 
 ## Business rules
 
@@ -116,7 +143,7 @@ NEEDS_VERIFICATION status of that specific scaling convention.
 
 | Action | Built in this frontend? | Behavior |
 |---|---|---|
-| Create | **Yes** | `createDoc("Work Order", {...})` → `docstatus 0`. ERPNext's `validate()` auto-populates `required_items`; `operations` is now sent explicitly by this app (see `MFG-UNV-004a`, fixed 2026-09-17). |
+| Create | **Yes** | `createDoc("Work Order", {...})` → `docstatus 0`. ERPNext's `validate()` auto-populates `required_items`; `operations` is now sent explicitly by this app (see `MFG-UNV-004a`, fixed 2026-09-17, field set corrected 2026-09-18). |
 | Save (Draft edit) | No | Not exposed; see `MFG-VAL-003` for what would happen if it were. |
 | Submit | No | Future package. Submitting is what actually makes `canTransferMaterials()` return true, and is a prerequisite Desk-side action this app assumes already happened for a Work Order it displays. |
 | Cancel | No | Future package. |
@@ -172,3 +199,15 @@ no orphan document created.
 
 **`MFG-TEST-005`** (Package 4 investigation) — Submitted-stage `required_qty` edit via plain doc
 update → `UpdateAfterSubmitError`, confirms `MFG-VAL-002`.
+
+**Regression coverage note (2026-09-18, `CX-MFG-002` re-remediation):** this repository has no
+automated test runner configured (`apps/frontend/package.json` has no `test` script and no test
+files exist anywhere in the app) — verification for every prior Manufacturing package has been
+`npm run lint` / `npx tsc --noEmit` / `npm run build` plus a live QA pass against the Hetzner
+instance (see `QA_LOG.md`), not unit/integration tests. This fix follows the same pattern: lint,
+type-check, and build all pass clean (see this package's `CLAUDE PACKAGE HANDOFF`). Introducing a
+test framework was judged out of scope for a two-blocker remediation package — flagged here as a
+decision point rather than silently skipped. Live QA re-run against a real BOM with a
+`fixed_time` operation (none currently exist on this instance) is the concrete way to close
+`MFG-UNV-007`'s remaining uncertainty; this session had no SSH/`bench console` access to create
+one.

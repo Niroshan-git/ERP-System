@@ -7,7 +7,9 @@ Work-Order-linked slice relevant to Manufacturing.
 **Canonical entity:** `material_transfer` (a purpose-filtered view of `stock_entry`)
 **Frontend route:** `/manufacturing/work-orders/[name]/transfer-materials`
 **Verification:** `Documentation: VERIFIED` · `Source Code: VERIFIED` (native method traced) ·
-`Runtime Test: VERIFIED` (see Test Scenarios; includes one real bug found and fixed live)
+`Runtime Test: VERIFIED` for the core transfer mechanism (see Test Scenarios; includes one real
+bug found and fixed live) · `Runtime Test: NOT RUN` for the 2026-09-18 session/eligibility-recheck
+and aggregate-ceiling changes (`MFG-SEC-001`) — lint/type-check/build only, see that section
 
 ## Native mechanism — not reimplemented
 
@@ -50,6 +52,48 @@ never trusted from a client-submitted hidden field. This closed a real gap: a ta
 `<input>` previously could have posted the transfer against the wrong company/warehouse or with
 a stale `fg_completed_qty`, since only the bound `workOrderName` argument (verified server-side
 by Next.js) was actually trustworthy before this fix — the rest were plain form fields.
+
+**Codex's re-review of that first pass** (2026-09-17) found it still incomplete on two points,
+re-fixed 2026-09-18 — see `MFG-SEC-001` below.
+
+### `MFG-SEC-001` — Session/eligibility re-check and aggregate quantity ceiling (2026-09-18)
+
+`FRAPPE_ONLY_IMPLEMENTATION_DETAIL` — this is this app's own session/authorization model, not an
+ERPNext DocType behavior.
+
+**Access control assumption (accepted architecture, not a gap to close further here):** every
+call this app makes to ERPNext (`lib/erpnext.ts`) authenticates as one shared service account via
+`ERPNEXT_API_KEY`/`ERPNEXT_API_SECRET` — confirmed in code, not per-user. ERPNext's own
+Frappe-level permission system therefore authorizes the service account, never the individual
+signed-in Ceylon Stack user; this app has no per-document ACL layer of its own (no concept of "this
+Work Order belongs to this user/branch" exists anywhere in the frontend). The only app-level gate
+on who may act at all is the signed HMAC session cookie (`lib/session.ts`, verified at login
+against a real ERPNext credential check in `/api/auth/login`). Given that, "authorizing the
+requested Work Order" for this app concretely means two things, both closed by this fix:
+
+1. **A valid app session must exist inside the mutating Server Function itself**, not merely at
+   the page-navigation layer. `middleware.ts` already blocks unauthenticated page loads, but
+   Next.js's own guidance is that Server Functions are directly POST-callable and a bound
+   argument (`.bind(null, workOrderName)`) is not itself an auth check — this file was the one
+   mutating action in the app that hadn't yet applied the session re-check pattern already
+   established in `lib/actions/comments.ts`'s `postCommentAction`. `buildStockEntryFields` now
+   re-reads and verifies the session cookie itself before doing anything else.
+2. **The Work Order's eligibility must be re-checked at submission time, not only at page-render
+   time.** `getMaterialTransferPreview` already re-derives master-data fields fresh, but nothing
+   previously re-ran `canTransferMaterials()` — a Work Order eligible when the page loaded could
+   be completed/stopped, or have every required item transferred by someone else, before the form
+   is actually submitted. `buildStockEntryFields` now re-fetches the Work Order doc and re-runs
+   `canTransferMaterials()` before building any Stock Entry field.
+
+**Aggregate quantity ceiling (the other half of `CX-MFG-001`):** the per-item cap against a
+pending/required item's fresh `make_stock_entry` ceiling was previously applied independently to
+each submitted row via an `item_code` lookup — two rows (or a crafted duplicate) sharing the same
+`item_code` were each capped against the *same* full ceiling, so their sum could exceed it. Fixed
+with a running `remainingByItem` ledger, decremented as each row consumes it, so N rows for one
+`item_code` can collectively transfer at most what ERPNext itself proposed — never more,
+regardless of how many rows or how they're split across source warehouses. Only applies to
+pending/required items (which have a real ERPNext-proposed ceiling); additional (non-BOM) items
+have no such ceiling to enforce and are unaffected by this specific fix.
 
 | Frontend field | Frappe field | Notes |
 |---|---|---|
@@ -160,3 +204,14 @@ confirms `MFG-STK-003`.
 **`MFG-TEST-017`** — BOM (`BOM-FG-STEEL-BRACKET-ASSY-001`) read before/after every mutation across
 all scenarios above — byte-identical every time. Confirms Material Transfer for Manufacture never
 touches the master BOM.
+
+**Regression coverage note (2026-09-18, `CX-MFG-001` re-remediation, `MFG-SEC-001`):** no
+automated test runner is configured in this repository (see the equivalent note in
+`work-order.md`) — verified via `npm run lint` / `npx tsc --noEmit` / `npm run build` only, all
+clean. The session-check and eligibility-recheck paths, and the aggregate-quantity ledger, were
+not live-exercised against the real Hetzner instance this session (no SSH/`bench console` access;
+the running instance also can't be reached from this build environment, per the pre-existing
+`erpnextFetch network error` diagnostics already noted in prior build runs). Live re-verification
+of `MFG-TEST-011`/`MFG-TEST-012` (partial transfer) plus a new scenario — submitting two rows for
+the same pending `item_code` in one request and confirming the total is still capped at the
+single-row ceiling — is the concrete next step for the `qa-tester` agent or a live QA pass.

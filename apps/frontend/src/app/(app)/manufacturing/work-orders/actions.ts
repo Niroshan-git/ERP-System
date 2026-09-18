@@ -32,15 +32,41 @@ function toErpDatetime(value: string): string {
  * the BOM's operations to the user before create, which made the created Work Order behaviorally
  * inequivalent to what was shown (governance-closure code-review finding, CX-MFG-002) — fixed
  * here by re-fetching the same BOM server-side (via the already-existing `getBomDetails`, not a
- * client-submitted copy) and copying its `operations` onto the create payload, scaled by
- * qty/bom.quantity the same way `required_items`' own quantities scale. `sequence_id` is carried
- * through unscaled to preserve the BOM's routing order. Fields left unset (`hour_rate`,
- * `planned_operating_cost`, `status`) are ERPNext's own to derive from the Workstation/Operation
- * masters and its own controller logic during `validate()` — not recomputed here, consistent
- * with this package's standing rule of reusing ERPNext's own math rather than reimplementing it.
- * NEEDS_VERIFICATION: the qty-scaling convention for `time_in_mins` mirrors the materials
- * preview's own scaling but has not been live-QA'd against the real instance the way the
- * materials scaling was (see docs/backend/99-unverified/unverified-behaviours.md).
+ * client-submitted copy) and copying its `operations` onto the create payload.
+ *
+ * Codex's re-review of the first fix (2026-09-17) found it incomplete: only
+ * `operation`/`workstation`/scaled `time_in_mins` were sent, and every operation's time was
+ * scaled unconditionally — including operations flagged `fixed_time` on the BOM, whose whole
+ * point (per the field's own label/semantics — `BOM Operation` has no scale-exempt runtime
+ * equivalent field on `Work Order Operation`, live-confirmed via `get_doctype_fields`,
+ * 2026-09-18) is that the time does NOT change with quantity. Fixed here field-by-field against
+ * the two doctypes' real schemas rather than assumed: every `BOM Operation` field that (a) also
+ * exists on `Work Order Operation` and (b) is a caller-supplied input rather than a
+ * Work-Order-lifecycle field ERPNext computes itself (`status`, `completed_qty`, `pending_qty`,
+ * `planned_start_time`/`planned_end_time`, `actual_*`) is now copied — `workstation_type`,
+ * `sequence_id` (previously claimed by this comment as carried through but never actually
+ * mapped), `batch_size`, `hour_rate`, `quality_inspection_required`, `is_subcontracted`,
+ * `skip_material_transfer`, `backflush_from_wip_warehouse`, and the per-operation
+ * `source_warehouse`/`wip_warehouse`/`fg_warehouse` overrides, plus `description`. `time_in_mins`
+ * is scaled by qty/bom.quantity exactly as `required_items`' own quantities scale — unless
+ * `fixed_time` is set on the BOM operation, in which case the BOM's own value is sent unscaled.
+ * `finished_good`/`bom_no` (per-operation semi-finished-goods routing) are deliberately not
+ * copied — this app doesn't build multi-level/semi-finished Work Orders (same no-BOM-explosion
+ * boundary already accepted for `required_items`); see `bomLookup.ts`'s `BomOperationRow` doc
+ * comment. `planned_operating_cost`/`status` are left unset for ERPNext's own controller to
+ * derive during `validate()`, consistent with this package's standing rule of reusing ERPNext's
+ * own math rather than reimplementing it.
+ *
+ * NEEDS_VERIFICATION (`MFG-UNV-007`, updated): whether ERPNext's own native BOM→Work Order copy
+ * (Desk's client script) sends this exact field set, and whether `validate()` itself overwrites
+ * any of `hour_rate`/`batch_size` from the Workstation/Operation masters regardless of what's
+ * supplied — not live-QA'd this session (no bench console/source access; field *existence* was
+ * confirmed live via MCP `get_doctype_fields`, but controller *behavior* was not). Preview-vs-
+ * persisted note: `WorkOrderForm.tsx`'s read-only operations preview still renders the BOM's raw
+ * `time_in_mins` unscaled (pre-existing, not part of CX-MFG-002) — a fixed-time operation is now
+ * unaffected either way, but a non-fixed-time operation's persisted (scaled) time can still
+ * differ from the previewed (unscaled) figure when Work Order qty ≠ BOM quantity; left as-is to
+ * keep this remediation scoped to the two named blockers rather than reworking the preview UI.
  */
 async function buildWorkOrderFields(formData: FormData) {
   const production_item = String(formData.get("production_item") ?? "").trim();
@@ -64,11 +90,28 @@ async function buildWorkOrderFields(formData: FormData) {
 
   const bomDetail = await getBomDetails(bom_no);
   const scale = qty / (bomDetail?.quantity || 1);
-  const operations = (bomDetail?.operations ?? []).map((op) => ({
-    operation: op.operation,
-    workstation: op.workstation || undefined,
-    time_in_mins: Math.round((op.time_in_mins ?? 0) * scale * 100) / 100,
-  }));
+  const operations = (bomDetail?.operations ?? []).map((op) => {
+    const time_in_mins = op.fixed_time
+      ? (op.time_in_mins ?? 0)
+      : Math.round((op.time_in_mins ?? 0) * scale * 100) / 100;
+    return {
+      operation: op.operation,
+      workstation: op.workstation || undefined,
+      workstation_type: op.workstation_type || undefined,
+      sequence_id: op.sequence_id ?? undefined,
+      time_in_mins,
+      batch_size: op.batch_size || undefined,
+      hour_rate: op.hour_rate || undefined,
+      quality_inspection_required: op.quality_inspection_required ? 1 : undefined,
+      is_subcontracted: op.is_subcontracted ? 1 : undefined,
+      skip_material_transfer: op.skip_material_transfer ? 1 : undefined,
+      backflush_from_wip_warehouse: op.backflush_from_wip_warehouse ? 1 : undefined,
+      source_warehouse: op.source_warehouse || undefined,
+      wip_warehouse: op.wip_warehouse || undefined,
+      fg_warehouse: op.fg_warehouse || undefined,
+      description: op.description || undefined,
+    };
+  });
 
   return {
     naming_series: "MFG-WO-.YYYY.-",

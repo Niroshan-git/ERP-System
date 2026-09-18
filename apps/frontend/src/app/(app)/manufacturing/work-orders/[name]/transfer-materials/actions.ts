@@ -1,10 +1,13 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { createDoc, ErpNextError, submitDoc } from "@/lib/erpnext";
+import { createDoc, ErpNextError, getDoc, submitDoc } from "@/lib/erpnext";
+import { canTransferMaterials } from "@/lib/erpStatus";
 import { getItemLineDefaults } from "@/lib/actions/itemLookup";
 import { getMaterialTransferPreview } from "@/lib/actions/workOrderTransfer";
+import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
 export type FormState = { error?: string } | undefined;
 
@@ -50,29 +53,77 @@ function parseTransferRows(formData: FormData): TransferRowInput[] {
     .filter((r) => r.qty > 0 && r.s_warehouse);
 }
 
+/** Work Order fields needed to re-run `canTransferMaterials` fresh at submission time — same
+ * shape `erpStatus.ts` requires, fetched fresh here rather than trusted from the page's earlier
+ * render (see `buildStockEntryFields`'s doc comment: the Work Order's eligibility can change
+ * between page load and form submit — e.g. someone else completes/stops it, or finishes
+ * transferring the last item — and only the page load previously re-checked it). */
+type EligibilityDoc = {
+  docstatus: number;
+  status: string;
+  skip_transfer?: 0 | 1;
+  transfer_material_against?: string;
+  track_semi_finished_goods?: 0 | 1;
+  required_items?: { required_qty: number; transferred_qty?: number }[];
+};
+
 /**
  * Builds Stock Entry fields for the bound `workOrderName` (the trustworthy route param each
- * action is `.bind(null, doc.name)`ed to — see page.tsx — unlike a hidden `<input>`, a bound
- * server-action argument is verified server-side and can't be edited via devtools). Re-fetches
- * `make_stock_entry` here rather than trusting the client's round-tripped copy of what the page
- * originally rendered: `company`/`bom_no`/`use_multi_level_bom`/`to_warehouse`/`fg_completed_qty`
- * all come from this fresh call, exactly mirroring `getMaterialTransferPreview`'s own doc
- * comment on why those fields are ERPNext-computed, not client-owned (code-review finding,
- * governance-closure pass — a tampered hidden field could otherwise post the transfer against
- * the wrong company/warehouse or with a stale `fg_completed_qty`).
+ * action is `.bind(null, doc.name)`ed to — see page.tsx). A bound Server Function argument is
+ * encrypted so the client can't edit which Work Order it targets, but Next.js's own guidance is
+ * explicit that Server Functions are directly POST-callable endpoints — bound arguments are not
+ * a substitute for checking who's calling and re-validating what's being acted on inside the
+ * function itself (CX-MFG-001, Codex re-review). Two things were still missing here even after
+ * `company`/`bom_no`/`to_warehouse`/`fg_completed_qty` were re-derived server-side:
+ *
+ * 1. No re-check that the caller actually holds a valid Ceylon Stack session. `middleware.ts`
+ *    gates page navigation, but this app's own established convention for a mutating Server
+ *    Function (see `lib/actions/comments.ts`'s `postCommentAction`) is to re-verify the session
+ *    cookie inside the action too — this file was the one place that pattern had been skipped.
+ * 2. No re-check that the Work Order is *still* eligible right now. `getMaterialTransferPreview`
+ *    re-derives master-data fields fresh, but never re-ran `canTransferMaterials` — a Work Order
+ *    that was eligible when the page rendered could have been completed/stopped, or had every
+ *    required item transferred by someone else, by the time this action runs.
+ *
+ * Both are closed below before any Stock Entry field is built. `company`/`bom_no`/
+ * `use_multi_level_bom`/`to_warehouse`/`fg_completed_qty` still come from a fresh
+ * `make_stock_entry` call rather than the client's round-tripped copy of what the page
+ * originally rendered, matching `getMaterialTransferPreview`'s own doc comment on why those
+ * fields are ERPNext-computed, not client-owned.
  *
  * Per-row `item_code`/`qty`/`s_warehouse` are the only real client input (the user's actual
- * selection). A row matching one of the fresh preview's pending items is capped at ERPNext's
- * own proposed qty ceiling and takes its `item_name`/`uom`/`stock_uom`/`conversion_factor`
- * straight from that preview row — never from the client. A row NOT in the pending list is
- * treated as an additional (non-BOM) material: its master-data fields are re-derived from the
- * Item doctype via `getItemLineDefaults` (same batch/serial guard `MaterialTransferForm.tsx`
- * already applies client-side, re-checked here since a client can't be trusted to have run it).
+ * selection). A row matching one of the fresh preview's pending items is capped against a
+ * *running* remaining-quantity ledger per `item_code` (not an independent per-row cap) so that
+ * duplicate/split rows for the same item can never sum past ERPNext's own proposed ceiling for
+ * that item (CX-MFG-001's second half — a crafted request repeating the same `item_code` across
+ * several rows used to have each row capped independently against the *same* full ceiling,
+ * letting the total exceed it). A row matching a pending item takes its
+ * `item_name`/`uom`/`stock_uom`/`conversion_factor` straight from that preview row — never from
+ * the client. A row NOT in the pending list is treated as an additional (non-BOM) material: its
+ * master-data fields are re-derived from the Item doctype via `getItemLineDefaults` (same
+ * batch/serial guard `MaterialTransferForm.tsx` already applies client-side, re-checked here
+ * since a client can't be trusted to have run it).
  */
 async function buildStockEntryFields(
   workOrderName: string,
   formData: FormData,
 ): Promise<{ error: string } | { fields: Record<string, unknown> }> {
+  const cookieStore = await cookies();
+  const session = await verifySession(cookieStore.get(SESSION_COOKIE)?.value);
+  if (!session) return { error: "Your session expired — reload the page and sign in again." };
+
+  let workOrder: EligibilityDoc;
+  try {
+    workOrder = await getDoc<EligibilityDoc>("Work Order", workOrderName);
+  } catch (e) {
+    if (e instanceof ErpNextError && e.status === 404) return { error: "Work Order not found." };
+    return { error: "Could not verify the Work Order before transferring material." };
+  }
+  const eligibility = canTransferMaterials(workOrder);
+  if (!eligibility.allowed) {
+    return { error: eligibility.reason ?? "This Work Order can no longer accept a material transfer." };
+  }
+
   const previewResult = await getMaterialTransferPreview(workOrderName);
   if (!previewResult.preview) {
     return { error: previewResult.error };
@@ -94,13 +145,20 @@ async function buildStockEntryFields(
   if (rows.length === 0) return { error: "Add at least one material with a quantity and source warehouse." };
 
   const pendingByItem = new Map(preview.items.map((r) => [r.item_code, r]));
+  // Running ceiling per item_code — decremented as rows consume it, so N rows (or a crafted
+  // duplicate) sharing the same item_code can collectively transfer at most the pending qty
+  // ERPNext itself proposed, never N times it. Legitimate multi-warehouse splits of one item
+  // across two source warehouses still work exactly as before; only the *sum* is capped.
+  const remainingByItem = new Map(preview.items.map((r) => [r.item_code, r.qty]));
   const items: Record<string, unknown>[] = [];
 
   for (const row of rows) {
     const pending = pendingByItem.get(row.item_code);
     if (pending) {
-      const qty = Math.min(row.qty, pending.qty);
+      const remaining = remainingByItem.get(row.item_code) ?? 0;
+      const qty = Math.min(row.qty, remaining);
       if (qty <= 0) continue;
+      remainingByItem.set(row.item_code, remaining - qty);
       items.push({
         item_code: pending.item_code,
         item_name: pending.item_name,

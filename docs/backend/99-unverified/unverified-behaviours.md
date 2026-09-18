@@ -67,20 +67,31 @@ not fixed, since it was judged cosmetic.
 **How to verify:** Not urgent; revisit if headroom (`MFG-UNV-003`) is ever raised above 0%, which
 would change how "already satisfied" is judged client-side too.
 
-### MFG-UNV-007 — Work Order Operation `time_in_mins` qty-scaling convention on create
-**Status:** `NEEDS_VERIFICATION` (Codex governance-closure finding `CX-MFG-002`, fixed 2026-09-17)
-**What's uncertain:** `work-orders/actions.ts`'s `createWorkOrderAction` now sends an `operations`
-array on Work Order create (previously omitted — ERPNext's own `validate()` populates
+### MFG-UNV-007 — Work Order Operation field-copy convention on create
+**Status:** `NEEDS_VERIFICATION` (Codex governance-closure finding `CX-MFG-002`; first fix
+2026-09-17 returned `CHANGES REQUIRED` on re-review; re-fixed 2026-09-18 — see
+`docs/backend/05-manufacturing/work-order.md`'s Work Order Operation table and `MFG-VAL-006`)
+**What's uncertain:** `work-orders/actions.ts`'s `createWorkOrderAction` sends an `operations`
+array on Work Order create (previously omitted entirely — ERPNext's own `validate()` populates
 `required_items` from `bom_no`+`qty` on a plain REST insert but leaves `operations` empty,
-live-confirmed). Each `time_in_mins` is scaled by `qty / bom.quantity` — the same ratio this
-package already uses for `required_items`' quantities — but this specific scaling convention for
-*operation time* has not been independently confirmed against Desk's own client-side BOM→Work
-Order copy behavior (no SSH/`bench console` access in the session that made this fix). It is a
-reasoned choice (BOM operation time is defined against the BOM's own reference `quantity`), not a
-verified one.
-**How to verify:** Create a real Work Order from Desk itself (not this app) against a BOM with
-operations, at a qty different from the BOM's reference quantity, and compare the resulting Work
-Order Operation `time_in_mins` values to what this app's scaling produces for the same inputs.
+live-confirmed). As of 2026-09-18 this copies every `BOM Operation` field that also exists on
+`Work Order Operation` and isn't a Work-Order-lifecycle field ERPNext computes itself
+(`operation`, `workstation`, `workstation_type`, `sequence_id`, `time_in_mins`, `batch_size`,
+`hour_rate`, `quality_inspection_required`, `is_subcontracted`, `skip_material_transfer`,
+`backflush_from_wip_warehouse`, `source_warehouse`/`wip_warehouse`/`fg_warehouse`,
+`description`), with `time_in_mins` scaled by `qty / bom.quantity` unless the source operation's
+`fixed_time` is set. Field *existence* on both doctypes was live-confirmed via `get_doctype_fields`
+(2026-09-18), but two things remain genuinely unconfirmed: (1) whether ERPNext's own native
+BOM→Work Order copy (Desk's client-side form script) sends this exact field set and applies the
+same `fixed_time` scaling rule — reasoned from the field's schema/label, not read from
+`work_order.js`/`bom.js` source (no SSH/`bench console` access this session); (2) whether
+`validate()` itself overrides any of the supplied fields (particularly `hour_rate`/`batch_size`)
+from the Workstation or Operation master regardless of what this app sends.
+**How to verify:** Create a real Work Order from Desk itself (not this app) against a BOM that has
+at least one `fixed_time` operation and at least one scaled operation, at a qty different from the
+BOM's reference quantity, and compare the resulting Work Order Operation field values — especially
+`time_in_mins`, `hour_rate`, and `batch_size` — to what this app's copy produces for the same
+inputs. No BOM with a `fixed_time` operation currently exists on this instance.
 
 ### MFG-UNV-008 — Duplicate `item_code` rows in `required_items` / Material Transfer preview
 **Status:** `NEEDS_VERIFICATION` (Codex governance-closure finding `CX-MFG-006`, partially

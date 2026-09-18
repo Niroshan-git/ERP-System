@@ -29,7 +29,35 @@ export async function listBomsForItem(itemCode: string): Promise<BomOption[]> {
 }
 
 export type BomItemRow = { item_code: string; item_name: string; qty: number; uom: string; rate: number };
-export type BomOperationRow = { operation: string; workstation?: string; time_in_mins?: number; hour_rate?: number };
+/**
+ * Fields live-confirmed against the installed ERPNext's `BOM Operation` doctype schema
+ * (`get_doctype_fields`, 2026-09-18, CX-MFG-002 remediation) that also exist on `Work Order
+ * Operation` and are meaningful to carry forward at Work Order creation time — see
+ * `work-orders/actions.ts`'s `buildWorkOrderFields` for exactly which are copied and why.
+ * Deliberately excludes `finished_good`/`finished_good_qty`/`bom_no` (per-operation semi-finished
+ * goods routing — this app doesn't build multi-level/semi-finished Work Orders yet, same
+ * boundary already accepted for `required_items`' own no-BOM-explosion rule) and BOM-side
+ * computed-cost fields (`cost_per_unit`, `operating_cost`, `base_*`) which are BOM's own costing
+ * snapshot, not Work Order Operation inputs.
+ */
+export type BomOperationRow = {
+  operation: string;
+  workstation?: string;
+  workstation_type?: string;
+  sequence_id?: number;
+  time_in_mins?: number;
+  fixed_time?: 0 | 1;
+  batch_size?: number;
+  hour_rate?: number;
+  quality_inspection_required?: 0 | 1;
+  is_subcontracted?: 0 | 1;
+  skip_material_transfer?: 0 | 1;
+  backflush_from_wip_warehouse?: 0 | 1;
+  source_warehouse?: string;
+  wip_warehouse?: string;
+  fg_warehouse?: string;
+  description?: string;
+};
 export type BomDetail = { name: string; quantity: number; items: BomItemRow[]; operations: BomOperationRow[] } | null;
 
 /**
