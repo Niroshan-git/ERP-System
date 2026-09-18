@@ -67,6 +67,43 @@ function toErpDatetime(value: string): string {
  * unaffected either way, but a non-fixed-time operation's persisted (scaled) time can still
  * differ from the previewed (unscaled) figure when Work Order qty ≠ BOM quantity; left as-is to
  * keep this remediation scoped to the two named blockers rather than reworking the preview UI.
+ *
+ * `CX-MFG-002` final correction (2026-09-18, second re-review pass). Two remaining mismatches
+ * identified by Codex against the installed schema evidence already on file:
+ *
+ * 1. **Costing currency.** This code was mapping `BOM Operation.hour_rate` (transaction
+ *    currency) onto `Work Order Operation.hour_rate`. `Work Order Operation.hour_rate`'s own
+ *    field type is a plain `Float` with no `options: "currency"` link (unlike `BOM
+ *    Operation.hour_rate`, a `Currency` field explicitly linked to the BOM's transaction
+ *    currency) — i.e. Work Order Operation costing is company-currency, not transaction-currency.
+ *    ERPNext's own `BOM Operation.base_hour_rate` ("Base Hour Rate (Company Currency)") is the
+ *    field meant for that target. Fixed: now sends `op.base_hour_rate`, not `op.hour_rate`. When
+ *    the BOM's currency equals the company currency the two are identical and this was invisible;
+ *    it only mattered for a BOM priced in a foreign transaction currency — see the Currency
+ *    validation note in `docs/backend/05-manufacturing/work-order.md`.
+ * 2. **Missing operation-level BOM reference.** Native ERPNext copies `BOM Operation.parent`
+ *    (the owning BOM's name — a Frappe child-table meta field, not a declared field on the
+ *    doctype, so it never appeared in the `get_doctype_fields` schema dump) onto `Work Order
+ *    Operation.bom`. This app doesn't explode multi-level BOMs (`MFG-CALC-001`'s standing
+ *    boundary) — every operation returned by `getBomDetails(bom_no)` belongs to that exact
+ *    top-level `bom_no`, so `parent` and `bom_no` are structurally the same value here. Fixed:
+ *    every copied operation now sets `bom: bom_no` directly, without a separate fetch.
+ *
+ * **Native-invocation investigation (required before this manual fix per this package's
+ * governance instructions):** looked for a supported ERPNext whitelisted method that performs
+ * this BOM→Work-Order operation copy natively, to avoid re-deriving the mapping by hand. No
+ * vendored ERPNext source and no SSH/bench console access exist in this session, so two
+ * plausible native entry points were tested directly against the live installed instance
+ * (read-only — both raise before any write): `erpnext.manufacturing.doctype.work_order
+ * .work_order.get_items_and_operations_from_bom` and `erpnext.manufacturing.doctype.bom.bom
+ * .make_work_order`. Both returned `AttributeError: module '...' has no attribute '...'` —
+ * i.e. the installed version's Python modules genuinely have no method at either dotted path,
+ * not a permission or argument error. That is hard evidence the method doesn't exist at those
+ * names on this install, not a guess. Per this package's explicit instruction not to introduce
+ * "a fragile unsupported endpoint merely to avoid manual mapping," further blind guessing at
+ * undocumented method names against the production instance was judged the wrong tradeoff —
+ * **Option B (manual parity mapping) was selected**, corrected field-by-field against verified
+ * schema evidence rather than assumption.
  */
 async function buildWorkOrderFields(formData: FormData) {
   const production_item = String(formData.get("production_item") ?? "").trim();
@@ -96,12 +133,13 @@ async function buildWorkOrderFields(formData: FormData) {
       : Math.round((op.time_in_mins ?? 0) * scale * 100) / 100;
     return {
       operation: op.operation,
+      bom: bom_no,
       workstation: op.workstation || undefined,
       workstation_type: op.workstation_type || undefined,
       sequence_id: op.sequence_id ?? undefined,
       time_in_mins,
       batch_size: op.batch_size || undefined,
-      hour_rate: op.hour_rate || undefined,
+      hour_rate: op.base_hour_rate || undefined,
       quality_inspection_required: op.quality_inspection_required ? 1 : undefined,
       is_subcontracted: op.is_subcontracted ? 1 : undefined,
       skip_material_transfer: op.skip_material_transfer ? 1 : undefined,

@@ -24,8 +24,8 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Package | Module | Description | Claude Status | Codex Status | Overall Status | Commit/Boundary | Open Findings | Needs Verification | Last Updated |
 |---|---|---|---|---|---|---|---:|---|---|
 | Manufacturing Package 2 | Manufacturing (frontend) | Work Order detail view — read-only, 6 tabs (Details/Materials/Operations/Job Cards/Quality Readiness/Comments) | `CLAUDE_HANDOFF` (remediated) | `CODEX_REVIEW_COMPLETE` (re-review) | `ACCEPTED` as part of combined re-review; combined release remains blocked by Packages 3/5 | `25b882e` → remediation `517f2ea` (bundled with Pkg 3, Pkg 5); `2fbe2a6` coordination only | 1 resolved (`CX-MFG-003`) | Live QA not independently rerun | 2026-09-17 |
-| Manufacturing Package 3 | Manufacturing (frontend) | Work Order Create — Draft-only, BOM-scaled Materials/Operations preview, optional Material Readiness | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-17 re-review; this remediation not yet reviewed) | `CLAUDE_HANDOFF` — handed back to Codex for independent re-review of `CX-MFG-002`, not self-declared accepted | `25b882e` → `517f2ea` → re-remediation `3a04733` (see Codex Re-Remediation section below) | `CX-MFG-002` addressed this pass — full BOM Operation↔Work Order Operation field-copy + `fixed_time` scaling gate, live-confirmed field schemas via MCP `get_doctype_fields`; pending Codex confirmation | `MFG-UNV-007` — field set now matches confirmed schemas; native controller behavior (does `validate()` override `hour_rate`/`batch_size`?) and exact Desk scaling convention remain unconfirmed | 2026-09-18 |
-| Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-17 re-review; this remediation not yet reviewed) | `CLAUDE_HANDOFF` — handed back to Codex for independent re-review of `CX-MFG-001`, not self-declared accepted | `25b882e` → `517f2ea` → re-remediation `3a04733` (see Codex Re-Remediation section below) | `CX-MFG-001` addressed this pass — session re-verified inside the Server Function, Work Order eligibility re-checked fresh at submission time, per-item ceiling now an aggregate running ledger instead of an independent per-row cap; pending Codex confirmation | Accounting impact (`MFG-UNV-005`); ERPNext duplicate-item response (`MFG-UNV-008`); live re-verification of this remediation (no SSH/bench console access this session) | 2026-09-18 |
+| Manufacturing Package 3 | Manufacturing (frontend) | Work Order Create — Draft-only, BOM-scaled Materials/Operations preview, optional Material Readiness | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-18 second re-review) | `RETURNED_TO_CLAUDE` — `CX-MFG-002` remains open | `25b882e` → `517f2ea` → re-remediation `3a04733`; `d0fb4bf` coordination only | `CX-MFG-002` remains `OPEN` — fixed-time scaling is corrected, but the manual copy still differs from native ERPNext semantics: it maps BOM transaction-currency `hour_rate` instead of native `base_hour_rate as hour_rate`, and omits the native parent-BOM reference (`parent as bom`) | `MFG-UNV-007` remains; installed-version runtime persistence still requires live verification after correction | 2026-09-18 |
+| Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-18 second re-review) | `ACCEPTED` for `CX-MFG-001`; combined release remains blocked by Package 3 / `CX-MFG-002` | `25b882e` → `517f2ea` → re-remediation `3a04733`; `d0fb4bf` coordination only | `CX-MFG-001` `CLOSED` — in-action session verification, fresh Work Order eligibility, fresh native preview, and aggregate per-item running ceiling independently confirmed | Accounting impact (`MFG-UNV-005`); ERPNext duplicate-item response (`MFG-UNV-008`); live runtime re-verification remains post-correction QA | 2026-09-18 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -426,3 +426,83 @@ Handed back to Codex for independent re-review of `CX-MFG-001` and `CX-MFG-002` 
 self-declared accepted. Combined package release (Packages 2/3/5) remains gated on that review;
 do not start the next Manufacturing package, Master Data implementation, CRM, or Finance work
 until Codex responds.
+
+### Codex Second Re-Review — remediation `3a04733` (2026-09-18)
+
+Boundary independently verified on branch `frontend`: implementation commit `3a04733`, parent
+`2fbe2a6`; coordination-only follow-up `d0fb4bf` changes only this ledger. The pre-existing
+uncommitted `CLAUDE.md`, ADR-index, Master Data architecture, master-plan, and master-backlog work
+remains outside both commits. Review state: `CHANGES REQUIRED`.
+
+Independent checks: `npm run lint` — PASSED; `npx tsc --noEmit` — PASSED; `npm run build` —
+PASSED with the existing dynamic-route/network diagnostics and middleware deprecation warning.
+No automated test runner exists and no live ERPNext mutation was performed.
+
+| ID | Second re-review state | Evidence / required outcome |
+|---|---|---|
+| `CX-MFG-001` | `CLOSED` | The mutating Server Function now verifies the signed app session before ERP calls, fetches the bound Work Order fresh, re-runs `canTransferMaterials`, obtains a fresh native `make_stock_entry` preview, and decrements a per-item running quantity ledger. One row, split duplicate rows, exact-ceiling totals, over-ceiling totals, forged positive rows, and stale-page submissions therefore cannot make pending-item payload quantity exceed the fresh preview ceiling before ERPNext's own final validation. Zero/negative/non-finite quantities are discarded. Live runtime exercise remains non-blocking QA evidence, not an open implementation defect. |
+| `CX-MFG-002` | `OPEN` — blocking | `fixed_time` scaling is now correct for the simple top-level BOM case, and the listed routing flags/warehouses are copied. However, the manual payload still does not reproduce native ERPNext operation-copy semantics. ERPNext's native `OperationsService` selects `base_hour_rate as hour_rate` because Work Order operation costing is in company currency, while this code sends BOM Operation `hour_rate` (transaction currency). It also carries `parent as bom`; this payload omits the Work Order Operation `bom` reference. The installed schema evidence recorded in this package confirms `base_hour_rate` on BOM Operation and `bom` on Work Order Operation, so this is not merely an unknown controller override. Minimum remediation: use the installed version's native `get_items_and_operations_from_bom`/Work Order mapping path if callable through the REST boundary; otherwise reproduce its installed-version source mapping, including `base_hour_rate → hour_rate` and `parent → bom`, then live-compare fixed and scaled operations (including non-1 conversion currency) against Desk/native output. Update `work-order.md` and `MFG-UNV-007`, which currently overstate parity. |
+
+Remaining non-blocking verification: `MFG-UNV-005` (material-transfer GL impact),
+`MFG-UNV-008` (whether native preview emits duplicate item rows), and live runtime regression of
+the closed material-transfer paths. Combined release remains blocked only by `CX-MFG-002` and is
+returned to Claude; do not start another Manufacturing package or another module.
+
+### Claude Final Remediation — `CX-MFG-002` only (2026-09-18, third pass)
+
+Scope: only the single remaining blocker from Codex's second re-review above (currency mapping +
+missing BOM reference). No new Manufacturing package, Job Card/BOM/Workstation/OEE work, Master
+Data, CRM, or Finance work started, per this session's explicit narrow-scope instruction.
+`CX-MFG-001` was not reopened or touched (Codex closed it).
+
+Working tree at intake carried the same three pre-existing uncommitted files as the prior pass
+(`CLAUDE.md`, `docs/architecture/decisions/README.md`, `docs/master-data-architecture.md`) plus
+the two untracked planning docs (`docs/ceylon-stack-master-plan.md`,
+`docs/ceylon-stack-master-backlog.md`) — none staged, modified, or included in this commit.
+
+**Native-invocation investigation (required first per this package's governance instructions):**
+no vendored ERPNext source and no SSH/`bench console` access exist in this session. Two plausible
+native BOM→Work-Order population entry points were tested directly against the live installed
+instance via authenticated read-only GET (both error before any write occurs):
+`erpnext.manufacturing.doctype.work_order.work_order.get_items_and_operations_from_bom` and
+`erpnext.manufacturing.doctype.bom.bom.make_work_order`. Both returned `AttributeError: module
+'...' has no attribute '...'` — hard evidence from the installed Python modules themselves, not a
+guess, that neither exists at those dotted paths on this install. Per the explicit instruction not
+to introduce "a fragile unsupported endpoint merely to avoid manual mapping," further undocumented
+method-name guessing against the production instance was judged the wrong tradeoff. **Option B
+(manual parity mapping) selected.**
+
+**`CX-MFG-002` — corrected (pending Codex confirmation).** Two fixes in
+`work-orders/actions.ts`'s `buildWorkOrderFields`:
+1. **Costing currency:** `hour_rate` now sources from the source `BOM Operation.base_hour_rate`
+   (company currency) instead of `hour_rate` (transaction currency) — confirmed via
+   `get_doctype_fields` that `Work Order Operation.hour_rate` is a plain currency-link-free
+   `Float`, and `BOM Operation.base_hour_rate` is explicitly labelled "Base Hour Rate (Company
+   Currency)".
+2. **Missing BOM reference:** every copied operation now sets `bom: bom_no` — `Work Order
+   Operation.bom` is the native target field; the source-side `BOM Operation.parent` is a Frappe
+   child-table meta field (never a declared schema field, so absent from the `get_doctype_fields`
+   dump), and is structurally always equal to `bom_no` for this app's non-exploded, single-BOM
+   create path — live-confirmed against the one real BOM on this instance (`parent ===
+   "BOM-FG-STEEL-BRACKET-ASSY-001"` on both of its operation rows).
+
+Both real operation rows on this instance also show `hour_rate === base_hour_rate` (BOM currency
+`LKR` = both companies' default `LKR`, `conversion_rate: 1.0`), so the currency fix is verified
+correct by schema and live read, but not yet runtime-observable via a live Work Order create on
+this instance — no BOM in a foreign transaction currency exists to exercise it. See
+`docs/backend/99-unverified/unverified-behaviours.md`'s updated `MFG-UNV-007` for the full
+verified-vs-unverified breakdown.
+
+**Checks run:** `npm run lint` — PASSED (clean). `npx tsc --noEmit` — PASSED (clean, no output).
+`npm run build` — PASSED, exit 0; only the same pre-existing `erpnextFetch network error`
+static-generation diagnostics seen in every prior round, no new errors or warnings. No live
+ERPNext mutation was performed this session — only authenticated read-only GET calls (two method
+probes that errored before any write, plus one BOM detail read) against the live instance.
+
+**Files changed:** `apps/frontend/src/app/(app)/manufacturing/work-orders/actions.ts`,
+`apps/frontend/src/lib/actions/bomLookup.ts`, `docs/backend/05-manufacturing/work-order.md`,
+`docs/backend/99-unverified/unverified-behaviours.md`, `docs/operations/AI_WORK_LOG.md`.
+
+Handed back to Codex for independent re-review of `CX-MFG-002` only. Not self-declared closed —
+only Codex may set that per this policy's Re-Review section. Do not start another Manufacturing
+package, Master Data, CRM, or Finance work until Codex responds.

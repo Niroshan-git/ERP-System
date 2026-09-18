@@ -6,9 +6,11 @@
 (detail, read-only), `/manufacturing/work-orders/new` (create)
 **Verification:** `Documentation: VERIFIED` · `Source Code: PARTIALLY_VERIFIED` (fields
 confirmed live; controller logic confirmed only for the paths exercised below) · `Runtime Test:
-VERIFIED` for `MFG-TEST-001`–`005` (see Test Scenarios) · `Runtime Test: NOT RUN` for the
-2026-09-18 Work Order Operation field-copy fix (`MFG-VAL-006`, `MFG-UNV-007`) — lint/type-
-check/build only, see the Regression coverage note under Test scenarios
+VERIFIED` for `MFG-TEST-001`–`005` (see Test Scenarios) · `Runtime Test: PARTIAL` for the
+2026-09-18 Work Order Operation field-copy correction (`MFG-VAL-006`, `MFG-UNV-007`) —
+schema/reference fields (`bom`, `base_hour_rate`) read-only-verified live against the one real BOM
+on this instance; lint/type-check/build clean; no live Work Order create was performed this
+session (see the Regression coverage note under Test scenarios)
 
 ## Field mapping
 
@@ -64,6 +66,7 @@ plus the lifecycle fields ERPNext itself sets that this app never sends.
 | Frontend field | Canonical field | Frappe field | Set by this app on create? | Notes |
 |---|---|---|---|---|
 | Operation | `operation` | `operation` | Yes | |
+| BOM reference | `bom` | `bom` | Yes (2026-09-18, final correction) | Set to the create payload's `bom_no` directly — this app never explodes multi-level BOMs, so every copied operation's owning BOM (`BOM Operation.parent`, a Frappe child-table meta field, not a declared schema field) is always that same top-level `bom_no`. Live-confirmed: both real operation rows on this instance have `parent === bom_no`. Previously omitted entirely — `CX-MFG-002` second re-review |
 | Workstation | `workstation` | `workstation` | Yes | |
 | Workstation Type | `workstation_type` | `workstation_type` | Yes (2026-09-18) | Previously dropped — `CX-MFG-002` |
 | Sequence | `sequence_id` | `sequence_id` | Yes (2026-09-18) | Previously claimed carried-through by this doc's own comment but never actually mapped — `CX-MFG-002` |
@@ -71,7 +74,7 @@ plus the lifecycle fields ERPNext itself sets that this app never sends.
 | Time (mins) | `time_in_mins` | `time_in_mins` | Yes | Scaled `qty / bom.quantity` **unless** the source `BOM Operation.fixed_time` is set, in which case sent unscaled (2026-09-18 fix — see `MFG-VAL-006` below) |
 | Completed Qty | `completed_qty` | `completed_qty` | No | ERPNext's own controller sets this |
 | Batch Size | `batch_size` | `batch_size` | Yes (2026-09-18) | Previously dropped — `CX-MFG-002` |
-| Hour Rate | `hour_rate` | `hour_rate` | Yes (2026-09-18) | Previously dropped — `CX-MFG-002`; see `MFG-UNV-007` for whether ERPNext's own `validate()` overrides it from the Workstation regardless |
+| Hour Rate | `hour_rate` | `hour_rate` | Yes (2026-09-18, final correction) | Source is `BOM Operation.base_hour_rate` (company currency), **not** `BOM Operation.hour_rate` (transaction currency) — `Work Order Operation.hour_rate` is schema-confirmed as a currency-link-free `Float`, meaning company currency is the correct target. First 2026-09-18 pass wrongly copied `hour_rate`; corrected same day on Codex's second re-review (`CX-MFG-002`). On this instance the BOM's currency (`LKR`) equals the company's default (`LKR`, `conversion_rate: 1.0`), so `hour_rate === base_hour_rate` here and the distinction is not yet runtime-observable; see `MFG-UNV-007` for the foreign-currency scenario, still `NEEDS_VERIFICATION` |
 | Quality Inspection Required | `quality_inspection_required` | `quality_inspection_required` | Yes (2026-09-18) | Previously dropped — feeds the Quality Readiness tab's `jobCardsWithTemplate` population once Job Cards are generated from this operation |
 | Is Subcontracted | `is_subcontracted` | `is_subcontracted` | Yes (2026-09-18) | Previously dropped |
 | Skip Material Transfer | `skip_material_transfer` | `skip_material_transfer` | Yes (2026-09-18) | Previously dropped |
@@ -91,9 +94,13 @@ sending `operations`, copied from the BOM's own `operations` (re-fetched server-
 `getBomDetails`, not a client-submitted copy). **Codex's re-review of that first pass** found it
 incomplete — only `operation`/`workstation`/scaled `time_in_mins` were sent, and every
 operation's time was scaled unconditionally, including `fixed_time` operations that shouldn't
-scale at all. **Re-fixed 2026-09-18**: the full field set in the table above is now copied,
-field-by-field against the two doctypes' live schemas rather than assumed — see `MFG-VAL-006`
-and `MFG-UNV-007`.
+scale at all. **Re-fixed 2026-09-18 (second pass):** the field set was expanded to match the two
+doctypes' live schemas, but **Codex's second re-review** found the expanded mapping still wrong
+on two points: it copied `BOM Operation.hour_rate` (transaction currency) instead of
+`base_hour_rate` (company currency), and it omitted the operation-level BOM reference
+(`BOM Operation.parent → Work Order Operation.bom`). **Final correction 2026-09-18 (third pass):**
+`hour_rate` now sources from `base_hour_rate`, and every operation now sets `bom: bom_no` — see
+`MFG-VAL-006` and `MFG-UNV-007` for the full reasoning and what remains unverified.
 
 - **`MFG-VAL-006`** — `fixed_time` scaling exemption. `REQUIRED_CEYLON_BEHAVIOR` (reasoned from
   the field's own schema and label, not independently confirmed against ERPNext's native
@@ -200,14 +207,20 @@ no orphan document created.
 **`MFG-TEST-005`** (Package 4 investigation) — Submitted-stage `required_qty` edit via plain doc
 update → `UpdateAfterSubmitError`, confirms `MFG-VAL-002`.
 
-**Regression coverage note (2026-09-18, `CX-MFG-002` re-remediation):** this repository has no
-automated test runner configured (`apps/frontend/package.json` has no `test` script and no test
-files exist anywhere in the app) — verification for every prior Manufacturing package has been
-`npm run lint` / `npx tsc --noEmit` / `npm run build` plus a live QA pass against the Hetzner
-instance (see `QA_LOG.md`), not unit/integration tests. This fix follows the same pattern: lint,
-type-check, and build all pass clean (see this package's `CLAUDE PACKAGE HANDOFF`). Introducing a
-test framework was judged out of scope for a two-blocker remediation package — flagged here as a
-decision point rather than silently skipped. Live QA re-run against a real BOM with a
-`fixed_time` operation (none currently exist on this instance) is the concrete way to close
-`MFG-UNV-007`'s remaining uncertainty; this session had no SSH/`bench console` access to create
-one.
+**Regression coverage note (2026-09-18, `CX-MFG-002` remediation, all three passes):** this
+repository has no automated test runner configured (`apps/frontend/package.json` has no `test`
+script and no test files exist anywhere in the app) — verification for every prior Manufacturing
+package has been `npm run lint` / `npx tsc --noEmit` / `npm run build` plus a live QA pass against
+the Hetzner instance (see `QA_LOG.md`), not unit/integration tests. This fix follows the same
+pattern: lint, type-check, and build all pass clean (see this package's `CLAUDE PACKAGE HANDOFF`).
+The final (third) pass additionally used two read-only, non-mutating live checks against the real
+instance: (1) two candidate native BOM→Work-Order population methods were called directly and
+both confirmed genuinely absent (`AttributeError`) on the installed ERPNext modules, ruling out
+Option A with evidence rather than assumption; (2) the one real BOM's operation rows were read
+directly, confirming `parent === bom_no` (validating the `bom` mapping) and `hour_rate ===
+base_hour_rate` on this same-currency instance (meaning the costing fix is not yet
+runtime-observable here — no live Work Order create was performed this session to avoid creating
+another test document without QA sign-off). Introducing a test framework remains out of scope.
+Live QA re-run creating an actual Work Order against a real BOM with a `fixed_time` operation and,
+separately, against a BOM priced in a non-company transaction currency (neither currently exists
+on this instance) is the concrete way to close `MFG-UNV-007`'s remaining uncertainty.

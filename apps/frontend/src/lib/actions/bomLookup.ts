@@ -37,8 +37,10 @@ export type BomItemRow = { item_code: string; item_name: string; qty: number; uo
  * Deliberately excludes `finished_good`/`finished_good_qty`/`bom_no` (per-operation semi-finished
  * goods routing — this app doesn't build multi-level/semi-finished Work Orders yet, same
  * boundary already accepted for `required_items`' own no-BOM-explosion rule) and BOM-side
- * computed-cost fields (`cost_per_unit`, `operating_cost`, `base_*`) which are BOM's own costing
- * snapshot, not Work Order Operation inputs.
+ * computed-cost fields (`cost_per_unit`, `base_cost_per_unit`, `operating_cost`,
+ * `base_operating_cost`, `set_cost_based_on_bom_qty`, `is_final_finished_good`) which are BOM's
+ * own costing snapshot/flags with no matching `Work Order Operation` field at all — confirmed via
+ * `get_doctype_fields` against both doctypes, not assumed.
  */
 export type BomOperationRow = {
   operation: string;
@@ -48,7 +50,18 @@ export type BomOperationRow = {
   time_in_mins?: number;
   fixed_time?: 0 | 1;
   batch_size?: number;
+  /** Transaction-currency rate (BOM's own `hour_rate`) — NOT copied to Work Order Operation.
+   * Kept only in case a future BOM-currency preview needs it; see `base_hour_rate` below for
+   * the field this app actually maps forward (`CX-MFG-002` final correction, 2026-09-18). */
   hour_rate?: number;
+  /** Company-currency rate. Native ERPNext maps `BOM Operation.base_hour_rate` (not the
+   * transaction-currency `hour_rate`) onto `Work Order Operation.hour_rate`, confirmed by
+   * `Work Order Operation.hour_rate`'s own schema being a plain `Float` with no `options:
+   * "currency"` link (`get_doctype_fields`, 2026-09-18) — i.e. it is not currency-symbol-aware
+   * and is meant to already be in company currency. When the BOM's transaction currency equals
+   * the company currency, `hour_rate === base_hour_rate` and this made no visible difference;
+   * the bug only surfaces when they differ. See `work-orders/actions.ts`. */
+  base_hour_rate?: number;
   quality_inspection_required?: 0 | 1;
   is_subcontracted?: 0 | 1;
   skip_material_transfer?: 0 | 1;

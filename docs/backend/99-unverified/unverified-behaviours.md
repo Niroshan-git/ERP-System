@@ -69,29 +69,63 @@ would change how "already satisfied" is judged client-side too.
 
 ### MFG-UNV-007 — Work Order Operation field-copy convention on create
 **Status:** `NEEDS_VERIFICATION` (Codex governance-closure finding `CX-MFG-002`; first fix
-2026-09-17 returned `CHANGES REQUIRED` on re-review; re-fixed 2026-09-18 — see
+2026-09-17 returned `CHANGES REQUIRED`; re-fix 2026-09-18 returned `CHANGES REQUIRED` again on the
+costing/BOM-reference mapping specifically; final correction 2026-09-18 — see
 `docs/backend/05-manufacturing/work-order.md`'s Work Order Operation table and `MFG-VAL-006`)
-**What's uncertain:** `work-orders/actions.ts`'s `createWorkOrderAction` sends an `operations`
-array on Work Order create (previously omitted entirely — ERPNext's own `validate()` populates
-`required_items` from `bom_no`+`qty` on a plain REST insert but leaves `operations` empty,
-live-confirmed). As of 2026-09-18 this copies every `BOM Operation` field that also exists on
-`Work Order Operation` and isn't a Work-Order-lifecycle field ERPNext computes itself
-(`operation`, `workstation`, `workstation_type`, `sequence_id`, `time_in_mins`, `batch_size`,
-`hour_rate`, `quality_inspection_required`, `is_subcontracted`, `skip_material_transfer`,
-`backflush_from_wip_warehouse`, `source_warehouse`/`wip_warehouse`/`fg_warehouse`,
-`description`), with `time_in_mins` scaled by `qty / bom.quantity` unless the source operation's
-`fixed_time` is set. Field *existence* on both doctypes was live-confirmed via `get_doctype_fields`
-(2026-09-18), but two things remain genuinely unconfirmed: (1) whether ERPNext's own native
-BOM→Work Order copy (Desk's client-side form script) sends this exact field set and applies the
-same `fixed_time` scaling rule — reasoned from the field's schema/label, not read from
-`work_order.js`/`bom.js` source (no SSH/`bench console` access this session); (2) whether
-`validate()` itself overrides any of the supplied fields (particularly `hour_rate`/`batch_size`)
-from the Workstation or Operation master regardless of what this app sends.
-**How to verify:** Create a real Work Order from Desk itself (not this app) against a BOM that has
-at least one `fixed_time` operation and at least one scaled operation, at a qty different from the
-BOM's reference quantity, and compare the resulting Work Order Operation field values — especially
-`time_in_mins`, `hour_rate`, and `batch_size` — to what this app's copy produces for the same
-inputs. No BOM with a `fixed_time` operation currently exists on this instance.
+
+**Source/schema-verified (via `get_doctype_fields` against the installed instance, 2026-09-18):**
+- `BOM Operation` has both `hour_rate` (Currency, linked to the BOM's transaction currency) and
+  `base_hour_rate` (Currency, explicitly labelled "Base Hour Rate (Company Currency)").
+- `Work Order Operation.hour_rate` is a plain `Float` with no currency-link `options` at all —
+  i.e. it is not transaction-currency-aware, consistent with it being meant to hold the
+  company-currency value.
+- `Work Order Operation` has its own `bom` field (Link → BOM) with no equivalent field on `BOM
+  Operation` — `BOM Operation`'s own owning-BOM reference is the Frappe child-table meta field
+  `parent`, not a declared schema field (so it never appeared in the `get_doctype_fields` dump).
+- Two candidate native population entry points were tested directly against the live instance
+  (read-only GET, both errored before any write) and confirmed **not to exist** on this install:
+  `erpnext.manufacturing.doctype.work_order.work_order.get_items_and_operations_from_bom` and
+  `erpnext.manufacturing.doctype.bom.bom.make_work_order` both returned
+  `AttributeError: module '...' has no attribute '...'` — the installed Python modules genuinely
+  have no method at either dotted path. This is why the fix is a manual field mapping rather than
+  a native method call.
+
+**Runtime-verified (read-only GET against the one real BOM on this instance,
+`BOM-FG-STEEL-BRACKET-ASSY-001`, 2026-09-18):** both of its operation rows have `parent ===
+"BOM-FG-STEEL-BRACKET-ASSY-001"` (i.e. `parent === bom_no`, confirming the `bom: bom_no` mapping
+is correct for this app's non-exploded, single-top-level-BOM scope) and `hour_rate === 
+base_hour_rate` (1200.0 and 900.0 respectively) — this BOM's currency (`LKR`) equals both
+companies' default currency (`LKR`, `conversion_rate: 1.0`), so the `hour_rate`/`base_hour_rate`
+correction produces **no observable difference on this instance today**. The bug this fixes only
+manifests when a BOM is priced in a non-company transaction currency, which no BOM on this
+instance currently is.
+
+**Ceylon Stack mapping, current (2026-09-18 final correction):** copies every `BOM Operation`
+field that also exists on `Work Order Operation`, isn't a Work-Order-lifecycle field ERPNext
+computes itself, and has a correct-currency/correct-reference source: `operation`, `bom` (from
+`bom_no`, not a per-row fetch), `workstation`, `workstation_type`, `sequence_id`, `time_in_mins`
+(scaled `qty / bom.quantity` unless `fixed_time`), `batch_size`, `hour_rate` (from `BOM
+Operation.base_hour_rate`, not `hour_rate`), `quality_inspection_required`, `is_subcontracted`,
+`skip_material_transfer`, `backflush_from_wip_warehouse`,
+`source_warehouse`/`wip_warehouse`/`fg_warehouse`, `description`.
+
+**Still genuinely unconfirmed:** (1) whether ERPNext's own native BOM→Work Order copy (Desk's
+client-side form script, `work_order.js`) sends this exact field set and applies the same
+`fixed_time` scaling rule — reasoned from schema/labels and confirmed absent as a whitelisted
+server method, but `work_order.js`'s own client-side copy logic was not read (no SSH/`bench
+console`/vendored-source access this session); (2) whether `validate()` itself overrides any of
+the supplied fields (particularly `hour_rate`/`batch_size`) from the Workstation or Operation
+master regardless of what this app sends; (3) the foreign-transaction-currency scenario end to
+end (a BOM priced in a currency other than the company's default) — reasoned correct from the
+field schema, not runtime-exercised, because no such BOM exists on this instance.
+
+**How to verify:** (1) Create a real Work Order from Desk itself (not this app) against a BOM that
+has at least one `fixed_time` operation, at a qty different from the BOM's reference quantity, and
+diff the resulting Work Order Operation rows against this app's create payload for the same
+inputs. (2) Create or price a BOM in a non-LKR transaction currency with a non-1 `conversion_rate`
+and confirm the created Work Order Operation's `hour_rate` matches that BOM's `base_hour_rate`,
+not its `hour_rate`. No BOM with a `fixed_time` operation or a foreign transaction currency
+currently exists on this instance.
 
 ### MFG-UNV-008 — Duplicate `item_code` rows in `required_items` / Material Transfer preview
 **Status:** `NEEDS_VERIFICATION` (Codex governance-closure finding `CX-MFG-006`, partially
