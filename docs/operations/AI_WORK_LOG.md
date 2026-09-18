@@ -1038,7 +1038,18 @@ Files: `apps/frontend/next.config.ts`; 24 files moved (listed above); `apps/fron
 components/{CustomerForm,SupplierForm,CustomersTable,SuppliersTable,ReportTable,Sidebar}.tsx`;
 `apps/frontend/src/lib/{salesFlowMap,sellingWorkspace,masterDataWorkspace}.ts`;
 `apps/frontend/src/app/login/page.tsx`; `docs/controls/FRONTEND_GUIDE.md`; `PROGRESS.md`;
-`QA_LOG.md`; `docs/operations/AI_WORK_LOG.md`; `graphify-out/*` (pending).
+`QA_LOG.md`; `docs/operations/AI_WORK_LOG.md`; `docs/ceylon-stack-documentation.html`
+(via `release-tracker`); `graphify-out/*` (graph refresh).
+
+**Implementation commit: `a99656d`** ("feat(master-data): establish canonical routes for
+Business Partner domain"). `release-tracker` invoked after this entry was drafted but before
+commit — updated `docs/ceylon-stack-documentation.html` (§`frontend-platform` masters list,
+§`frontend-buying` lede/Suppliers li, new 2026-09-19 Changelog row, all explicitly marked "not
+yet independently reviewed by Codex") and synced the Notion "Smart Factory on ERPNext – Weekly
+Implementation Plan" page (checked off MD-3/MD-4/MD-5 as shipped-pending-review under the
+existing Master Data section, replaced the remaining catch-all with MD-6 through MD-10) — both
+folded into the single implementation commit above, avoiding the `CX-MD-001` documentation-
+closure gap the Item-domain package hit.
 
 ### Codex
 
