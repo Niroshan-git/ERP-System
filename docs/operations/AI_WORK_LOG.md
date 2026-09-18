@@ -26,7 +26,7 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Manufacturing Package 2 | Manufacturing (frontend) | Work Order detail view — read-only, 6 tabs (Details/Materials/Operations/Job Cards/Quality Readiness/Comments) | `CLAUDE_HANDOFF` (remediated) | `CODEX_REVIEW_COMPLETE` (re-review) | `ACCEPTED` as part of combined re-review; combined release remains blocked by Packages 3/5 | `25b882e` → remediation `517f2ea` (bundled with Pkg 3, Pkg 5); `2fbe2a6` coordination only | 1 resolved (`CX-MFG-003`) | Live QA not independently rerun | 2026-09-17 |
 | Manufacturing Package 3 | Manufacturing (frontend) | Work Order Create — Draft-only, BOM-scaled Materials/Operations preview, optional Material Readiness | `DOCUMENTATION_CLOSURE` | `CODEX_REVIEW_COMPLETE` (2026-09-18 final re-review) | `ACCEPTED` — `CX-MFG-002` closed; package has no remaining blocking findings | `25b882e` → `517f2ea` → `3a04733` → final correction `a2b5cb8` → doc-wording closure `2cf044e`; `0e78988` coordination only | None — `CX-MFG-002` `CLOSED`: `base_hour_rate → hour_rate` and top-level source BOM → operation `bom` independently confirmed | `MFG-UNV-007` remains non-blocking — foreign-currency and Desk/native persistence comparison not runtime-exercised; native-method module-path probe wording corrected 2026-09-18 to scope it to the two tested dotted paths only, not a Document-bound method | 2026-09-18 |
 | Manufacturing Package 5 | Manufacturing (frontend) | Material Transfer for Manufacture — native `make_stock_entry` reuse, partial transfer, additional-material support, Draft-vs-Submit | `CLAUDE_HANDOFF` (re-remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-18 second re-review) | `ACCEPTED` — `CX-MFG-001` closed 2026-09-18; combined release with Packages 2/3 no longer blocked now that `CX-MFG-002` is also closed | `25b882e` → `517f2ea` → re-remediation `3a04733`; `d0fb4bf` coordination only | None blocking — `CX-MFG-001` `CLOSED`: in-action session verification, fresh Work Order eligibility, fresh native preview, and aggregate per-item running ceiling independently confirmed | Accounting impact (`MFG-UNV-005`); ERPNext duplicate-item response (`MFG-UNV-008`); live runtime re-verification remains post-correction QA | 2026-09-18 |
-| Master Data Canonicalization — Item domain | Master Data (frontend, cross-module) | Items/Item Groups/Price Lists moved from `/sales/*` to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated (`ReportTable`, Work Order, Sidebar, workspace cards); Batch/Serial No investigated and deliberately not moved | `CLAUDE_HANDOFF` | `PLANNED` | `CLAUDE_HANDOFF` — awaiting Codex independent review | `5507352` (MD-1) → this package's commit `ddfeed4` | None yet — awaiting Codex review | Full authenticated browser click-path (create/edit Item through the new route) not performed — no session credentials available this session; ERPNext-side payloads unchanged from before the move (verified by diff) | 2026-09-18 |
+| Master Data Canonicalization — Item domain | Master Data (frontend, cross-module) | Items/Item Groups/Price Lists moved from `/sales/*` to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated (`ReportTable`, Work Order, Sidebar, workspace cards); Batch/Serial No investigated and deliberately not moved | `DOCUMENTATION_CLOSURE` (CX-MD-001 remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-19; remediation pending re-review) | `DOCUMENTATION_CLOSURE` — implementation accepted; `QA_LOG.md` and release documentation now updated, awaiting Codex re-review of this remediation | `5507352` (MD-1) → implementation `ddfeed4` → coordination `5f20afa` → doc remediation (this commit) | `CX-MD-001` (`MEDIUM`): remediated, pending Codex re-review confirmation | Full authenticated browser click-path (create/edit Item through the new route) remains non-blocking `NEEDS_VERIFICATION`; no session credentials used during review | 2026-09-19 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -801,13 +801,21 @@ ItemForm,ReportTable,Sidebar}.tsx`; `apps/frontend/src/app/(app)/manufacturing/w
 
 ### Codex
 
-Independent review: not yet run. Handed off below for review of this package boundary.
+Independent review completed 2026-09-19 against parent `f1020fa`, implementation `ddfeed4`,
+and coordination-only follow-up `5f20afa`. The route move, redirects, cross-module links,
+shared implementation reuse, unchanged ERPNext payload behavior, scope isolation, and auth model
+were accepted. Independent checks passed: `npm run lint`, `npx tsc --noEmit`, and `npm run
+build`. Production-server HTTP probes independently confirmed 307 redirects for list/detail/new,
+dynamic-segment and query-string preservation, and the canonical route's existing auth gate.
+
+Final review state: `CHANGES REQUIRED` for documentation closure only. See `CX-MD-001` below.
 
 ### Findings
 
 | ID | Severity | Area | Finding | Owner | Status |
 |---|---|---|---|---|---|
 | (code-reviewer, self-review) | — | Governance | Initial subagent block on stale authorization record in this ledger, resolved by recording the authorization actually received — see the MD-1 package record above for the same pattern. Not applicable to this package's own commit. | — | `RESOLVED` (prior package) |
+| `CX-MD-001` | `MEDIUM` | Documentation / package closure | `QA_LOG.md` has no entry for this meaningful route/navigation package, and release documentation remains explicitly pending, contrary to the package-closure requirements in `CLAUDE.md` and `AI_AGENT_HANDOFF_POLICY.md`. The implementation itself is accepted; the smallest remediation is to record the route/build/redirect QA evidence in `QA_LOG.md`, complete the required release-documentation/external-plan synchronization, and return only those documentation changes for re-review. | Claude | `OPEN` |
 
 No findings from this package's own code-level review beyond what's noted above — awaiting
 Codex's independent pass.
@@ -818,19 +826,47 @@ Backend: `NOT_REQUIRED` for a new domain doc (see reasoning above); Batch/Serial
 recorded here and in `PROGRESS.md` as source material for a future `docs/backend/01-master-data/`
 pass.
 Frontend: `UPDATED` — `docs/controls/FRONTEND_GUIDE.md` §3/§9.
-QA_LOG: `NOT_REQUIRED` — no ERPNext-side behavior changed; reasoning above.
-PROGRESS: `UPDATED`.
+QA_LOG: `UPDATED` — 2026-09-18/19 entry added, recording Claude's pre-handoff evidence (lint,
+type-check, build, legacy redirect verification, canonical route auth-gate verification) and
+Codex's independently re-executed evidence (lint/type-check/build re-run, production-server
+redirect probes, canonical route auth-gate probe, repository-wide stale-route search,
+route-manifest inspection). Browser click-path recorded as non-blocking `NEEDS_VERIFICATION`,
+not fabricated.
+PROGRESS: `UPDATED` (prior pass — see "Master Data canonical routing — Items, Item Groups, Price
+Lists (2026-09-18)").
 Architecture Decision: `NOT_REQUIRED` — no new ADR; `docs/architecture/decisions/README.md`
 preserved untouched per instruction.
-Release Documentation: pending `release-tracker` invocation, separate from this record.
+Release Documentation: `UPDATED` — `release-tracker` invoked 2026-09-19: added a changelog row
+to `docs/ceylon-stack-documentation.html` documenting the route move and Codex's acceptance,
+corrected the Frontend/Platform section's stale "Customer & Item, plus 9 Selling-module masters"
+list item (Item/Item Group/Price List no longer live under Selling), and bumped the footer's
+Last-updated date. External plan: the Notion "Smart Factory on ERPNext – Weekly Implementation
+Plan" page's Master Data section was split — this package checked off as `MD-2 (Item domain)`
+(matching `docs/master-data-architecture.md`'s own MD-2 = "Item & pricing domain" numbering),
+remaining domains renumbered `MD-3 through MD-10` with Item removed from that combined line.
+
+### Remediation — CX-MD-001 documentation closure (2026-09-19)
+
+Scope: documentation-only, per this package's own governance instruction — no application code,
+no additional Master Data implementation, no new package started. Closes the single open finding
+from Codex's 2026-09-19 independent review (`CX-MD-001`, `MEDIUM`): `QA_LOG.md` had no entry for
+this package and release documentation was still pending. Both are now closed as recorded in the
+Documentation Checklist above. The three pre-existing uncommitted/untracked files outside this
+package's boundary (`CLAUDE.md`, `docs/architecture/decisions/README.md`,
+`docs/ceylon-stack-master-backlog.md`, `docs/ceylon-stack-master-plan.md`,
+`docs/master-data-architecture.md`) were inspected but left untouched — confirmed via `git diff`
+before and after this remediation.
 
 ### Final State
 
 Implementation: `COMPLETE` (Item domain only — Customer/Supplier/Contact/Address/Territory/
-Warehouse/Batch/Serial No explicitly deferred). Independent Review: `AWAITING_CODEX`.
-Documentation: `UPDATED`. Release: pending `release-tracker` + commit.
+Warehouse/Batch/Serial No explicitly deferred). Independent Review: `CODEX_REVIEW_COMPLETE`
+(2026-09-19) — implementation accepted outright; the sole finding (`CX-MD-001`) was a
+documentation-closure gap, now remediated above. Documentation: `UPDATED`. Release: `UPDATED`
+(release-tracker) + this remediation commit.
 
-**Not self-declared accepted.** Handed off for Codex's independent review of this package
-boundary. Do not start Customer/Supplier/Contact/Address/Territory/Warehouse route moves, Work
-Order Action UX, Job Cards, BOM, Workstations, OEE, CRM, or Finance without separate explicit
-authorization.
+**Not self-declared accepted.** This remediation closes `CX-MD-001`'s documentation gap only —
+package acceptance itself remains Codex's independent call, not self-certified here. Returned to
+Codex for re-review of this documentation-only remediation. Do not start Customer/Supplier/
+Contact/Address/Territory/Warehouse route moves (MD-3 onward), Work Order Action UX, Job Cards,
+BOM, Workstations, OEE, CRM, or Finance without separate explicit authorization.

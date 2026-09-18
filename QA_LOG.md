@@ -336,3 +336,52 @@ non-blocking per Codex's own final review and require either a foreign-currency/
 or SSH/`bench console` access this session did not have — not represented here as tested. A
 documentation-only wording correction (narrowing an overstated native-method-absence claim) was
 applied the same day; no code logic changed and no new QA was required for it.
+
+## 2026-09-18/19 — Master Data Canonicalization — Item domain (Items, Item Groups, Price Lists)
+
+- **Package tested**: `apps/frontend` route/navigation move of Items, Item Groups, and Price
+  Lists from `/sales/*` to canonical `/master-data/*` routes, plus compatibility redirects and
+  every known inbound link (`ItemsTable`, `ReportTable`'s `INTERNAL_ROUTES` map, Work Order
+  detail's Production Item link, `Sidebar.tsx`, both workspace-card files). No ERPNext-side
+  `createDoc`/`updateDoc`/`getDoc` payload changed — verified by diff against the pre-move files,
+  not by inspection alone — so this is a Next.js routing change only, not a data-behavior change.
+- **Result**: **PASS**. No code fixes required in this pass.
+- **Evidence — Claude (2026-09-18, pre-handoff)**:
+  1. `npm run lint` — PASS.
+  2. `npx tsc --noEmit` — PASS (after clearing a stale `.next` type cache still referencing the
+     deleted `sales/items` files — expected artifact staleness, confirmed clean on a fresh
+     `rm -rf .next && npm run build`, not a real error).
+  3. `npm run build` — PASS, exit 0; all 9 new `/master-data/{items,item-groups,price-lists}`
+     list/detail/new routes present in the route output; zero `/sales/items`,
+     `/sales/item-groups`, `/sales/price-lists` routes remain.
+  4. Legacy redirect verification (dev server, curl): `/sales/items` → 307 → `/master-data/items`;
+     `/sales/items/RM-STEEL-001` → 307 → `/master-data/items/RM-STEEL-001` (dynamic segment
+     preserved); `/sales/item-groups` → 307 → `/master-data/item-groups`; `/sales/price-lists/new`
+     → 307 → `/master-data/price-lists/new`.
+  5. Canonical route auth-gating verification: `/master-data/items` correctly hits the same
+     `/login?next=...` auth gate every other protected route in this app does — not a 404, not an
+     unauthenticated bypass.
+- **Evidence — Codex independent re-verification (2026-09-19)**: re-ran `npm run lint`,
+  `npx tsc --noEmit`, `npm run build` independently — all PASS. Independently ran
+  production-server redirect probes (list/detail/new, dynamic-segment and query-string
+  preservation) and the canonical route's auth-gate probe — PASS. Ran a repository-wide
+  stale-route search — PASS for runtime code (no remaining `/sales/items`,
+  `/sales/item-groups`, or `/sales/price-lists` references in application code). Inspected the
+  Next.js route manifest directly — confirmed nine canonical Master Data routes and zero legacy
+  `/sales` Item-domain page routes.
+- **Known non-runtime-code reference intentionally left alone, not a defect**:
+  `docs/brand/package/CeylonStack-Grouped-Sidebar.html` (a static design/mockup artifact) still
+  contains legacy `/sales/*` links — cosmetic, out of scope for a routing-behavior package.
+- **NEEDS_VERIFICATION (non-blocking)**: a full authenticated browser create/edit click-path
+  through `/master-data/items/*` (actually submitting the Item form through a real login session)
+  has not been performed — no session credentials available in this environment, consistent with
+  every prior package in this repository's history. `qa-tester` was not invoked for the same
+  reason its live-instance checks would only re-confirm ERPNext behavior this package didn't
+  touch (payloads are byte-identical to the pre-move code).
+- **Cleanup**: none required — no ERPNext document was created, updated, or deleted by this
+  package; only Next.js routing/navigation code moved.
+- **Sign-off**: `code-reviewer`/self-review found no code-level blockers. Codex's independent
+  review (`docs/operations/AI_WORK_LOG.md`, package "Master Data Canonicalization — Item domain")
+  accepted the implementation outright — no BLOCKER/CRITICAL/HIGH findings; the only acceptance
+  blocker raised was this package-closure documentation gap (`CX-MD-001`, `MEDIUM`), which this
+  entry closes.
