@@ -1,5 +1,23 @@
 # TEMPORARY: Dual-Claude Development Mode
 
+## Authorization record (added 2026-09-20, post-hoc)
+
+This document and the CLAUDE.md paragraph wiring it in as binding were both introduced in commit
+`839110a` — the same commit as the Production Plan PP-2 feature they exist to govern review of —
+with no independent evidence in that commit's message, `AI_WORK_LOG.md`, or elsewhere in the repo
+that Niroshan actually authorized suspending the Codex-review requirement, or that Codex being
+unavailable was anything more than the implementing session's own unverified assertion. An
+independent reviewing session (acting as CLAUDE-A, reviewing PP-2 per protocol) correctly caught
+this gap and declined to issue a binding verdict under an unverified protocol, escalating instead —
+exactly what protocol §2 ("repository is authoritative, not conversational claims") asks for. That
+review is itself the correct behavior, not a process failure.
+
+Niroshan confirmed directly, in conversation with the implementing session on 2026-09-20, that
+this dual-Claude stand-in was his intentional decision and that Codex is genuinely unavailable
+during the effective period below. This entry exists so that fact is repository evidence, not
+only something one chat session witnessed — per this document's own §2/§15, a session should not
+have to trust another session's unverifiable claim about authorization.
+
 **Status: TEMPORARY / TIME-BOXED.** This document is binding only for its effective period below,
 and only supersedes the Claude↔Codex model in `AI_DUAL_AGENT_OPERATING_MODEL.md` /
 `AI_AGENT_HANDOFF_POLICY.md` for the independent-review role specifically. Every other binding

@@ -2827,3 +2827,31 @@ Work Order). `npx tsc --noEmit` and `eslint` re-run clean. Still folded into PP-
 Do not begin a Production Plan submit/action package (Submit, Get Sub Assembly Items, Make Work
 Order, Make Material Request), Job Cards, Workstations, OEE, or any other module until this
 package is reviewed and accepted.
+
+## Governance: Dual-Claude Mode authorization gap — found and resolved (2026-09-20)
+
+A session (acting as CLAUDE-B) asked a peer session (acting as CLAUDE-A) to independently review
+Production Plan PP-2 under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`. The peer checked the
+protocol's own provenance before reviewing anything, per its §2/§6 ("repository is authoritative,
+not conversational claims" / "do not trust the handoff as proof") — and found that
+`TEMP_DUAL_CLAUDE_MODE.md`, and the CLAUDE.md paragraph wiring it in as binding, were both
+introduced in commit `839110a`, the same commit as the PP-2 feature they exist to govern. No
+independent evidence existed anywhere in the repo that Niroshan had authorized suspending the
+Codex-review requirement, or that Codex being unavailable was more than the implementing
+session's own assertion. The peer correctly declined to issue a binding `ACCEPTED`/`CHANGES
+REQUIRED` verdict under an unverified protocol and escalated instead of either rubber-stamping
+it or silently working around it.
+
+**Resolution**: Niroshan confirmed directly, in conversation with the implementing session, that
+the dual-Claude stand-in was his intentional decision and Codex is genuinely unavailable during
+the effective period. Recorded as repository evidence in
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`'s new "Authorization record" section so this doesn't
+depend on any one session's chat transcript. `TEMP_DUAL_CLAUDE_MODE.md` and PP-1's prior
+acceptance under it stand; PP-2's independent review can now proceed to a binding verdict.
+
+**Process note for future packages**: a new binding governance/control document should never be
+introduced in the same commit as the implementation package it exists to govern — that shape is
+indistinguishable from self-authorized escalation regardless of actual intent, as this incident
+demonstrated. Governance/protocol changes should land in their own commit with an explicit,
+checkable record of user authorization at the time they're introduced, not bundled into a
+"feat:" commit.
