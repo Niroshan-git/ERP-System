@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AccessDeniedNotice } from "@/components/AccessDeniedNotice";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { BomsTable, type BomRow } from "@/components/BomsTable";
@@ -27,13 +28,12 @@ type SearchParams = {
 const STATUS_OPTIONS = ["Draft", "Submitted", "Cancelled"];
 
 /**
- * Minimal read-only BOM list — Master Data / Manufacturing Masters entity index, existing
- * purely for navigation into the canonical BOM detail page (`[name]/page.tsx`). No "+ New"
- * link, no bulk actions: this package (Manufacturing Masters — BOM 4A) is read-only by
- * design, unlike every other `master-data/*` list page's `MasterTable` (which always renders
- * a create action) — so this reuses the plain `DataTable`/`BomsTable` shell instead, the same
- * component `WorkOrdersTable`/`WorkOrdersPage` already use alongside their own separate
- * (not-baked-in) "+ New" link.
+ * BOM list — Master Data / Manufacturing Masters entity index. Package 4A (2026-09-19) built
+ * this read-only, deliberately on the plain `DataTable`/`BomsTable` shell rather than
+ * `MasterTable` (which always bakes in a "+ New" link) because no create route existed yet.
+ * Package 4B (also 2026-09-19) added `/master-data/boms/new`, so the "+ New BOM" link below
+ * is now added the same way `WorkOrdersPage` adds its own — a separate, page-level link next
+ * to the title, not baked into the table component itself. No bulk actions.
  */
 export default async function BomsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
@@ -105,7 +105,15 @@ export default async function BomsPage({ searchParams }: { searchParams: Promise
           { label: "Bills of Materials" },
         ]}
       />
-      <h1 className="mb-4 text-2xl font-medium text-graphite-900">Bills of Materials</h1>
+      <div className="mb-4 flex items-center justify-between">
+        <h1 className="text-2xl font-medium text-graphite-900">Bills of Materials</h1>
+        <Link
+          href="/master-data/boms/new"
+          className="rounded-md bg-signal px-4 py-2 text-sm font-medium text-white hover:bg-signal/90"
+        >
+          + New BOM
+        </Link>
+      </div>
 
       <ListFilterBar fields={filterFields} sortOptions={SORT_OPTIONS} values={params} />
 

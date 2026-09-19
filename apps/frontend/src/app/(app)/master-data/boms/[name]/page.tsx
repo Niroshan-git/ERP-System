@@ -1,21 +1,27 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BomForm } from "@/components/BomForm";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocField } from "@/components/DocField";
 import { DocTabs } from "@/components/DocTabs";
+import { SavedBanner } from "@/components/SavedBanner";
 import { StatusPill } from "@/components/StatusPill";
 import { ErpNextError, getDoc } from "@/lib/erpnext";
 import { formatAmount } from "@/lib/format";
 import { bomStatus } from "@/lib/erpStatus";
+import { listItemOptions } from "@/lib/actions/itemLookup";
+import { fetchLinkOptions } from "@/lib/linkOptions";
+import { updateBomAction } from "../actions";
 
 /**
- * Read-only canonical BOM component/operation row shapes — deliberately separate from
- * `bomLookup.ts`'s `BomItemRow`/`BomOperationRow` (the narrow read used by Work Order
- * create's preview/payload-building), per this package's own investigation: that lookup is
- * scoped to exactly the fields Work Order creation needs and must not be widened for this
- * unrelated read-only entity page. Field names verified live against `BOM`/`BOM Item`/
- * `BOM Operation` via `get_doctype_fields` (2026-09-19 investigation) — see
- * `docs/backend/05-manufacturing/bom.md`.
+ * Full canonical BOM component/operation row shapes read off `getDoc` — deliberately
+ * separate from `bomLookup.ts`'s `BomItemRow`/`BomOperationRow` (the narrow read used by
+ * Work Order create's preview/payload-building), per this package's own investigation: that
+ * lookup is scoped to exactly the fields Work Order creation needs and must not be widened
+ * for this page. Field names verified live against `BOM`/`BOM Item`/`BOM Operation` via
+ * `get_doctype_fields` (2026-09-19 investigation) — see `docs/backend/05-manufacturing/bom.md`.
+ * Used both for the read-only display below (docstatus 1/2) and, mapped into `BomForm`'s own
+ * `initial` shape, for the Draft-only edit form (docstatus 0) — see BomDetailPage below.
  */
 type BomComponentRow = {
   item_code: string;
@@ -99,8 +105,15 @@ function yesNo(value: 0 | 1 | undefined): string {
   return value ? "Yes" : "No";
 }
 
-export default async function BomDetailPage({ params }: { params: Promise<{ name: string }> }) {
+export default async function BomDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ name: string }>;
+  searchParams: Promise<{ saved?: string }>;
+}) {
   const { name } = await params;
+  const { saved } = await searchParams;
 
   let doc: BomDoc;
   try {
@@ -114,6 +127,114 @@ export default async function BomDetailPage({ params }: { params: Promise<{ name
   const items = doc.items ?? [];
   const operations = doc.operations ?? [];
   const currency = doc.currency || "";
+
+  const breadcrumb = (
+    <Breadcrumb
+      items={[
+        { label: "Home", href: "/" },
+        { label: "Master Data", href: "/master-data" },
+        { label: "Bills of Materials", href: "/master-data/boms" },
+        { label: doc.name },
+      ]}
+    />
+  );
+
+  const header = (
+    <div className="mb-4">
+      <h1 className="text-2xl font-medium text-graphite-900">{doc.name}</h1>
+      <div className="mt-1 flex items-center gap-2">
+        <StatusPill label={status.label} tone={status.tone} />
+        {doc.is_active ? <StatusPill label="Active" tone="success" /> : <StatusPill label="Inactive" tone="neutral" />}
+        {doc.is_default ? <StatusPill label="Default" tone="signal" /> : null}
+      </div>
+    </div>
+  );
+
+  /**
+   * Draft-only edit — same "swap the whole page content for the create form" pattern
+   * `PurchaseOrderForm`/`SalesOrderForm` already establish on their own `[name]/page.tsx`
+   * (no separate `/edit` route anywhere else in this app for a submittable doctype), rather
+   * than the brief's own suggested `/master-data/boms/[name]/edit` route — chosen to match
+   * existing Ceylon Stack convention rather than introduce a second pattern for the same
+   * problem. A submitted/cancelled BOM (docstatus 1/2) falls through to the read-only view
+   * below unchanged; `updateBomAction` re-checks docstatus server-side regardless of this
+   * page-level gate (see actions.ts's own doc comment).
+   */
+  if (doc.docstatus === 0) {
+    const [itemOptions, companies, warehouseOptions, operationOptions, workstationOptions, routingOptions, currencyOptions] =
+      await Promise.all([
+        listItemOptions(),
+        fetchLinkOptions("Company"),
+        fetchLinkOptions("Warehouse"),
+        fetchLinkOptions("Operation"),
+        fetchLinkOptions("Workstation"),
+        fetchLinkOptions("Routing"),
+        fetchLinkOptions("Currency"),
+      ]);
+
+    return (
+      <div>
+        {breadcrumb}
+        <SavedBanner show={saved === "1"} />
+        {header}
+        <p className="mb-4 text-sm text-graphite-500">
+          This BOM is still a Draft — its header, components, and operations can be edited below.
+          Once submitted, this app no longer allows editing it here.
+        </p>
+        <BomForm
+          action={updateBomAction.bind(null, doc.name)}
+          itemOptions={itemOptions}
+          companies={companies ?? [doc.company]}
+          warehouseOptions={warehouseOptions ?? []}
+          operationOptions={operationOptions ?? []}
+          workstationOptions={workstationOptions ?? []}
+          routingOptions={routingOptions ?? []}
+          currencyOptions={currencyOptions ?? [currency].filter(Boolean)}
+          defaultCurrency={currency}
+          cancelHref={`/master-data/boms/${encodeURIComponent(doc.name)}`}
+          initial={{
+            item: doc.item,
+            item_name: doc.item_name || doc.item,
+            company: doc.company,
+            quantity: doc.quantity,
+            uom: doc.uom ?? "",
+            currency,
+            conversion_rate: doc.conversion_rate ?? 1,
+            with_operations: Boolean(doc.with_operations),
+            is_active: Boolean(doc.is_active),
+            is_default: Boolean(doc.is_default),
+            routing: doc.routing,
+            transfer_material_against: doc.transfer_material_against,
+            allow_alternative_item: Boolean(doc.allow_alternative_item),
+            is_phantom_bom: Boolean(doc.is_phantom_bom),
+            track_semi_finished_goods: Boolean(doc.track_semi_finished_goods),
+            inspection_required: Boolean(doc.inspection_required),
+            default_source_warehouse: doc.default_source_warehouse,
+            default_target_warehouse: doc.default_target_warehouse,
+            components: items.map((i) => ({
+              item_code: i.item_code,
+              item_name: i.item_name || i.item_code,
+              qty: i.qty,
+              uom: i.uom,
+              rate: i.rate ?? 0,
+              source_warehouse: i.source_warehouse,
+              operation: i.operation,
+              bom_no: i.bom_no,
+              allow_alternative_item: Boolean(i.allow_alternative_item),
+            })),
+            operations: operations.map((o) => ({
+              operation: o.operation,
+              workstation: o.workstation,
+              time_in_mins: o.time_in_mins ?? 0,
+              batch_size: o.batch_size,
+              hour_rate: o.hour_rate,
+              description: o.description,
+            })),
+          }}
+        />
+      </div>
+    );
+  }
 
   const itemLink = (
     <DocLink href={`/master-data/items/${encodeURIComponent(doc.item)}`}>
@@ -337,22 +458,8 @@ export default async function BomDetailPage({ params }: { params: Promise<{ name
 
   return (
     <div>
-      <Breadcrumb
-        items={[
-          { label: "Home", href: "/" },
-          { label: "Master Data", href: "/master-data" },
-          { label: "Bills of Materials", href: "/master-data/boms" },
-          { label: doc.name },
-        ]}
-      />
-      <div className="mb-4">
-        <h1 className="text-2xl font-medium text-graphite-900">{doc.name}</h1>
-        <div className="mt-1 flex items-center gap-2">
-          <StatusPill label={status.label} tone={status.tone} />
-          {doc.is_active ? <StatusPill label="Active" tone="success" /> : <StatusPill label="Inactive" tone="neutral" />}
-          {doc.is_default ? <StatusPill label="Default" tone="signal" /> : null}
-        </div>
-      </div>
+      {breadcrumb}
+      {header}
       <DocTabs
         tabs={[
           { id: "overview", label: "Overview", content: overviewTab },

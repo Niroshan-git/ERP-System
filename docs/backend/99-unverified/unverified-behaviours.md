@@ -235,6 +235,33 @@ bom_list.js`'s `get_indicator` function body directly, compare/update `bomStatus
 match. (2) Log in through the real frontend with valid credentials and click through
 `/master-data/boms` → a real BOM's detail page → its component/operation/nested-BOM links.
 
+### MFG-UNV-011 — BOM create/edit: non-Draft update rejection and zero-rate component acceptance
+**Status:** `NEEDS_VERIFICATION` (non-blocking, Manufacturing Masters — BOM Package 4B, 2026-09-19)
+**What's uncertain:** Package 4B added `createDoc`/`updateDoc` calls against the real `BOM`
+doctype for the first time (`/master-data/boms/new`, and Draft-only inline edit on
+`/master-data/boms/[name]`) — see `docs/backend/05-manufacturing/bom.md`'s "Mutation contract"
+section for the exact payload shape. No live write-testing was possible this session (no working
+ERPNext frontend login credentials existed; the one credential documented in `PROGRESS.md` is
+confirmed stale/rejected; MCP tools available this session are read-only). Two specific behaviors
+this app's own logic assumes, neither independently confirmed against the real server:
+1. That ERPNext rejects an `updateDoc` call against a BOM with `docstatus !== 0` — `updateBomAction`
+   re-fetches and checks this itself as a frontend-side safety net (mirroring every other
+   submittable doctype's own Draft-only edit gating already established in this app — Purchase
+   Order, Sales Order, Work Order), but BOM's own Python controller
+   (`erpnext/manufacturing/doctype/bom/bom.py`) was not read this session, so a BOM-specific
+   override of Frappe's generic "submitted docs are immutable except via amend" convention can't
+   be ruled out from static reading alone.
+2. That a `BOM Item` row with `rate: 0` is actually accepted despite `rate` being schema-marked
+   `reqd: true` — reasoned correct from Frappe's own generic mandatory-field check (which treats a
+   field as missing only for `None`/`[]`/an empty string, not a falsy numeric `0` — confirmed by
+   reading that check's own logic, not guessed), but not confirmed against BOM's specific
+   controller, which could add a stricter check on top.
+**How to verify:** Once real login credentials exist for this frontend: create a Draft BOM with at
+least one zero-rate component (an Item with no `standard_rate` set) and save it; separately, submit
+a Draft BOM via Desk (this app has no Submit action) and then attempt to edit it through this app's
+own `/master-data/boms/[name]` page, confirming the edit is correctly refused both client-side and
+by ERPNext itself.
+
 ## General
 
 Add new entries here as they're discovered during other domain baselines (Sales, Inventory,

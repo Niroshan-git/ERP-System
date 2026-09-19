@@ -1,16 +1,19 @@
 # BOM (Bill of Materials) — Backend Knowledge Baseline
 
-Domain status: `INVESTIGATED, READ-ONLY FRONTEND IMPLEMENTED` — see
+Domain status: `INVESTIGATED, READ-ONLY + DRAFT-MUTABLE FRONTEND IMPLEMENTED` — see
 `docs/backend/15-migration/migration-status.md`. Written during the Master Data Manufacturing
 Masters (BOM) investigation package, 2026-09-19, which concluded **Gate B — no usable BOM frontend
 existed at that time to canonicalize** (see `PROGRESS.md`/`docs/operations/AI_WORK_LOG.md` for the
 full handoff). The Manufacturing Masters — BOM Package 4A (also 2026-09-19, immediately following
 Codex's acceptance of this investigation) then built the first canonical, **read-only** BOM entity
-frontend: `/master-data/boms` (list) and `/master-data/boms/[name]` (detail) — see "Frontend
-capability" below for what changed. This document's field/schema/lifecycle/costing knowledge is
-otherwise unchanged by that package; no BOM create/edit/submit/cancel/amend/cost-recompute action
-was added, and none of `MFG-UNV-009`'s open behavioral questions were resolved by displaying
-existing backend values.
+frontend: `/master-data/boms` (list) and `/master-data/boms/[name]` (detail). Package 4B (also
+2026-09-19) added **BOM create and Draft-only edit** on top of that — see "Frontend capability" and
+"Mutation contract" below for what changed. This document's field/schema/lifecycle/costing
+knowledge is otherwise unchanged by these packages; no submit/cancel/amend/cost-recompute action
+exists anywhere, and none of `MFG-UNV-009`'s open behavioral questions (multi-level explosion,
+costing recompute trigger, phantom/semi-finished transaction behavior, Production Plan runtime
+relationship) were resolved — Package 4B only establishes the Draft-stage create/edit contract,
+not the submitted-document lifecycle.
 
 ## Source of truth for this baseline
 
@@ -252,11 +255,74 @@ Work Order list, Work Order detail, and Material Transfer pages. That gap is now
   now resolve to their canonical `/master-data/*` route instead of plain text. A "View BOM →"
   link (opens in a new tab, so it can't interrupt an in-progress Work Order create form) was added
   next to `WorkOrderForm.tsx`'s existing read-only materials preview.
-- **Explicitly still absent:** any create/edit/submit/cancel/amend/cost-recompute action for BOM;
-  any Operation/Routing/Workstation entity screen; any Production Plan screen; any change to the
-  Work Order create BOM `<select>` (still a plain selector, not replaced with navigation) or to
-  Material Transfer's own transfer logic.
+- **Explicitly still absent (Package 4A):** any create/edit/submit/cancel/amend/cost-recompute
+  action for BOM; any Operation/Routing/Workstation entity screen; any Production Plan screen; any
+  change to the Work Order create BOM `<select>` (still a plain selector, not replaced with
+  navigation) or to Material Transfer's own transfer logic.
 - **What this does and does not resolve:** this is a display-only capability change. It does not
   independently verify any of `MFG-UNV-009`'s open behavioral questions (lifecycle transitions,
   multi-level explosion, costing recompute trigger, phantom/semi-finished behavior, Production
   Plan's runtime relationship) — those remain `NEEDS_VERIFICATION` exactly as before.
+
+## Mutation contract (Package 4B, 2026-09-19)
+
+`/master-data/boms/new` (create) and `/master-data/boms/[name]` (Draft-only edit, inline on the
+detail page when `docstatus === 0`) — see `apps/frontend/src/app/(app)/master-data/boms/actions.ts`.
+
+- **Create payload:** a single `createDoc("BOM", fields)` call. `fields` carries every header
+  field this document already lists under Identity/Status-configuration above
+  (`item`, `item_name`, `company`, `quantity`, `uom`, `currency`, `conversion_rate`,
+  `with_operations`, `is_active`, `is_default`, `allow_alternative_item`, `is_phantom_bom`,
+  `track_semi_finished_goods`, `inspection_required`, `routing`, `transfer_material_against`,
+  `default_source_warehouse`, `default_target_warehouse`) plus `items`/`operations` child-table
+  arrays built client-side (`BomComponentsEditor`/`BomOperationsEditor`) and parsed server-side
+  (`lib/bomRows.ts`). No costing field (`raw_material_cost`/`operating_cost`/`total_cost`/etc.) is
+  ever sent — ERPNext computes those itself on insert, matching this app's backend-authoritative
+  costing rule established in Package 4A.
+- **BOM Item fields sent:** `item_code`, `item_name`, `qty`, `uom`, `rate`, `source_warehouse`,
+  `operation`, `bom_no`, `allow_alternative_item`. Not sent (left for ERPNext to compute):
+  `stock_qty`, `stock_uom`, `conversion_factor`, `base_rate`, `amount`, `base_amount`,
+  `is_stock_item`, `is_sub_assembly_item`, `is_phantom_item`. `uom` is always the component item's
+  own `stock_uom` (no separate purchase/stock UOM concept exposed) — same single-UOM
+  simplification `buying/purchase-orders/actions.ts` already uses for Purchase Order Item.
+- **BOM Operation fields sent:** `operation`, `workstation`, `time_in_mins`, `batch_size`,
+  `hour_rate`, `description`. Not sent: `base_hour_rate`, `cost_per_unit`, `base_cost_per_unit`,
+  `operating_cost`, `base_operating_cost`, `sequence_id`, `fixed_time`, `is_subcontracted`,
+  `finished_good`/`finished_good_qty`/`bom_no` (per-operation semi-finished routing, out of this
+  package's scope), `quality_inspection_required`, `skip_material_transfer`,
+  `backflush_from_wip_warehouse`, `source_warehouse`/`wip_warehouse`/`fg_warehouse`. `hour_rate`
+  here is the BOM's own transaction-currency field (not `base_hour_rate`) — this is the BOM being
+  authored directly in its own currency, unlike `work-orders/actions.ts`'s BOM→Work-Order-Operation
+  copy, which has a documented reason (`CX-MFG-002`) to prefer `base_hour_rate` instead.
+- **Update payload:** identical field set via `updateDoc("BOM", name, fields)` — a full
+  header+child-table overwrite, not a partial patch of only changed fields. `docstatus` is never
+  included in either payload; `updateBomAction` re-fetches the BOM's current `docstatus` and
+  refuses to call `updateDoc` at all unless it's `0` (Draft) — a frontend-side safety check, not a
+  substitute for ERPNext's own server-side enforcement, which was **not independently live-tested
+  this session** (see `NEEDS_VERIFICATION` below).
+- **Not implemented, and deliberately so:** Submit, Cancel, Amend, "Update Cost". A submitted or
+  cancelled BOM (`docstatus` 1 or 2) falls straight through to Package 4A's existing read-only view
+  — this app has no path back into edit mode for it at all right now, by design.
+- **`NEEDS_VERIFICATION` — no live write-testing was possible this session** (no working ERPNext
+  frontend login credentials existed; MCP tools are read-only). Specifically unconfirmed against
+  the real server:
+  1. Whether ERPNext actually rejects an `updateDoc` call against a non-Draft BOM the way this
+     app's own `updateBomAction` guard assumes (Frappe's generic core convention says yes — a
+     submitted document is immutable except via amend — consistent with how this app already
+     treats every other submittable doctype (Purchase Order, Sales Order, Work Order), but BOM's
+     own controller (`erpnext/manufacturing/doctype/bom/bom.py`) was not read this session, so a
+     BOM-specific override can't be ruled out from static reading alone).
+  2. Whether a `BOM Item` row with `rate: 0` (e.g. a component Item with no `standard_rate`
+     configured) is actually accepted despite `rate` being schema-marked `reqd: true` — Frappe's
+     generic mandatory-field check does not treat a numeric `0` as "missing" (confirmed by reading
+     Frappe's own `Document._get_missing_mandatory_fields` logic, which checks for `None`/`[]`/an
+     empty string, not falsy-zero), but whether BOM's own controller adds a stricter check on top
+     of the generic one was not confirmed against the real server.
+  3. The actual create → Draft → edit → re-save round trip end-to-end.
+  4. Whether ERPNext independently accepts a `currency` value coming from this form's
+     unfiltered `fetchLinkOptions("Currency")` list even when that currency isn't in the site's
+     "enabled currencies" configuration — a pre-existing pattern already shared by Price Lists and
+     the RFQ→Supplier-Quotation currency selector, not newly introduced here, so not blocking.
+  **How to verify:** once real login credentials exist for this frontend, create a Draft BOM with
+  at least one zero-rate component, save it, submit it via Desk (not this app — no Submit action
+  exists here), then attempt an edit through this app's own UI and confirm it's correctly refused.
