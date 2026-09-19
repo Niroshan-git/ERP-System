@@ -2477,3 +2477,68 @@ accounting review, and `git diff --check` were performed. No application lint/ty
 run because the package is documentation-only. Semantic Graphify regeneration remains deferred
 and non-blocking. No live Production Plan behavior was accepted; `MFG-UNV-012` remains
 `NEEDS_VERIFICATION`. PP-1 remains locked and must not begin until this remediation is accepted.
+
+### Claude Remediation Round 2 — CX-MFG-PP-001 / CX-MFG-PP-004 — 2026-09-19
+
+Narrow remediation of exactly the two still-open findings from the re-review above.
+`CX-MFG-PP-002`/`CX-MFG-PP-003` were confirmed **RESOLVED** by Codex and were not touched —
+`master-erd.md`, `production-plan.md`'s accounting section, `PROGRESS.md`, and `QA_LOG.md` are
+byte-for-byte unchanged since commit `08fdf99` (verified via `git diff HEAD` before committing).
+
+**`CX-MFG-PP-001` (HIGH) — FIXED.** `unverified-behaviours.md`'s `MFG-UNV-012` "What's confirmed"
+paragraph still summarized Production Plan BOM resolution unscoped: `SalesOrderItem.bom_no or
+Item.default_bom, always overridable per-row`. Rewritten to restrict that statement explicitly to
+`po_items.bom_no` (the finished-good row), and to restate inline that `sub_assembly_items.bom_no`
+is server-derived from explosion (not confirmed independently user-selectable) and
+`mr_items.from_bom` is read-only source-BOM traceability, never a selector — cross-referencing
+`production-plan.md`'s already-corrected "Multiple-BOM support" section rather than duplicating it.
+Repository-wide search for `always overridable`, `every row can override`, `from_bom override`,
+`from_bom selector`, and `independent BOM override` found no other unsafe occurrences outside this
+one line and historical Codex-quote text (left untouched, see below).
+
+**`CX-MFG-PP-004` (MEDIUM) — FIXED.** The active `unverified-behaviours.md` register headings were
+already correct (`MFG-UNV-010` = BOM, `MFG-UNV-012` = Production Plan) and were **not** touched
+again. Fixed the stale, unannotated historical Production Plan references in this ledger at the
+lines Codex named: the "Files"/cross-reference sentence, the PP-1 recommendation, the first Codex
+review's own summary sentence, and this package's "Notes" section. The PP-1 recommendation
+specifically was corrected to reference `MFG-UNV-012` directly (not just annotated) since it is a
+live, still-relevant forward-looking recommendation, not a fixed historical statement — per the
+remediation brief's own instruction. The verbatim Codex review quote's per-finding bullet list
+(`CX-MFG-PP-004`'s own description of the original collision) was left as Codex wrote it, since
+rewriting a reviewer's quoted words would misrepresent the record; it unambiguously describes a
+past-tense problem, not a claim about the current identifier.
+
+**Repository-wide traceability check**: post-edit `grep` for `MFG-UNV-010` across the repository
+confirms every occurrence is either (a) a genuine BOM reference, or (b) an explicitly annotated
+historical Production Plan statement noting the renumbering to `MFG-UNV-012`. A matching `grep` for
+`MFG-UNV-012` confirms every occurrence identifies only Production Plan. No ambiguous "current
+identifier" statement remains.
+
+**Source-vs-live boundary**: unchanged. `MFG-UNV-012` still carries `NEEDS_VERIFICATION`; none of
+lifecycle execution, submit/cancel, action-button/docstatus gating,
+`reserve_stock_for_production_plan`, `submit_material_request` drift, downstream generation, or the
+subcontract Purchase Order back-reference was closed or weakened.
+
+**Frontend footprint**: zero. No file under `apps/frontend/` was touched; a repository search for
+any Production Plan route/component confirms none exists. PP-1 was not started.
+
+Tests: not applicable — documentation-only, no application file changed. `git diff --check` —
+PASSED on both edited files.
+
+Files changed: `docs/backend/99-unverified/unverified-behaviours.md`,
+`docs/operations/AI_WORK_LOG.md`. No other file staged or committed. Pre-existing unrelated
+worktree state (`CLAUDE.md`, `apps/frontend/src/app/(app)/manufacturing/page.tsx`,
+`docs/architecture/decisions/README.md`, the three untracked Master Data architecture planning
+docs) confirmed still present and unstaged after this commit.
+
+Commit: `179ff2d` on branch `frontend`, parent `1a08742` (the first remediation's own coordination
+follow-up, verified exactly `HEAD` before this round started).
+
+### Final State (Round 2)
+
+Implementation: N/A (documentation-only)
+Remediation: complete — `CX-MFG-PP-001` and `CX-MFG-PP-004` addressed; `CX-MFG-PP-002`/
+`CX-MFG-PP-003` confirmed resolved and left untouched
+Independent Review: pending — returned to Codex for independent re-review; not self-declared
+`ACCEPTED`
+Release: not eligible — PP-1 remains locked and unstarted
