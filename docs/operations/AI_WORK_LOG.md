@@ -2412,12 +2412,13 @@ Documentation: `docs/backend/05-manufacturing/production-plan.md`,
 `docs/backend/05-manufacturing/README.md`, `docs/backend/15-migration/migration-status.md`,
 `PROGRESS.md`, `QA_LOG.md` — all updated with matching entries.
 
-Commit: recorded once created — see this section's follow-up note / `PROGRESS.md` for the final
-hash. Files changed: the seven documentation files listed above; no other file. Pre-existing
-unrelated worktree state (`CLAUDE.md`, `apps/frontend/src/app/(app)/manufacturing/page.tsx`,
-`docs/architecture/decisions/README.md`, the three untracked Master Data architecture planning
-docs) was inspected at the start of this remediation and left exactly as found — not staged, not
-committed as part of this package.
+Commit: `08fdf99` on branch `frontend`, parent `8f0f83d` (the Production Planning discovery
+package's own coordination-only follow-up, verified exactly `HEAD` before this remediation
+started). Files changed: exactly the eight documentation files listed above; no other file staged
+or committed. Pre-existing unrelated worktree state (`CLAUDE.md`,
+`apps/frontend/src/app/(app)/manufacturing/page.tsx`, `docs/architecture/decisions/README.md`, the
+three untracked Master Data architecture planning docs) was confirmed still present and unstaged
+after this commit — not touched by this remediation.
 
 Deferred: semantic graphify regeneration remains deferred and non-blocking, per Codex's own
 classification in the review above; not run here since no code changed and it would otherwise pull
