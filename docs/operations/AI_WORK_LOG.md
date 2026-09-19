@@ -32,6 +32,7 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Manufacturing Masters — BOM Package 4A | Master Data / Manufacturing (frontend) | First BOM frontend: read-only `/master-data/boms` list + `/master-data/boms/[name]` detail (Overview/Components/Operations/Costing/More Info); existing plain-text `bom_no` displays (Work Order list/detail, Material Transfer) converted to entity links; "View BOM" link added to Work Order create's BOM preview. No create/edit/submit/cancel/amend/cost-recompute action for BOM anywhere. `bomLookup.ts`'s existing Work Order-create lookup left untouched. | `CLAUDE_HANDOFF` | Not yet reviewed | `CLAUDE_HANDOFF` — awaiting Codex's independent review | `ad8ad92` (implementation) | None yet — code-reviewer (in-session) and qa-tester (in-session) both passed with no blocking findings | `MFG-UNV-010` (BOM status-tone mapping not mirrored from a real Desk indicator; full authenticated browser click-path not run — no working test login credentials available; the one documented credential in `PROGRESS.md` was tried once by the qa-tester subagent and rejected with a live `401`, so it is now known stale, not just untried) | 2026-09-19 |
 | Manufacturing Masters — BOM Package 4B | Master Data / Manufacturing (frontend) | BOM create (`/master-data/boms/new`) + Draft-only inline edit on `/master-data/boms/[name]` (swaps to the same form when `docstatus === 0`, mirroring Purchase/Sales Order's own established pattern rather than the requested separate `/edit` route). Full header form, `BomComponentsEditor`/`BomOperationsEditor` child-table CRUD, Operation/Workstation/Routing/Currency as plain `fetchLinkOptions()` dropdowns (no new master screens). Backend-authoritative costing preserved. Submit/Cancel/Amend explicitly deferred, not investigated — scope-sizing decision disclosed before implementation (see Notes). | `CLAUDE_HANDOFF` | Not yet reviewed | `CLAUDE_HANDOFF` — awaiting Codex's independent review | `ad8ad92`/`de6733c`/`9fe773e` (accepted 4A boundary) → `305ccd7` (4B implementation) | One bug found+fixed pre-commit by in-session `qa-tester` (`with_operations` toggle silently destroyed unsaved Operations rows — now always-mounted/`hidden`-attribute instead of conditional unmount); one subagent permission-boundary incident surfaced (see Notes) | `MFG-UNV-011` (non-Draft-update rejection and zero-rate-component acceptance not live-tested — no working credentials this session) | 2026-09-19 |
 | Production Plan PP-1 | Manufacturing (frontend) | First Production Plan frontend package: read-only `/manufacturing/production-plans` list + `/manufacturing/production-plans/[name]` detail (Overview/Finished Goods/Demand Sources/Sub-Assemblies/Material Requirements/Generated Work Orders/Traceability). Reuses Work Order/BOM list-detail patterns (`DataTable`, `DocTabs`, `DocField`, `StatusPill`, `getDoc`/`listDocs`). New `productionPlanStatus()`; Sidebar "Production Plans" nav item added; Manufacturing home page copy updated. No create/edit/submit/cancel/"Get ..."/"Make ..." action anywhere; no client-side planning/shortage/explosion logic. Material Request traceability explicitly deferred (documented, not approximated). | `CLAUDE_HANDOFF` | `CLAUDE_REVIEW_COMPLETE` (CLAUDE-B, temporary dual-Claude mode, 2026-09-20) | `ACCEPTED` with 2 non-blocking findings | `2e9f8da` (implementation) | `PP1-B-01` MEDIUM Generated Work Orders tab silently truncates past 100 rows, no indicator; `PP1-B-02` LOW detail page doesn't special-case 403 (pre-existing codebase-wide gap, not a PP-1 regression) | `MFG-UNV-012` unchanged (`NEEDS_VERIFICATION`) — zero live Production Plan documents on the instance means only the list page's zero-record empty state was exercised against real data; no authenticated browser session available this session (consistent with every prior package this week), so detail-page rendering against real linked data, the invalid-ID 404 path, and the nav click-path were not browser-tested | 2026-09-20 |
+| Production Plan PP-2 | Manufacturing (frontend) | Draft-only create: `/manufacturing/production-plans/new` wizard — native `get_open_sales_orders`/`get_pending_material_requests`/`combine_so_items` via new `callRunDocMethod` (`run_doc_method`, works against a never-saved doc); editable `po_items` (bom_no/planned_qty/warehouse/planned_start_date only); "Save as Draft" via plain `createDoc`, session-checked. No submit/Get Sub Assembly Items/Make Work Order/Make Material Request/edit-existing-Draft. | `CLAUDE_HANDOFF` | `code-reviewer` (in-session, 2026-09-20) — no blocking issues | `CLAUDE_HANDOFF` — awaiting independent CLAUDE-A/Codex review per `TEMP_DUAL_CLAUDE_MODE.md`; in-session code-reviewer already passed | Not yet committed | `PP2-CR-01` resolved (misleading `callRunDocMethod` doc comment in `erpnext.ts` said `name` could be omitted — corrected to state it's required, matching the live-verified behavior 3 files away); 2 findings the reviewer flagged were already stale (PP-2 "Frontend footprint" paragraph and PROGRESS/QA_LOG entries were added after the review was launched, not actually missing) | Live-verified (not source-derived): real `get_open_sales_orders`→`combine_so_items`→`createDoc` round-trip created Draft `MFG-PP-2026-00001` correctly, then deleted; surfaced and fixed a real `run_doc_method` payload defect (`MFG-PP2-001`) before shipping. Submit/cancel/reservation/sub-assembly/Work-Order-generation paths remain `NEEDS_VERIFICATION`. No authenticated app-session browser click-path (no test login credentials, same as every prior package) | 2026-09-20 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -2660,3 +2661,121 @@ boundary and to reflect this review's actual findings in place of the stale, unb
 
 Per `TEMP_DUAL_CLAUDE_MODE.md` §16, this acceptance is subject to Codex's reconciliation audit on
 Codex's return (expected 2026-09-26).
+
+## Package: Production Plan PP-2 — Draft-only create (temporary dual-Claude mode, 2026-09-20)
+
+**PACKAGE:** Production Plan PP-2 (Draft-only create)
+**ROLE:** IMPLEMENTER
+**AGENT:** CLAUDE-B (this session — same account reviewed PP-1 earlier this session; PP-2 is a
+different package it is now implementing, not reviewing its own prior work)
+**IMPLEMENTER:** CLAUDE-B
+**REVIEWER:** CLAUDE-A (or Codex, once back — not yet assigned; not self-reviewable per protocol
+§1)
+**BASE COMMIT:** `2e9f8da` (PP-1, accepted)
+**TARGET:** Production Plan Draft-only create via ERPNext's own native demand-sourcing methods —
+see PP-1's own "Deferred / next package" note in `PROGRESS.md`.
+
+### Objective
+
+PP-1 shipped read-only. This package adds the next logical increment per this project's
+incremental-package convention (BOM 4A→4B, Work Order 2→3→5): create a Production Plan as a
+Draft, using ERPNext's real "Get Sales Orders"/"Get Material Request"/"Get Finished Goods"
+mechanism rather than reimplementing its eligibility/pending-qty/BOM-resolution logic. Submit,
+cancel, "Get Sub Assembly Items", raw-material calc, "Make Work Order", "Make Material Request"
+are explicitly out of scope — each is its own future package.
+
+### Investigation (required before implementation, per this project's standing practice)
+
+Read `production_plan.py`, `services/sales_order_planning.py` (both `frappe/erpnext`), and
+`frappe/handler.py` (`frappe/frappe`) read-only via `gh api`, confirming:
+- "Get Sales Orders"/"Get Material Request"/"Get Finished Goods" are bound `@frappe.whitelist()`
+  Document methods (`get_open_sales_orders`, `get_pending_material_requests`,
+  `get_items`/`combine_so_items`), not free-standing module functions — a different REST
+  boundary from what `lib/erpnext.ts` already had (`callMethod`/`callMethodWithResult` for
+  module-level, `callDocMethod` for bound methods on an *already-saved* doc).
+  `frappe.handler.run_doc_method` (`/api/method/run_doc_method`) is the real mechanism Desk's
+  own `frm.call()` uses for a bound method against a **never-saved** doc — confirmed from
+  source, not assumed, and this becomes a new capability in `lib/erpnext.ts`
+  (`callRunDocMethod`), reusable by any future package needing the same "call a native method
+  before the document exists" pattern (e.g. a future Production Plan Get Sub Assembly Items
+  package, or any other doctype's own new-form button-driven method).
+- `combine_so_items()` (not `get_items()` directly) is what the real "Get Finished Goods" button
+  calls — it already branches correctly on `combine_items` internally, so the frontend doesn't
+  need to replicate that branch.
+
+Full write-up: `docs/backend/05-manufacturing/production-plan.md`'s new "Native document-method
+invocation on an unsaved document" section.
+
+### Implementation
+
+See `PROGRESS.md`'s matching 2026-09-20 entry for the full file list and reasoning. Summary:
+`lib/erpnext.ts` (`callRunDocMethod`), `lib/actions/productionPlanCreate.ts` (three native-method
+wrappers + `ErpNextError`-unwrapping for the Client Component boundary),
+`lib/productionPlanRows.ts` (hidden-JSON-field parsing, mirrors `lib/bomRows.ts`),
+`components/ProductionPlanCreateForm.tsx` (the wizard), `manufacturing/production-plans/new/
+page.tsx`, `manufacturing/production-plans/actions.ts` (`createProductionPlanAction`,
+session-checked), `manufacturing/production-plans/page.tsx` ("+ New" link added).
+
+### Live verification (not self-certified as sufficient — see Findings/Review below)
+
+Checks run: `npm run lint` — clean. `npx tsc --noEmit` — clean. `npm run build` — exit 0, new
+route registered, no new diagnostics.
+
+**Real live-write round-trip against the Hetzner instance** (first Production Plan package able
+to exercise an actual write path — PP-1 had zero live documents to test against, but real Sales
+Orders exist): `get_open_sales_orders` → 12 real eligible Sales Orders returned →
+`combine_so_items` → `po_items` correctly resolved (`FG-STEEL-BRACKET-ASSY`,
+`BOM-FG-STEEL-BRACKET-ASSY-001`, `planned_qty: 30`) → `createDoc` → real Draft
+`MFG-PP-2026-00001` created with correct `total_planned_qty` → deleted as cleanup (zero
+GL/stock impact at Draft — `update_bin_qty()` only fires on submit/cancel/close). This live test
+caught and fixed a real defect pre-ship: `run_doc_method`'s `docs` payload needs an explicit
+`name`/`__islocal`/`__unsaved`, or the live instance 404s (`MFG-PP2-001`, documented in
+`production-plan.md`). Full evidence: `QA_LOG.md`'s matching 2026-09-20 entry.
+
+No authenticated *app-session* browser click-path — same "no working test login credentials"
+limitation every prior package this week disclosed. The underlying data flow (the part that
+actually mattered — native method calls, payload correctness, Draft persistence) was verified
+directly against the real API instead, which is *stronger* evidence than a browser click-path
+would have been for exactly the parts PP-1 couldn't verify at all.
+
+### Documentation Checklist
+
+Backend: `UPDATED` — `docs/backend/05-manufacturing/production-plan.md` (new native-method
+section, "Frontend footprint" PP-2 paragraph, updated domain-status line),
+`docs/backend/99-unverified/unverified-behaviours.md` (`MFG-UNV-012` marked partially resolved).
+Frontend: `UPDATED` — see `PROGRESS.md`.
+QA_LOG: `UPDATED` — 2026-09-20 entry, live round-trip evidence.
+PROGRESS: `UPDATED` — 2026-09-20 entry.
+Architecture Decision: `NOT_REQUIRED`.
+Release Documentation: pending `release-tracker` invocation (separate from this entry).
+
+### Final State
+
+Implementation: `CLAUDE_HANDOFF`. **Not self-declared accepted** — per
+`TEMP_DUAL_CLAUDE_MODE.md` §1/§5, CLAUDE-B (this session's implementer) cannot also accept this
+package; needs independent review from CLAUDE-A (or Codex, on return) before acceptance.
+Independent Review: `code-reviewer` (in-session, 2026-09-20) complete — **no blocking issues**.
+Confirmed: headless boundary clean, client/server boundary correct (`ProductionPlanCreateForm.tsx`
+never imports `"server-only"` files directly), session-check present and matches
+`postCommentAction` precedent, `trimmedDraft()`'s `name`/`__islocal`/`__unsaved` payload matches
+the live-verified requirement, `productionPlanRows.ts` correctly mirrors `bomRows.ts`, wizard
+state has no stale-closure bugs, no secrets in the diff, scope correctly held to Draft-only
+create. One finding, resolved: `callRunDocMethod`'s doc comment in `erpnext.ts` originally said
+`name` could be omitted for a new/local doc — directly contradicted by this same package's own
+live-verified finding three files away. Fixed (comment now states the real requirement,
+pointing at `trimmedDraft()` as the reference pattern). Two other findings the reviewer raised
+(PP-2 paragraph missing from `production-plan.md`'s "Frontend footprint" section;
+`PROGRESS.md`/`QA_LOG.md` missing PP-2 entries) were stale by the time the review returned — both
+were added to this session's own documentation pass after the review was launched, not actual
+gaps. Recommended keeping PP-2's commit scoped to its own files, separate from this session's
+unrelated dual-Claude-mode governance changes — followed (see commit boundary once made).
+This in-session review is not a substitute for the cross-account review this protocol requires —
+still awaiting CLAUDE-A (or Codex, on return) before acceptance.
+Documentation: `UPDATED` (see checklist above).
+Release: not eligible — awaiting independent cross-account review.
+
+### Notes
+
+Do not begin a Production Plan submit/action package (Submit, Get Sub Assembly Items, Make Work
+Order, Make Material Request), Job Cards, Workstations, OEE, or any other module until this
+package is reviewed and accepted.
