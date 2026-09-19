@@ -2530,3 +2530,95 @@ started.
 
 Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — returned to Codex for independent
 review, per the discovery package's own closure instruction.
+
+## Manufacturing — Production Plan PP-2 (Draft-only create, 2026-09-20)
+
+**Package objective**: build Production Plan create — PP-1's own "Deferred / next package" note
+above named this as the logical next step. Scoped to Draft-only create via the "Get Sales
+Orders"/"Get Finished Goods" flow, matching this project's incremental-package precedent (BOM
+4A→4B, Work Order Packages 2→3→5). Explicitly excludes submit/cancel, "Get Sub Assembly Items"
+(BOM explosion), raw-material calc/"Get Items for Purchase/Transfer", "Make Work Order", "Make
+Material Request" — each remains its own future scoped package.
+
+**Investigation before implementation** (per this project's standing practice): fetched
+`production_plan.py` and `services/sales_order_planning.py` read-only via `gh api` against
+`frappe/erpnext`, and `frappe/handler.py` against `frappe/frappe`, to confirm "Get Sales
+Orders"/"Get Material Request"/"Get Finished Goods" are real, whitelisted, bound Document
+methods (`get_open_sales_orders`, `get_pending_material_requests`, `combine_so_items`) callable
+via Frappe's `run_doc_method` endpoint even on a **never-saved** document — the same mechanism
+Desk's own new-Production-Plan form uses. Chose this over reimplementing ERPNext's own
+eligibility/pending-qty/BOM-resolution SQL client-side, consistent with this app's standing
+"trust ERPNext's own math" rule. Full write-up:
+`docs/backend/05-manufacturing/production-plan.md`'s new "Native document-method invocation on
+an unsaved document" section.
+
+**Built**:
+- `apps/frontend/src/lib/erpnext.ts` — new `callRunDocMethod<T>(doc, method)`, POSTs to
+  `/api/method/run_doc_method` with the in-progress doc as `docs`, returns the mutated
+  `docs[0]` (not `message` — several of these service methods return `None` and mutate the doc
+  in place).
+- `apps/frontend/src/lib/actions/productionPlanCreate.ts` — `getOpenSalesOrders`,
+  `getPendingMaterialRequests`, `getFinishedGoods` (wraps `combine_so_items`, which handles the
+  `combine_items` merge case automatically — the same one native method the real "Get Finished
+  Goods" button calls either way). `callAndHumanize()` unwraps `ErpNextError` into a plain
+  `Error` server-side, since `ErpNextError`'s own class/fields can't cross the Server Function →
+  Client Component boundary intact.
+- `apps/frontend/src/lib/productionPlanRows.ts` — hidden-JSON-field child-table parsing for the
+  final create submit, mirrors `lib/bomRows.ts`'s established technique.
+- `apps/frontend/src/components/ProductionPlanCreateForm.tsx` — the wizard: header/filter
+  fields → Get Sales Orders/Get Material Request → Get Finished Goods → editable `po_items`
+  table (`bom_no` override via `listBomsForItem` reuse, `planned_qty`/`warehouse`/
+  `planned_start_date`; every other field left exactly as ERPNext resolved it) → Save as Draft.
+- `apps/frontend/src/app/(app)/manufacturing/production-plans/new/page.tsx` — new route.
+- `apps/frontend/src/app/(app)/manufacturing/production-plans/actions.ts` — new
+  `createProductionPlanAction`, session-checked (`cookies()`/`verifySession`, same pattern as
+  `comments.ts`'s `postCommentAction`) since it's the one step that actually persists a
+  document; the three native-method preview calls are read-only against ERPNext (nothing
+  persisted) and were left unauthenticated at the app-session layer, relying on the shared
+  service account only.
+- `apps/frontend/src/app/(app)/manufacturing/production-plans/page.tsx` — added
+  "+ New Production Plan" link (PP-1 deliberately had none, being read-only).
+
+**Live verification, not just source-derived** (unlike PP-1, which had zero live Production
+Plan documents to test against): a real end-to-end round-trip was run against the Hetzner
+instance this session — `get_open_sales_orders` (returned 12 real eligible Sales Orders) →
+`combine_so_items` (correctly resolved `po_items` with real `item_code`/`bom_no`/`planned_qty`/
+`warehouse`/`sales_order` back-reference) → a plain `createDoc` POST created a real Draft
+`MFG-PP-2026-00001` (docstatus 0, `total_planned_qty` correctly computed as 30 by ERPNext
+itself) → deleted as cleanup (Draft Production Plan has zero GL/stock impact — confirmed in
+`production-plan.md`'s "Accounting / stock impact" section, `update_bin_qty()` only fires on
+submit/cancel/close). This surfaced and fixed a real requirement not obvious from source alone:
+`run_doc_method`'s `docs` payload needs an explicit placeholder `name` plus `__islocal: 1`/
+`__unsaved: 1`, or this installed instance 404s with `DoesNotExistError` ("Production Plan None
+not found") instead of treating it as a fresh unsaved document. See `production-plan.md`'s
+`MFG-PP2-001`.
+
+**Checks run**: `npm run lint` — clean. `npx tsc --noEmit` — clean. `npm run build` — succeeded,
+exit 0, `/manufacturing/production-plans/new` registered correctly, no new errors/warnings
+beyond the same pre-existing `erpnextFetch network error` static-generation diagnostics every
+prior package hit. Dev server started; `GET /manufacturing/production-plans/new` and
+`GET /manufacturing/production-plans` both confirmed returning the same `307` redirect to
+`/login` every other protected route exhibits (no working test login credentials this session,
+same limitation as every prior package) — route wiring confirmed, full authenticated
+click-path not.
+
+**Explicitly not implemented**: submit, cancel, amend, "Get Sub Assembly Items", raw-material
+calc/"Get Items for Purchase/Transfer", "Make Work Order", "Make Material Request", editing an
+already-saved Draft (no `/production-plans/[name]/edit` route — create-only), `reserve_stock`'s
+actual reservation effect (the field is stored, its stock-reservation behavior is not exercised
+by this package).
+
+**MFG-UNV-012 impact**: partially resolved — see `docs/backend/99-unverified/
+unverified-behaviours.md`'s updated entry. Demand sourcing and Draft creation are now
+live-confirmed; submit/cancel lifecycle, stock reservation, sub-assembly explosion, and Work
+Order/Material Request generation remain unexercised.
+
+**Deferred / next package**: a Production Plan submit/action package (Submit, "Get Sub Assembly
+Items", "Make Work Order", "Make Material Request") is the next logical step within Production
+Plan, matching PP-1→PP-2's own precedent — not started here. Job Cards, Workstations, and OEE
+remain unbuilt, unchanged from the priority-lock note above.
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (temporary dual-Claude mode, Codex unavailable
+2026-09-20 through 2026-09-25), this needs independent review from the other Claude account
+before acceptance, not self-review.

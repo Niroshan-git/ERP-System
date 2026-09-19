@@ -1,12 +1,13 @@
 # Production Plan — Backend Knowledge Baseline
 
-Domain status: `DOCUMENTED` (schema + business-rule source-verified, **zero runtime/live-write
-verification** — no Production Plan document exists on the instance). See
-`docs/backend/15-migration/migration-status.md`.
+Domain status: `DOCUMENTED` (schema + business-rule source-verified; **create flow now
+live-write-verified** as of PP-2, 2026-09-20 — see "Frontend footprint" below. Submit/cancel,
+Get Sub Assembly Items, raw-material calc, Make Work Order/Make Material Request remain
+unverified). See `docs/backend/15-migration/migration-status.md`.
 
-This is a **discovery/canonicalization pass only** — per `CLAUDE.md`'s Current Mission and the
-2026-09-19 Production Planning discovery package. No frontend exists yet for Production Plan (see
-"Frontend footprint" below); nothing here should be read as describing built behavior.
+PP-1 (2026-09-19) was a discovery/canonicalization pass only, read-only. PP-2 (2026-09-20) adds
+Draft-only create — see "Frontend footprint" below for exactly what shipped and what's still out
+of scope.
 
 ## Source of truth for this baseline
 
@@ -404,6 +405,49 @@ MATERIAL_REQUEST_ITEM }o--o| MATERIAL_REQUEST_PLAN_ITEM : "N:1 optional, by name
 PURCHASE_ORDER }o--o| PRODUCTION_PLAN : "N:1 optional, subcontracted sub-assembly rows only (source-referenced, NEEDS_VERIFICATION on live schema)"
 ```
 
+## Native document-method invocation on an unsaved document (`run_doc_method`) — new 2026-09-20
+
+Production Plan's own "Get Sales Orders"/"Get Material Request"/"Get Finished Goods" buttons are
+**bound Document methods** (`@frappe.whitelist()` directly on the `ProductionPlan` class —
+`get_open_sales_orders`, `get_pending_material_requests`, `get_items`/`combine_so_items`, source:
+`erpnext/manufacturing/doctype/production_plan/production_plan.py`, confirmed via `gh api` against
+`frappe/erpnext`), not free-standing module-level functions. Desk calls these against a completely
+new, **never-saved** form — the "Get Sales Orders" button works before the document has ever been
+created. This is a different REST boundary from both `callMethod`/`callMethodWithResult`
+(`/api/method/<dotted.path>`, module-level functions) and `callDocMethod`
+(`/api/resource/<doctype>/<name>` + `run_method`, requires an **existing, saved** document) that
+`lib/erpnext.ts` already had.
+
+**The real mechanism**: Frappe's `frappe.handler.run_doc_method`
+(`/api/method/run_doc_method`, source-read from `frappe/frappe`'s `frappe/handler.py` this
+session) — when called with a `dt`/`dn` pair it loads an existing saved doc; when called with a
+`docs` payload instead, it does `doc = frappe.get_doc(docs, check_permission=True)` (building an
+in-memory `Document` from the payload, never touching the DB for a fetch) then
+`doc.run_method(method)`, and **always** returns the resulting whole document via
+`frappe.response.docs.append(doc)` regardless of the method's own return value — several of these
+service methods (`get_open_sales_orders` in particular) return `None` and mutate `self` in place,
+so the caller must read the returned `docs[0]`, not `message`. New `lib/erpnext.ts` function:
+`callRunDocMethod<T>(doc, method)`.
+
+**Live-verified payload requirement (`MFG-PP2-001`, closed)**: a bare `{doctype: "Production
+Plan", ...header fields}` payload with no `name` key **fails** on this installed instance —
+`frappe.get_doc(docs)` resolves it as a fetch-by-name with `name` defaulting to `None`, and 404s
+with `"Production Plan None not found"` (`DoesNotExistError`) rather than constructing a fresh
+unsaved Document. The payload must include an explicit placeholder `name` (e.g.
+`"new-production-plan-1"`) plus `__islocal: 1` and `__unsaved: 1` — the same flags Desk's own
+client-side new-doc state carries — for `is_new()`/`check_if_latest()` to treat it correctly as
+new. Confirmed live 2026-09-20 via a full round-trip against the real instance: `get_open_sales_orders`
+→ `combine_so_items` → plain `createDoc` (`POST /api/resource/Production Plan`) created a real
+Draft `MFG-PP-2026-00001` with correct `po_items`/`total_planned_qty`, then it was deleted
+(Draft-only delete, zero GL/stock impact — see "Accounting / stock impact" above, `update_bin_qty()`
+only fires on submit/cancel/close).
+
+**Chaining `combine_so_items`, not `get_items` directly**: `combine_so_items()`'s own source
+branches — if `combine_items` is off, or `po_items` is still empty, it just calls `get_items()`;
+if `combine_items` is on and rows already exist, it re-merges by `bom_no` instead. Calling
+`combine_so_items` unconditionally (the same method the real "Get Finished Goods" button invokes)
+covers both cases correctly without the frontend needing to branch on `combine_items` itself.
+
 ## Frontend footprint
 
 **PP-1 (2026-09-19) shipped the first read-only foundation.** Routes:
@@ -419,6 +463,34 @@ from a Desk indicator — no `production_plan_list.js` source was read). Work Or
 backend back-reference fields, not Item/BOM inference. Material Request traceability (section 12)
 is explicitly deferred, not approximated — see the detail page's Traceability tab. This baseline
 made the package buildable without re-deriving the model from scratch, as intended.
+
+**PP-2 (2026-09-20) added Draft-only create.** New route
+`/manufacturing/production-plans/new` — a wizard: (1) Company/Posting Date/Get Items From +
+filter-criteria header fields; (2) "Get Sales Orders"/"Get Material Request" (native
+`get_open_sales_orders`/`get_pending_material_requests` via `run_doc_method`, see above);
+(3) "Get Finished Goods" (native `combine_so_items`); (4) an editable `po_items` table
+(`bom_no`, `planned_qty`, `warehouse`, `planned_start_date` only — every other field, including
+`item_code`/`pending_qty`/`sales_order` back-references, is left exactly as ERPNext resolved it,
+not second-guessed); (5) "Save as Draft" — a plain REST `POST /api/resource/Production Plan` of
+the accumulated state (docstatus 0), same "trust the preview, persist it as-is" precedent as
+`createWorkOrderAction`. New: `lib/actions/productionPlanCreate.ts` (the three native-method
+wrappers), `lib/productionPlanRows.ts` (hidden-JSON-field child-table parsing, mirrors
+`lib/bomRows.ts`), `components/ProductionPlanCreateForm.tsx`,
+`manufacturing/production-plans/actions.ts` (`createProductionPlanAction`, session-checked —
+the only step that actually persists anything). `lib/erpnext.ts` gained `callRunDocMethod`.
+
+**Explicitly out of scope for PP-2** (unchanged from PP-1's own deferred list, still true):
+submit/cancel, "Get Sub Assembly Items" (BOM explosion), raw-material requirement calc/"Get
+Items for Purchase/Transfer", "Make Work Order", "Make Material Request", `reserve_stock`
+wiring beyond storing the field, editing an already-saved Draft (create-only — no
+`/production-plans/[name]/edit` route). Each remains its own future scoped package.
+
+`MFG-UNV-012` is **partially resolved** by this package: the create flow itself (demand
+sourcing, finished-goods population, Draft persistence) is now live-confirmed, not merely
+source-derived — see `MFG-PP2-001` above. Submit/cancel lifecycle, `update_bin_qty()`/stock
+reservation, `reserve_stock_for_production_plan`, Work Order/Material Request generation, and
+the Sub Assembly/raw-material calculation paths remain entirely unexercised and still
+`NEEDS_VERIFICATION`.
 
 Zero Production Plan documents exist on the instance as of this package (re-confirmed via
 `mcp__ceylon-stack__list_documents` immediately before implementation) — the list page's

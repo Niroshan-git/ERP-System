@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AccessDeniedNotice } from "@/components/AccessDeniedNotice";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { ErpNextError, getCount, listDocs } from "@/lib/erpnext";
@@ -43,11 +44,12 @@ type SearchParams = {
 };
 
 /**
- * Production Plan list — PP-1, the first Production Plan frontend package (see
- * docs/backend/05-manufacturing/production-plan.md's "Frontend footprint" section for the
- * canonicalization decision behind this route living under /manufacturing, not /master-data).
- * Read-only, same DataTable/ListFilterBar/PaginationControls shell as WorkOrdersPage/BomsPage —
- * no "+ New" link (PP-1 is explicitly read-only, no create/edit/delete/submit/cancel action).
+ * Production Plan list — PP-1 (2026-09-19) shipped this read-only. PP-2 (2026-09-20) added
+ * "+ New Production Plan" (see ./new/page.tsx, ./actions.ts) — Draft-only create via ERPNext's
+ * own native Get Sales Orders/Get Material Request/Get Finished Goods methods. Submit/cancel,
+ * Get Sub Assembly Items, raw-material calc, and Make Work Order/Make Material Request remain
+ * out of scope for both packages — see docs/backend/05-manufacturing/production-plan.md's
+ * "Frontend footprint" section.
  */
 export default async function ProductionPlansPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
@@ -120,6 +122,12 @@ export default async function ProductionPlansPage({ searchParams }: { searchPara
       />
       <div className="mb-4 flex items-center justify-between">
         <h1 className="text-2xl font-medium text-graphite-900">Production Plans</h1>
+        <Link
+          href="/manufacturing/production-plans/new"
+          className="rounded-md bg-signal px-4 py-2 text-sm font-medium text-white hover:bg-signal/90"
+        >
+          + New Production Plan
+        </Link>
       </div>
 
       <ListFilterBar fields={filterFields} sortOptions={SORT_OPTIONS} values={params} />

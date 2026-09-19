@@ -109,7 +109,9 @@ phantom item is exploded through (never appearing as its own stock movement) as 
 resulting Work Order/Material Request generation and any sub-assembly BOM explosion it triggers.
 
 ### MFG-UNV-012 — Production Plan runtime behavior (no live document exists)
-**Status:** `NEEDS_VERIFICATION` (schema + source-verified, zero runtime verification)
+**Status:** `NEEDS_VERIFICATION`, **partially resolved 2026-09-20 (PP-2)** — demand sourcing and
+Draft creation are now live-confirmed (see below); submit/cancel lifecycle, stock reservation,
+sub-assembly explosion, and Work Order/Material Request generation remain unexercised.
 **ID note (2026-09-19):** originally filed as `MFG-UNV-010`, which collided with the pre-existing
 BOM detail-page verification item below of the same ID (`CX-MFG-PP-004`). Renumbered to
 `MFG-UNV-012` — the BOM item keeps its original `MFG-UNV-010` identity unchanged, since it was
@@ -139,10 +141,21 @@ one-per-`po_items`-row/one-per-in-house-`sub_assembly_items`-row with quantity-b
 duplicate prevention; that the Production Plan → Material Request back-reference lives on
 `Material Request Item` (`production_plan`, `material_request_plan_item`), never on the `Material
 Request` parent doctype. Full detail in `docs/backend/05-manufacturing/production-plan.md`.
-**What's still uncertain:** (1) **everything above is source-derived, not live-observed** — zero
-Production Plan documents exist on this instance, so no actual Sales Order → Production Plan →
-Work Order/Material Request flow, sub-assembly explosion, or shortage calculation has been run and
-inspected; (2) a confirmed schema drift exists between the fetched GitHub source and the live
+**Live-confirmed 2026-09-20 (PP-2 create flow):** a full `get_open_sales_orders` → `combine_so_items`
+→ plain `createDoc` round-trip against the real instance created an actual Draft
+`MFG-PP-2026-00001` from a real, live Sales Order (`SAL-ORD-2026-00007`, item
+`FG-STEEL-BRACKET-ASSY`, BOM `BOM-FG-STEEL-BRACKET-ASSY-001`), with `po_items` and
+`total_planned_qty` (30) computed correctly by ERPNext itself, then deleted as cleanup. This
+confirms: the Sales Order eligibility/pending-qty query, `po_items.bom_no` resolution, and Draft
+persistence all behave as documented. See `production-plan.md`'s `MFG-PP2-001` for the
+`run_doc_method` payload requirement this also surfaced (needs explicit `name`/`__islocal`/
+`__unsaved` on an unsaved-doc payload, or the live instance 404s).
+**What's still uncertain:** (1) everything **beyond the create flow above** remains
+source-derived, not live-observed — no actual Work Order/Material Request generation,
+sub-assembly explosion, or submit/cancel/stock-reservation lifecycle has been run and inspected
+(zero Production Plan documents are left on the instance between sessions, by design — the one
+created for this verification was deleted); (2) a confirmed schema drift exists between the
+fetched GitHub source and the live
 instance — the source's Material Request auto-submit path reads `self.doc.get(
 "submit_material_request")`, but no such field exists in the live `Production Plan` schema,
 meaning the installed ERPNext version is close to but not identical to the fetched branch, so any
@@ -154,12 +167,12 @@ read — `reserve_stock`'s full effect beyond the `Bin` reserved-qty update is u
 `Purchase Order.production_plan`-style back-reference for subcontracted sub-assembly rows was
 inferred from the Python (`production_plan` passed into `_subcontract_po_item`) but not confirmed
 against the live `Purchase Order`/`Purchase Order Item` schema.
-**How to verify:** Build or exercise a representative `Production Plan` on the dev instance (real
-Sales Order with a BOM-linked item, a BOM with at least one sub-assembly component) and trace the
-full Sales Order → BOM resolution → sub-assembly explosion → Work Order/Material Request generation
-flow end to end, comparing actual results against the formulas/rules documented in
-`production-plan.md`. Do this once a Production Plan frontend package that needs the write path
-exists — not as a standalone backend-only exercise, per the discovery package's read-only scope.
+**How to verify:** Sales Order → Draft Production Plan creation is now verified (above, PP-2). The
+remaining gap needs a BOM with at least one sub-assembly component (none exists on this instance
+yet) submitted through: Submit → sub-assembly explosion → Make Work Order/Make Material Request →
+downstream generation, comparing actual results against the formulas/rules documented in
+`production-plan.md`. Do this once a Production Plan submit/action package (a future package,
+explicitly out of scope for PP-2) exists.
 
 ### MFG-UNV-005 — Accounting (GL) impact of Material Transfer for Manufacture
 **Status:** `NEEDS_VERIFICATION`

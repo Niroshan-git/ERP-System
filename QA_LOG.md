@@ -845,3 +845,61 @@ applied the same day; no code logic changed and no new QA was required for it.
   `NEEDS_VERIFICATION`; pre-existing unrelated worktree changes preserved). Not self-declared
   accepted — returned to Codex for independent review, per the discovery package's own closure
   instruction; see `docs/operations/AI_WORK_LOG.md`'s matching ledger row.
+
+## 2026-09-20 — Manufacturing — Production Plan PP-2 (Draft-only create)
+
+- **Package tested**: `apps/frontend` — new `/manufacturing/production-plans/new` create
+  wizard, `createProductionPlanAction`, the three native-method preview wrappers
+  (`getOpenSalesOrders`/`getPendingMaterialRequests`/`getFinishedGoods`), `callRunDocMethod`
+  (`lib/erpnext.ts`), and the "+ New Production Plan" list-page link.
+- **Result**: **PASS**, with real live-write verification (not just static checks) — the first
+  Production Plan package able to exercise a genuine write path, since real Sales Orders exist
+  on the instance even though zero Production Plan documents do.
+- **What was verified**:
+  1. `npx tsc --noEmit` — clean. `npm run lint` — clean. `npm run build` — succeeded, exit 0,
+     `/manufacturing/production-plans/new` registered, no new errors/warnings.
+  2. **Live end-to-end round-trip against the real Hetzner instance**, run directly against
+     ERPNext's REST API using the app's own "Frontend Integration" service-account credentials
+     (same account `apps/frontend` uses at runtime — no ERPNext core files touched, no
+     credentials written to any file):
+     - `POST /api/method/run_doc_method` with `method: "get_open_sales_orders"` against an
+       unsaved Production Plan doc (`company: "Ceylon Stack"`) — returned 12 real eligible
+       Sales Orders (e.g. `SAL-ORD-2026-00032`, `SAL-ORD-2026-00007`).
+     - Same call with `method: "combine_so_items"`, doc now carrying those 12 Sales Orders —
+       correctly resolved 1 `po_items` row (`FG-STEEL-BRACKET-ASSY`,
+       `bom_no: "BOM-FG-STEEL-BRACKET-ASSY-001"`, `planned_qty: 30`,
+       `warehouse: "Finished Goods - CS"`, `sales_order: "SAL-ORD-2026-00007"` back-reference)
+       — matches exactly what the frontend's `po_items` table expects.
+     - `POST /api/resource/Production Plan` with that resolved state (mirroring
+       `createProductionPlanAction`'s actual payload shape) — created a real Draft
+       `MFG-PP-2026-00001` (`docstatus: 0`, `status: "Draft"`, `total_planned_qty: 30`,
+       computed correctly by ERPNext's own `calculate_total_planned_qty()`).
+     - `DELETE /api/resource/Production Plan/MFG-PP-2026-00001` — cleanup, `202` accepted.
+       Confirmed safe: Production Plan posts no GL entries and `update_bin_qty()` only fires on
+       submit/cancel/close (`production-plan.md`'s "Accounting / stock impact" section) — a
+       Draft-only create/delete cycle has zero stock-ledger or GL footprint.
+  3. **This live test caught a real defect before it shipped**: the first attempt (payload
+     without an explicit `name`/`__islocal`/`__unsaved`) failed with a live `404
+     DoesNotExistError` ("Production Plan None not found") — not a theoretical risk, an actual
+     wrong assumption the source read alone didn't surface. Fixed in
+     `productionPlanCreate.ts`'s `trimmedDraft()` before this package was considered done; see
+     `production-plan.md`'s `MFG-PP2-001`.
+  4. Dev server started; `GET /manufacturing/production-plans/new` and
+     `GET /manufacturing/production-plans` both returned the expected `307` redirect to
+     `/login` (this app's own session-auth middleware, not ERPNext) — confirms the route is
+     correctly wired, consistent with every other protected route's verification this week.
+- **Not performed, disclosed boundary**: no working test login credentials for *this app's own*
+  session layer exist this session (separate from the ERPNext service-account credentials used
+  for the live REST round-trip above) — the wizard's actual browser UI (button clicks, table
+  rendering, per-row BOM override `<select>`, form validation messages) was not click-tested.
+  The underlying data flow it depends on (native method calls, payload shape, Draft creation)
+  was verified directly against the real API instead, which is stronger evidence for the parts
+  that were unverifiable in PP-1 (zero live Production Plan documents existed then).
+- **Cleanup**: `MFG-PP-2026-00001` created and deleted within this same verification pass — zero
+  net change to the instance. No other document was created, updated, or deleted.
+- **Sign-off**: in-session review against this package's own scope boundary (create-only, no
+  submit/Get Sub Assembly Items/Make Work Order/Make Material Request; session-checked create
+  action; `ErpNextError` never crosses the Server Function → Client Component boundary intact).
+  Not self-declared accepted — per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, needs independent
+  review from the other Claude account before acceptance; see
+  `docs/operations/AI_WORK_LOG.md`'s matching ledger row.

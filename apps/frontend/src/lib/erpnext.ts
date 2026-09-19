@@ -231,6 +231,39 @@ export async function callMethodWithResult<T>(method: string, args: Record<strin
   return data.message as T;
 }
 
+/**
+ * Calls a whitelisted *document* method against a document that does not exist in the
+ * database yet (`frappe.handler.run_doc_method`, `/api/method/run_doc_method` — source-read
+ * 2026-09-20: `frappe/handler.py`). Sibling to `callDocMethod` above, which requires an
+ * already-saved `name`; this one instead sends the full in-progress document as `docs`, the
+ * same mechanism Desk's own `frm.call({ doc: cur_frm.doc, method })` uses for a new, unsaved
+ * form — e.g. Production Plan's "Get Sales Orders"/"Get Finished Goods" buttons, which run
+ * server-side query/eligibility logic and mutate child tables on the in-memory doc *before*
+ * the document is ever created.
+ *
+ * `frappe.get_doc(docs)` builds an in-memory `Document` from the plain object, then
+ * `doc.run_method(method)` is called. **`doc` must include `name`, `__islocal: 1`, and
+ * `__unsaved: 1`** — live-verified 2026-09-20 against the installed instance: omitting `name`
+ * does *not* get treated as new/local here, it gets resolved as a fetch-by-name with `name`
+ * defaulting to `None`, and 404s with `DoesNotExistError` ("<Doctype> None not found"). Use any
+ * locally-unique placeholder for `name` (e.g. `"new-<doctype-slug>-1"`) — see
+ * `lib/actions/productionPlanCreate.ts`'s `trimmedDraft()` for the reference pattern this was
+ * worked out against. Per `run_doc_method`'s own source, the method's *return value* is not
+ * always reliable to read (several ERPNext service methods return `None` and mutate `self` in
+ * place, e.g. `get_open_sales_orders`) — `frappe.response.docs.append(doc)` always runs
+ * regardless, so this returns the resulting **whole document** (`docs[0]`), not `message`.
+ * Read-only against ERPNext in the sense that nothing is persisted to the database — the
+ * mutation is entirely in-memory and discarded once the HTTP response is sent; only an explicit
+ * later `createDoc` persists anything.
+ */
+export async function callRunDocMethod<T>(doc: Record<string, unknown>, method: string): Promise<T> {
+  const data = await erpnextFetch("/api/method/run_doc_method", {
+    method: "POST",
+    body: JSON.stringify({ docs: doc, method }),
+  });
+  return data.docs[0] as T;
+}
+
 export type ReportColumn = {
   label: string;
   fieldname: string;

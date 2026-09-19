@@ -31,7 +31,7 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Master Data Canonicalization — Inventory Structure domain (Warehouse) | Master Data (frontend, cross-module) | Warehouse moved from `/stock/warehouses` to canonical `/master-data/warehouses`; compatibility redirect; inbound links updated (`masterDataWorkspace.ts`, `Sidebar.tsx` ×2 groups, Work Order detail ×4 `DocLink`s); Batch/Serial No re-confirmed and deliberately not moved | `DOCUMENTATION_CLOSURE` complete | `CODEX_REVIEW_COMPLETE` (2026-09-19 final closure review) | `ACCEPTED` — `CX-MD-WH-003` closed; implementation, repository documentation, and external-plan verification complete | `f078610` (implementation) → `8cf45de` (coordination) → remediation `7447574` → final accepted boundary `2a7076c` | None blocking — `CX-MD-WH-003` `CLOSED` by live Notion MD-6 read evidence in `2a7076c` | Full authenticated browser click-path not run; `account`/`warehouse_type`/`customer` remain pre-existing unexposed fields/future enhancements | 2026-09-19 |
 | Manufacturing Masters — BOM Package 4A | Master Data / Manufacturing (frontend) | First BOM frontend: read-only `/master-data/boms` list + `/master-data/boms/[name]` detail (Overview/Components/Operations/Costing/More Info); existing plain-text `bom_no` displays (Work Order list/detail, Material Transfer) converted to entity links; "View BOM" link added to Work Order create's BOM preview. No create/edit/submit/cancel/amend/cost-recompute action for BOM anywhere. `bomLookup.ts`'s existing Work Order-create lookup left untouched. | `CLAUDE_HANDOFF` | Not yet reviewed | `CLAUDE_HANDOFF` — awaiting Codex's independent review | `ad8ad92` (implementation) | None yet — code-reviewer (in-session) and qa-tester (in-session) both passed with no blocking findings | `MFG-UNV-010` (BOM status-tone mapping not mirrored from a real Desk indicator; full authenticated browser click-path not run — no working test login credentials available; the one documented credential in `PROGRESS.md` was tried once by the qa-tester subagent and rejected with a live `401`, so it is now known stale, not just untried) | 2026-09-19 |
 | Manufacturing Masters — BOM Package 4B | Master Data / Manufacturing (frontend) | BOM create (`/master-data/boms/new`) + Draft-only inline edit on `/master-data/boms/[name]` (swaps to the same form when `docstatus === 0`, mirroring Purchase/Sales Order's own established pattern rather than the requested separate `/edit` route). Full header form, `BomComponentsEditor`/`BomOperationsEditor` child-table CRUD, Operation/Workstation/Routing/Currency as plain `fetchLinkOptions()` dropdowns (no new master screens). Backend-authoritative costing preserved. Submit/Cancel/Amend explicitly deferred, not investigated — scope-sizing decision disclosed before implementation (see Notes). | `CLAUDE_HANDOFF` | Not yet reviewed | `CLAUDE_HANDOFF` — awaiting Codex's independent review | `ad8ad92`/`de6733c`/`9fe773e` (accepted 4A boundary) → `305ccd7` (4B implementation) | One bug found+fixed pre-commit by in-session `qa-tester` (`with_operations` toggle silently destroyed unsaved Operations rows — now always-mounted/`hidden`-attribute instead of conditional unmount); one subagent permission-boundary incident surfaced (see Notes) | `MFG-UNV-011` (non-Draft-update rejection and zero-rate-component acceptance not live-tested — no working credentials this session) | 2026-09-19 |
-| Production Plan PP-1 | Manufacturing (frontend) | First Production Plan frontend package: read-only `/manufacturing/production-plans` list + `/manufacturing/production-plans/[name]` detail (Overview/Finished Goods/Demand Sources/Sub-Assemblies/Material Requirements/Generated Work Orders/Traceability). Reuses Work Order/BOM list-detail patterns (`DataTable`, `DocTabs`, `DocField`, `StatusPill`, `getDoc`/`listDocs`). New `productionPlanStatus()`; Sidebar "Production Plans" nav item added; Manufacturing home page copy updated. No create/edit/submit/cancel/"Get ..."/"Make ..." action anywhere; no client-side planning/shortage/explosion logic. Material Request traceability explicitly deferred (documented, not approximated). | `CLAUDE_HANDOFF` | Not yet reviewed | `CLAUDE_HANDOFF` — awaiting Codex's independent review | Not yet committed — see PROGRESS.md's matching entry for the full file list pending commit | None yet — self-reviewed in-session against the discovery package's own 24-point closure checklist | `MFG-UNV-012` unchanged (`NEEDS_VERIFICATION`) — zero live Production Plan documents on the instance means only the list page's zero-record empty state was exercised against real data; no authenticated browser session available this session (consistent with every prior package this week), so detail-page rendering against real linked data, the invalid-ID 404 path, and the nav click-path were not browser-tested | 2026-09-19 |
+| Production Plan PP-1 | Manufacturing (frontend) | First Production Plan frontend package: read-only `/manufacturing/production-plans` list + `/manufacturing/production-plans/[name]` detail (Overview/Finished Goods/Demand Sources/Sub-Assemblies/Material Requirements/Generated Work Orders/Traceability). Reuses Work Order/BOM list-detail patterns (`DataTable`, `DocTabs`, `DocField`, `StatusPill`, `getDoc`/`listDocs`). New `productionPlanStatus()`; Sidebar "Production Plans" nav item added; Manufacturing home page copy updated. No create/edit/submit/cancel/"Get ..."/"Make ..." action anywhere; no client-side planning/shortage/explosion logic. Material Request traceability explicitly deferred (documented, not approximated). | `CLAUDE_HANDOFF` | `CLAUDE_REVIEW_COMPLETE` (CLAUDE-B, temporary dual-Claude mode, 2026-09-20) | `ACCEPTED` with 2 non-blocking findings | `2e9f8da` (implementation) | `PP1-B-01` MEDIUM Generated Work Orders tab silently truncates past 100 rows, no indicator; `PP1-B-02` LOW detail page doesn't special-case 403 (pre-existing codebase-wide gap, not a PP-1 regression) | `MFG-UNV-012` unchanged (`NEEDS_VERIFICATION`) — zero live Production Plan documents on the instance means only the list page's zero-record empty state was exercised against real data; no authenticated browser session available this session (consistent with every prior package this week), so detail-page rendering against real linked data, the invalid-ID 404 path, and the nav click-path were not browser-tested | 2026-09-20 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -2579,3 +2579,84 @@ generation, subcontract Purchase Order back-reference, or end-to-end flow verifi
 
 Release gate: **PP-1 — Production Plan Read Foundation is UNLOCKED / READY FOR NEXT PACKAGE**. PP-1
 was not implemented or started during this review.
+
+## Package: Production Plan PP-1 — CLAUDE-B independent review (temporary dual-Claude mode, 2026-09-20)
+
+### Context
+
+Session opened under [`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`](../controls/TEMP_DUAL_CLAUDE_MODE.md)
+(2026-09-20 through 2026-09-25, Codex independent-review capacity unavailable). This session is
+**CLAUDE-B**, assigned REVIEWER for Production Plan PP-1, which Claude (unattributed A/B) implemented
+and committed as `2e9f8da` on 2026-09-19.
+
+### Reviewer-mode boundary establishment (per protocol §6 — do not trust the handoff as proof)
+
+Before reviewing, the pre-existing ledger row for this package (working-tree-only, uncommitted edit
+present at session start) was checked against Git evidence and found **unreliable**, not used as a
+starting point:
+- It claimed `CODEX_REVIEW_COMPLETE (2026-09-19)` with `CHANGES REQUIRED` and four findings
+  (`CX-MFG-PP1-001..004`), but no detailed finding record exists anywhere in this repository backing
+  any of the four IDs — every other Codex review in this file has one; this one does not, and a
+  repo-wide search for "contamination" (the `CX-MFG-PP1-001` label) matches only that one ledger cell.
+- Its own "Commit/Boundary" field said "Not yet committed" for code that had, by the time this session
+  opened, already been committed as `2e9f8da`.
+- It was never committed itself — a working-tree-only claim, inconsistent with every other review in
+  this ledger, which is always recorded via a real commit.
+
+Given the above, this review treats `2e9f8da` as the actual, independently-established package
+boundary (`git show --stat 2e9f8da`: 11 files, all directly PP-1-scoped — no Job Card/BOM/Workstation/
+OEE/unrelated-module file touched) and re-derives findings from the code itself rather than carrying
+the stale claims forward.
+
+### Independent checks run
+
+`npm run lint` (apps/frontend) — PASSED, clean. `npx tsc --noEmit` — PASSED, clean, no output.
+`npm run build` — PASSED, exit 0; both new routes (`/manufacturing/production-plans`,
+`/manufacturing/production-plans/[name]`) registered as server-rendered (ƒ) routes; every
+pre-existing route (including `/manufacturing/work-orders*`, `/master-data/boms*`) still present;
+only the same pre-existing `erpnextFetch network error` static-generation diagnostics seen in every
+prior package this week (no live server reachable from this build environment), no new errors or
+warnings. No live ERPNext mutation was performed (read-only package; no `actions.ts` file exists for
+Production Plan).
+
+### Review of the four claimed findings
+
+- **`CX-MFG-PP1-001` (claimed HIGH, "package contamination"): NOT REPRODUCIBLE, not carried forward.**
+  All 11 changed files are directly PP-1-scoped. The one pre-existing unrelated uncommitted diff this
+  package's own files overlapped with (`manufacturing/page.tsx`'s prior BOM-to-Master-Data copy
+  correction) was inspected in the diff and confirmed preserved — only the one outdated sentence about
+  Production Plans was touched, nothing else in that prior change was reverted or altered. No evidence
+  of scope contamination found anywhere in the diff.
+- **`CX-MFG-PP1-002` (claimed MEDIUM, "bounded Work Order traceability"): CONFIRMED, re-filed as
+  `PP1-B-01`.** `production-plans/[name]/page.tsx`'s Generated Work Orders tab queries
+  `listDocs("Work Order", { filters: [["production_plan", "=", doc.name]], limit: 100, ... })` with no
+  pagination and no truncation indicator in the rendered table. If a Production Plan ever generates
+  more than 100 Work Orders, rows beyond the cap are silently dropped with no "showing 100 of N"
+  messaging — unlike the list pages in this same package, which use `PaginationControls`/`getCount`.
+  Non-blocking today (zero live Production Plan documents exist), but should be fixed — either raise
+  the cap with a real count check, or add a truncation notice — before this tab is trusted against a
+  Production Plan with heavy Work Order generation.
+- **`CX-MFG-PP1-003` (claimed MEDIUM, "detail access-denied handling"): CONFIRMED but rescoped to LOW,
+  re-filed as `PP1-B-02`.** `production-plans/[name]/page.tsx` only special-cases `404` (via
+  `notFound()`); a `403` falls through to `throw e` and the generic Next.js error boundary, while the
+  sibling list page in the same commit does catch `403` via `AccessDeniedNotice`. However, this is
+  **not a PP-1-specific regression** — grepped `work-orders/[name]/page.tsx` and
+  `master-data/boms/[name]/page.tsx` (both already-`ACCEPTED` packages) and neither handles `ErpNextError`
+  or `403` at all; PP-1's detail page is actually more defensive than either precedent (it's the only
+  one of the three with a 404 handler). This is a pre-existing, codebase-wide gap between list-page and
+  detail-page error handling, not something PP-1 introduced. Logged as non-blocking; recommend a future
+  cross-cutting package (all detail pages, not just Production Plan) rather than singling out PP-1.
+- **`CX-MFG-PP1-004` (claimed DOCUMENTATION, "stale commit boundary"): CONFIRMED, self-resolving.** The
+  claim was accurate at the moment it was written (in the working tree, before `2e9f8da` existed) but
+  was itself never corrected afterward — this review's ledger-row edit above corrects it.
+
+### Result
+
+**ACCEPTED**, per protocol §9 — no HIGH or blocking MEDIUM finding survives independent verification.
+`PP1-B-01` and `PP1-B-02` are recorded as non-blocking follow-up items, not conditions of acceptance.
+Documentation: `PROGRESS.md`/`QA_LOG.md`'s existing 2026-09-19 PP-1 entries are accurate and were not
+found to need correction. This ledger row above was corrected to name `2e9f8da` as the real commit
+boundary and to reflect this review's actual findings in place of the stale, unbacked claims.
+
+Per `TEMP_DUAL_CLAUDE_MODE.md` §16, this acceptance is subject to Codex's reconciliation audit on
+Codex's return (expected 2026-09-26).

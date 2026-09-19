@@ -10,6 +10,8 @@ A Smart Factory concept system built on top of **ERPNext/Frappe** (open-source, 
 
 This file is the **master entry point** for the repo's control system. Everything binding lives in `docs/controls/`; every other doc (`PLAN.md`, `PROGRESS.md`, `QA_LOG.md`, `README.md`) is a tracking or reference doc, not a rulebook. If in doubt about process, start here.
 
+**Long-term product/business vision:** [`docs/ceylon-stack-master-plan.md`](docs/ceylon-stack-master-plan.md) (SME Business Operating System north star, staged roadmap CRM→...→Mobile→Automation) and its current-state audit [`docs/ceylon-stack-master-backlog.md`](docs/ceylon-stack-master-backlog.md) (CURRENT RELEASE/NEXT/LATER/RESEARCH). Neither is binding — `docs/controls/` and the Current Mission lock below still govern day-to-day sequencing — but the backlog doc flags open sequencing decisions (Finance's and CRM's place in the priority lock, Master Data implementation timing) that need Niroshan's call.
+
 ## Binding Control Documents (Read First)
 
 These five documents, all in [`docs/controls/`](docs/controls/), are **binding** for all work in this repo — this is the single source of truth for process rules; nothing outside `docs/controls/` overrides them. Every Claude session, and every subagent, must read the ones relevant to its task before doing meaningful implementation work:
@@ -25,6 +27,8 @@ These five documents, all in [`docs/controls/`](docs/controls/), are **binding**
 ### Dual-Agent Coordination (Claude Code + Codex)
 
 OpenAI Codex is a second, independent engineering agent used for review only — Claude Code remains the primary implementation agent, and Codex does not add a competing policy system on top of the five documents above. Before treating a meaningful package as release-ready, see `AGENTS.md` (Codex's own entry point), [`docs/controls/AI_DUAL_AGENT_OPERATING_MODEL.md`](docs/controls/AI_DUAL_AGENT_OPERATING_MODEL.md) (separation of duties/authority boundaries), and [`docs/controls/AI_AGENT_HANDOFF_POLICY.md`](docs/controls/AI_AGENT_HANDOFF_POLICY.md) (handoff/review lifecycle). Claude records coordination state in `docs/operations/AI_WORK_LOG.md` at handoff, but never marks Codex's independent review complete on its behalf.
+
+**TEMPORARY (2026-09-20 through 2026-09-25):** Codex independent-review capacity is unavailable. During this window only, [`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`](docs/controls/TEMP_DUAL_CLAUDE_MODE.md) stands in for Codex's reviewer role using two independent Claude accounts (CLAUDE-A / CLAUDE-B) with mandatory cross-review — no account may review or accept its own package. This does not replace or relax any other binding document. Expected reversion to normal Claude→Codex governance: 2026-09-26, with a Codex reconciliation audit of everything accepted under this mode.
 
 ### Current Mission (priority lock, as of Sep 2026)
 
