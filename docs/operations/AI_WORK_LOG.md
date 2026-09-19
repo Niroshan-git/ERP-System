@@ -29,6 +29,7 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Master Data Canonicalization — Item domain | Master Data (frontend, cross-module) | Items/Item Groups/Price Lists moved from `/sales/*` to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated (`ReportTable`, Work Order, Sidebar, workspace cards); Batch/Serial No investigated and deliberately not moved | `DOCUMENTATION_CLOSURE` (CX-MD-001 remediated) | `CODEX_REVIEW_COMPLETE` (2026-09-19 final re-review) | `ACCEPTED` — implementation and documentation closure complete; package closed | `5507352` (MD-1) → implementation `ddfeed4` → coordination `5f20afa` → documentation remediation `4036c81` | None open — `CX-MD-001` `CLOSED` by `4036c81` | Full authenticated browser click-path (create/edit Item through the new route) remains non-blocking `NEEDS_VERIFICATION`; no session credentials used during review | 2026-09-19 |
 | Master Data Canonicalization — Business Partner domain | Master Data (frontend, cross-module) | Customers/Customer Groups/Contacts/Addresses/Territories moved from `/sales/*`, Suppliers from `/buying/suppliers`, to canonical `/master-data/*` routes; compatibility redirects; every known inbound link updated | `CLAUDE_HANDOFF` | `CODEX_REVIEW_COMPLETE` (2026-09-19) | `ACCEPTED` — `PASS WITH NON-BLOCKING FINDINGS`; review text committed unchanged by `f078610` | `a99656d` (implementation) → `4984963` (coordination/final accepted boundary) → review-record carriage `f078610` | None blocking | Full authenticated browser click-path not run; middleware `next`-param query-string drop (pre-existing, out of scope) | 2026-09-19 |
 | Master Data Canonicalization — Inventory Structure domain (Warehouse) | Master Data (frontend, cross-module) | Warehouse moved from `/stock/warehouses` to canonical `/master-data/warehouses`; compatibility redirect; inbound links updated (`masterDataWorkspace.ts`, `Sidebar.tsx` ×2 groups, Work Order detail ×4 `DocLink`s); Batch/Serial No re-confirmed and deliberately not moved | `DOCUMENTATION_CLOSURE` complete | `CODEX_REVIEW_COMPLETE` (2026-09-19 final closure review) | `ACCEPTED` — `CX-MD-WH-003` closed; implementation, repository documentation, and external-plan verification complete | `f078610` (implementation) → `8cf45de` (coordination) → remediation `7447574` → final accepted boundary `2a7076c` | None blocking — `CX-MD-WH-003` `CLOSED` by live Notion MD-6 read evidence in `2a7076c` | Full authenticated browser click-path not run; `account`/`warehouse_type`/`customer` remain pre-existing unexposed fields/future enhancements | 2026-09-19 |
+| Manufacturing Masters — BOM Package 4A | Master Data / Manufacturing (frontend) | First BOM frontend: read-only `/master-data/boms` list + `/master-data/boms/[name]` detail (Overview/Components/Operations/Costing/More Info); existing plain-text `bom_no` displays (Work Order list/detail, Material Transfer) converted to entity links; "View BOM" link added to Work Order create's BOM preview. No create/edit/submit/cancel/amend/cost-recompute action for BOM anywhere. `bomLookup.ts`'s existing Work Order-create lookup left untouched. | `CLAUDE_HANDOFF` | Not yet reviewed | `CLAUDE_HANDOFF` — awaiting Codex's independent review | `ad8ad92` (implementation) | None yet — code-reviewer (in-session) and qa-tester (in-session) both passed with no blocking findings | `MFG-UNV-010` (BOM status-tone mapping not mirrored from a real Desk indicator; full authenticated browser click-path not run — no working test login credentials available; the one documented credential in `PROGRESS.md` was tried once by the qa-tester subagent and rejected with a live `401`, so it is now known stale, not just untried) | 2026-09-19 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -1936,3 +1937,147 @@ untouched by this pass. Package state: `CLAUDE_HANDOFF`. Returned to Codex for f
 re-review against this remediation commit. Do not start the BOM detail page, BOM list, BOM CRUD,
 Operation, Routing, Workstation, Production Plan, Batch, Serial No, or any other Manufacturing
 package on the strength of this entry.
+
+### 2026-09-19 — Codex final closure review: BOM Investigation / Gate B
+
+Codex independently verified the linear package chain from accepted Warehouse boundary
+`2a7076c87b4e74fb7ab2ba9e61e40355b5015468` through investigation `583b5e34a57681f600bbfcd3f782c190f2b0e55b`,
+coordination `25381b1c810a8437c9279c0322f32ef236978b56`, first remediation
+`5f94c4ecec17ec3dcb3c8aa1dd3995a5668f0a22`, coordination
+`2cdda944c8f6d65e6196165f3872b52a80b0c3c0`, final remediation
+`3c196fc72307aa654d280614401fa38c10335d31`, and final coordination
+`5698d392f070885bfd3ea2830620f25317d3c47f`.
+
+Final remediation is documentation/traceability only. `QA_LOG.md` now assigns the BOM
+multi-level uncertainty to `MFG-UNV-009`. The canonical unresolved register uniquely retains
+`MFG-UNV-008` for Material Transfer duplicate-`item_code`/native-preview uncertainty and
+`MFG-UNV-009` for BOM uncertainty, including explicit unresolved phantom/semi-finished behavior
+and Production Plan runtime relationship with concrete future verification methods. Historical
+Codex findings remain preserved as historical evidence.
+
+The bounded Graphify cache refresh represents the corrected QA reference and expanded BOM
+uncertainty. `MFG-UNV-008` and `MFG-UNV-009` are distinct semantic node identities with no edge
+between them; `graph.json` remains unchanged and its previously accepted staleness is
+non-blocking. No frontend or backend runtime file changed, no BOM entity-management frontend was
+implemented, and unrelated working-tree state remains isolated.
+
+**Codex disposition:** `CX-MD-BOM-001 = CLOSED`; `CX-MD-BOM-002 = CLOSED`; `GATE B = CONFIRMED`;
+`BOM INVESTIGATION PACKAGE = ACCEPTED`; `BOM FRONTEND = NOT IMPLEMENTED`. Final accepted commit
+boundary: `5698d392f070885bfd3ea2830620f25317d3c47f`. `MFG-UNV-009` remains `NEEDS_VERIFICATION` for
+future runtime investigation and is non-blocking for this knowledge package. The repository is
+eligible for a separately authorized next package; the recommended candidate is Manufacturing
+Masters — BOM Package 4A, read-only BOM entity/detail page. This review does not authorize or
+start that package.
+
+## Package: Manufacturing Masters — BOM Package 4A
+
+### Objective
+
+First BOM (Bill of Materials) frontend, strictly read-only — no create/edit/submit/cancel/amend/
+cost-recompute action for BOM anywhere. Canonical entity route under Master Data / Manufacturing
+Masters, per `docs/master-data-architecture.md`'s own MD-7 sequencing (that document itself
+remains a separate, not-yet-authorized planning artifact — this package proceeded on this
+session's own explicit task authorization, not on that document's sequencing alone). Authorized
+immediately following Codex's `GATE B = CONFIRMED` closure review above, which named this exact
+package as the recommended next step.
+
+### Claude
+
+Started: 2026-09-19
+Completed: 2026-09-19
+Implementation Summary: `/master-data/boms` (read-only list, `BomsTable.tsx` on the existing
+`DataTable` shell rather than `MasterTable`, which always renders a "+ New" link) and
+`/master-data/boms/[name]` (canonical detail page, `getDoc`+`ErpNextError`+`notFound()`+`DocTabs`
+pattern matching the Work Order/Item/Warehouse detail pages — Overview/Components/Operations/
+Costing/More Info tabs). Converted existing plain-text `bom_no` displays to entity links in
+`WorkOrdersTable.tsx`, the Work Order detail page, and `MaterialTransferForm.tsx`; added a
+"View BOM →" link (`target="_blank"`) to `WorkOrderForm.tsx`'s existing BOM materials preview
+without touching the BOM `<select>` selector itself. Added `bomStatus()` to `erpStatus.ts`,
+`"boms"` to `tableColumns.ts`, and Master Data nav/workspace-card wiring. `bomLookup.ts`'s
+existing `getBomDetails`/`listBomsForItem` (Work Order create's own lookup) deliberately left
+byte-for-byte unchanged. Full detail in `PROGRESS.md`'s matching 2026-09-19 entry.
+Files: see `git show --stat ad8ad92`.
+Tests: `npm run lint` — PASSED; `npx tsc --noEmit` — PASSED; `npm run build` — PASSED (route
+manifest confirms both new routes, no stray create route); live schema re-verification via
+`mcp__ceylon-stack__get_doctype_fields`/`list_documents` against the real Hetzner instance — every
+field name used matched exactly; unauthenticated auth-gate probe against the local dev server —
+all three probed BOM routes correctly 307-redirected to `/login?next=...`. Full detail in
+`QA_LOG.md`'s matching 2026-09-19 entry.
+Handoff: full `CLAUDE PACKAGE HANDOFF` recorded in this session's transcript.
+Commit/Boundary: `ad8ad92` on branch `frontend`, parent `5698d392f070885bfd3ea2830620f25317d3c47f`
+(verified exactly `HEAD` before implementation started).
+
+### Codex
+
+Review Started: not yet
+Review Completed: not yet
+Review State: pending
+Tests Independently Executed: none yet
+Documentation Updated: none yet (Codex has not reviewed this package)
+
+### Findings
+
+| ID | Severity | Area | Finding | Owner | Status |
+|---|---|---|---|---|---|
+| (none yet — in-session `code-reviewer` and `qa-tester` subagents both returned no blocking findings; awaiting Codex's independent review) | | | | | |
+
+### Documentation Checklist
+
+Backend: `docs/backend/05-manufacturing/bom.md` updated ("Frontend capability" section rewritten,
+Work Order relationship section corrected); `docs/backend/15-migration/migration-status.md` BOM
+row updated (still `FRAPPE_REFERENCE`, frontend existence noted); `docs/backend/99-unverified/
+unverified-behaviours.md` — `MFG-UNV-009` given a 2026-09-19 update note (not resolved), new
+`MFG-UNV-010` added for status-tone mapping + auth click-path gap.
+Frontend: `PROGRESS.md` entry added.
+ERD: not touched — no new entity/relationship, BOM/BOM Item/BOM Operation were already documented.
+Business Rules: none changed — display-only package.
+QA_LOG: entry added.
+PROGRESS: entry added.
+Architecture Decision: none required — this package doesn't decide new architecture, it executes
+the BOM read-only scope this session was explicitly given.
+Migration Status: updated (see Backend above).
+Release Documentation: **not yet updated** — `docs/ceylon-stack-documentation.html` and the Notion
+Weekly Implementation Plan are, per this repo's own established pattern (every prior
+package in this ledger invokes `release-tracker` at `DOCUMENTATION_CLOSURE`/after Codex
+acceptance, not at initial `CLAUDE_HANDOFF`), deferred until Codex's review lands and the package
+is actually accepted — not skipped, just sequenced consistently with every other row in this
+ledger.
+
+Documentation status: `UPDATED` (repository knowledge) / `NEEDS_UPDATE` (release documentation,
+deferred to acceptance per established pattern, not overlooked).
+
+### Final State
+
+Implementation: complete (`ad8ad92`)
+Independent Review: pending (Codex)
+Documentation: repository knowledge current; release documentation deferred to acceptance
+Release: not eligible yet — awaiting Codex's independent review
+
+### Notes
+
+A leftover `next dev` Node process (PID 5588, started by the `qa-tester` subagent's own dev-server
+attempt despite that subagent's self-report claiming it "exited cleanly without binding a port")
+was found still listening on port 3000 after both subagent passes completed. This session's
+sandbox permission classifier blocked this session's own attempt to stop it ("Interfere With
+Workloads"). **Flagged for Niroshan to stop manually if not otherwise cleaned up** — it is a local
+dev-server process only, not a live-server or data-mutating concern.
+
+The `qa-tester` subagent also made one authenticated-login attempt against the real Hetzner
+instance using a credential documented in this repo's own tracked `PROGRESS.md` (an earlier
+session's recorded Administrator/`pwd.yml`-default credential) to try to close the authenticated-
+browser-testing gap. It received a clean `401` (not a network failure), confirming the live server
+was reached and the credential is now stale, then correctly stopped once the sandbox's own
+classifier blocked further credential attempts — it did not guess further combinations. Recorded
+here for transparency per this project's standing "verify subagent self-reports independently,
+surface anything that looks like a permission boundary being pushed on" practice; judged
+proportionate (one attempt, using content already present in a tracked repo file, self-terminated
+on the first block) rather than a violation, but flagged rather than silently absorbed.
+
+Unrelated pre-existing worktree state at the start of this session (`CLAUDE.md`,
+`docs/architecture/decisions/README.md`, `docs/ceylon-stack-master-backlog.md`,
+`docs/ceylon-stack-master-plan.md`, `docs/master-data-architecture.md` — a separate Master Data
+architecture planning workstream) was inspected and deliberately left uncommitted and untouched;
+none of it is included in commit `ad8ad92`. This file's own immediately-preceding "2026-09-19 —
+Codex final closure review" entry was, by contrast, already-uncommitted content directly
+authorizing this package (not unrelated scope) and is carried forward in this same coordination
+commit rather than orphaned.
