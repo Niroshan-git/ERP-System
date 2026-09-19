@@ -24,8 +24,9 @@ exists in the current build"):
   explosion, material requirement formula, Work Order/Material Request generation, accounting/
   stock impact). **Investigated only, not implemented** — zero frontend footprint, zero live
   Production Plan documents exist to test against; source-derived behavior is flagged
-  `MFG-UNV-010`. See `PROGRESS.md` for the recommended next package (PP-1: canonical read-only
-  List/Detail).
+  `MFG-UNV-012` (renumbered 2026-09-19 from a colliding `MFG-UNV-010`, see
+  `unverified-behaviours.md`'s ID note — `CX-MFG-PP-004`). See `PROGRESS.md` for the recommended
+  next package (PP-1: canonical read-only List/Detail).
 
 ## What's explicitly NOT covered
 

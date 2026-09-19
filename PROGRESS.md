@@ -2314,9 +2314,11 @@ source and the live schema matched almost exactly, with one confirmed drift
 treat source-derived claims as high-confidence, not live-confirmed.
 
 Captured in a new `docs/backend/05-manufacturing/production-plan.md` baseline, cross-referenced
-from `master-erd.md`, `unverified-behaviours.md` (new `MFG-UNV-010`), `05-manufacturing/README.md`,
-and `migration-status.md`. No custom MRP/forecasting/AI logic was designed or implemented, per the
-discovery brief's explicit exclusion — ERPNext remains the sole planning/calculation authority.
+from `master-erd.md`, `unverified-behaviours.md` (originally filed as `MFG-UNV-010`, renumbered
+`MFG-UNV-012` by the 2026-09-19 remediation below after Codex found it collided with an existing
+BOM verification item — `CX-MFG-PP-004`), `05-manufacturing/README.md`, and `migration-status.md`.
+No custom MRP/forecasting/AI logic was designed or implemented, per the discovery brief's explicit
+exclusion — ERPNext remains the sole planning/calculation authority.
 
 Checks: not applicable — no frontend file changed, so there is no lint/type-check/build/route
 delta to verify. `docs/ceylon-stack-documentation.html` was not touched; Production Plan already
@@ -2326,17 +2328,105 @@ has no "Live" claim to correct, so `release-tracker` was not invoked (nothing sh
 A read-only `/manufacturing/production-plans` (list) + `/manufacturing/production-plans/[name]`
 (detail) pair, reusing the existing `DataTable`/entity-link patterns, would let a real Production
 Plan document be created via Desk and then observed through the frontend — the cheapest path to
-resolving `MFG-UNV-010`'s live-verification gap. Recommended progression after that: PP-2 (Draft
+resolving `MFG-UNV-012`'s live-verification gap. Recommended progression after that: PP-2 (Draft
 create + Sales Order demand loading), PP-3 (material requirement visibility), PP-4/PP-5 (Work
 Order/Material Request generation actions) — sized only as a direction, not a mandatory structure,
 per the discovery brief's own instruction not to pre-commit to package boundaries before PP-1's
-real usage is observed.
+real usage is observed. **PP-1 remains locked and was not started by this or the following
+remediation package.**
 
 Files: `docs/backend/05-manufacturing/production-plan.md` (new);
 `docs/backend/05-manufacturing/README.md`; `docs/backend/11-relationships/master-erd.md`;
-`docs/backend/99-unverified/unverified-behaviours.md` (new `MFG-UNV-010`);
+`docs/backend/99-unverified/unverified-behaviours.md` (new `MFG-UNV-010`, later renumbered
+`MFG-UNV-012` — see remediation below);
 `docs/backend/15-migration/migration-status.md`; `PROGRESS.md`; `QA_LOG.md`;
 `docs/operations/AI_WORK_LOG.md`. Zero files under `apps/frontend/` touched — confirmed by
 `git status` before closing this package. Package state: `CLAUDE_HANDOFF`. Not self-declared
 accepted — there is no code diff to review, only documentation-accuracy claims; returned to Codex
 for independent verification per the dual-agent operating model.
+
+## Manufacturing — Production Planning discovery/canonicalization remediation (2026-09-19)
+
+Codex's independent review of the Production Planning discovery package (`a4c4803`, coordination
+follow-up `8f0f83d`) returned `CHANGES REQUIRED` — see `docs/operations/AI_WORK_LOG.md`'s matching
+entry for the full review text. Package isolation itself passed (documentation-only boundary valid,
+zero committed `apps/frontend` footprint); four canonical documentation findings did not.
+Remediation-only package — did not start PP-1, did not touch BOM Package 4B's own still-open
+`CLAUDE_HANDOFF` state.
+
+**`CX-MFG-PP-001` (HIGH) — FIXED.** `production-plan.md`'s "Multiple-BOM support" section
+incorrectly generalized `po_items.bom_no`, `sub_assembly_items.bom_no`, and `mr_items.from_bom` as
+equivalent, independently user-overridable BOM selectors. Rewritten to distinguish three roles:
+`po_items.bom_no` is user-editable (confirmed via `sales_order_planning.py`);
+`sub_assembly_items.bom_no` is server-derived from BOM explosion, not confirmed independently
+user-overridable; `mr_items.from_bom` is **read only** per the `Material Request Plan Item`
+DocType definition — a source-BOM trace field, never a user/frontend-set selector. The canonical
+`Item 1───<BOM` (multiple active BOMs per Item) relationship is explicitly preserved as still
+valid. The `mr_items` field-listing table and the closing `NEEDS_VERIFICATION` pointer were updated
+to match.
+
+**`CX-MFG-PP-002` (MEDIUM) — FIXED.** `master-erd.md` modeled only 3 of Production Plan's 6 child
+relationships (`po_items`, `sub_assembly_items`, `mr_items`) and only a document-level Work Order
+back-reference. Completed: added `sales_orders`, `material_requests`, and `prod_plan_references`
+relationships; added row-level `Work Order` back-references to `Production Plan Item` and
+`Production Plan Sub Assembly Item` (not just the document-level `Production Plan` edge); added
+`Material Request Item.material_request_plan_item` back-reference. The existing, already-correct
+`Material Request Item → Production Plan` (child-row, not header) relationship was preserved
+unchanged — no back-reference was added to the `Material Request` parent doctype.
+
+**`CX-MFG-PP-003` (MEDIUM) — FIXED.** `production-plan.md`'s accounting/stock-impact section
+imprecisely implied financial/stock effects occur "in" Work Orders, Material Requests, Material
+Transfers, and Purchase Orders. Rewritten into three explicit categories: (A) Production Plan's own
+direct effect is a `Bin` reservation-quantity side effect (`update_bin_qty()`), not a stock-ledger
+posting; (B) Work Order/Material Request/Purchase Order are planning/order documents whose mere
+creation posts nothing; (C) the actual stock-ledger/GL impact happens further downstream, in
+Material Transfer/Manufacture Stock Entry, Purchase Receipt, and Purchase Invoice. Added a short
+diagram making the Production Plan → planning/order → execution/posting chain explicit. While
+touching this document, also tightened the material-requirement formula's wording from "the
+formula, exactly as implemented" to "the conceptual/base shortage calculation," with an explicit
+note that ERPNext backend processing remains authoritative and may apply minimum-order-qty/UOM
+adjustments on top of it (Codex flagged this as worth tightening while in the file, not a blocking
+finding on its own).
+
+**`CX-MFG-PP-004` (MEDIUM) — FIXED.** `unverified-behaviours.md` assigned `MFG-UNV-010` to both
+the Production Plan runtime-verification item and a pre-existing BOM detail-page verification item.
+Inspected the full `MFG-UNV-*` namespace repository-wide before choosing a replacement (`001`
+through `011` were all already in use); renumbered the Production Plan item to `MFG-UNV-012`
+(the newly-created, chronologically later entry), leaving the BOM item's original `MFG-UNV-010`
+identity untouched (filed first, commit `ad8ad92`). All substantive open verification boundaries
+for the Production Plan item were preserved (no live document tested, lifecycle execution,
+submit/cancel observation, action-button/docstatus gating, `reserve_stock_for_production_plan`,
+source/live schema drift, `submit_material_request` drift, downstream generation behavior,
+subcontract Purchase Order back-reference). Every repository reference to the old, colliding
+`MFG-UNV-010` usage for Production Plan was updated to `MFG-UNV-012`: `production-plan.md`,
+`05-manufacturing/README.md`, `master-erd.md`, `unverified-behaviours.md` (self-reference plus a
+new ID note explaining the renumbering), `migration-status.md`, and this file. References to the
+BOM item's own `MFG-UNV-010` (`QA_LOG.md`, PROGRESS.md's own BOM Package 4A entries, etc.) were
+left untouched — confirmed by grep that every remaining `MFG-UNV-010` reference in the repository
+now refers only to the BOM item, and every Production Plan reference now reads `MFG-UNV-012`.
+
+**Source-vs-live boundary preserved**: none of the above promotes any source-derived claim to
+live-verified. Zero real Production Plan documents exist on this instance; `MFG-UNV-012` retains
+`NEEDS_VERIFICATION` status. `submit_material_request` schema/source drift is still called out
+explicitly, not treated as resolved.
+
+**Frontend footprint verification**: `git status`/`git diff --stat` confirmed zero
+`apps/frontend/` files touched by this remediation, before and after editing. PP-1 was not started;
+no route, action file, component, navigation entry, or other frontend artifact for Production Plan
+was created.
+
+Checks: not applicable — documentation-only remediation, no application file changed, so no
+lint/typecheck/build delta to verify. `git diff --check` — PASSED (no whitespace errors).
+
+Files: `docs/backend/05-manufacturing/production-plan.md`;
+`docs/backend/11-relationships/master-erd.md`;
+`docs/backend/99-unverified/unverified-behaviours.md` (renumbered `MFG-UNV-010` → `MFG-UNV-012`
+for the Production Plan item; added ID note); `docs/backend/05-manufacturing/README.md`;
+`docs/backend/15-migration/migration-status.md`; `PROGRESS.md`; `QA_LOG.md`;
+`docs/operations/AI_WORK_LOG.md`. Pre-existing unrelated worktree state (`CLAUDE.md`,
+`apps/frontend/src/app/(app)/manufacturing/page.tsx`, `docs/architecture/decisions/README.md`, the
+three untracked Master Data architecture planning docs) was inspected at the start of this package
+and left exactly as found — not staged, not touched. Deferred: semantic graphify regeneration
+(non-blocking per Codex's own classification; AST-only `--update` was not run either, since no code
+changed). Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — returned to Codex for
+independent re-review.

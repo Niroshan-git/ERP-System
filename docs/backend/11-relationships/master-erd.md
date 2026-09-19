@@ -30,12 +30,22 @@ erDiagram
     PRODUCTION_PLAN ||--o{ PRODUCTION_PLAN_ITEM : "po_items (1:N)"
     PRODUCTION_PLAN ||--o{ PRODUCTION_PLAN_SUB_ASSEMBLY_ITEM : "sub_assembly_items (1:N)"
     PRODUCTION_PLAN ||--o{ MATERIAL_REQUEST_PLAN_ITEM : "mr_items (1:N)"
+    PRODUCTION_PLAN ||--o{ PRODUCTION_PLAN_SALES_ORDER : "sales_orders (1:N)"
+    PRODUCTION_PLAN ||--o{ PRODUCTION_PLAN_MATERIAL_REQUEST : "material_requests (1:N)"
+    PRODUCTION_PLAN ||--o{ PRODUCTION_PLAN_ITEM_REFERENCE : "prod_plan_references (1:N, only when combine_items)"
     PRODUCTION_PLAN_ITEM }o--|| ITEM : "N:1 (item_code)"
-    PRODUCTION_PLAN_ITEM }o--|| BOM : "N:1 (bom_no, per-row override — see production-plan.md multi-BOM section)"
+    PRODUCTION_PLAN_ITEM }o--|| BOM : "N:1 (bom_no, user-editable per-row override — see production-plan.md multi-BOM section)"
     PRODUCTION_PLAN_ITEM }o--o| SALES_ORDER : "N:1 optional (sales_order)"
-    PRODUCTION_PLAN_SUB_ASSEMBLY_ITEM }o--|| BOM : "N:1 (bom_no)"
-    WORK_ORDER }o--o| PRODUCTION_PLAN : "N:1 optional (work_order.production_plan)"
+    PRODUCTION_PLAN_ITEM }o--o| MATERIAL_REQUEST : "N:1 optional (material_request)"
+    PRODUCTION_PLAN_SUB_ASSEMBLY_ITEM }o--|| BOM : "N:1 (bom_no, server-derived from explosion — not a confirmed independent user selector)"
+    PRODUCTION_PLAN_SALES_ORDER }o--|| SALES_ORDER : "N:1 (sales_order)"
+    PRODUCTION_PLAN_MATERIAL_REQUEST }o--|| MATERIAL_REQUEST : "N:1 (material_request)"
+    PRODUCTION_PLAN_ITEM_REFERENCE }o--|| PRODUCTION_PLAN_ITEM : "N:1 (item_reference, only when combine_items)"
+    WORK_ORDER }o--o| PRODUCTION_PLAN : "N:1 optional, document-level (work_order.production_plan)"
+    WORK_ORDER }o--o| PRODUCTION_PLAN_ITEM : "N:1 optional, row-level by name (work_order.production_plan_item)"
+    WORK_ORDER }o--o| PRODUCTION_PLAN_SUB_ASSEMBLY_ITEM : "N:1 optional, row-level by name (work_order.production_plan_sub_assembly_item)"
     MATERIAL_REQUEST_ITEM }o--o| PRODUCTION_PLAN : "N:1 optional (material_request_item.production_plan) — NOT on Material Request parent"
+    MATERIAL_REQUEST_ITEM }o--o| MATERIAL_REQUEST_PLAN_ITEM : "N:1 optional, by name (material_request_item.material_request_plan_item back-ref)"
     JOB_CARD }o--|| WORK_ORDER : "N:1 (job_card.work_order)"
     JOB_CARD }o--o| WORKSTATION : "N:1 optional (job_card.workstation)"
     JOB_CARD }o--o| QUALITY_INSPECTION_TEMPLATE : "N:1 optional (job_card.quality_inspection_template)"
@@ -81,12 +91,24 @@ erDiagram
   `apps/frontend`. Full schema/business-rule/relationship investigation (2026-09-19, source +
   live-schema, no implementation, no live Production Plan document exists to test against) in
   [`docs/backend/05-manufacturing/production-plan.md`](../05-manufacturing/production-plan.md) —
-  see `MFG-UNV-010` for what remains unverified. Building it is a future Manufacturing package's
-  scope, not this one.
+  see `MFG-UNV-012` for what remains unverified. Building it is a future Manufacturing package's
+  scope, not this one. This ERD models all six of Production Plan's child-table relationships
+  (`po_items`, `sub_assembly_items`, `mr_items`, `sales_orders`, `material_requests`,
+  `prod_plan_references`) plus the row-level `Work Order`/`Material Request Item` back-references —
+  completed 2026-09-19 per Codex review finding `CX-MFG-PP-002` (the original version modeled only
+  the first three and only a document-level Work Order back-reference).
+- **Not every Production Plan BOM-bearing field is an equivalent, independently user-overridable
+  selector** — corrected 2026-09-19 per `CX-MFG-PP-001`. `PRODUCTION_PLAN_ITEM.bom_no` is
+  user-editable; `PRODUCTION_PLAN_SUB_ASSEMBLY_ITEM.bom_no` is server-derived from BOM explosion,
+  not confirmed independently user-overridable; `Material Request Plan Item.from_bom` (raw-material
+  row) is **read only** per its DocType definition and is deliberately not modeled as a BOM edge
+  here — see `production-plan.md`'s "Multiple-BOM support" section for the full distinction. The
+  underlying `Item 1───<BOM` (multiple active BOMs per Item) relationship remains valid throughout.
 - **The Production Plan → Material Request relationship lives on `Material Request Item` (the
   child row), not on `Material Request` itself** — `Material Request` has no Production Plan field
-  at all; only `Material Request Item.production_plan` does. A future frontend must join through
-  the child table.
+  at all; only `Material Request Item.production_plan` (and its `material_request_plan_item`
+  back-ref to the originating `mr_items` row) does. A future frontend must join through the child
+  table.
 - **Warehouse appears in three independent FK roles on Work Order** (`source_warehouse`,
   `wip_warehouse`, `fg_warehouse`) — each optional, each a plain Link to the same `Warehouse`
   doctype, not three different entities.

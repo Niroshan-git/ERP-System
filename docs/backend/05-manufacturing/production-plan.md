@@ -104,7 +104,8 @@ Material Request" mode, symmetric to Production Plan Sales Order.
 `Subcontracting`/`Customer Provided`), `quantity` (required, **the computed required qty**),
 `requested_qty` (**how much has already been turned into a Material Request** — the qty-to-request
 math is `quantity - requested_qty`, see MRP section), `actual_qty` ("Qty In Stock"),
-`ordered_qty`, `safety_stock`, `min_order_qty`, `from_bom`, `main_item_code`, `required_bom_qty`,
+`ordered_qty`, `safety_stock`, `min_order_qty`, `from_bom` (**read only** — a source-BOM trace
+field, not a user-set selector, see "Multiple-BOM support" below), `main_item_code`, `required_bom_qty`,
 `projected_qty`, `stock_reserved_qty`, `reserved_qty_for_production`, `sales_order`,
 `sub_assembly_item_reference` (back-reference to a `sub_assembly_items` row when this raw material
 came from a sub-assembly's own BOM, not the top-level finished good), `schedule_date`, `uom`,
@@ -177,13 +178,33 @@ Source: `services/sales_order_planning.py` (`SalesOrderSourcingService`).
   Material Request Items are `docstatus = 1`, `qty > ordered_qty`, and resolve to an active BOM the
   same way.
 
-## Multiple-BOM support (confirms the BOM package's `Item 1───<BOM` finding)
+## Multiple-BOM support (confirms the BOM package's `Item 1───<BOM` finding) — corrected 2026-09-19
 
-Production Plan never assumes one BOM per item. Every layer — `po_items.bom_no`,
-`sub_assembly_items.bom_no`, `mr_items.from_bom` — is an independent, per-row `Link → BOM` field,
-defaulted from `Item.default_bom` but always overridable to any other `docstatus=1, is_active=1`
-BOM for that item. No dedicated "choose a BOM" dialog exists server-side; the row's `bom_no` field
-is just edited directly, same UX pattern as Work Order create's BOM `<select>`.
+Production Plan never assumes one BOM per item — `Item 1───<BOM` (multiple active BOMs per Item)
+remains valid and is used throughout this doctype. **This does not mean every BOM-bearing field in
+Production Plan's child tables is an equivalent, independently user-overridable selector** — the
+original version of this section incorrectly generalized that way; corrected per Codex review
+finding `CX-MFG-PP-001`. The three BOM-bearing fields have three distinct roles:
+
+1. **`po_items.bom_no` (finished-good BOM selection) — user-editable.** Resolved at pull time as
+   `SalesOrderItem.bom_no or Item.default_bom` (see "Sales Order → Production Plan" above), then
+   left as a plain, directly-editable `Link → BOM` field on the `po_items` grid row afterward — a
+   user can override it to any other `docstatus=1, is_active=1` BOM for that item, same UX pattern
+   as Work Order create's BOM `<select>`. No dedicated "choose a BOM" dialog exists server-side;
+   the row's `bom_no` field is just edited directly. This is the one BOM field this baseline
+   confirms as an independent per-row selector.
+2. **`sub_assembly_items.bom_no` (sub-assembly BOM reference) — server-derived from explosion, not
+   confirmed as an independent user selector.** This field belongs to the server-generated
+   sub-assembly explosion structure (`get_sub_assembly_items()`, entirely server-side — see
+   "Sub-assemblies" below) and records which BOM a given sub-assembly row exploded against.
+   Whether ERPNext additionally lets a user re-point this field to a different BOM after explosion,
+   the way `po_items.bom_no` can be edited, was **not** established by the source read this pass —
+   do not describe it as equivalent to the finished-good selector above without further evidence.
+3. **`mr_items.from_bom` (raw-material source-BOM trace) — READ ONLY, not a BOM selector.** Per the
+   `Material Request Plan Item` DocType definition, `from_bom` is a read-only traceability field
+   recording which BOM a raw-material requirement row descended from. It is not a field a user, or
+   a future Ceylon Stack frontend, sets or overrides. **A future frontend must not offer a BOM
+   override control against `mr_items.from_bom`** based on this canonical model.
 
 ## Sub-assemblies (BOM explosion)
 
@@ -220,7 +241,7 @@ was verified).
 
 Source: `services/material_request.py`, `_required_qty_for_mr()` specifically.
 
-The formula, exactly as implemented:
+The conceptual/base shortage calculation:
 
 ```
 safety_stock   = row.safety_stock if include_safety_stock else 0
@@ -229,9 +250,16 @@ available_qty  = projected_qty − already_consumed_by_other_rows_for_same_item+
 required_qty   = max(0, row.qty − (available_qty − safety_stock))
 ```
 
+This is the useful conceptual/base expression, not a claim that it's the literal, final formula for
+every row in every case — ERPNext backend processing remains authoritative and may additionally
+apply conditions on top of it, such as minimum-order-quantity rounding (`consider_minimum_order_qty`,
+applied per Sales-Order group via `_apply_minimum_order_qty_to_order`, not globally — see below),
+UOM conversion/rounding, and other server-side rules already noted elsewhere in this section.
+
 - `required_qty` (the shortage) is what lands in `mr_items.quantity` — this **is the backend's own
   authoritative shortage number**, matching exactly the "Required / Available / Shortage" table
-  shape from the discovery brief's target UX. The frontend should display this, not recompute it.
+  shape from the discovery brief's target UX. The frontend should display this, not recompute it —
+  do not reimplement this formula (or its minimum-order-qty/UOM adjustments) in a future frontend.
 - `ignore_existing_ordered_qty` (labelled "Consider Projected Qty in Calculation (RM)" — note the
   inverted-sounding name vs. its fieldname) is the toggle for whether Bin-level projected quantity
   is considered at all; unchecked, every row is treated as zero-available and the full BOM-exploded
@@ -304,22 +332,53 @@ Source: `services/material_request.py`, `MaterialRequestService.make_material_re
   Plan schema**, so whatever controls that behavior here is unconfirmed;
   `NEEDS_VERIFICATION`.
 
-## Accounting / stock impact
+## Accounting / stock impact — corrected 2026-09-19 (`CX-MFG-PP-003`)
 
-- **Production Plan itself posts no GL entries** — it is a planning document, not a stock or
-  accounting transaction. All financial/stock impact happens downstream, in the Work Orders,
-  Material Requests, Material Transfers, and Purchase Orders it generates (already covered by
-  `work-order.md`, `material-transfer.md`, and `MFG-UNV-005`).
-- **Direct stock-side effect**: `update_bin_qty()` (called on submit/cancel/close) writes to `Bin`
-  reserved-quantity fields for both raw materials (`update_reserved_qty_for_production_plan`) and
-  in-house sub-assembly finished goods (`update_reserved_qty_for_for_sub_assembly`) — a real,
-  submit-time stock-reservation side effect independent of whether any Work Order/Material Request
-  has been created yet. `reserve_stock` additionally triggers full Stock Reservation Entries
-  (`reserve_stock_for_production_plan`, a separate service not read this pass —
-  `NEEDS_VERIFICATION`).
+The original version of this section imprecisely implied financial/stock effects occur "in" Work
+Orders, Material Requests, Material Transfers, and Purchase Orders themselves. Corrected: three
+distinct categories, from Production Plan down to an actual posting.
+
+**A. Production Plan's own direct effect — reservation, not posting.** Production Plan itself
+posts **no GL entries** — it is a planning document, not a stock or accounting transaction.
+However, source-derived (`NEEDS_VERIFICATION` — see below), its lifecycle processing does have a
+direct **stock-reservation** side effect: `update_bin_qty()` (called on submit/cancel/close) writes
+to `Bin` reserved-quantity fields for both raw materials (`update_reserved_qty_for_production_plan`)
+and in-house sub-assembly finished goods (`update_reserved_qty_for_for_sub_assembly`) — independent
+of whether any Work Order/Material Request has been created yet. This is a reservation-quantity
+side effect, **not a stock-ledger posting** — no `Stock Ledger Entry`/`GL Entry` is created by this
+step. `reserve_stock` additionally triggers full Stock Reservation Entries
+(`reserve_stock_for_production_plan`, a separate service not read this pass —
+`NEEDS_VERIFICATION`).
+
+**B. Planning / order documents Production Plan generates — no direct posting either.** Work
+Order, Material Request, and Purchase Order are operational/planning/order documents. Merely
+creating one of these (via "Make Work Order" / "Make Material Request", or the subcontracting PO
+path) does not itself post an inventory movement or a GL entry — their existence drives subsequent
+executable/posting transactions instead.
+
+**C. Downstream stock/accounting posting documents — the actual ledger effect.** The real
+stock-ledger and/or GL impact happens further downstream, in documents such as Material Transfer
+Stock Entry, Manufacture Stock Entry, Purchase Receipt, and Purchase Invoice (already covered by
+`work-order.md`, `material-transfer.md`, and `MFG-UNV-005`) — not in the planning/order documents
+themselves.
+
+```
+Production Plan
+        ↓ (Bin reservation-qty side effect only — no posting)
+planning / order documents (Work Order, Material Request, Purchase Order)
+        ↓ (no posting on creation)
+execution / posting documents (Material Transfer / Manufacture Stock Entry, Purchase Receipt,
+Purchase Invoice, ...)
+        ↓
+stock ledger and/or accounting impact
+```
+
 - **On cancel**: any still-Draft Work Order created from the plan is deleted outright
   (`delete_draft_work_order` — `docstatus = 0` only; submitted Work Orders are left alone),
   sub-assembly/material-request child rows are wiped, and stock reservation is unwound.
+- All of the above beyond "Production Plan posts no GL entries directly" is **source-derived, not
+  live-observed** — no live Production Plan document exists on this instance to confirm the `Bin`
+  reservation-qty write actually occurs as described; see `MFG-UNV-012`.
 
 ## Relationships / cardinality (for `master-erd.md`)
 
@@ -363,6 +422,8 @@ five already exist and should be reused, not duplicated.
 
 ## NEEDS_VERIFICATION
 
-See `docs/backend/99-unverified/unverified-behaviours.md` → `MFG-UNV-010` for the consolidated
+See `docs/backend/99-unverified/unverified-behaviours.md` → `MFG-UNV-012` for the consolidated
 list (no live Production Plan document exists to test any of this against; all of it is
-source-derived, high-confidence but not live-confirmed).
+source-derived, high-confidence but not live-confirmed). Note: this item was originally
+misassigned `MFG-UNV-010` — a number already in use by an unrelated BOM verification item — and was
+renumbered to `MFG-UNV-012` per Codex review finding `CX-MFG-PP-004`.

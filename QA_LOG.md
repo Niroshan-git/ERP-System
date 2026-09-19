@@ -762,3 +762,41 @@ applied the same day; no code logic changed and no new QA was required for it.
   routing decision recorded without creating routes). Awaiting Codex's independent review of the
   investigation's accuracy (there is no code diff to review); not self-declared accepted — see
   `docs/operations/AI_WORK_LOG.md`'s matching entry for the full Claude Package Handoff.
+
+## Manufacturing — Production Planning discovery/canonicalization remediation (2026-09-19)
+
+- **Package type**: documentation-only remediation of Codex's `CHANGES REQUIRED` review of the
+  package above. No frontend code touched, so no functional test scenarios apply.
+- **What was verified**:
+  1. `git status`/`git diff --stat` before and after editing — confirmed zero `apps/frontend/`
+     files touched, and that pre-existing unrelated worktree changes (`CLAUDE.md`,
+     `apps/frontend/src/app/(app)/manufacturing/page.tsx`, `docs/architecture/decisions/README.md`,
+     the three untracked Master Data architecture docs) remained untouched throughout.
+  2. Re-verified `Material Request Plan Item`'s live field schema
+     (`mcp__ceylon-stack__get_doctype_fields`) before writing the `from_bom` correction — the tool
+     confirms the field exists (`Link → BOM`, not required) but does not expose a `read_only` flag,
+     so the "read only per DocType definition" claim is carried as Codex's own source-derived
+     finding (their read of the DocType JSON), not independently re-confirmed live in this pass —
+     consistent with this file's existing convention of distinguishing live-schema-confirmed from
+     source-derived claims.
+  3. Repository-wide `grep` for `MFG-UNV-01\d` before and after the renumbering: confirmed `001`
+     through `011` were already in use (ruling out blind reuse of a guessed number), confirmed the
+     BOM item's `MFG-UNV-010` and every one of its existing cross-references were left untouched,
+     and confirmed every Production Plan cross-reference was updated to the new `MFG-UNV-012`
+     (`production-plan.md`, `05-manufacturing/README.md`, `master-erd.md`,
+     `unverified-behaviours.md`, `migration-status.md`, `PROGRESS.md`).
+  4. Re-read all four Codex findings against the edited documents before handoff to confirm each
+     was actually addressed as described, not just acknowledged.
+- **Not performed, and correctly so for a documentation-only remediation**: `npm run lint`,
+  `npx tsc --noEmit`, `npm run build`, route-manifest inspection — none apply, no application file
+  changed. `git diff --check` — PASSED (no whitespace/line-ending errors).
+- **Cleanup**: none required — no ERPNext document was created, updated, or deleted.
+- **Sign-off**: self-reviewed against the CLAUDE remediation brief's own 15-point validation
+  checklist (CX-MFG-PP-001 corrected everywhere; `from_bom` not described as editable; `Item 1:N
+  BOM` preserved; all six Production Plan child relationships in the ERD; Work Order row-level
+  references represented; Material Request Item, not the Material Request header, carries the
+  back-reference; accounting wording distinguishes Bin reservation vs. planning/order documents vs.
+  posting documents; `MFG-UNV-012` confirmed globally unique; source-derived behavior still marked
+  non-live-verified; zero Production Plan frontend footprint; PP-1 not started). Not self-declared
+  accepted — returned to Codex for independent re-review; see
+  `docs/operations/AI_WORK_LOG.md`'s matching Claude Remediation entry for the full handoff.

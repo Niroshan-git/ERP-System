@@ -2294,10 +2294,37 @@ package's docs into the semantic graph.
 
 ### Codex
 
-Review Started: _pending — not yet reviewed_
-Review Completed: _pending_
-Review State: _pending_ — handed off for independent review of the documentation/investigation's
-accuracy; Claude does not mark this reviewed or accepted on Codex's behalf.
+Review Started: 2026-09-19
+Review Completed: 2026-09-19
+Review State: **CHANGES REQUIRED** — independent review established a clean documentation-only
+package boundary (`a4c4803`; coordination-only follow-up `8f0f83d`) and confirmed zero committed
+`apps/frontend` footprint, but the canonical backend model is not yet acceptable:
+
+- `CX-MFG-PP-001` (`HIGH`): `production-plan.md` incorrectly describes
+  `Material Request Plan Item.from_bom` as independently/always overridable. ERPNext's upstream
+  DocType schema marks that field `read_only`; it is a source-BOM trace field, not equivalent to
+  the editable `Production Plan Item.bom_no` selection. Correct the multi-BOM section and every
+  propagated summary, while retaining the canonical `Item 1:N BOM` relationship.
+- `CX-MFG-PP-002` (`MEDIUM`): `master-erd.md` models only three of Production Plan's documented
+  child tables and omits `sales_orders`, `material_requests`, and `prod_plan_references`; it also
+  omits the row-level Work Order and Material Request Item back-reference relationships described
+  in the domain document. Complete the canonical ERD without implying a Material Request header
+  back-reference.
+- `CX-MFG-PP-003` (`MEDIUM`): the Production Plan accounting section says financial/stock impact
+  occurs "in" Work Orders, Material Requests, Material Transfers, and Purchase Orders. Work Orders,
+  Material Requests, and Purchase Orders are not themselves stock/GL posting documents. Rewrite
+  this to distinguish planning/order documents from the downstream Stock Entries, Purchase
+  Receipts, Purchase Invoices, and other posting transactions; retain the separately documented
+  Production Plan `Bin` reservation side effect.
+- `CX-MFG-PP-004` (`MEDIUM`): `MFG-UNV-010` is assigned twice in
+  `unverified-behaviours.md` (Production Plan and an earlier BOM-detail verification item), making
+  canonical references ambiguous. Allocate a unique Production Plan ID (or renumber the older
+  entry under the repository's chosen convention) and update every cross-reference atomically.
+
+`MFG-UNV-010`'s Production Plan runtime uncertainties remain open in substance. Source-derived
+behavior was not promoted to live-observed behavior. Graph semantic regeneration remains deferred
+and is not itself a rejection reason. Return the remediation as a documentation-only package; do
+not start PP-1 until re-review acceptance.
 
 ### Notes
 
@@ -2306,3 +2333,105 @@ No live Production Plan document exists on this instance, so every business-rule
 explicitly flagged `MFG-UNV-010`, not live-confirmed. Per §19 of the assigning brief, this package
 does not depend on and did not touch the `CX-MFG-BOM-4B-003` exposed-credential finding, which
 remains `ACTION REQUIRED` and unresolved from the prior package.
+
+### Claude Remediation — CX-MFG-PP-001 / CX-MFG-PP-002 / CX-MFG-PP-003 / CX-MFG-PP-004 — 2026-09-19
+
+Narrowly scoped documentation-only remediation of exactly the four findings from Codex's review
+above, per the CLAUDE remediation brief. Did not start PP-1 or any other Production Plan frontend
+work, and did not reopen or touch BOM Package 4B's own still-open `CLAUDE_HANDOFF` state.
+
+**`CX-MFG-PP-001` (HIGH) — FIXED.** `production-plan.md`'s "Multiple-BOM support" section
+incorrectly treated `po_items.bom_no`, `sub_assembly_items.bom_no`, and `mr_items.from_bom` as
+equivalent, independently user-overridable BOM selectors. Rewritten into three distinct roles:
+`po_items.bom_no` (finished-good selection) is confirmed user-editable, resolved at pull time as
+`SalesOrderItem.bom_no or Item.default_bom`; `sub_assembly_items.bom_no` (sub-assembly reference) is
+server-derived from BOM explosion, not confirmed as an independent user selector; `mr_items.from_bom`
+(raw-material source-BOM trace) is **read only** per the `Material Request Plan Item` DocType
+definition and must never be presented as a user/frontend-overridable field. The canonical
+`Item 1───<BOM` (multiple active BOMs per Item) relationship is explicitly retained as still valid —
+this finding was about which *fields* are independently overridable, not about that relationship.
+The `mr_items` field table and the closing `NEEDS_VERIFICATION` pointer were updated to match.
+
+**`CX-MFG-PP-002` (MEDIUM) — FIXED.** `master-erd.md` modeled only 3 of Production Plan's 6 child
+relationships (`po_items`/`sub_assembly_items`/`mr_items`) and only a document-level Work Order
+back-reference. Added `sales_orders`, `material_requests`, and `prod_plan_references`; added
+row-level `Work Order` back-references to `Production Plan Item` and `Production Plan Sub Assembly
+Item` (`work_order.production_plan_item`/`production_plan_sub_assembly_item`) alongside the existing
+document-level `work_order.production_plan` edge; added `Material Request Item →
+Material Request Plan Item` (`material_request_plan_item`) back-reference. The already-correct
+`Material Request Item → Production Plan` relationship (child row, not the `Material Request`
+header) was preserved unchanged — no back-reference was added to the parent doctype, matching the
+brief's explicit instruction not to invent one.
+
+**`CX-MFG-PP-003` (MEDIUM) — FIXED.** `production-plan.md`'s accounting/stock-impact section
+imprecisely implied financial/stock effects occur "in" Work Orders, Material Requests, Material
+Transfers, and Purchase Orders. Rewritten into three explicit categories: (A) Production Plan's own
+direct effect is a `Bin` reservation-quantity side effect via `update_bin_qty()`, not a stock-ledger
+posting, and remains source-derived/`NEEDS_VERIFICATION`, not live-observed; (B) Work Order,
+Material Request, and Purchase Order are planning/order documents whose mere creation posts nothing;
+(C) the actual stock-ledger/GL impact happens downstream, in Material Transfer/Manufacture Stock
+Entry, Purchase Receipt, and Purchase Invoice. Added a short text diagram making the
+Production-Plan → planning/order → execution/posting chain explicit. While in the file, also
+tightened the material-requirement formula's wording from "the formula, exactly as implemented" to
+"the conceptual/base shortage calculation," adding that ERPNext backend processing remains
+authoritative and may apply minimum-order-qty/UOM adjustments on top — Codex flagged this as worth
+tightening while touching the document, not as its own blocking finding.
+
+**`CX-MFG-PP-004` (MEDIUM) — FIXED.** `unverified-behaviours.md` assigned `MFG-UNV-010` to both the
+Production Plan item and a pre-existing BOM detail-page verification item. Inspected the full
+`MFG-UNV-*` namespace repository-wide first (`001`–`011` were all already in use) before allocating
+a replacement, rather than guessing the next number. Renumbered the Production Plan item (the later,
+colliding entry) to `MFG-UNV-012`; left the BOM item's original `MFG-UNV-010` identity untouched
+(filed first, commit `ad8ad92`). Every substantive open verification boundary on the Production Plan
+item was preserved verbatim (no live document tested; lifecycle execution; submit/cancel
+observation; action-button/docstatus gating; `reserve_stock_for_production_plan`; source/live schema
+drift; `submit_material_request` drift; downstream generation behavior; subcontract Purchase Order
+back-reference). Updated every repository cross-reference to the old Production Plan `MFG-UNV-010`
+usage to `MFG-UNV-012`: `production-plan.md`, `05-manufacturing/README.md`, `master-erd.md`,
+`unverified-behaviours.md` (self-reference plus a new ID note explaining the renumbering),
+`migration-status.md`, `PROGRESS.md`, `QA_LOG.md`, and this entry. Post-remediation repository-wide
+`grep` for `MFG-UNV-010` confirms every remaining hit refers only to the BOM item, and a matching
+`grep` for `MFG-UNV-012` confirms every hit refers only to Production Plan — the namespace is
+unambiguous.
+
+**Source-vs-live boundary**: unchanged in substance. Nothing above promotes a source-derived claim
+to live-verified; zero real Production Plan documents exist on this instance; `MFG-UNV-012` keeps
+`NEEDS_VERIFICATION` status; the `submit_material_request` schema/source drift is still called out
+explicitly.
+
+**Frontend footprint**: zero. `git status`/`git diff --stat` before and after this remediation
+confirm no file under `apps/frontend/` was touched. No Production Plan route, action file,
+component, navigation entry, or other frontend artifact was created. PP-1 was not started.
+
+Tests: not applicable — documentation-only, no application file changed. `git diff --check` —
+PASSED.
+
+Documentation: `docs/backend/05-manufacturing/production-plan.md`,
+`docs/backend/11-relationships/master-erd.md`,
+`docs/backend/99-unverified/unverified-behaviours.md` (renumbered, ID note added),
+`docs/backend/05-manufacturing/README.md`, `docs/backend/15-migration/migration-status.md`,
+`PROGRESS.md`, `QA_LOG.md` — all updated with matching entries.
+
+Commit: recorded once created — see this section's follow-up note / `PROGRESS.md` for the final
+hash. Files changed: the seven documentation files listed above; no other file. Pre-existing
+unrelated worktree state (`CLAUDE.md`, `apps/frontend/src/app/(app)/manufacturing/page.tsx`,
+`docs/architecture/decisions/README.md`, the three untracked Master Data architecture planning
+docs) was inspected at the start of this remediation and left exactly as found — not staged, not
+committed as part of this package.
+
+Deferred: semantic graphify regeneration remains deferred and non-blocking, per Codex's own
+classification in the review above; not run here since no code changed and it would otherwise pull
+in unrelated uncached content, same precedent as the prior BOM and Production Plan discovery
+packages.
+
+### Final State
+
+Implementation: N/A (documentation-only)
+Remediation: complete — all four `CX-MFG-PP-001`/`002`/`003`/`004` findings addressed
+Independent Review: pending — returned to Codex for independent re-review of this remediation; not
+self-declared `ACCEPTED`
+Documentation: repository knowledge corrected per all four findings; release documentation
+(`docs/ceylon-stack-documentation.html`, Notion) not touched — nothing shipped to reflect, same
+deferred-to-acceptance pattern as every other row in this ledger
+Release: not eligible — PP-1 remains locked and unstarted; this package only corrects prior
+documentation

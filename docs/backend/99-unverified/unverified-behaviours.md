@@ -108,8 +108,13 @@ phantom item is exploded through (never appearing as its own stock movement) as 
 (5): build or exercise a representative `Production Plan` against the real BOM, then trace its
 resulting Work Order/Material Request generation and any sub-assembly BOM explosion it triggers.
 
-### MFG-UNV-010 — Production Plan runtime behavior (no live document exists)
+### MFG-UNV-012 — Production Plan runtime behavior (no live document exists)
 **Status:** `NEEDS_VERIFICATION` (schema + source-verified, zero runtime verification)
+**ID note (2026-09-19):** originally filed as `MFG-UNV-010`, which collided with the pre-existing
+BOM detail-page verification item below of the same ID (`CX-MFG-PP-004`). Renumbered to
+`MFG-UNV-012` — the BOM item keeps its original `MFG-UNV-010` identity unchanged, since it was
+filed first (commit `ad8ad92`); every cross-reference to the Production Plan item across the
+repository was updated atomically to match.
 **What's confirmed** (2026-09-19 Production Planning discovery package — live
 `get_doctype_fields`/`list_documents` + read-only `frappe/erpnext` GitHub source for
 `production_plan.py` and its `services/` submodules, no live write access, no ERPNext core files
