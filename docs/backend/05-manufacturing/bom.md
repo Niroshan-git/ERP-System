@@ -1,19 +1,23 @@
 # BOM (Bill of Materials) — Backend Knowledge Baseline
 
-Domain status: `INVESTIGATED, READ-ONLY + DRAFT-MUTABLE FRONTEND IMPLEMENTED` — see
-`docs/backend/15-migration/migration-status.md`. Written during the Master Data Manufacturing
-Masters (BOM) investigation package, 2026-09-19, which concluded **Gate B — no usable BOM frontend
-existed at that time to canonicalize** (see `PROGRESS.md`/`docs/operations/AI_WORK_LOG.md` for the
-full handoff). The Manufacturing Masters — BOM Package 4A (also 2026-09-19, immediately following
-Codex's acceptance of this investigation) then built the first canonical, **read-only** BOM entity
-frontend: `/master-data/boms` (list) and `/master-data/boms/[name]` (detail). Package 4B (also
-2026-09-19) added **BOM create and Draft-only edit** on top of that — see "Frontend capability" and
-"Mutation contract" below for what changed. This document's field/schema/lifecycle/costing
-knowledge is otherwise unchanged by these packages; no submit/cancel/amend/cost-recompute action
-exists anywhere, and none of `MFG-UNV-009`'s open behavioral questions (multi-level explosion,
-costing recompute trigger, phantom/semi-finished transaction behavior, Production Plan runtime
-relationship) were resolved — Package 4B only establishes the Draft-stage create/edit contract,
-not the submitted-document lifecycle.
+Domain status: `INVESTIGATED, READ-ONLY + DRAFT-MUTABLE + SUBMITTED-AVAILABILITY-MUTABLE FRONTEND
+IMPLEMENTED` — see `docs/backend/15-migration/migration-status.md`. Written during the Master Data
+Manufacturing Masters (BOM) investigation package, 2026-09-19, which concluded **Gate B — no usable
+BOM frontend existed at that time to canonicalize** (see `PROGRESS.md`/`docs/operations/
+AI_WORK_LOG.md` for the full handoff). The Manufacturing Masters — BOM Package 4A (also 2026-09-19,
+immediately following Codex's acceptance of this investigation) then built the first canonical,
+**read-only** BOM entity frontend: `/master-data/boms` (list) and `/master-data/boms/[name]`
+(detail). Package 4B (also 2026-09-19) added **BOM create and Draft-only edit** on top of that; a
+same-day remediation (`CX-MFG-BOM-4B-001`/`002`) then added a narrow **submitted-BOM
+Active/Inactive + Default availability action**, on top of Draft structural edit, and made the
+Draft edit form opt-in behind an explicit "Edit BOM" action instead of automatic — see "Frontend
+capability", "Mutation contract", and "Submitted-BOM availability contract" below for what changed.
+This document's field/schema/lifecycle/costing knowledge is otherwise unchanged by these packages;
+no Submit/Cancel/Amend/cost-recompute action exists anywhere, and none of `MFG-UNV-009`'s open
+behavioral questions (multi-level explosion, costing recompute trigger, phantom/semi-finished
+transaction behavior, Production Plan runtime relationship) were resolved — this frontend only
+covers Draft-stage create/edit plus submitted-stage availability/default, not the full submitted-
+document lifecycle.
 
 ## Source of truth for this baseline
 
@@ -30,6 +34,14 @@ in `docs/backend/99-unverified/unverified-behaviours.md`.
 sub-assembly components, so multi-level BOM behavior below is schema-verified but **not**
 behavior-verified against real nested data.
 
+The installed-instance sample is not evidence of one-to-one cardinality. ERPNext's upstream BOM
+controller (reviewed 2026-09-19) explicitly generates a versioned document name by finding
+existing BOMs for the same item and incrementing the three-digit suffix. The canonical
+relationship is therefore **Item 1 -> many BOM documents**. Each BOM has its own document identity
+(`BOM-<ITEM>-<NNN>` by the standard controller), while `BOM.item` is a non-unique Link to the
+finished Item. Cancelled and submitted names participate in version-index calculation, so an old
+BOM is not overwritten when another BOM is created for the same Item.
+
 ## Identity
 
 | Field | Fieldname | Type | Required | Notes |
@@ -42,9 +54,10 @@ behavior-verified against real nested data.
 | Currency | `currency` | Link → Currency | yes | Transaction currency |
 | Conversion Rate | `conversion_rate` | Float | yes | To company currency |
 
-Naming: real record observed as `BOM-<ITEM>-<NNN>` (ERPNext's default BOM naming series) — not
-independently confirmed as a fixed rule since only one record exists; treat as `NEEDS_VERIFICATION`
-if a naming-dependent feature is ever built.
+ERPNext's standard `BOM.autoname()` finds existing non-amended BOM names for the Item and assigns
+`BOM-<ITEM>-<NNN>` using the next version index. This verifies document identity and Item-to-BOM
+one-to-many cardinality. A naming-dependent customization should still account for site-level
+naming customization rather than hard-code the standard format.
 
 ## Status / configuration fields
 
@@ -68,13 +81,34 @@ if a naming-dependent feature is ever built.
 ## Document lifecycle
 
 **BOM is a submittable doctype** (has `amended_from: Link → BOM`, the standard Frappe
-amend-pattern field). The one real BOM is `docstatus: 1` (submitted). Draft → Submit → Cancel →
-Amend semantics were **not independently exercised** in this pass (no write/transition was
-performed, per this package's "no backend modification" and read-only investigation scope) —
-`NEEDS_VERIFICATION` for: what submit-time validation actually runs, whether a submitted BOM can
-be edited in place (ERPNext core convention says no — submitted docs are immutable except via
-amend — but not confirmed against this instance), and what happens to Work Orders/Job Cards
-already referencing a BOM that later gets cancelled/amended.
+amend-pattern field). The one real BOM is `docstatus: 1` (submitted). Structural Draft → Submit →
+Cancel → Amend transitions were not exercised through live writes in this review. The verified
+exception is that ERPNext permits the availability fields described below to change after submit.
+
+### Verified lifecycle and availability rules (2026-09-19 Codex review)
+
+`docstatus` and BOM availability are separate state axes:
+
+- `docstatus` is Draft (0), Submitted (1), or Cancelled (2). Normal structural BOM fields are not
+  editable after submission.
+- `is_active` and `is_default` are both marked `allow_on_submit: 1` in ERPNext's BOM DocType, so
+  these two fields can legitimately be maintained on a submitted BOM without cancellation/amend.
+- `on_update_after_submit()` validates BOM links and calls `manage_default_bom()`.
+- Multiple active submitted BOMs may exist for one Item. Only one is kept as default:
+  `manage_default_bom()` delegates to Frappe's default-management helper, which unsets the
+  competing default for that Item and synchronizes `Item.default_bom`. If an active submitted BOM
+  is the only default candidate, ERPNext promotes it to default. If a BOM is inactive, the same
+  routine unsets its default flag and clears `Item.default_bom` when it points to that BOM.
+- A Draft can carry the checkbox value, but default management is invoked on submit and on an
+  allowed update after submit; a Draft is not an eligible Work Order default/selection because
+  ERPNext's BOM query filters to `docstatus = 1` and `is_active = 1`.
+- Cancellation explicitly sets both `is_active` and `is_default` to 0. A cancelled BOM is retained
+  as a historical document and is not an active Work Order choice.
+
+These rules were verified by reading ERPNext's upstream `bom.json`, `bom.py`, and BOM query source;
+no live write/transition was performed. The effect on already-submitted historical Work Orders and
+Job Cards remains `NEEDS_VERIFICATION`, although the frontend uses BOM document names as references
+and contains no delete/overwrite path.
 
 ## BOM Item (child table, `items`)
 
@@ -326,3 +360,46 @@ detail page when `docstatus === 0`) — see `apps/frontend/src/app/(app)/master-
   **How to verify:** once real login credentials exist for this frontend, create a Draft BOM with
   at least one zero-rate component, save it, submit it via Desk (not this app — no Submit action
   exists here), then attempt an edit through this app's own UI and confirm it's correctly refused.
+
+## Submitted-BOM availability contract (Package 4B remediation, 2026-09-19)
+
+Added in direct response to `CX-MFG-BOM-4B-001`/`002` (Codex independent review): the mutation
+contract above only ever covered a **Draft** BOM. It said nothing about a submitted one, which
+this project's own `bom.py`/`bom.json` source read (see "Verified lifecycle and availability
+rules" above) confirms is not fully immutable — `is_active`/`is_default` are `allow_on_submit`.
+
+- **Routes/actions:** `/master-data/boms/[name]` now opens in view mode for every `docstatus`,
+  including Draft — a Draft's structural edit form only appears at `?edit=1`, reached via an
+  explicit "Edit BOM" button, not automatically. A submitted BOM (`docstatus === 1`) gets its own
+  action row instead: "Activate BOM"/"Deactivate BOM" (`activateBomAction`/`deactivateBomAction`)
+  and, only when Active and not already Default, "Set as Default" (`setDefaultBomAction`) — all
+  three in `master-data/boms/actions.ts`.
+- **Payload, deliberately narrow:** each action sends exactly one field —
+  `{ is_active: 1 }` / `{ is_active: 0 }` / `{ is_default: 1 }` — as a literal object this module
+  constructs itself, never built from `formData`. `is_default` is only ever sent as `1`, never `0`;
+  this app does not compute or send "unset the previous default" itself, relying on ERPNext's own
+  `manage_default_bom()` to do that server-side (see CLAUDE remediation §8's explicit instruction
+  not to guess that state client-side).
+- **Server-side guard (`setBomAvailability`):** re-fetches the BOM (`docstatus`, `is_active`) from
+  ERPNext itself before every mutation — never trusts the page/button that triggered the call.
+  Rejects with an error unless `docstatus === 1`; additionally rejects a `Set as Default` call
+  unless the BOM is currently Active (defense-in-depth for the same "inactive BOM must never look
+  like the effective default" rule the UI already enforces by only showing the button when Active).
+  After a successful mutation, redirects to the same detail route (`?saved=1`), forcing a fresh
+  `getDoc` read rather than assuming the resulting state — same "backend is authoritative, then
+  re-fetch" pattern this contract's own Update payload section already established for Draft edits.
+- **Not implemented by this remediation:** Submit, Cancel, Amend, any structural field change on a
+  submitted BOM (item, quantity, currency, components, operations, warehouses, routing — all of
+  those remain Draft-only via `updateBomAction`/`BomForm`), BOM explosion, Operation/Workstation/
+  Routing masters, Production Plan, Batch/Serial changes, new costing logic, or any Work Order
+  lifecycle change. `bomStatus()`/the BOM list (`BomsTable.tsx`) were not changed — both already
+  exposed BOM/Item/status/Active/Default columns before this remediation.
+- **`NEEDS_VERIFICATION` — no live write-testing was possible this session either** (same
+  credential gap as the rest of this contract): whether `activateBomAction`/`deactivateBomAction`/
+  `setDefaultBomAction` actually succeed against the real server; whether `manage_default_bom()`
+  behaves exactly as the source suggests (clearing the previous default, syncing `Item.default_bom`)
+  when exercised live; the actual runtime effect on existing Work Orders/Job Cards of deactivating a
+  BOM they reference (Work Order's own BOM selection query filters to `docstatus = 1 AND
+  is_active = 1`, source-confirmed, but nothing was observed for an *already-referencing* Work
+  Order). See `docs/backend/99-unverified/unverified-behaviours.md`'s `MFG-UNV-009`/`MFG-UNV-011`
+  for the canonical tracking entries.

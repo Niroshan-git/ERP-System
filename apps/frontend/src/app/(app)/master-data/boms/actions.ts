@@ -140,3 +140,59 @@ export async function updateBomAction(name: string, _prevState: FormState, formD
   revalidatePath(`/master-data/boms/${encodeURIComponent(name)}`);
   redirect(`/master-data/boms/${encodeURIComponent(name)}?saved=1`);
 }
+
+/**
+ * Narrow availability mutation for a *submitted* BOM — CX-MFG-BOM-4B-001 remediation.
+ * ERPNext marks `is_active`/`is_default` `allow_on_submit: 1` on the BOM DocType and runs
+ * `manage_default_bom()` on update-after-submit (verified 2026-09-19, see
+ * `docs/backend/05-manufacturing/bom.md`), so a submitted BOM's availability/default state is
+ * legitimately editable without cancel/amend — but only these two fields, never the structural
+ * ones `updateBomAction`/`BomForm` control. Never trust the page that rendered the button: this
+ * re-fetches the BOM itself, rejects anything not currently submitted, and only ever sends the
+ * exact `fields` object this module constructs — nothing from `formData` reaches `updateDoc`, so
+ * there is no path for a caller to smuggle `item`/`items`/`operations`/other structural fields
+ * through this action.
+ */
+async function setBomAvailability(name: string, fields: { is_active: 0 | 1 } | { is_default: 1 }): Promise<FormState> {
+  let current: { docstatus: number; is_active: 0 | 1 };
+  try {
+    current = await getDoc<{ docstatus: number; is_active: 0 | 1 }>("BOM", name);
+  } catch {
+    return { error: "Could not load this BOM." };
+  }
+  if (current.docstatus !== 1) {
+    return { error: "Only a submitted BOM's availability can be changed here." };
+  }
+  if ("is_default" in fields && !current.is_active) {
+    return { error: "Only an Active BOM can be set as Default." };
+  }
+
+  try {
+    await updateDoc("BOM", name, fields);
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+
+  revalidatePath("/master-data/boms");
+  revalidatePath(`/master-data/boms/${encodeURIComponent(name)}`);
+  redirect(`/master-data/boms/${encodeURIComponent(name)}?saved=1`);
+}
+
+/** Bound to `(name)` by the page; DocActionBar calls the bound function with (state, formData), same as `cancelSalesOrderAction`/`submitSalesOrderAction` elsewhere — both unused and, since neither is declared here, no lint noise from them either. */
+export async function activateBomAction(name: string): Promise<FormState> {
+  return setBomAvailability(name, { is_active: 1 });
+}
+
+export async function deactivateBomAction(name: string): Promise<FormState> {
+  return setBomAvailability(name, { is_active: 0 });
+}
+
+/**
+ * Only ever sends `is_default: 1` — never `0`. ERPNext's own `manage_default_bom()` clears the
+ * previous default (and updates `Item.default_bom`) as part of processing this update; this app
+ * does not compute or send that "unset the old one" step itself (see CLAUDE remediation §8 —
+ * backend is authoritative for the resulting default set, not frontend-guessed).
+ */
+export async function setDefaultBomAction(name: string): Promise<FormState> {
+  return setBomAvailability(name, { is_default: 1 });
+}

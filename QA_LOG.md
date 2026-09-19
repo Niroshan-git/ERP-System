@@ -672,3 +672,54 @@ applied the same day; no code logic changed and no new QA was required for it.
 - **Sign-off**: code-reviewer APPROVE + qa-tester pass (one bug found and fixed, one security
   boundary incident surfaced and independently verified rather than trusted). Package state:
   `CLAUDE_HANDOFF`. Not yet independently reviewed by Codex — not self-declared accepted.
+
+## Manufacturing Masters — BOM Package 4B remediation: submitted availability + Draft view/edit split (2026-09-19)
+
+- **Scope**: narrow remediation of Codex's independent review of Package 4B (`305ccd7`) —
+  `CX-MFG-BOM-4B-001` (submitted-BOM availability), `CX-MFG-BOM-4B-002` (Draft view/edit split).
+  `CX-MFG-BOM-4B-003` (security) has no application-code remediation available this session — see
+  `PROGRESS.md`'s matching entry and `docs/operations/AI_WORK_LOG.md` for the full review.
+- **Static checks**:
+  1. `npm run lint` — PASSED (clean). `activateBomAction`/`deactivateBomAction`/
+     `setDefaultBomAction` were written as `(name: string)`-only, matching
+     `cancelSalesOrderAction`/`submitSalesOrderAction`'s existing convention, rather than declaring
+     unused `(state, formData)` params — avoided six otherwise-inevitable `no-unused-vars` warnings.
+  2. `npx tsc --noEmit` — PASSED, no type errors. Confirmed `DocActionBar`'s
+     `(state, formData) => Promise<state>` action prop type accepts the bound `(name)`-only
+     actions the same way it already accepts `cancelSalesOrderAction.bind(null, doc.name)`.
+  3. `npm run build` — PASSED (`✓ Compiled successfully`). Route manifest confirms
+     `ƒ /master-data/boms/[name]` unchanged — no new route; the Draft view/edit split is `?edit=1`
+     query-state on the existing route, and the submitted-availability actions are server actions
+     on the same page, not new routes either.
+  4. `git diff --check` — PASSED, no whitespace/conflict-marker issues.
+- **Security-boundary check for `CX-MFG-BOM-4B-001`'s server action**: verified by reading
+  `setBomAvailability` directly — the `fields` object sent to `updateDoc` is always a literal this
+  module constructs (`{ is_active: 1 }`, `{ is_active: 0 }`, or `{ is_default: 1 }`); `formData` is
+  never read into it. A malicious/incorrect payload attempting to inject `item`, `items`, or
+  `operations` through `activateBomAction`/`deactivateBomAction`/`setDefaultBomAction` has no code
+  path to reach `updateDoc` at all — there is no `formData`-derived field merge anywhere in this
+  function. `docstatus` is independently re-fetched via `getDoc` before every mutation, never
+  trusted from the calling page.
+- **UX check for `CX-MFG-BOM-4B-002`**: confirmed by reading `[name]/page.tsx` directly — the
+  `if (doc.docstatus === 0 && edit === "1")` gate means a bare `/master-data/boms/[name]` URL for a
+  Draft BOM now renders the same read-only tabbed view every other `docstatus` gets, with an
+  "Edit BOM" button in the header; only `?edit=1` reaches `BomForm`. `BomForm`'s own `cancelHref`
+  was already the bare detail URL, so "Cancel" from the edit form correctly lands back in view mode
+  with no additional change needed.
+- **`NEEDS_VERIFICATION` (not performed, no live write credentials available this session — same
+  gap as Package 4B itself)**: whether `activateBomAction`/`deactivateBomAction`/
+  `setDefaultBomAction` actually succeed against the real server; whether ERPNext's
+  `manage_default_bom()` behaves exactly as the source read suggests when exercised live (clearing
+  the previous default, syncing `Item.default_bom`); the actual runtime effect on existing Work
+  Orders/Job Cards of deactivating a BOM they already reference. See
+  `docs/backend/99-unverified/unverified-behaviours.md`'s `MFG-UNV-009`/`MFG-UNV-011` (both updated
+  by this remediation) for the canonical tracking entries.
+- **`CX-MFG-BOM-4B-003`**: not re-read, not printed, not logged, not committed. No code change
+  performed or required for this finding — recorded as `ACTION REQUIRED` (credential
+  rotation/revocation, an operational action outside this session's authority), not `CLOSED`.
+- **Cleanup**: no ERPNext document was created, updated, or deleted by this remediation (no live
+  write access existed to do so even accidentally).
+- **Sign-off**: static validation only (lint/tsc/build/diff-check all PASSED); no code-reviewer or
+  qa-tester subagent was dispatched for this narrowly-scoped remediation pass — the fixes were
+  reviewed directly against Codex's own findings above. Package state: `CLAUDE_HANDOFF`. Not
+  self-declared accepted — returned to Codex for independent re-review.

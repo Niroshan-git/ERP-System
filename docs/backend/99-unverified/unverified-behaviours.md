@@ -88,6 +88,17 @@ instance (`BOM-FG-STEEL-BRACKET-ASSY-001`) still has zero sub-assembly component
 entity-link rendering (`BOM Item.bom_no` → `/master-data/boms/[bom_no]`) was verified only for
 route/link construction, not against real nested data — remains `NEEDS_VERIFICATION`.
 
+**2026-09-19 update (BOM Package 4B remediation — CX-MFG-BOM-4B-001/002):** source-verified (not
+live-verified) that `is_active`/`is_default` are marked `allow_on_submit: 1` on the `BOM` DocType
+and that `on_update_after_submit()` calls `manage_default_bom()` — see `bom.md`'s "Verified
+lifecycle and availability rules" section. The frontend now exposes narrow Activate/Deactivate and
+Set as Default actions on a submitted BOM (`activateBomAction`/`deactivateBomAction`/
+`setDefaultBomAction` in `master-data/boms/actions.ts`) built on that verified contract. This does
+**not** resolve uncertainty (1) above: the actual runtime effect of deactivating a BOM (or changing
+its default) on Work Orders/Job Cards that already reference it was not exercised — no live write
+access existed this session either. Uncertainty (1) is read as covering deactivation as well as
+cancel/amend, not just the latter.
+
 **How to verify:** Scoped investigation (and any resulting write-testing) when a BOM Management
 frontend package is separately authorized and built, per the Current Mission priority lock —
 not before, since no such package exists to exercise these paths against. For (4) specifically:
@@ -261,6 +272,19 @@ least one zero-rate component (an Item with no `standard_rate` set) and save it;
 a Draft BOM via Desk (this app has no Submit action) and then attempt to edit it through this app's
 own `/master-data/boms/[name]` page, confirming the edit is correctly refused both client-side and
 by ERPNext itself.
+
+**2026-09-19 update (BOM Package 4B remediation):** uncertainty (1) is now narrowed, not fully
+closed. Codex's remediation review read ERPNext's actual `bom.py`/`bom.json` controller source
+(not available to the original Package 4B session) and confirmed structural BOM fields remain
+non-editable after submit under Frappe's generic submitted-document immutability, while
+`is_active`/`is_default` are the one explicit `allow_on_submit` exception — see `bom.md`. That is
+still a source read, not a live write test, so the *exact* rejection behavior (error message,
+HTTP status) for a structural update against a submitted BOM remains unconfirmed. A third,
+narrower item is added by this same remediation: whether the new submitted-BOM availability
+actions (`activateBomAction`/`deactivateBomAction`/`setDefaultBomAction`) actually succeed against
+the live server, and whether `manage_default_bom()`'s default-reassignment behaves as the source
+suggests (clearing the previous default, updating `Item.default_bom`) — not exercised, no live
+write credentials this session either.
 
 ## General
 

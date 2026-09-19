@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BomForm } from "@/components/BomForm";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { DocActionBar } from "@/components/DocActionBar";
 import { DocField } from "@/components/DocField";
 import { DocTabs } from "@/components/DocTabs";
 import { SavedBanner } from "@/components/SavedBanner";
@@ -11,7 +12,7 @@ import { formatAmount } from "@/lib/format";
 import { bomStatus } from "@/lib/erpStatus";
 import { listItemOptions } from "@/lib/actions/itemLookup";
 import { fetchLinkOptions } from "@/lib/linkOptions";
-import { updateBomAction } from "../actions";
+import { activateBomAction, deactivateBomAction, setDefaultBomAction, updateBomAction } from "../actions";
 
 /**
  * Full canonical BOM component/operation row shapes read off `getDoc` — deliberately
@@ -20,8 +21,9 @@ import { updateBomAction } from "../actions";
  * lookup is scoped to exactly the fields Work Order creation needs and must not be widened
  * for this page. Field names verified live against `BOM`/`BOM Item`/`BOM Operation` via
  * `get_doctype_fields` (2026-09-19 investigation) — see `docs/backend/05-manufacturing/bom.md`.
- * Used both for the read-only display below (docstatus 1/2) and, mapped into `BomForm`'s own
- * `initial` shape, for the Draft-only edit form (docstatus 0) — see BomDetailPage below.
+ * Used both for the read-only display below (the default view for every docstatus, including a
+ * Draft not currently being edited) and, mapped into `BomForm`'s own `initial` shape, for the
+ * explicit Draft edit form (docstatus 0 with `?edit=1`) — see BomDetailPage below.
  */
 type BomComponentRow = {
   item_code: string;
@@ -110,10 +112,10 @@ export default async function BomDetailPage({
   searchParams,
 }: {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; edit?: string }>;
 }) {
   const { name } = await params;
-  const { saved } = await searchParams;
+  const { saved, edit } = await searchParams;
 
   let doc: BomDoc;
   try {
@@ -139,6 +141,41 @@ export default async function BomDetailPage({
     />
   );
 
+  /**
+   * Availability (Active/Inactive) and Default are their own action row, separate from the
+   * Draft-only structural "Edit BOM" action — CX-MFG-BOM-4B-001/002 remediation. A submitted
+   * BOM (docstatus 1) can have its `is_active`/`is_default` changed without cancel/amend
+   * (ERPNext marks both `allow_on_submit`), so those actions only ever appear at docstatus 1;
+   * a cancelled BOM (docstatus 2) gets no actions at all, and a Draft only gets "Edit BOM".
+   * "Set as Default" itself only appears once the BOM is Active and not already Default —
+   * `setDefaultBomAction` still re-validates both server-side regardless (see actions.ts).
+   */
+  const headerActions =
+    doc.docstatus === 0 ? (
+      <Link
+        href={`/master-data/boms/${encodeURIComponent(doc.name)}?edit=1`}
+        className="rounded-md bg-signal px-4 py-2 text-sm font-medium text-white hover:bg-signal/90"
+      >
+        Edit BOM
+      </Link>
+    ) : doc.docstatus === 1 ? (
+      <div className="flex flex-wrap items-center gap-3">
+        {doc.is_active ? (
+          <DocActionBar
+            action={deactivateBomAction.bind(null, doc.name)}
+            label="Deactivate BOM"
+            pendingLabel="Deactivating…"
+            variant="danger"
+          />
+        ) : (
+          <DocActionBar action={activateBomAction.bind(null, doc.name)} label="Activate BOM" pendingLabel="Activating…" />
+        )}
+        {doc.is_active && !doc.is_default ? (
+          <DocActionBar action={setDefaultBomAction.bind(null, doc.name)} label="Set as Default" pendingLabel="Setting…" />
+        ) : null}
+      </div>
+    ) : null;
+
   const header = (
     <div className="mb-4">
       <h1 className="text-2xl font-medium text-graphite-900">{doc.name}</h1>
@@ -147,20 +184,20 @@ export default async function BomDetailPage({
         {doc.is_active ? <StatusPill label="Active" tone="success" /> : <StatusPill label="Inactive" tone="neutral" />}
         {doc.is_default ? <StatusPill label="Default" tone="signal" /> : null}
       </div>
+      {headerActions && <div className="mt-3">{headerActions}</div>}
     </div>
   );
 
   /**
-   * Draft-only edit — same "swap the whole page content for the create form" pattern
-   * `PurchaseOrderForm`/`SalesOrderForm` already establish on their own `[name]/page.tsx`
-   * (no separate `/edit` route anywhere else in this app for a submittable doctype), rather
-   * than the brief's own suggested `/master-data/boms/[name]/edit` route — chosen to match
-   * existing Ceylon Stack convention rather than introduce a second pattern for the same
-   * problem. A submitted/cancelled BOM (docstatus 1/2) falls through to the read-only view
-   * below unchanged; `updateBomAction` re-checks docstatus server-side regardless of this
-   * page-level gate (see actions.ts's own doc comment).
+   * Draft structural edit is opt-in, not automatic — CX-MFG-BOM-4B-002 remediation. The
+   * canonical route (`/master-data/boms/[name]`) always opens in view mode first, same as a
+   * submitted BOM; only an explicit "Edit BOM" click (`?edit=1`) swaps in `BomForm`, matching
+   * `PurchaseOrderForm`/`SalesOrderForm`'s own create/edit reuse shape but gated behind a
+   * real view→edit transition instead of rendering the form unconditionally for every Draft.
+   * A submitted/cancelled BOM (docstatus 1/2) never reaches this branch regardless of `edit`;
+   * `updateBomAction` re-checks docstatus server-side too (see actions.ts's own doc comment).
    */
-  if (doc.docstatus === 0) {
+  if (doc.docstatus === 0 && edit === "1") {
     const [itemOptions, companies, warehouseOptions, operationOptions, workstationOptions, routingOptions, currencyOptions] =
       await Promise.all([
         listItemOptions(),
@@ -459,6 +496,7 @@ export default async function BomDetailPage({
   return (
     <div>
       {breadcrumb}
+      <SavedBanner show={saved === "1"} />
       {header}
       <DocTabs
         tabs={[

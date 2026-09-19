@@ -2223,3 +2223,63 @@ Files: `apps/frontend/src/lib/bomRows.ts` (new);
 `docs/backend/99-unverified/unverified-behaviours.md` (new `MFG-UNV-011`); `PROGRESS.md`;
 `QA_LOG.md`; `docs/operations/AI_WORK_LOG.md`. Package state: `CLAUDE_HANDOFF`. Not yet
 independently reviewed by Codex.
+
+## Manufacturing Masters — BOM Package 4B remediation: submitted availability + Draft view/edit split (2026-09-19)
+
+Codex's independent review of Package 4B (`305ccd7`) returned `CHANGES REQUIRED` on two
+implementation/UX findings and one security finding — see `docs/operations/AI_WORK_LOG.md`'s BOM
+Package 4B entry for the full review. This entry is the narrowly-scoped remediation of the two
+in-scope findings, not a reopening of the whole package.
+
+**`CX-MFG-BOM-4B-001` (HIGH)** — Package 4B's `updateBomAction` rejected any update to a
+non-Draft BOM outright, but Codex's read of ERPNext's real `bom.py`/`bom.json` controller source
+confirmed `is_active`/`is_default` are marked `allow_on_submit: 1`, and `on_update_after_submit()`
+calls `manage_default_bom()` — a submitted BOM's availability/default state is legitimately
+editable without cancel/amend. Fixed: `master-data/boms/actions.ts` gained a narrow
+`setBomAvailability(name, fields)` helper plus three thin wrappers
+(`activateBomAction`/`deactivateBomAction`/`setDefaultBomAction`), each sending exactly one
+literal field (`{ is_active: 1 | 0 }` or `{ is_default: 1 }`, never built from `formData`, so no
+structural field can be smuggled through this path). Server-side, `setBomAvailability` re-fetches
+the BOM, rejects anything not `docstatus === 1`, and additionally rejects `Set as Default` unless
+the BOM is currently Active. `is_default` is only ever sent as `1` — never `0` — since ERPNext's
+own `manage_default_bom()` is trusted to clear the previous default and sync `Item.default_bom`
+itself, not guessed client-side. `/master-data/boms/[name]`'s header now shows Activate/Deactivate
+(reusing the existing `DocActionBar` component, same one Sales Order's Submit/Cancel buttons use)
+and, only when Active and not already Default, a "Set as Default" button — both only at
+`docstatus === 1`; a cancelled BOM gets neither.
+
+**`CX-MFG-BOM-4B-002` (MEDIUM)** — the Draft detail route previously swapped straight into the
+full `BomForm` with no view-first step. Fixed: `/master-data/boms/[name]` now renders the same
+read-only tabbed view for every `docstatus`, including Draft; the structural edit form only
+appears at `?edit=1`, reached via an explicit "Edit BOM" button in the header. The form's own
+"Cancel" link (`cancelHref`) already pointed back to the bare `/master-data/boms/[name]` URL,
+which now naturally lands back in view mode — no new cancel-affordance needed.
+
+**`CX-MFG-BOM-4B-003` (HIGH, security)** — the QA subagent that read `apps/mcp-server/.env`
+during Package 4B's own QA pass exposed a real Administrator API credential to that subagent's
+context. This remediation did **not** re-read `.env`, print, log, or commit that credential.
+Application-code remediation was not required for this finding; it is an operational action
+(credential rotation) outside this session's authority — recorded as **`ACTION REQUIRED`**, not
+closed. See `docs/operations/AI_WORK_LOG.md` for the standing record.
+
+**Checks:** `npm run lint` — PASSED (six pre-fix `no-unused-vars` warnings on
+`activateBomAction`/`deactivateBomAction`/`setDefaultBomAction`'s unused `(state, formData)`
+params were eliminated by matching `cancelSalesOrderAction`/`submitSalesOrderAction`'s own
+existing convention — declare only `(name: string)` and let `DocActionBar`'s extra bound args go
+unused rather than declaring-then-ignoring them). `npx tsc --noEmit` — PASSED. `npm run build` —
+PASSED (`✓ Compiled successfully`; same pre-existing dynamic-render/network diagnostic logging
+already present before this remediation, nothing new). Route manifest confirms
+`ƒ /master-data/boms/[name]` still exists with no new route added — the view/edit split is
+`?edit=1` query-state on the same route, matching the CLAUDE remediation brief's own instruction
+not to invent a competing editing architecture. No live write-testing was possible this session —
+same credential gap as Package 4B itself; see `docs/backend/99-unverified/unverified-behaviours.md`
+(`MFG-UNV-009`/`MFG-UNV-011`, both updated by this remediation) for what remains
+`NEEDS_VERIFICATION`.
+
+Files: `apps/frontend/src/app/(app)/master-data/boms/actions.ts`,
+`apps/frontend/src/app/(app)/master-data/boms/[name]/page.tsx` (modified);
+`docs/backend/05-manufacturing/bom.md` (new "Submitted-BOM availability contract" section, updated
+domain status line), `docs/backend/15-migration/migration-status.md`,
+`docs/backend/99-unverified/unverified-behaviours.md` (`MFG-UNV-009`/`MFG-UNV-011` updated);
+`PROGRESS.md`; `QA_LOG.md`; `docs/operations/AI_WORK_LOG.md`. Package state: `CLAUDE_HANDOFF`. Not
+self-declared accepted — returned to Codex for independent re-review.
