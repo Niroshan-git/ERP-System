@@ -1924,6 +1924,12 @@ as found; `docs/ceylon-stack-master-backlog.md`, `docs/ceylon-stack-master-plan.
 `docs/master-data-architecture.md` remain untracked as found — none staged, cleaned, reset, or
 touched by this package.
 
+Commit/Boundary: `3c196fc` (documentation/Graphify-cache-only commit; this ledger entry itself is
+included except this line, recorded in the follow-up coordination commit per the established
+pattern). Parent boundary unchanged from `2cdda944c8f6d65e6196165f3872b52a80b0c3c0` (the prior
+coordination commit recording the first BOM remediation's hash) — this pass adds no application
+code, only a further documentation delta on the same reviewed Gate B boundary.
+
 **Final state:** `CX-MD-BOM-001` — remediation applied, **not self-declared `ACCEPTED`**. `Gate B`
 remains `CONFIRMED`; `BOM FRONTEND` remains `NOT IMPLEMENTED`. `CX-MD-BOM-002` remains `CLOSED`,
 untouched by this pass. Package state: `CLAUDE_HANDOFF`. Returned to Codex for final independent
