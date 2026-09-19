@@ -14,9 +14,11 @@ import type { WorkspaceCard } from "@/lib/sellingWorkspace";
  * routes — they're transaction-generated/operational entities, not structural masters
  * (see `docs/master-data-architecture.md` §2/§7), so they were deliberately NOT moved
  * alongside Warehouse.
- * Entities with no existing route at all (UOM, BOM, Operation, Workstation, Company, Cost
- * Center, Project, Currency, Tax, Payment Terms) are deliberately left out rather than
- * shown as dead links or "Coming soon" — each is its own future MD package.
+ * The Manufacturing Masters — BOM package (2026-09-19, Package 4A) added BOM as a net-new
+ * (not moved) read-only entity screen — see `docs/backend/05-manufacturing/bom.md`. Entities
+ * with no existing route at all (UOM, Operation, Workstation, Company, Cost Center, Project,
+ * Currency, Tax, Payment Terms) are deliberately left out rather than shown as dead links or
+ * "Coming soon" — each is its own future MD package.
  */
 export const MASTER_DATA_WORKSPACE_CARDS: WorkspaceCard[] = [
   {
@@ -45,5 +47,9 @@ export const MASTER_DATA_WORKSPACE_CARDS: WorkspaceCard[] = [
       { label: "Batches", href: "/stock/batches" },
       { label: "Serial Nos", href: "/stock/serial-nos" },
     ],
+  },
+  {
+    title: "Manufacturing Masters",
+    links: [{ label: "Bills of Materials", href: "/master-data/boms" }],
   },
 ];

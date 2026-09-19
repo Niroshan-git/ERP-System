@@ -22,6 +22,7 @@ import {
   Handshake,
   Layers,
   LayoutDashboard,
+  ListTree,
   Map,
   MapPin,
   Megaphone,
@@ -263,10 +264,15 @@ const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
 // as a dead link; see PROGRESS.md. Batches and Serial Nos remain link-outs to their
 // still-Stock-owned routes — per docs/master-data-architecture.md's own classification
 // (§2/§7) they're transaction-generated/operational entities, not structural masters, so
-// they were deliberately NOT moved alongside Warehouse. Entities with no existing route at
-// all (UOM, BOM, Operation, Workstation, Company, Cost Center, Project, Currency, Tax,
-// Payment Terms) are deliberately omitted rather than padded with "Soon" placeholders —
-// same precedent MANUFACTURING_NAV_GROUPS set.
+// they were deliberately NOT moved alongside Warehouse. The Manufacturing Masters — BOM
+// package (2026-09-19, Package 4A) added BOM as this module's first net-new (not moved)
+// entity screen — read-only only (no create/edit/delete route exists for BOM in this app).
+// Operation and Workstation remain unimplemented — real ERPNext masters with no frontend
+// screen at all yet, each its own future, separately authorized package (see
+// `docs/backend/05-manufacturing/bom.md`'s Operation/Routing/Workstation classification
+// table). Entities with no existing route at all (UOM, Operation, Workstation, Company,
+// Cost Center, Project, Currency, Tax, Payment Terms) are deliberately omitted rather than
+// padded with "Soon" placeholders — same precedent MANUFACTURING_NAV_GROUPS set.
 const MASTER_DATA_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "products",
@@ -300,6 +306,12 @@ const MASTER_DATA_NAV_GROUPS: NavGroupDef[] = [
       { href: "/stock/batches", label: "Batches", icon: Layers },
       { href: "/stock/serial-nos", label: "Serial Nos", icon: ScanBarcode },
     ],
+  },
+  {
+    id: "manufacturing-masters",
+    label: "Manufacturing masters",
+    icon: ListTree,
+    items: [{ href: "/master-data/boms", label: "Bills of Materials", icon: ListTree }],
   },
 ];
 

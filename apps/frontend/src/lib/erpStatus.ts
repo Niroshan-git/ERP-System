@@ -434,6 +434,22 @@ export function canTransferMaterials(doc: {
   return { allowed: true };
 }
 
+/**
+ * BOM has no separate `status` Select field of its own (live-confirmed via
+ * `get_doctype_fields`, 2026-09-19 Manufacturing Masters (BOM) investigation — see
+ * `docs/backend/05-manufacturing/bom.md`'s Identity/Status tables) — only the standard
+ * submittable `docstatus` (it has an `amended_from` field, same amend-pattern as every other
+ * submittable doctype in this file). No Desk `bom_list.js` `get_indicator` source was read
+ * this session (no SSH/devops access), so — same caveat as `stockEntryStatus`/`rfqStatus`
+ * above — this is the generic docstatus-only fallback shape, not a mirrored Desk indicator.
+ * Tracked as `NEEDS_VERIFICATION` in `docs/backend/99-unverified/unverified-behaviours.md`.
+ */
+export function bomStatus(doc: { docstatus: DocStatus }): StatusDisplay {
+  if (doc.docstatus === 0) return { label: "Draft", tone: "neutral" };
+  if (doc.docstatus === 2) return { label: "Cancelled", tone: "alert" };
+  return { label: "Submitted", tone: "signal" };
+}
+
 export function purchaseInvoiceStatus(doc: {
   status: string;
   docstatus: DocStatus;

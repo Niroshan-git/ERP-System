@@ -84,7 +84,14 @@ const columns: ColumnDef<WorkOrderRow>[] = [
     key: "bom_no",
     label: "BOM",
     defaultVisible: false,
-    render: (wo) => <span className="font-mono text-xs text-graphite-500">{wo.bom_no || "—"}</span>,
+    render: (wo) =>
+      wo.bom_no ? (
+        <Link href={`/master-data/boms/${encodeURIComponent(wo.bom_no)}`} className="font-mono text-xs text-signal hover:underline">
+          {wo.bom_no}
+        </Link>
+      ) : (
+        <span className="font-mono text-xs text-graphite-500">—</span>
+      ),
   },
   {
     key: "creation",

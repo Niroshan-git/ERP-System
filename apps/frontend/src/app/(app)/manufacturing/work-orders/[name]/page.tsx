@@ -203,7 +203,17 @@ export default async function WorkOrderDetailPage({
       <h2 className="mb-2 text-sm font-semibold text-graphite-900">Production Information</h2>
       <dl className="grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
         <DocField label="Production Item" value={itemCell} />
-        <DocField label="BOM" value={doc.bom_no || "—"} mono />
+        <DocField
+          label="BOM"
+          value={
+            doc.bom_no ? (
+              <DocLink href={`/master-data/boms/${encodeURIComponent(doc.bom_no)}`}>{doc.bom_no}</DocLink>
+            ) : (
+              "—"
+            )
+          }
+          mono
+        />
         <DocField label="Quantity" value={`${doc.qty} ${doc.stock_uom || ""}`.trim()} mono />
         <DocField label="Company" value={doc.company} />
         {doc.project && <DocField label="Project" value={doc.project} />}

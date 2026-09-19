@@ -350,7 +350,14 @@ export function WorkOrderForm({
       {bomDetail && (
         <div>
           <p className="mb-2 text-sm font-semibold text-graphite-900">
-            Materials required (scaled to {qty} of {bomDetail.quantity} on {bomDetail.name})
+            Materials required (scaled to {qty} of {bomDetail.quantity} on {bomDetail.name}){" "}
+            <Link
+              href={`/master-data/boms/${encodeURIComponent(bomDetail.name)}`}
+              target="_blank"
+              className="font-normal text-signal hover:underline"
+            >
+              View BOM →
+            </Link>
           </p>
           <PlainLineItemsTable items={materialRows} />
         </div>

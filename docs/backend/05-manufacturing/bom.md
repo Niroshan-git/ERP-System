@@ -1,10 +1,16 @@
 # BOM (Bill of Materials) — Backend Knowledge Baseline
 
-Domain status: `INVESTIGATED, NOT IMPLEMENTED` — see `docs/backend/15-migration/migration-status.md`.
-Written during the Master Data Manufacturing Masters (BOM) package, 2026-09-19. This package's
-frontend investigation concluded **Gate B — no usable BOM frontend exists to canonicalize**
-(see `PROGRESS.md`/`docs/operations/AI_WORK_LOG.md` for the full handoff). This document exists
-so the knowledge captured during that investigation isn't lost even though no route was built.
+Domain status: `INVESTIGATED, READ-ONLY FRONTEND IMPLEMENTED` — see
+`docs/backend/15-migration/migration-status.md`. Written during the Master Data Manufacturing
+Masters (BOM) investigation package, 2026-09-19, which concluded **Gate B — no usable BOM frontend
+existed at that time to canonicalize** (see `PROGRESS.md`/`docs/operations/AI_WORK_LOG.md` for the
+full handoff). The Manufacturing Masters — BOM Package 4A (also 2026-09-19, immediately following
+Codex's acceptance of this investigation) then built the first canonical, **read-only** BOM entity
+frontend: `/master-data/boms` (list) and `/master-data/boms/[name]` (detail) — see "Frontend
+capability" below for what changed. This document's field/schema/lifecycle/costing knowledge is
+otherwise unchanged by that package; no BOM create/edit/submit/cancel/amend/cost-recompute action
+was added, and none of `MFG-UNV-009`'s open behavioral questions were resolved by displaying
+existing backend values.
 
 ## Source of truth for this baseline
 
@@ -187,11 +193,13 @@ server-side; the frontend never performs its own explosion (`work-order.md`, `bo
 
 Fully documented in `docs/backend/05-manufacturing/work-order.md` (BOM selector behavior,
 `bom_no` auto-fill from `default_bom`, the Work Order Operation field-copy convention and its
-`CX-MFG-002` correction trail) — not re-duplicated here. Confirmed during this package: the
-Work Order list and detail pages both render `bom_no` as **plain text**, not an entity link
-(`WorkOrdersTable.tsx` line ~87, Work Order detail page line ~206 `DocField`, `MaterialTransferForm.tsx`
-line ~227) — there is no `DocLink`-wrapped BOM reference anywhere in the frontend today, because
-there is no canonical BOM route to link to.
+`CX-MFG-002` correction trail) — not re-duplicated here. At the time of this investigation, the
+Work Order list and detail pages both rendered `bom_no` as **plain text**, not an entity link
+(`WorkOrdersTable.tsx`, Work Order detail page's `DocField`, `MaterialTransferForm.tsx`) because no
+canonical BOM route existed to link to. **Updated by Package 4A (2026-09-19):** all three now
+render `bom_no` as a `/master-data/boms/[name]` entity link when present — see "Frontend
+capability" above. The Work Order create BOM `<select>` itself remains an unchanged selector, not
+a link, per that package's own explicit selector-vs-navigation boundary.
 
 ## Production Plan relationship
 
@@ -223,13 +231,32 @@ Masters package:
 None of these three were canonicalized, modified, or given new routes in this package — that
 would require its own separately authorized package per this package's isolation boundary.
 
-## Frontend capability gap (see `PROGRESS.md`/`docs/operations/AI_WORK_LOG.md` for the full Gate B handoff)
+## Frontend capability (updated 2026-09-19, Package 4A)
 
-What exists today: `listBomsForItem` + `getBomDetails` (`bomLookup.ts`) — a read-only lookup used
-exclusively inside `WorkOrderForm.tsx`'s Work Order create flow, plus unlinked plain-text display
-of `bom_no` on the Work Order list, Work Order detail, and Material Transfer pages.
+At the time of this investigation (Gate B), nothing existed beyond `listBomsForItem` +
+`getBomDetails` (`bomLookup.ts`) — a narrow read-only lookup used exclusively inside
+`WorkOrderForm.tsx`'s Work Order create flow — plus unlinked plain-text display of `bom_no` on the
+Work Order list, Work Order detail, and Material Transfer pages. That gap is now closed for
+**read-only entity navigation only**:
 
-What does not exist, anywhere in the frontend: a BOM list page, a BOM detail/view page, a BOM
-create page, a BOM edit page, any route under `/manufacturing/boms` or `/master-data/boms`, and
-any entity link (`DocLink`) pointing at a BOM. There is nothing to relocate or redirect — building
-any of the above is new feature work requiring its own explicit authorization, not a route move.
+- **Canonical routes:** `/master-data/boms` (minimal read-only list — search/Item/Company/Status
+  filters, no "+ New") and `/master-data/boms/[name]` (detail — Overview/Components/Operations/
+  Costing/More Info tabs). Both fetch directly via `getDoc`/`listDocs` against `BOM` — deliberately
+  **not** routed through `bomLookup.ts`'s `getBomDetails`/`listBomsForItem`, which stay exactly as
+  they were (narrow field set, silently-swallowed errors) because they're relied on by the Work
+  Order create flow's own established behavior; the detail page instead follows the same
+  `getDoc`+`ErpNextError`+`notFound()` pattern as the Work Order/Item/Warehouse detail pages.
+- **Entity links added:** Work Order list (`WorkOrdersTable.tsx`) and detail page's `bom_no`,
+  Material Transfer's `bom_no` (`MaterialTransferForm.tsx`), a BOM component row's own `bom_no`
+  (nested/sub-assembly pointer) and `source_warehouse`, and a BOM's own `item`/`amended_from` all
+  now resolve to their canonical `/master-data/*` route instead of plain text. A "View BOM →"
+  link (opens in a new tab, so it can't interrupt an in-progress Work Order create form) was added
+  next to `WorkOrderForm.tsx`'s existing read-only materials preview.
+- **Explicitly still absent:** any create/edit/submit/cancel/amend/cost-recompute action for BOM;
+  any Operation/Routing/Workstation entity screen; any Production Plan screen; any change to the
+  Work Order create BOM `<select>` (still a plain selector, not replaced with navigation) or to
+  Material Transfer's own transfer logic.
+- **What this does and does not resolve:** this is a display-only capability change. It does not
+  independently verify any of `MFG-UNV-009`'s open behavioral questions (lifecycle transitions,
+  multi-level explosion, costing recompute trigger, phantom/semi-finished behavior, Production
+  Plan's runtime relationship) — those remain `NEEDS_VERIFICATION` exactly as before.

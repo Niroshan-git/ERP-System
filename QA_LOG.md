@@ -553,3 +553,55 @@ applied the same day; no code logic changed and no new QA was required for it.
   changed" diff check). Awaiting Codex's independent review of the investigation's accuracy
   (there is no code diff to review); not self-declared accepted (see
   `docs/operations/AI_WORK_LOG.md`'s matching entry for the full Claude Package Handoff).
+
+## Manufacturing Masters — BOM Package 4A: read-only BOM entity frontend (2026-09-19)
+
+- **Scope**: first BOM frontend implementation — `/master-data/boms` (list) and
+  `/master-data/boms/[name]` (detail), plus converting existing plain-text `bom_no` displays to
+  canonical entity links. See `PROGRESS.md`'s matching entry for full implementation detail.
+- **Static checks**:
+  1. `npm run lint` — PASSED, no warnings or errors.
+  2. `npx tsc --noEmit` — PASSED, no type errors.
+  3. `npm run build` — PASSED (`✓ Compiled successfully in 3.3s`). Route manifest confirms
+     `ƒ /master-data/boms` and `ƒ /master-data/boms/[name]` present alongside every pre-existing
+     route; no `/master-data/boms/new` or any other create/edit route was generated. The build's
+     "Dynamic server usage: ... couldn't be rendered statically" diagnostics are pre-existing,
+     unrelated to this package (every `/*/new` prerender attempt against the sandbox's unreachable
+     live-server network, same pattern already recorded in prior packages' own build checks).
+- **Live schema re-verification** (`mcp__ceylon-stack__get_doctype_fields`/`list_documents`
+  against the real Hetzner instance, same day as the investigation baseline): re-fetched `BOM`,
+  `BOM Item`, `BOM Operation` schemas and the one real BOM's own field values
+  (`BOM-FG-STEEL-BRACKET-ASSY-001`) — every field name used in the new page's TypeScript types
+  matched exactly, no drift since `docs/backend/05-manufacturing/bom.md`'s 2026-09-19 baseline.
+  Note: `list_documents` against the `BOM Item`/`BOM Operation` **child doctypes directly**
+  returned only `name` regardless of the `fields` requested — a restriction in this MCP dev tool
+  itself (or Frappe's own child-doctype list-API behavior when queried outside a parent context),
+  not a defect in the frontend, which reads child tables the correct way (embedded in the parent
+  `BOM` document via `getDoc`, exactly like `bomLookup.ts`'s already-proven `getBomDetails` does).
+- **Auth-gate / route-manifest probe**: started the local dev server and curled
+  `/master-data/boms`, `/master-data/boms/BOM-FG-STEEL-BRACKET-ASSY-001`, and
+  `/master-data/boms/does-not-exist` unauthenticated — all three returned a `307` redirect to
+  `/login?next=<url-encoded target>` with the target path correctly preserved, identical to every
+  other page's own auth gate. This confirms the routes exist, resolve, and are protected before
+  reaching any `notFound()`/data-fetch logic; it does not confirm authenticated rendering.
+- **Not performed — recorded `NEEDS_VERIFICATION` (`MFG-UNV-010`), non-blocking**: an authenticated
+  browser click-path through the rendered Overview/Components/Operations/Costing tabs, the
+  nested-BOM link (no real nested BOM data exists on this instance to click through), and the
+  genuine-404 page for a missing BOM name. No test login credentials were available in this
+  session — same accepted gap as the Item/Business Partner/Warehouse Master Data domain packages'
+  own QA entries.
+- **Read-only guarantee audit**: grepped every new and changed file under this package for
+  `createDoc`/`updateDoc`/`deleteDoc`/`submitDoc`/`cancelDoc`/`method: "POST"`/`formAction`/
+  `action=` — zero matches. No mutation path exists anywhere in the new BOM surface.
+- **Regression checks**: `WorkOrderForm.tsx`'s BOM `<select>` selector, Work Order create's
+  payload-building (`work-orders/actions.ts`), and `MaterialTransferForm.tsx`'s transfer
+  calculations were read but not modified — only their existing `bom_no` *display* changed from
+  plain text to a link; `git diff` on each file confirms the change is scoped to that single line/
+  block. `bomLookup.ts`'s `getBomDetails`/`listBomsForItem` (used by Work Order create) are
+  byte-for-byte unchanged.
+- **Cleanup**: dev server process and its port-3000 listener stopped after the auth-gate probe; no
+  ERPNext document was created, updated, or deleted by this package.
+- **Sign-off**: self-reviewed against the package's own read-only guarantee and architecture
+  self-review checklists (both satisfied — see `docs/operations/AI_WORK_LOG.md`'s matching entry
+  for the full Claude Package Handoff). Package state: `CLAUDE_HANDOFF`. Not yet independently
+  reviewed by Codex — not self-declared accepted.

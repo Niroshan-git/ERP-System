@@ -2048,3 +2048,80 @@ Files: `docs/backend/05-manufacturing/bom.md` (new); `docs/backend/05-manufactur
 `git status`/`git diff` before closing this package. See `docs/operations/AI_WORK_LOG.md`'s
 matching entry for the full Claude/Codex handoff record. Not yet independently reviewed by
 Codex — there is no code diff to review, only documentation-accuracy claims to verify.
+
+## Manufacturing Masters — BOM Package 4A: read-only BOM entity frontend (2026-09-19)
+
+**First BOM frontend implementation.** Authorized immediately after Codex's final closure review
+of the investigation above accepted `GATE B = CONFIRMED` and named this exact package as the
+recommended next step. Verified the accepted parent boundary
+(`5698d392f070885bfd3ea2830620f25317d3c47f`) was exactly `HEAD` before starting.
+
+Implemented, strictly read-only (no create/edit/submit/cancel/amend/cost-recompute action added
+anywhere):
+- `/master-data/boms` — minimal list (`BomsTable.tsx` on the existing `DataTable` shell, not
+  `MasterTable`, specifically because `MasterTable` always renders a "+ New" link and this package
+  is read-only by design). Search/Item/Company/Status filters, same `ListFilterBar`/
+  `PaginationControls` pattern as every other list page.
+- `/master-data/boms/[name]` — canonical detail page, same `getDoc`+`ErpNextError`+`notFound()`+
+  `DocTabs` pattern as the Work Order detail page. Tabs: Overview (header fields, Finished Item
+  link, Amended From link, default warehouse links), Components (BOM Item table — Item/Warehouse/
+  nested-BOM entity links), Operations (BOM Operation table), Costing (backend-recorded
+  raw-material/operating/total cost, explicitly labelled as not recalculated by this app), More
+  Info (Created/Modified only, matching the Work Order detail page's own documented reason for
+  omitting Created By/Modified By — shared service-account auth).
+- Entity links added to existing plain-text `bom_no` displays: Work Order list
+  (`WorkOrdersTable.tsx`), Work Order detail page, `MaterialTransferForm.tsx`. A "View BOM →"
+  link (`target="_blank"`, so it can't interrupt an in-progress create form) added next to
+  `WorkOrderForm.tsx`'s existing read-only BOM materials preview. The Work Order create BOM
+  `<select>` itself is unchanged — still a selector, not replaced with navigation.
+- Added `bomStatus` to `erpStatus.ts` (generic docstatus-only fallback, BOM has no separate
+  `status` field — live-confirmed), `"boms"` to `tableColumns.ts`'s `TableId` union, a
+  "Manufacturing masters" nav group to `Sidebar.tsx`'s Master Data module, and a matching card to
+  `masterDataWorkspace.ts`/`master-data/page.tsx`'s copy.
+
+Deliberately not built (per this package's own explicit boundary): BOM create/edit/delete/submit/
+cancel/amend, cost recompute, an Item-detail-page BOM relationship section, Operation/Routing/
+Workstation entity screens, Production Plan, and any Batch/Serial No change.
+
+Live-reverified against the real ERPNext instance immediately before implementation (same-day
+re-check of the investigation's own findings, `get_doctype_fields`/`list_documents`,
+2026-09-19): `BOM`/`BOM Item`/`BOM Operation` field names used in the new page's types
+(`company`, `item`, `item_name`, `quantity`, `uom`, `currency`, `conversion_rate`, `docstatus`,
+`is_active`, `is_default`, `with_operations`, `amended_from`, `is_phantom_bom`,
+`allow_alternative_item`, `track_semi_finished_goods`, `transfer_material_against`, `routing`,
+`inspection_required`, `default_source_warehouse`, `default_target_warehouse`,
+`raw_material_cost`, `base_raw_material_cost`, `operating_cost`, `base_operating_cost`,
+`total_cost`, `base_total_cost`, `rm_cost_as_per`; `item_code`, `qty`, `rate`, `amount`,
+`source_warehouse`, `operation`, `bom_no`, `include_item_in_manufacturing`; `hour_rate`,
+`base_hour_rate`, `time_in_mins`, `batch_size`, `workstation`, `description`) all matched exactly
+— no drift since the 2026-09-19 investigation baseline.
+
+Checks: `npm run lint` — PASSED (clean). `npx tsc --noEmit` — PASSED (no errors). `npm run build`
+— PASSED, `✓ Compiled successfully`; route manifest confirms `ƒ /master-data/boms` and
+`ƒ /master-data/boms/[name]` alongside every existing route, no new static/legacy route. Started
+the local dev server and curled both new routes plus a nonexistent-BOM path unauthenticated: all
+three correctly 307-redirect to `/login?next=...` with the target path preserved/URL-encoded —
+same auth gate as every other page, confirming the route exists and is protected before any
+notFound()/data-fetch logic runs. No test login credentials were available in this session, so the
+authenticated render (real data in the Overview/Components/Operations/Costing tabs, nested-BOM
+link, 404 page for a genuinely missing BOM) was not click-path-verified — recorded as
+`MFG-UNV-010`, same non-blocking precedent as the Item/Business Partner/Warehouse Master Data
+packages' own "full authenticated browser click-path not run" gap. Read-only guarantee: grepped
+every new/changed file for `createDoc`/`updateDoc`/`deleteDoc`/`POST`/`formAction` — zero matches.
+
+Files: `apps/frontend/src/app/(app)/master-data/boms/page.tsx` (new),
+`apps/frontend/src/app/(app)/master-data/boms/[name]/page.tsx` (new),
+`apps/frontend/src/components/BomsTable.tsx` (new),
+`apps/frontend/src/lib/erpStatus.ts`, `apps/frontend/src/lib/tableColumns.ts`,
+`apps/frontend/src/lib/masterDataWorkspace.ts`, `apps/frontend/src/components/Sidebar.tsx`,
+`apps/frontend/src/app/(app)/master-data/page.tsx`,
+`apps/frontend/src/app/(app)/manufacturing/work-orders/[name]/page.tsx`,
+`apps/frontend/src/components/WorkOrdersTable.tsx`,
+`apps/frontend/src/components/MaterialTransferForm.tsx`,
+`apps/frontend/src/components/WorkOrderForm.tsx`;
+`docs/backend/05-manufacturing/bom.md`, `docs/backend/15-migration/migration-status.md`,
+`docs/backend/99-unverified/unverified-behaviours.md` (new `MFG-UNV-010`); `PROGRESS.md`;
+`QA_LOG.md`; `docs/operations/AI_WORK_LOG.md`. `bomLookup.ts`'s existing `getBomDetails`/
+`listBomsForItem` (Work Order create's own lookup) deliberately left untouched — the new detail
+page fetches independently via `getDoc`, per this package's own "preserve established behavior"
+boundary. Package state: `CLAUDE_HANDOFF`. Not yet independently reviewed by Codex.

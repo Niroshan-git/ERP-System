@@ -8,10 +8,12 @@ import { MASTER_DATA_WORKSPACE_CARDS } from "@/lib/masterDataWorkspace";
  * Canonicalization package (2026-09-18) moved Items/Item Groups/Price Lists to their own
  * canonical /master-data/* routes; the Business Partner domain package (2026-09-19) did
  * the same for Customers/Customer Groups/Suppliers/Contacts/Addresses/Territories; the
- * Inventory Structure domain package (also 2026-09-19) did the same for Warehouses — see
- * docs/master-data-architecture.md and each package's entry in PROGRESS.md/
- * docs/operations/AI_WORK_LOG.md for the full ownership map. Batches and Serial Nos stay
- * link-outs to Stock — they're operational entities, not structural masters.
+ * Inventory Structure domain package (also 2026-09-19) did the same for Warehouses; the
+ * Manufacturing Masters — BOM package (2026-09-19, Package 4A) added BOM as a net-new,
+ * read-only entity screen — see docs/master-data-architecture.md and each package's entry
+ * in PROGRESS.md/docs/operations/AI_WORK_LOG.md for the full ownership map. Batches and
+ * Serial Nos stay link-outs to Stock — they're operational entities, not structural
+ * masters. Operations and Workstations still have no screen at all.
  */
 export default function MasterDataHomePage() {
   return (
@@ -23,9 +25,10 @@ export default function MasterDataHomePage() {
         <p className="text-sm text-graphite-500">
           One canonical place to reach the records shared across Sales, Buying, Inventory, and
           Manufacturing. Each link below opens the same record every other module already uses —
-          nothing here is a separate copy. Manufacturing masters (BOM, Operations, Workstations)
-          and financial/organizational masters (Company, Cost Center, Project, UOM) don&apos;t
-          have a screen yet and aren&apos;t listed here — each is its own future package.
+          nothing here is a separate copy. Bills of Materials are read-only here (no create/edit
+          screen exists for BOM in this app). Operations, Workstations, and financial/
+          organizational masters (Company, Cost Center, Project, UOM) don&apos;t have a screen yet
+          and aren&apos;t listed here — each is its own future package.
         </p>
       </div>
 

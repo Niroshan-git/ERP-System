@@ -224,7 +224,15 @@ export function MaterialTransferForm({
           </div>
           <div>
             <dt className="text-graphite-500">BOM</dt>
-            <dd className="font-mono text-graphite-900">{workOrder.bom_no || "—"}</dd>
+            <dd className="font-mono text-graphite-900">
+              {workOrder.bom_no ? (
+                <Link href={`/master-data/boms/${encodeURIComponent(workOrder.bom_no)}`} className="text-signal hover:underline">
+                  {workOrder.bom_no}
+                </Link>
+              ) : (
+                "—"
+              )}
+            </dd>
           </div>
           <div>
             <dt className="text-graphite-500">WIP Warehouse</dt>

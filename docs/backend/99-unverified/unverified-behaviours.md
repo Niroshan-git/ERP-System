@@ -77,6 +77,17 @@ existence only, not runtime verification: `apps/frontend` has zero Production Pl
 route, action file, or component), so no representative Production Plan → BOM consumption →
 resulting manufacturing behavior (Work Order/Material Request generation, sub-assembly explosion)
 has been observed.
+**2026-09-19 update (Manufacturing Masters — BOM Package 4A):** a read-only BOM entity frontend
+(`/master-data/boms`, `/master-data/boms/[name]`) now exists and displays this doctype's header,
+status/lifecycle (docstatus-derived Draft/Submitted/Cancelled), components, operations, and
+backend-recorded costing fields — see `docs/backend/05-manufacturing/bom.md`'s "Frontend
+capability" section. This is a **display-only** change and does not resolve any of the four
+numbered uncertainties above: no lifecycle transition, multi-level explosion, cost recompute, or
+phantom/semi-finished-goods stock transaction was performed or observed. The one real BOM on this
+instance (`BOM-FG-STEEL-BRACKET-ASSY-001`) still has zero sub-assembly components, so nested-BOM
+entity-link rendering (`BOM Item.bom_no` → `/master-data/boms/[bom_no]`) was verified only for
+route/link construction, not against real nested data — remains `NEEDS_VERIFICATION`.
+
 **How to verify:** Scoped investigation (and any resulting write-testing) when a BOM Management
 frontend package is separately authorized and built, per the Current Mission priority lock —
 not before, since no such package exists to exercise these paths against. For (4) specifically:
@@ -204,6 +215,25 @@ remains unconfirmed.
 **How to verify:** Reproduce Package 4's substitution steps live (leaving a duplicate `item_code`
 in `required_items`), then call `make_stock_entry` against that Work Order and inspect whether the
 response's `items` array contains one merged row or two duplicate rows.
+
+### MFG-UNV-010 — BOM detail page: status-tone mapping and authenticated route walkthrough
+**Status:** `NEEDS_VERIFICATION` (non-blocking, Manufacturing Masters — BOM Package 4A, 2026-09-19)
+**What's uncertain:** (1) `erpStatus.ts`'s `bomStatus` uses the same generic docstatus-only
+fallback shape as `stockEntryStatus`/`rfqStatus` (Draft/Submitted/Cancelled, live-confirmed BOM has
+no separate `status` Select field) — but, like `MFG-UNV-001` for Work Order, no Desk `bom_list.js`
+`get_indicator` source was read this session (no SSH/devops access), so the tone choices are this
+app's own reasonable mapping, not a mirrored Desk indicator. (2) The new `/master-data/boms` and
+`/master-data/boms/[name]` routes were confirmed to sit behind the same auth middleware as every
+other page (unauthenticated requests 307-redirect to `/login?next=...` with the target path
+correctly preserved/encoded) and were confirmed against the live BOM/BOM Item/BOM Operation schema
+via direct `get_doctype_fields`/`list_documents` calls — but no authenticated browser click-path
+through the rendered page was performed in this session (no test login credentials available),
+matching the same non-blocking gap already accepted for the Master Data Item/Business Partner/
+Warehouse domain packages.
+**How to verify:** (1) SSH to the Hetzner instance, read `erpnext/manufacturing/doctype/bom/
+bom_list.js`'s `get_indicator` function body directly, compare/update `bomStatus`'s tone map to
+match. (2) Log in through the real frontend with valid credentials and click through
+`/master-data/boms` → a real BOM's detail page → its component/operation/nested-BOM links.
 
 ## General
 
