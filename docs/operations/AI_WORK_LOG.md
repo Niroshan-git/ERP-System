@@ -2284,10 +2284,13 @@ live-verification gap, since it lets a real Production Plan document be created 
 observed). Nothing in this package requires Codex to verify a code diff — only the accuracy of the
 investigation's documentation claims (schema values, source-code interpretation, route
 non-existence) against the live instance, the repository, and the fetched upstream source.
-Commit/Boundary: not yet committed at the time this entry was written — see the commit hash
-recorded in this session's final handoff message / the next `git log` entry on branch `frontend`.
-Parent boundary: `fd89ef8` (BOM Package 4B remediation's graphify-refresh commit, verified exactly
-`HEAD` before this package started).
+Commit/Boundary: `a4c4803` on branch `frontend`, parent `fd89ef8` (BOM Package 4B remediation's
+graphify-refresh commit, verified exactly `HEAD` before this package started). Note: a graphify
+semantic re-extraction for the 8 changed docs was attempted but hit a session rate limit before
+completing; `graph.json`/`GRAPH_REPORT.md` were left untouched rather than rebuilt against 81
+unrelated uncached brand-image files — same precedent as the prior BOM investigation package
+(`583b5e3`). A future session should re-run `/graphify "D:\_07_ERP\ERP System"` to pick up this
+package's docs into the semantic graph.
 
 ### Codex
 
