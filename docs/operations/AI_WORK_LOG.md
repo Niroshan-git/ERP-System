@@ -31,6 +31,7 @@ for their respective subjects. Git is authoritative for actual code changes.
 | Master Data Canonicalization — Inventory Structure domain (Warehouse) | Master Data (frontend, cross-module) | Warehouse moved from `/stock/warehouses` to canonical `/master-data/warehouses`; compatibility redirect; inbound links updated (`masterDataWorkspace.ts`, `Sidebar.tsx` ×2 groups, Work Order detail ×4 `DocLink`s); Batch/Serial No re-confirmed and deliberately not moved | `DOCUMENTATION_CLOSURE` complete | `CODEX_REVIEW_COMPLETE` (2026-09-19 final closure review) | `ACCEPTED` — `CX-MD-WH-003` closed; implementation, repository documentation, and external-plan verification complete | `f078610` (implementation) → `8cf45de` (coordination) → remediation `7447574` → final accepted boundary `2a7076c` | None blocking — `CX-MD-WH-003` `CLOSED` by live Notion MD-6 read evidence in `2a7076c` | Full authenticated browser click-path not run; `account`/`warehouse_type`/`customer` remain pre-existing unexposed fields/future enhancements | 2026-09-19 |
 | Manufacturing Masters — BOM Package 4A | Master Data / Manufacturing (frontend) | First BOM frontend: read-only `/master-data/boms` list + `/master-data/boms/[name]` detail (Overview/Components/Operations/Costing/More Info); existing plain-text `bom_no` displays (Work Order list/detail, Material Transfer) converted to entity links; "View BOM" link added to Work Order create's BOM preview. No create/edit/submit/cancel/amend/cost-recompute action for BOM anywhere. `bomLookup.ts`'s existing Work Order-create lookup left untouched. | `CLAUDE_HANDOFF` | Not yet reviewed | `CLAUDE_HANDOFF` — awaiting Codex's independent review | `ad8ad92` (implementation) | None yet — code-reviewer (in-session) and qa-tester (in-session) both passed with no blocking findings | `MFG-UNV-010` (BOM status-tone mapping not mirrored from a real Desk indicator; full authenticated browser click-path not run — no working test login credentials available; the one documented credential in `PROGRESS.md` was tried once by the qa-tester subagent and rejected with a live `401`, so it is now known stale, not just untried) | 2026-09-19 |
 | Manufacturing Masters — BOM Package 4B | Master Data / Manufacturing (frontend) | BOM create (`/master-data/boms/new`) + Draft-only inline edit on `/master-data/boms/[name]` (swaps to the same form when `docstatus === 0`, mirroring Purchase/Sales Order's own established pattern rather than the requested separate `/edit` route). Full header form, `BomComponentsEditor`/`BomOperationsEditor` child-table CRUD, Operation/Workstation/Routing/Currency as plain `fetchLinkOptions()` dropdowns (no new master screens). Backend-authoritative costing preserved. Submit/Cancel/Amend explicitly deferred, not investigated — scope-sizing decision disclosed before implementation (see Notes). | `CLAUDE_HANDOFF` | Not yet reviewed | `CLAUDE_HANDOFF` — awaiting Codex's independent review | `ad8ad92`/`de6733c`/`9fe773e` (accepted 4A boundary) → `305ccd7` (4B implementation) | One bug found+fixed pre-commit by in-session `qa-tester` (`with_operations` toggle silently destroyed unsaved Operations rows — now always-mounted/`hidden`-attribute instead of conditional unmount); one subagent permission-boundary incident surfaced (see Notes) | `MFG-UNV-011` (non-Draft-update rejection and zero-rate-component acceptance not live-tested — no working credentials this session) | 2026-09-19 |
+| Production Plan PP-1 | Manufacturing (frontend) | First Production Plan frontend package: read-only `/manufacturing/production-plans` list + `/manufacturing/production-plans/[name]` detail (Overview/Finished Goods/Demand Sources/Sub-Assemblies/Material Requirements/Generated Work Orders/Traceability). Reuses Work Order/BOM list-detail patterns (`DataTable`, `DocTabs`, `DocField`, `StatusPill`, `getDoc`/`listDocs`). New `productionPlanStatus()`; Sidebar "Production Plans" nav item added; Manufacturing home page copy updated. No create/edit/submit/cancel/"Get ..."/"Make ..." action anywhere; no client-side planning/shortage/explosion logic. Material Request traceability explicitly deferred (documented, not approximated). | `CLAUDE_HANDOFF` | Not yet reviewed | `CLAUDE_HANDOFF` — awaiting Codex's independent review | Not yet committed — see PROGRESS.md's matching entry for the full file list pending commit | None yet — self-reviewed in-session against the discovery package's own 24-point closure checklist | `MFG-UNV-012` unchanged (`NEEDS_VERIFICATION`) — zero live Production Plan documents on the instance means only the list page's zero-record empty state was exercised against real data; no authenticated browser session available this session (consistent with every prior package this week), so detail-page rendering against real linked data, the invalid-ID 404 path, and the nav click-path were not browser-tested | 2026-09-19 |
 
 Add one row per meaningful engineering package. Do not log individual prompts. Detailed records
 below are optional and should be added only when a package needs findings, re-review, or closure
@@ -2542,3 +2543,39 @@ Remediation: complete — `CX-MFG-PP-001` and `CX-MFG-PP-004` addressed; `CX-MFG
 Independent Review: pending — returned to Codex for independent re-review; not self-declared
 `ACCEPTED`
 Release: not eligible — PP-1 remains locked and unstarted
+
+### Codex Final Re-Review — Production Plan Discovery Remediation Round 2 — 2026-09-19
+
+Review target: Production Plan discovery/documentation package `a4c4803`, coordination `8f0f83d`,
+remediation round 1 `08fdf99`, coordination `1a08742`, remediation round 2 `179ff2d`, and
+coordination follow-up `a0b1f08` on branch `frontend`.
+
+Independent review state: **PASS**. Git ancestry and exact commit contents were verified. Round 2
+changed only `docs/backend/99-unverified/unverified-behaviours.md` and this coordination ledger;
+no `apps/frontend` file or unrelated working-tree change entered either round-2 commit.
+
+- `CX-MFG-PP-001`: **RESOLVED** — current canonical guidance distinguishes editable/validated
+  finished-good `po_items.bom_no`, server-derived `sub_assembly_items.bom_no` with no unsupported
+  independent-selector claim, and read-only traceability field `mr_items.from_bom`.
+- `CX-MFG-PP-002`: **RESOLVED — NO REGRESSION** — `master-erd.md` is unchanged since `08fdf99` and
+  retains all six principal child relationships plus the required row-level Work Order and
+  Material Request Item references without a false Material Request header relationship.
+- `CX-MFG-PP-003`: **RESOLVED — NO REGRESSION** — `production-plan.md` is unchanged since `08fdf99`
+  and retains the accepted reservation/non-posting/downstream-posting distinction and conceptual
+  material-requirement formula boundary.
+- `CX-MFG-PP-004`: **RESOLVED** — current BOM verification remains `MFG-UNV-010`; current Production
+  Plan verification is `MFG-UNV-012`; historical Production Plan uses of `MFG-UNV-010` are either
+  explicitly annotated as renumbered or contained in clearly historical review findings.
+
+Validation: commit ancestry/file lists, staged/unstaged/untracked isolation, repository-wide
+identifier and unsafe-BOM-wording searches, regression diffs, committed frontend footprint, and
+`git diff --check` all **PASSED**. Application lint/typecheck/build: **NOT APPLICABLE**
+(documentation-only package). No live ERP mutation or runtime test was performed.
+
+Source-vs-live boundary: `MFG-UNV-012` remains **NEEDS_VERIFICATION** with zero live Production Plan
+runtime observations. Acceptance is limited to the discovery/documentation package and does not
+close lifecycle, submit/cancel and action gating, reservation, source/live drift, downstream
+generation, subcontract Purchase Order back-reference, or end-to-end flow verification.
+
+Release gate: **PP-1 — Production Plan Read Foundation is UNLOCKED / READY FOR NEXT PACKAGE**. PP-1
+was not implemented or started during this review.

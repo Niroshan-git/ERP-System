@@ -2430,3 +2430,103 @@ and left exactly as found — not staged, not touched. Deferred: semantic graphi
 (non-blocking per Codex's own classification; AST-only `--update` was not run either, since no code
 changed). Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — returned to Codex for
 independent re-review.
+
+## Manufacturing — Production Plan PP-1 (read-only frontend foundation, 2026-09-19)
+
+**Package objective**: build the canonical read-only Production Plan frontend foundation
+authorized after `MFG-UNV-012`'s discovery review passed (`FINAL REVIEW STATE: PASS`, `PP-1 GATE:
+UNLOCKED`) — two routes, list and detail, strictly read-only, reusing existing Ceylon Stack
+patterns rather than inventing new ones.
+
+**Existing patterns inspected and reused** (per the discovery brief's explicit instruction, before
+writing any code): Work Order list/detail (`work-orders/page.tsx`, `work-orders/[name]/page.tsx`)
+and BOM list/detail (`boms/page.tsx`, `boms/[name]/page.tsx`) for the list/detail page shape;
+`DataTable`/`ColumnDef`/`useVisibleColumns` (`tableColumns.ts`) for the list table; `DocField`,
+`DocTabs`, `StatusPill`, `Breadcrumb`, `AccessDeniedNotice`, `ListFilterBar`, `PaginationControls`
+for the detail page shell; the per-file local `DocLink` helper convention (Work Order/BOM detail
+pages each define their own, not a shared component — matched, not forked); `getDoc`/`listDocs`/
+`getCount`/`ErpNextError` (`lib/erpnext.ts`) as the only ERPNext access path; `fetchLinkOptions`
+for the Company filter; `paginate`/`parsePage`/`parsePageSize` (`lib/pagination.ts`); the
+`erpStatus.ts` per-doctype status-function convention (`workOrderStatus`'s shape — trust `status`
+directly, no separate docstatus branch, since Production Plan's own `status` enum already spells
+out Draft/Submitted/Cancelled literally, confirmed live via `get_doctype_fields` immediately
+before implementation — schema unchanged since the same-day discovery pass).
+
+**Built**:
+- `apps/frontend/src/lib/erpStatus.ts` — added `productionPlanStatus()`.
+- `apps/frontend/src/lib/tableColumns.ts` — added `"production-plans"` to the `TableId` union.
+- `apps/frontend/src/components/ProductionPlansTable.tsx` — new list table (Production Plan,
+  Status, Posting Date, Company, Planned Qty core columns; Get Items From/Combine Items/Combine
+  Sub Items/Modified as togglable optional columns).
+- `apps/frontend/src/app/(app)/manufacturing/production-plans/page.tsx` — list page: ID/Company/
+  Status/Get Items From filters, same sort-option shape as Work Order's list, zero-record empty
+  state ("No Production Plans found."), no "+ New" link (deliberately, PP-1 is read-only).
+- `apps/frontend/src/app/(app)/manufacturing/production-plans/[name]/page.tsx` — detail page, 7
+  tabs: Overview (header fields + all Planning Control toggles, Status pill + separate Docstatus
+  field per the discovery brief's explicit "distinguish status from docstatus" instruction),
+  Finished Goods (`po_items`, BOM/Item/Warehouse/demand-source links, row `name` shown for
+  traceability), Demand Sources (`sales_orders`/`material_requests`), Sub-Assemblies
+  (`sub_assembly_items`, explicitly captioned as server-exploded, `bom_no` shown as reference not
+  a selector), Material Requirements (`mr_items`, `from_bom` visually tagged "Trace" rather than
+  rendered as an editable-looking link), Generated Work Orders (queried by
+  `Work Order.production_plan = doc.name`, an explicit backend back-reference, not Item/BOM
+  inference), and Traceability (`prod_plan_references` for combine-item tracing, plus an explicit
+  "deferred, not approximated" note for Material Request traceability per the discovery brief's
+  own instruction not to invent a shortcut when the real join — through `Material Request
+  Item.production_plan`, not a parent-level field — would expand PP-1's scope).
+- `apps/frontend/src/components/Sidebar.tsx` — added "Production Plans" to the Manufacturing nav
+  group, second item after Work Orders.
+- `apps/frontend/src/app/(app)/manufacturing/page.tsx` — updated the module home page's copy
+  (previously said "Production Plans is the next Manufacturing area to be built") to reflect PP-1
+  shipping, and linked the paragraph's "Production Plans" mention to the new list route. The
+  file's pre-existing unrelated uncommitted change (BOM-moved-to-Master-Data copy correction, same
+  file, already in the working tree before this package started) was inspected first and
+  preserved — only the one outdated sentence was touched, nothing else in that prior diff was
+  reverted or altered.
+
+**Explicitly not implemented** (per the discovery brief's scope boundary): create, edit, delete,
+submit, cancel, reopen/amend, Get Sales Orders/Material Requests/Items/Sub Assembly Items,
+Calculate Material Requirements, Make Work Order/Material Request/Subcontract Purchase Order,
+stock reservation actions, BOM selection/override controls, BOM explosion, frontend shortage
+calculation, workflow/approval, mobile-specific UX, AI actions. No "+ New" button, no action
+server file for Production Plan exists.
+
+**Checks run**: `npx tsc --noEmit` — clean, zero errors. `npm run lint` (ESLint) — clean, zero
+warnings/errors. `npm run build` — succeeded; both new routes
+(`/manufacturing/production-plans`, `/manufacturing/production-plans/[name]`) registered
+correctly as server-rendered (ƒ) routes alongside every pre-existing route with no route dropped
+or broken (Work Order and BOM routes both still present in the build's route table, unchanged).
+`git diff --check` — clean, no whitespace errors.
+
+**Live verification, and its real boundary**: re-confirmed via `mcp__ceylon-stack__list_documents`
+immediately before implementation that zero Production Plan documents exist on the instance
+(unchanged since the same-day discovery pass) — the list page's zero-record empty state is
+therefore the only behavior this package could exercise against real data. Re-confirmed the full
+`Production Plan` field schema via `mcp__ceylon-stack__get_doctype_fields` immediately before
+implementation — every fieldname used in the new TypeScript types (`status` enum values,
+`get_items_from` options, all Planning Control toggle fieldnames, `po_items`/`sub_assembly_items`/
+`mr_items`/`sales_orders`/`material_requests`/`prod_plan_references` and their child fieldnames)
+matches exactly, no drift since the discovery baseline. No authenticated browser session was
+available this session (same "no working test login credentials" limitation every prior package
+this week hit — see e.g. the BOM Package 4A/4B and Master Data Canonicalization entries above) —
+route-level rendering with real linked Item/Warehouse/BOM/Sales Order/Work Order data, the
+invalid-Production-Plan-ID 404 path, and the sidebar/navigation click-path were **not**
+click-tested in a browser. The production build's static-route registration and the
+TypeScript/schema alignment above are the verification this package could actually perform;
+full authenticated click-path testing remains `NEEDS_VERIFICATION`, consistent with every prior
+frontend package this week.
+
+**MFG-UNV-012 impact**: unchanged, still `NEEDS_VERIFICATION`. PP-1 is a read-only frontend
+foundation over a document type with zero live instances — it does not exercise submit/cancel,
+`reserve_stock_for_production_plan`, the `Bin` reservation side effect, or any of the other
+runtime-only items that entry lists. `docs/backend/05-manufacturing/production-plan.md`'s
+"Frontend footprint" section was updated to describe what PP-1 actually built (see that file) —
+no other backend-knowledge claim in that document was touched.
+
+**Deferred / next package**: Job Cards, Workstations, and OEE remain unbuilt, each its own future
+scoped package (unchanged from the priority-lock note above). Within Production Plan itself, the
+next logical package is create/Get-Items action wiring — explicitly out of scope for PP-1 and not
+started.
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — returned to Codex for independent
+review, per the discovery package's own closure instruction.

@@ -236,15 +236,20 @@ const STOCK_NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
-// First Manufacturing package (2026-09-17): Work Orders list only. No Job Card/BOM/
-// Workstation routes exist yet, so this group deliberately holds just the one item rather
-// than padding it with "Soon" placeholders not asked for in this package.
+// First Manufacturing package (2026-09-17): Work Orders list only. Production Plan (PP-1,
+// 2026-09-19) added Production Plans as this group's second item — a read-only foundation,
+// see docs/backend/05-manufacturing/production-plan.md's "Frontend footprint"/"Canonical
+// routing decision" sections for why it belongs here, not under /master-data. Job Card,
+// Workstations, and OEE remain unbuilt, each its own future scoped package.
 const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "cycle",
     label: "Manufacturing",
     icon: Workflow,
-    items: [{ href: "/manufacturing/work-orders", label: "Work Orders", icon: ClipboardList }],
+    items: [
+      { href: "/manufacturing/work-orders", label: "Work Orders", icon: ClipboardList },
+      { href: "/manufacturing/production-plans", label: "Production Plans", icon: ListTree },
+    ],
   },
 ];
 

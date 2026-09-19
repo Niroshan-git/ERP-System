@@ -406,11 +406,26 @@ PURCHASE_ORDER }o--o| PRODUCTION_PLAN : "N:1 optional, subcontracted sub-assembl
 
 ## Frontend footprint
 
-**Zero.** No route under `apps/frontend/src/app/(app)/manufacturing/production-plans/` or anywhere
-else, no action file, no component, no reference in `lib/`. Confirmed via `Glob`/`Grep` across
-`apps/frontend/src` and the graphify knowledge graph. This baseline exists to make the *next*
-package (canonical read-only List/Detail) buildable without re-deriving the model from scratch —
-see `PROGRESS.md`/handoff notes for the recommended package boundary.
+**PP-1 (2026-09-19) shipped the first read-only foundation.** Routes:
+`/manufacturing/production-plans` (list) and `/manufacturing/production-plans/[name]` (detail,
+7 tabs: Overview, Finished Goods, Demand Sources, Sub-Assemblies, Material Requirements,
+Generated Work Orders, Traceability). Strictly read-only — no create/edit/delete/submit/cancel,
+no "Get ..."/"Make ..." button, no client-side planning/shortage/explosion calculation; every
+value displayed is a backend-recorded field, sourced via `getDoc`/`listDocs` (Frappe REST), same
+API layer every other document page uses. `productionPlanStatus()` added to `lib/erpStatus.ts`
+(trusts the `status` field directly, same shape as `workOrderStatus`, tone mapping not mirrored
+from a Desk indicator — no `production_plan_list.js` source was read). Work Order traceability
+(section 11) queries `Work Order` filtered by `production_plan = doc.name`, using the explicit
+backend back-reference fields, not Item/BOM inference. Material Request traceability (section 12)
+is explicitly deferred, not approximated — see the detail page's Traceability tab. This baseline
+made the package buildable without re-deriving the model from scratch, as intended.
+
+Zero Production Plan documents exist on the instance as of this package (re-confirmed via
+`mcp__ceylon-stack__list_documents` immediately before implementation) — the list page's
+zero-record empty state ("No Production Plans found.") is therefore the only state this package
+could exercise live; every other behavior (multi-row tables, child-table rendering, entity links
+resolving to a real linked document) is verified by code/type/build correctness only, not by
+observing it against real data. This does not resolve `MFG-UNV-012` — see that entry.
 
 **Canonical routing decision** (per discovery brief §12): Production Plan is a transactional
 planning document, not master data — it belongs under `/manufacturing/production-plans`, never

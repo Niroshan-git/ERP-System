@@ -800,3 +800,48 @@ applied the same day; no code logic changed and no new QA was required for it.
   non-live-verified; zero Production Plan frontend footprint; PP-1 not started). Not self-declared
   accepted — returned to Codex for independent re-review; see
   `docs/operations/AI_WORK_LOG.md`'s matching Claude Remediation entry for the full handoff.
+
+## 2026-09-19 — Manufacturing — Production Plan PP-1 (read-only frontend foundation)
+
+- **Package tested**: `apps/frontend` — new `/manufacturing/production-plans` list page and
+  `/manufacturing/production-plans/[name]` detail page, plus the `productionPlanStatus()` status
+  function, `TableId` union entry, Manufacturing sidebar nav item, and the Manufacturing module
+  home page copy update. Strictly read-only — no create/edit/submit/cancel path exists to test.
+- **Result**: **PASS**, with one explicit, disclosed testing boundary (see below) — not a defect,
+  the same boundary every prior package this week that lacked authenticated-session credentials
+  hit (BOM 4A/4B, Master Data Canonicalization domains, Production Plan discovery's own PP-1
+  handoff note).
+- **What was verified**:
+  1. `npx tsc --noEmit` — clean.
+  2. `npm run lint` (ESLint) — clean.
+  3. `npm run build` — succeeded; route table confirms both new routes registered as
+     server-rendered, and every pre-existing route (including `/manufacturing/work-orders`,
+     `/manufacturing/work-orders/[name]`, `/master-data/boms`, `/master-data/boms/[name]`) still
+     present and unchanged — no route regression from adding the new pages or the Sidebar edit.
+  4. `mcp__ceylon-stack__list_documents` (Production Plan) — re-confirmed zero live documents,
+     matching the same-day discovery baseline; the list page's zero-record empty state
+     ("No Production Plans found.", no "+ New" button) is therefore the one behavior this package
+     could exercise against real data.
+  5. `mcp__ceylon-stack__get_doctype_fields` (Production Plan) — re-confirmed the full field
+     schema immediately before implementation; every fieldname referenced in the new TypeScript
+     types matches live, no drift since the discovery pass earlier the same day.
+  6. `git diff` on the pre-existing unrelated `apps/frontend/src/app/(app)/manufacturing/page.tsx`
+     change was read in full before editing that file — confirmed only the one outdated sentence
+     ("Production Plans is the next Manufacturing area to be built") was replaced; the rest of
+     that prior, already-uncommitted diff (BOM moved to Master Data) was left exactly as found.
+  7. `git diff --check` — clean, no whitespace errors.
+- **Not performed, disclosed boundary**: no authenticated browser session was available this
+  session (no working test login credentials, consistent with every prior package this week) — the
+  detail page's actual rendering against real linked Item/Warehouse/BOM/Sales Order/Work
+  Order/Material Request data, the invalid-Production-Plan-ID `notFound()` path, and the sidebar
+  click-path were not exercised in a browser. Given zero Production Plan documents exist on the
+  instance regardless, a real-data render wasn't possible even with a session — this is a stronger
+  version of the same limitation, not one this package could have closed differently.
+- **Cleanup**: none required — no ERPNext document was created, updated, or deleted; read-only
+  queries only.
+- **Sign-off**: in-session review against PP-1's own 24-point package-closure checklist (read-only
+  confirmed throughout; BOM remains under Master Data, not moved back; Material Transfer remains
+  nested under Work Order, not promoted to Manufacturing nav; `MFG-UNV-012` left at
+  `NEEDS_VERIFICATION`; pre-existing unrelated worktree changes preserved). Not self-declared
+  accepted — returned to Codex for independent review, per the discovery package's own closure
+  instruction; see `docs/operations/AI_WORK_LOG.md`'s matching ledger row.

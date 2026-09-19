@@ -450,6 +450,34 @@ export function bomStatus(doc: { docstatus: DocStatus }): StatusDisplay {
   return { label: "Submitted", tone: "signal" };
 }
 
+/**
+ * Production Plan's own `status` Select field enum (schema-verified via
+ * `mcp__ceylon-stack__get_doctype_fields`, 2026-09-19 discovery package — see
+ * `docs/backend/05-manufacturing/production-plan.md`): Draft / Submitted / Not Started /
+ * In Process / Completed / Closed / Cancelled / Material Requested — server-calculated via
+ * `set_status()`, never set directly by a user. Like `workOrderStatus`/`salesInvoiceStatus`,
+ * that enum already spells out Draft/Submitted/Cancelled as literal stored values, so this
+ * trusts `status` directly with no separate `docstatus` pre-check. No live Production Plan
+ * document exists on this instance (zero live documents, confirmed by the discovery
+ * package) and no Desk `production_plan_list.js` `get_indicator` source was read this
+ * session — same caveat as `workOrderStatus`: this is this app's own reasonable mapping
+ * onto the three-tone system, not a mirrored Desk indicator. Tracked under `MFG-UNV-012`.
+ */
+const PRODUCTION_PLAN_STATUS_TONE: Record<string, StatusTone> = {
+  Draft: "neutral",
+  Submitted: "signal",
+  "Not Started": "neutral",
+  "In Process": "signal",
+  Completed: "success",
+  Closed: "success",
+  Cancelled: "alert",
+  "Material Requested": "signal",
+};
+
+export function productionPlanStatus(doc: { status: string }): StatusDisplay {
+  return { label: doc.status, tone: PRODUCTION_PLAN_STATUS_TONE[doc.status] ?? "neutral" };
+}
+
 export function purchaseInvoiceStatus(doc: {
   status: string;
   docstatus: DocStatus;
