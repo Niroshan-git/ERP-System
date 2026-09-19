@@ -77,21 +77,32 @@ export function ProductionPlanCreateForm({
   const [bomOptionsByItem, setBomOptionsByItem] = useState<Record<string, BomOption[]>>({});
 
   const [draft, setDraft] = useState<ProductionPlanDraft>(() => emptyDraft(defaultCompany));
+  const [selectedDemandKeys, setSelectedDemandKeys] = useState<Set<string>>(new Set());
 
   function setHeader<K extends keyof ProductionPlanDraft>(key: K, value: ProductionPlanDraft[K]) {
     setDraft((d) => ({ ...d, [key]: value }));
   }
 
-  function runFetch(label: string, call: (d: ProductionPlanDraft) => Promise<ProductionPlanDraft>) {
+  function runFetch(
+    label: string,
+    call: (d: ProductionPlanDraft) => Promise<ProductionPlanDraft>,
+    sourceDraft: ProductionPlanDraft = draft,
+  ) {
     setFetchError(null);
     startFetchTransition(async () => {
       try {
-        const updated = await call(draft);
+        const updated = await call(sourceDraft);
         setDraft(updated);
         if (updated.get_items_from === "Sales Order" && updated.sales_orders.length === 0) {
           setFetchError("No open Sales Orders matched these filters.");
         } else if (updated.get_items_from === "Material Request" && updated.material_requests.length === 0) {
           setFetchError("No pending Material Requests matched these filters.");
+        } else {
+          const keys =
+            updated.get_items_from === "Sales Order"
+              ? updated.sales_orders.map((r) => r.sales_order)
+              : updated.material_requests.map((r) => r.material_request);
+          setSelectedDemandKeys(new Set(keys));
         }
       } catch (e) {
         setFetchError(`${label}: ${describeError(e)}`);
@@ -107,8 +118,22 @@ export function ProductionPlanCreateForm({
     }
   }
 
+  function toggleDemandRow(key: string) {
+    setSelectedDemandKeys((s) => {
+      const next = new Set(s);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   function getFinished() {
-    runFetch("Get Finished Goods", getFinishedGoods);
+    const curated: ProductionPlanDraft = {
+      ...draft,
+      sales_orders: draft.sales_orders.filter((r) => selectedDemandKeys.has(r.sales_order)),
+      material_requests: draft.material_requests.filter((r) => selectedDemandKeys.has(r.material_request)),
+    };
+    runFetch("Get Finished Goods", getFinishedGoods, curated);
   }
 
   function updatePoItem(index: number, patch: Partial<ProductionPlanItemDraftRow>) {
@@ -128,10 +153,23 @@ export function ProductionPlanCreateForm({
 
   const demandRows =
     draft.get_items_from === "Sales Order"
-      ? draft.sales_orders.map((r) => ({ key: r.sales_order, label: r.sales_order, sub: r.customer }))
-      : draft.material_requests.map((r) => ({ key: r.material_request, label: r.material_request, sub: undefined }));
+      ? draft.sales_orders.map((r) => ({
+          key: r.sales_order,
+          label: r.sales_order,
+          sub: r.customer,
+          date: r.sales_order_date,
+          amount: r.grand_total,
+        }))
+      : draft.material_requests.map((r) => ({
+          key: r.material_request,
+          label: r.material_request,
+          sub: undefined,
+          date: r.material_request_date,
+          amount: undefined,
+        }));
 
-  const canGetFinishedGoods = demandRows.length > 0;
+  const selectedDemandCount = demandRows.filter((r) => selectedDemandKeys.has(r.key)).length;
+  const canGetFinishedGoods = selectedDemandCount > 0;
 
   return (
     <form action={formAction} className="max-w-5xl space-y-6">
@@ -184,7 +222,7 @@ export function ProductionPlanCreateForm({
               id="pp-get-items-from"
               className={inputClass}
               value={draft.get_items_from}
-              onChange={(e) =>
+              onChange={(e) => {
                 setDraft((d) => ({
                   ...d,
                   get_items_from: e.target.value as ProductionPlanDraft["get_items_from"],
@@ -192,8 +230,9 @@ export function ProductionPlanCreateForm({
                   material_requests: [],
                   po_items: [],
                   prod_plan_references: [],
-                }))
-              }
+                }));
+                setSelectedDemandKeys(new Set());
+              }}
             >
               <option value="Sales Order">Sales Order</option>
               <option value="Material Request">Material Request</option>
@@ -213,6 +252,12 @@ export function ProductionPlanCreateForm({
             </div>
           )}
         </div>
+        {draft.get_items_from === "Sales Order" && (
+          <p className="mt-1 text-xs text-graphite-500">
+            Combines demand from selected Sales Orders that resolve to the same BOM into one planned quantity, while
+            keeping each source Sales Order traceable underneath.
+          </p>
+        )}
 
         <h3 className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-graphite-500">
           Filter criteria (optional — narrows which {draft.get_items_from === "Sales Order" ? "Sales Orders" : "Material Requests"} are pulled in)
@@ -373,21 +418,46 @@ export function ProductionPlanCreateForm({
       {demandRows.length > 0 && (
         <div className="rounded-xl border border-border bg-surface p-4">
           <h2 className="mb-3 text-sm font-semibold text-graphite-900">
-            2. {draft.get_items_from === "Sales Order" ? "Sales Orders" : "Material Requests"} ({demandRows.length})
+            2. {draft.get_items_from === "Sales Order" ? "Sales Orders" : "Material Requests"} — {selectedDemandCount}{" "}
+            of {demandRows.length} selected
           </h2>
+          <p className="mb-3 text-xs text-graphite-500">
+            Uncheck any {draft.get_items_from === "Sales Order" ? "Sales Order" : "Material Request"} that shouldn&apos;t
+            feed this Production Plan before fetching Finished Goods.
+          </p>
           <div className={plainTableWrap}>
             <table className="w-full text-left text-sm">
               <thead>
                 <tr className={plainTableHead}>
+                  <th className={`${cell} font-semibold`}></th>
                   <th className={`${cell} font-semibold`}>{draft.get_items_from}</th>
                   {draft.get_items_from === "Sales Order" && <th className={`${cell} font-semibold`}>Customer</th>}
+                  <th className={`${cell} font-semibold`}>Date</th>
+                  {draft.get_items_from === "Sales Order" && (
+                    <th className={`${cell} text-right font-semibold`}>Grand Total</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {demandRows.map((r) => (
                   <tr key={r.key} className="border-b border-border last:border-0">
+                    <td className={cell}>
+                      <input
+                        type="checkbox"
+                        checked={selectedDemandKeys.has(r.key)}
+                        onChange={() => toggleDemandRow(r.key)}
+                        disabled={isFetchPending}
+                        aria-label={`Include ${r.label}`}
+                      />
+                    </td>
                     <td className={`${cell} font-mono`}>{r.label}</td>
                     {draft.get_items_from === "Sales Order" && <td className={cell}>{r.sub || "—"}</td>}
+                    <td className={cell}>{r.date ? r.date.slice(0, 10) : "—"}</td>
+                    {draft.get_items_from === "Sales Order" && (
+                      <td className={`${cell} text-right`}>
+                        {typeof r.amount === "number" ? r.amount.toLocaleString() : "—"}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -488,13 +558,21 @@ export function ProductionPlanCreateForm({
 
       {state?.error && <div className="rounded-md border border-alert/30 bg-alert/5 px-3 py-2 text-sm text-alert">{state.error}</div>}
 
-      <button
-        type="submit"
-        disabled={isSaving || draft.po_items.length === 0}
-        className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-graphite-900 hover:bg-canvas disabled:opacity-50"
-      >
-        {isSaving ? "Saving…" : "Save as Draft"}
-      </button>
+      <div>
+        <button
+          type="submit"
+          disabled={isSaving || draft.po_items.length === 0}
+          className="rounded-md border border-border bg-surface px-4 py-2 text-sm font-medium text-graphite-900 hover:bg-canvas disabled:opacity-50"
+        >
+          {isSaving ? "Saving…" : "Save as Draft"}
+        </button>
+        {draft.po_items.length === 0 && (
+          <p className="mt-2 text-xs text-graphite-500">
+            Select at least one {draft.get_items_from === "Sales Order" ? "Sales Order" : "Material Request"} and
+            fetch Finished Goods before saving.
+          </p>
+        )}
+      </div>
     </form>
   );
 }

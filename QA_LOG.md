@@ -903,3 +903,18 @@ applied the same day; no code logic changed and no new QA was required for it.
   Not self-declared accepted — per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, needs independent
   review from the other Claude account before acceptance; see
   `docs/operations/AI_WORK_LOG.md`'s matching ledger row.
+
+### Amendment (same day) — demand-row curation, folded into PP-2 before independent review
+
+- **Change tested**: `ProductionPlanCreateForm.tsx` — per-row checkboxes on the Sales
+  Orders/Material Requests preview table (deselect before "Get Finished Goods"), rendering of
+  already-fetched `sales_order_date`/`material_request_date`/`grand_total`, helper text under
+  "Consolidate Sales Order Items" and disabled "Save as Draft".
+- **Result**: PASS on static checks — `npx tsc --noEmit` clean, `npx eslint` on the changed file
+  clean. No live round-trip re-run (no new ERPNext call introduced; the change is a client-side
+  filter of already-fetched rows before the existing, already-verified `combine_so_items` call —
+  same native method, same payload shape, just a subset of `sales_orders`/`material_requests`).
+  In-session `code-reviewer` pass run against this diff specifically.
+- **Not a new package**: folded into PP-2 because PP-2 was still `CLAUDE_HANDOFF`/unaccepted when
+  this was added — see `AI_WORK_LOG.md`'s amendment note. Still awaiting independent
+  cross-account review, unchanged.

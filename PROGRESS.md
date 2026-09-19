@@ -2622,3 +2622,13 @@ Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (temporary dual-Claude mode, Codex unavailable
 2026-09-20 through 2026-09-25), this needs independent review from the other Claude account
 before acceptance, not self-review.
+
+**Amended same day, before independent review**: `ProductionPlanCreateForm.tsx`'s Sales
+Orders/Material Requests preview table now has per-row checkboxes so specific rows can be
+excluded before "Get Finished Goods" runs, plus previously-fetched-but-unshown `sales_order_date`
+/`material_request_date` and `grand_total` columns, plus helper text under "Consolidate Sales
+Order Items" and a disabled "Save as Draft". Folded into this still-open PP-2 package rather
+than started as a separate one, since PP-2 hadn't been reviewed/accepted yet — see
+`docs/operations/AI_WORK_LOG.md`'s matching amendment note and `docs/backend/
+05-manufacturing/production-plan.md`'s "PP-2 amended" paragraph for full reasoning. `npx tsc
+--noEmit` and `eslint` both clean on the changed file. Still `CLAUDE_HANDOFF`.

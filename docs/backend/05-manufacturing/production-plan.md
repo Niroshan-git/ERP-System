@@ -479,6 +479,20 @@ wrappers), `lib/productionPlanRows.ts` (hidden-JSON-field child-table parsing, m
 `manufacturing/production-plans/actions.ts` (`createProductionPlanAction`, session-checked —
 the only step that actually persists anything). `lib/erpnext.ts` gained `callRunDocMethod`.
 
+**PP-2 amended (2026-09-20, same day, folded in before independent review)** to add demand-row
+curation: the Sales Orders/Material Requests preview table (step 2) now renders a per-row
+checkbox plus the already-fetched-but-previously-unshown `sales_order_date`/
+`material_request_date` and `grand_total` fields, and "Get Finished Goods" filters
+`sales_orders`/`material_requests` down to only the checked rows before calling native
+`combine_so_items` — client-side row curation only, no new ERPNext call and no reimplementation
+of ERPNext's own eligibility/pending-qty logic. Motivated by a design review that (correctly)
+flagged the original all-or-nothing table as the one native-Desk capability (deleting a grid row
+before "Get Items") this wizard hadn't replicated. Also added: helper text under "Consolidate
+Sales Order Items" explaining the by-BOM merge + traceability behavior, and helper text under a
+disabled "Save as Draft" naming what's still missing. This amendment predates and is folded into
+PP-2's still-pending independent review (PP-2 had not yet been reviewed/accepted when this was
+added — see `docs/operations/AI_WORK_LOG.md`), not a separate package.
+
 **Explicitly out of scope for PP-2** (unchanged from PP-1's own deferred list, still true):
 submit/cancel, "Get Sub Assembly Items" (BOM explosion), raw-material requirement calc/"Get
 Items for Purchase/Transfer", "Make Work Order", "Make Material Request", `reserve_stock`

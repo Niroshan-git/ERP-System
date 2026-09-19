@@ -2774,6 +2774,39 @@ still awaiting CLAUDE-A (or Codex, on return) before acceptance.
 Documentation: `UPDATED` (see checklist above).
 Release: not eligible — awaiting independent cross-account review.
 
+### Amendment — demand-row curation (2026-09-20, same day, before independent review)
+
+Folded into this still-open PP-2 package rather than started as a new one, per protocol §15
+(context reset — reconstruct state from the repo before continuing): a separate Claude session
+proposed this as a fresh follow-up package without first checking that PP-2 was still
+`CLAUDE_HANDOFF`/unaccepted, caught the conflict mid-implementation, and — per this doc's own
+"Notes" below and `TEMP_DUAL_CLAUDE_MODE.md` — folded the (already-written) change into PP-2
+instead of layering a new package on an unaccepted one.
+
+**Change**: `ProductionPlanCreateForm.tsx` — the Sales Orders/Material Requests preview table
+(step 2) gained a per-row checkbox (`selectedDemandKeys` state) so a user can deselect specific
+rows before "Get Finished Goods" runs (client-side filter of `sales_orders`/`material_requests`
+before the `combine_so_items` call — no new ERPNext call, no reimplemented eligibility logic),
+plus rendering of two fields already present in the fetched payload but not previously shown
+(`sales_order_date`/`material_request_date`, `grand_total`). Also added: helper text under
+"Consolidate Sales Order Items" and under a disabled "Save as Draft" button. Full reasoning:
+`production-plan.md`'s matching "PP-2 amended" paragraph.
+
+**Checks run**: `npx tsc --noEmit` — clean. `npx eslint` on the changed file — clean.
+`code-reviewer` (in-session) — **no blocking issues**. Confirmed: `selectedDemandKeys` reset
+logic is self-correcting off whatever ERPNext actually echoes back (no stale-key bug); the
+`getFinished()` → `runFetch(..., curated)` path threads the curated draft straight into the
+server call with no race (button disabled during the in-flight request); the empty-selection
+guard (`canGetFinishedGoods = selectedDemandCount > 0`) is wired correctly; no new ERPNext calls
+introduced, `getFinishedGoods` still routes through `lib/erpnext.ts`'s `callRunDocMethod` only;
+`r.date`/`r.amount` render safely against `undefined`/`null`. Two non-blocking tidiness notes
+raised and fixed before commit: (1) switching "Get Items From" now also resets
+`selectedDemandKeys`; (2) per-row checkboxes are now disabled while a fetch is in flight, same
+as the "Get Finished Goods" button. Re-ran `tsc`/`eslint` after — both clean.
+
+**State unchanged**: still `CLAUDE_HANDOFF`, still awaiting CLAUDE-A/Codex independent review —
+this amendment does not change acceptance status, it changes what the pending review covers.
+
 ### Notes
 
 Do not begin a Production Plan submit/action package (Submit, Get Sub Assembly Items, Make Work
