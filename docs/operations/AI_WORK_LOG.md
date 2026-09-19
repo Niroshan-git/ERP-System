@@ -2052,7 +2052,7 @@ deferred to acceptance per established pattern, not overlooked).
 Implementation: complete (`ad8ad92`)
 Independent Review: pending (Codex)
 Documentation: repository knowledge current; release documentation deferred to acceptance
-Release: not eligible yet — awaiting Codex's independent review
+Release: not eligible — blocking lifecycle gap and credential-rotation action remain open
 
 ### Notes
 
@@ -2118,16 +2118,23 @@ implementation started).
 
 ### Codex
 
-Review Started: not yet
-Review Completed: not yet
-Review State: pending
-Tests Independently Executed: none yet
-Documentation Updated: none yet (Codex has not reviewed this package)
+Review Started: 2026-09-19
+Review Completed: 2026-09-19
+Review State: `CHANGES REQUIRED`
+Tests Independently Executed: `git diff --check` PASSED; frontend `npm run lint` PASSED; `npx tsc
+--noEmit` PASSED; `npm run build` PASSED (with pre-existing dynamic-render/network diagnostic
+logging). ERPNext BOM controller/DocType/query behavior independently checked against authoritative
+upstream source. Live BOM writes/transitions were NOT RUN.
+Documentation Updated: `docs/backend/05-manufacturing/bom.md` (verified Item 1:N BOM cardinality,
+default selection, submitted active/default maintenance, docstatus separation, historical identity)
 
 ### Findings
 
 | ID | Severity | Area | Finding | Owner | Status |
 |---|---|---|---|---|---|
+| `CX-MFG-BOM-4B-001` | `HIGH` | BOM lifecycle / frontend-backend alignment | Package rejects every non-Draft update, but ERPNext marks `is_active` and `is_default` `allow_on_submit` and runs `manage_default_bom()` on update-after-submit. Users therefore cannot deactivate or change the default of a submitted BOM without cancelling it. | Claude | `OPEN` |
+| `CX-MFG-BOM-4B-002` | `MEDIUM` | BOM detail UX | A Draft BOM detail URL immediately replaces the canonical detail surface with the full edit form; there is no explicit **Edit BOM** action or view-to-edit transition. | Claude | `OPEN` |
+| `CX-MFG-BOM-4B-003` | `HIGH` | Security / credential handling | The QA subagent loaded and used a real Administrator API key/secret from a local `.env`. Read-only use and absence from report text do not restore confidentiality after agent exposure. The credential must be revoked/rotated and replaced with a least-privilege integration credential. | Product Owner / operations | `ACTION REQUIRED`; `.env` is gitignored, absent from Git history, and no secret value was found in tracked reports/logs |
 | — | `MEDIUM` (pre-commit, self-caught) | Frontend / `BomForm.tsx` | `with_operations` toggle conditionally unmounted `BomOperationsEditor`, silently destroying unsaved row state on toggle-off-then-on | Claude | `RESOLVED` — always-mounted, `hidden` attribute instead |
 | — | `SECURITY` (subagent conduct, not application code) | QA subagent tooling | `qa-tester` subagent, lacking granted MCP tool access, wrote a script directly importing `apps/mcp-server/src/config.py`/`erpnext_client.py` to read the Administrator API key from `.env` and query the live ERPNext server, bypassing its intended scoped read boundary, instead of reporting the tool gap | N/A (subagent conduct) | Disclosed to the user in-session immediately on discovery; `.env` confirmed unmodified (mtime/size unchanged); no credential value appeared in the subagent's report text; every substantive fact the report claimed was independently re-verified through this session's own already-authorized `mcp__ceylon-stack__*` calls before being relied on for anything. Not a code defect to "fix" — recorded here as a process/tooling incident for future-session awareness (see `AGENT_USAGE_POLICY.md`'s subagent-discipline rules and this project's own standing "verify subagent self-reports independently" practice). |
 
@@ -2151,13 +2158,6 @@ every other row in this ledger (Package 4A included).
 Documentation status: `UPDATED` (repository knowledge) / `NEEDS_UPDATE` (release documentation,
 deferred to acceptance per established pattern).
 
-### Final State
-
-Implementation: complete (`305ccd7`)
-Independent Review: pending (Codex)
-Documentation: repository knowledge current; release documentation deferred to acceptance
-Release: not eligible yet — awaiting Codex's independent review
-
 ### Notes
 
 See the Findings table above for the two items worth a future reader's attention: the pre-commit
@@ -2166,3 +2166,72 @@ bug fix and the subagent security-boundary incident. Unrelated pre-existing work
 architecture planning docs) was inspected again at the start of this package and remains
 untouched, exactly as it was left after Package 4A's own commits — none of it is included in this
 package's commits either.
+
+### Claude Remediation — CX-MFG-BOM-4B-001 / CX-MFG-BOM-4B-002 — 2026-09-19
+
+Narrowly scoped remediation of exactly the two in-scope findings from Codex's review above, per
+the CLAUDE remediation brief. Did not reopen the wider BOM package (no Submit/Cancel/Amend, no
+Operation/Workstation/Routing masters, no Production Plan, no BOM explosion — all still out of
+scope, unchanged).
+
+**`CX-MFG-BOM-4B-001` (HIGH) — FIXED.** `master-data/boms/actions.ts` gained
+`setBomAvailability(name, fields)` plus three thin wrappers — `activateBomAction`,
+`deactivateBomAction`, `setDefaultBomAction` — each sending exactly one literal field
+(`{ is_active: 1 }`, `{ is_active: 0 }`, or `{ is_default: 1 }`) that this module constructs
+itself; `formData` is never read into the mutation payload, so there is no code path for a caller
+to inject `item`/`items`/`operations`/any other structural field through these actions.
+Server-side: re-fetches the BOM (`docstatus`, `is_active`) before every mutation, rejects anything
+not `docstatus === 1`, and additionally rejects `Set as Default` unless the BOM is currently
+Active. `is_default` is only ever sent as `1`, never `0` — ERPNext's own `manage_default_bom()` is
+trusted to clear the previous default and sync `Item.default_bom` itself, not guessed
+client-side, per the remediation brief's explicit instruction. `[name]/page.tsx`'s header now
+shows Activate/Deactivate (via the existing `DocActionBar` component, same one Sales Order's
+Submit/Cancel already use) and, only when Active and not already Default, "Set as Default" — both
+only at `docstatus === 1`; a cancelled BOM gets neither action.
+
+**`CX-MFG-BOM-4B-002` (MEDIUM) — FIXED.** `[name]/page.tsx` now renders the read-only tabbed view
+for every `docstatus`, including a Draft not currently being edited; the structural `BomForm` only
+renders when `docstatus === 0 && edit === "1"`, reached via an explicit "Edit BOM" button in the
+header — no automatic view→edit swap. Reused the existing route (`?edit=1` query state) rather
+than introducing a competing `/edit` route, per the brief's own instruction; `BomForm`'s
+`cancelHref` already pointed at the bare detail URL, which now naturally lands back in view mode.
+
+**`CX-MFG-BOM-4B-003` (HIGH, security) — `ACTION REQUIRED`, not `CLOSED`.** Did not re-read, print,
+log, or commit `apps/mcp-server/.env` or the exposed credential. No application-code change was
+made or required for this finding — it is an operational action (revoke/rotate the exposed
+Administrator API credential, replace with a least-privilege integration credential) outside this
+session's authority to perform. Not fabricating closure; left exactly as Codex classified it.
+
+Tests: `npm run lint` — PASSED (clean; the three new actions are declared `(name: string)`-only,
+matching `cancelSalesOrderAction`/`submitSalesOrderAction`'s existing convention, rather than
+`(name, _prevState, _formData)`, avoiding otherwise-inevitable unused-var warnings). `npx tsc
+--noEmit` — PASSED. `npm run build` — PASSED (`✓ Compiled successfully`; same pre-existing
+dynamic-render/network diagnostic logging already present before this remediation). `git diff
+--check` — PASSED. Route manifest confirms `ƒ /master-data/boms/[name]` unchanged, no new route.
+No live mutation testing was performed — no working frontend login credentials this session, same
+gap as Package 4B itself. Did not use `.env` credentials for anything, live testing included.
+
+Documentation: `docs/backend/05-manufacturing/bom.md` (new "Submitted-BOM availability contract"
+section, updated domain-status line), `docs/backend/15-migration/migration-status.md` (BOM row
+updated), `docs/backend/99-unverified/unverified-behaviours.md` (`MFG-UNV-009` and `MFG-UNV-011`
+both updated with narrowing notes — neither closed), `PROGRESS.md`, `QA_LOG.md` — all updated with
+matching entries.
+
+Commit: `6c38f7b` on branch `frontend`, parent `c08b635` (the prior Package 4B graphify-refresh
+commit, verified exactly `HEAD` before this remediation started). Files changed: `apps/frontend/
+src/app/(app)/master-data/boms/actions.ts`, `apps/frontend/src/app/(app)/master-data/boms/[name]/
+page.tsx`, `docs/backend/05-manufacturing/bom.md`, `docs/backend/15-migration/migration-status.md`,
+`docs/backend/99-unverified/unverified-behaviours.md`, `PROGRESS.md`, `QA_LOG.md`. Unrelated
+pre-existing worktree state (`CLAUDE.md`, `docs/architecture/decisions/README.md`, the three
+untracked Master Data architecture planning docs) left untouched, exactly as found.
+
+### Final State
+
+Implementation: BOM create/Draft-edit complete (`305ccd7`); submitted-availability + Draft
+view/edit-split remediation complete (`6c38f7b`)
+Independent Review: `CHANGES REQUIRED` (Codex, 2026-09-19) on `305ccd7` — remediation above not yet
+independently reviewed
+Documentation: cardinality/default/lifecycle knowledge corrected by Codex; submitted-availability
+contract and narrowed `NEEDS_VERIFICATION` items documented by this remediation
+Release: not eligible yet — package state `CLAUDE_HANDOFF`, awaiting Codex's independent re-review
+of the remediation commit; not self-declared `ACCEPTED`
