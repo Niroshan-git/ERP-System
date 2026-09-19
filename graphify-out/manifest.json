@@ -1320,14 +1320,14 @@
     "semantic_hash": "7c47e487a7a3c191352d53cdbd14a5c6"
   },
   "PROGRESS.md": {
-    "mtime": 1789795206.0988321,
-    "ast_hash": "d743b5c33c456633e9ee789cb5832fd6",
-    "semantic_hash": "d743b5c33c456633e9ee789cb5832fd6"
+    "mtime": 1789796924.1587362,
+    "ast_hash": "69654eec2d2b446b7a9c41df12007ebb",
+    "semantic_hash": "69654eec2d2b446b7a9c41df12007ebb"
   },
   "QA_LOG.md": {
-    "mtime": 1789795238.180663,
-    "ast_hash": "fa5e265816377504ac0f8b626864c4b8",
-    "semantic_hash": "fa5e265816377504ac0f8b626864c4b8"
+    "mtime": 1789796943.7466385,
+    "ast_hash": "48df520d52b2c9e5deaf9f331e90512e",
+    "semantic_hash": "48df520d52b2c9e5deaf9f331e90512e"
   },
   "README.md": {
     "mtime": 1789564925.3630126,
@@ -1615,14 +1615,14 @@
     "semantic_hash": "975ea70ddc198c8f370fa44aff55e04e"
   },
   "docs/backend/15-migration/migration-status.md": {
-    "mtime": 1789795145.706874,
-    "ast_hash": "8c9f903348aaea63c9f04c5409f8b301",
-    "semantic_hash": "8c9f903348aaea63c9f04c5409f8b301"
+    "mtime": 1789796882.7647462,
+    "ast_hash": "1586bb3970aff44710bdb4be628c2f82",
+    "semantic_hash": "1586bb3970aff44710bdb4be628c2f82"
   },
   "docs/backend/99-unverified/unverified-behaviours.md": {
-    "mtime": 1789795161.947739,
-    "ast_hash": "53442c07588b948c7166c723615053fb",
-    "semantic_hash": "53442c07588b948c7166c723615053fb"
+    "mtime": 1789796829.5471952,
+    "ast_hash": "f007e2429026f1a1ca3e195fdd0e81f1",
+    "semantic_hash": "f007e2429026f1a1ca3e195fdd0e81f1"
   },
   "docs/backend/README.md": {
     "mtime": 1789661163.6024814,
@@ -2175,9 +2175,9 @@
     "semantic_hash": "85696af0bab22c2b4056c30479ad98fc"
   },
   "docs/operations/AI_WORK_LOG.md": {
-    "mtime": 1789795355.5931668,
-    "ast_hash": "5a7ec122157428e86b17069384c77cdd",
-    "semantic_hash": "5a7ec122157428e86b17069384c77cdd"
+    "mtime": 1789797005.3705685,
+    "ast_hash": "8c23b842b9378c61d9c1e09e5ba06c65",
+    "semantic_hash": "8c23b842b9378c61d9c1e09e5ba06c65"
   },
   "apps/frontend/src/app/(app)/master-data/addresses/[name]/page.tsx": {
     "mtime": 1789766097.6005893,
@@ -2325,9 +2325,9 @@
     "semantic_hash": "4c56cd42ef6b3f251f45ebdc8dc8066d"
   },
   "apps/frontend/src/app/(app)/master-data/boms/[name]/page.tsx": {
-    "mtime": 1789794225.2049146,
-    "ast_hash": "6224feede58890bc25131070c29db7dc",
-    "semantic_hash": "6224feede58890bc25131070c29db7dc"
+    "mtime": 1789796686.5959477,
+    "ast_hash": "e5e1be084b800cbcf7338211611a0c9f",
+    "semantic_hash": "e5e1be084b800cbcf7338211611a0c9f"
   },
   "apps/frontend/src/app/(app)/master-data/boms/page.tsx": {
     "mtime": 1789794144.7772222,
@@ -2340,14 +2340,14 @@
     "semantic_hash": "2cfc65ada410440c548200a1643114fd"
   },
   "docs/backend/05-manufacturing/bom.md": {
-    "mtime": 1789795130.5031323,
-    "ast_hash": "60bf9d237b25843537a774ca7a337232",
-    "semantic_hash": "60bf9d237b25843537a774ca7a337232"
+    "mtime": 1789796870.0994344,
+    "ast_hash": "8d08f3b59ed6cae0ea1cfaae8bf3828b",
+    "semantic_hash": "8d08f3b59ed6cae0ea1cfaae8bf3828b"
   },
   "apps/frontend/src/app/(app)/master-data/boms/actions.ts": {
-    "mtime": 1789794093.2358558,
-    "ast_hash": "24e8c47e7581218e19b9bc46f2e05c43",
-    "semantic_hash": "24e8c47e7581218e19b9bc46f2e05c43"
+    "mtime": 1789796721.3077981,
+    "ast_hash": "0d157053048ced7f3590d1e89996379f",
+    "semantic_hash": "0d157053048ced7f3590d1e89996379f"
   },
   "apps/frontend/src/app/(app)/master-data/boms/new/page.tsx": {
     "mtime": 1789794106.764278,
