@@ -1320,14 +1320,14 @@
     "semantic_hash": "7c47e487a7a3c191352d53cdbd14a5c6"
   },
   "PROGRESS.md": {
-    "mtime": 1789792015.350136,
-    "ast_hash": "9d3d378f24774b88923343d51bbed8ce",
-    "semantic_hash": "9d3d378f24774b88923343d51bbed8ce"
+    "mtime": 1789795206.0988321,
+    "ast_hash": "d743b5c33c456633e9ee789cb5832fd6",
+    "semantic_hash": "d743b5c33c456633e9ee789cb5832fd6"
   },
   "QA_LOG.md": {
-    "mtime": 1789792041.7625225,
-    "ast_hash": "6d2448084888f106c186e2fce85ff224",
-    "semantic_hash": "6d2448084888f106c186e2fce85ff224"
+    "mtime": 1789795238.180663,
+    "ast_hash": "fa5e265816377504ac0f8b626864c4b8",
+    "semantic_hash": "fa5e265816377504ac0f8b626864c4b8"
   },
   "README.md": {
     "mtime": 1789564925.3630126,
@@ -1615,14 +1615,14 @@
     "semantic_hash": "975ea70ddc198c8f370fa44aff55e04e"
   },
   "docs/backend/15-migration/migration-status.md": {
-    "mtime": 1789791906.3496933,
-    "ast_hash": "fcc706723fda2e780b2b05172cdd5114",
-    "semantic_hash": "fcc706723fda2e780b2b05172cdd5114"
+    "mtime": 1789795145.706874,
+    "ast_hash": "8c9f903348aaea63c9f04c5409f8b301",
+    "semantic_hash": "8c9f903348aaea63c9f04c5409f8b301"
   },
   "docs/backend/99-unverified/unverified-behaviours.md": {
-    "mtime": 1789791980.2232578,
-    "ast_hash": "fbed5379a88ee41c252e3811b30053ef",
-    "semantic_hash": "fbed5379a88ee41c252e3811b30053ef"
+    "mtime": 1789795161.947739,
+    "ast_hash": "53442c07588b948c7166c723615053fb",
+    "semantic_hash": "53442c07588b948c7166c723615053fb"
   },
   "docs/backend/README.md": {
     "mtime": 1789661163.6024814,
@@ -2175,9 +2175,9 @@
     "semantic_hash": "85696af0bab22c2b4056c30479ad98fc"
   },
   "docs/operations/AI_WORK_LOG.md": {
-    "mtime": 1789792764.8019662,
-    "ast_hash": "292142034f2e69e2736f4f2286c12c25",
-    "semantic_hash": "292142034f2e69e2736f4f2286c12c25"
+    "mtime": 1789795355.5931668,
+    "ast_hash": "5a7ec122157428e86b17069384c77cdd",
+    "semantic_hash": "5a7ec122157428e86b17069384c77cdd"
   },
   "apps/frontend/src/app/(app)/master-data/addresses/[name]/page.tsx": {
     "mtime": 1789766097.6005893,
@@ -2325,14 +2325,14 @@
     "semantic_hash": "4c56cd42ef6b3f251f45ebdc8dc8066d"
   },
   "apps/frontend/src/app/(app)/master-data/boms/[name]/page.tsx": {
-    "mtime": 1789791349.1959236,
-    "ast_hash": "bcd8978573f5383196de9612042f64e2",
-    "semantic_hash": "bcd8978573f5383196de9612042f64e2"
+    "mtime": 1789794225.2049146,
+    "ast_hash": "6224feede58890bc25131070c29db7dc",
+    "semantic_hash": "6224feede58890bc25131070c29db7dc"
   },
   "apps/frontend/src/app/(app)/master-data/boms/page.tsx": {
-    "mtime": 1789791378.3807685,
-    "ast_hash": "0c51e510584a49cbead4420a354c34df",
-    "semantic_hash": "0c51e510584a49cbead4420a354c34df"
+    "mtime": 1789794144.7772222,
+    "ast_hash": "b4f828bbd344de2f4a3e99f8ec31f653",
+    "semantic_hash": "b4f828bbd344de2f4a3e99f8ec31f653"
   },
   "apps/frontend/src/components/BomsTable.tsx": {
     "mtime": 1789791360.2886188,
@@ -2340,8 +2340,38 @@
     "semantic_hash": "2cfc65ada410440c548200a1643114fd"
   },
   "docs/backend/05-manufacturing/bom.md": {
-    "mtime": 1789791955.5815933,
-    "ast_hash": "15f3fd538ec5f9e5e209fae6a87bbab0",
-    "semantic_hash": "15f3fd538ec5f9e5e209fae6a87bbab0"
+    "mtime": 1789795130.5031323,
+    "ast_hash": "60bf9d237b25843537a774ca7a337232",
+    "semantic_hash": "60bf9d237b25843537a774ca7a337232"
+  },
+  "apps/frontend/src/app/(app)/master-data/boms/actions.ts": {
+    "mtime": 1789794093.2358558,
+    "ast_hash": "24e8c47e7581218e19b9bc46f2e05c43",
+    "semantic_hash": "24e8c47e7581218e19b9bc46f2e05c43"
+  },
+  "apps/frontend/src/app/(app)/master-data/boms/new/page.tsx": {
+    "mtime": 1789794106.764278,
+    "ast_hash": "c58e9a651314395be03e3a7023ebf218",
+    "semantic_hash": "c58e9a651314395be03e3a7023ebf218"
+  },
+  "apps/frontend/src/components/BomComponentsEditor.tsx": {
+    "mtime": 1789794264.1889758,
+    "ast_hash": "6f8191a1b1cb0ca493285543558ed663",
+    "semantic_hash": "6f8191a1b1cb0ca493285543558ed663"
+  },
+  "apps/frontend/src/components/BomForm.tsx": {
+    "mtime": 1789795026.8483984,
+    "ast_hash": "d126f4a7ddb7fab7ceb9868fae5e9b2b",
+    "semantic_hash": "d126f4a7ddb7fab7ceb9868fae5e9b2b"
+  },
+  "apps/frontend/src/components/BomOperationsEditor.tsx": {
+    "mtime": 1789793943.2342935,
+    "ast_hash": "b3399fa7adf8689594bdc6bb917bd8e6",
+    "semantic_hash": "b3399fa7adf8689594bdc6bb917bd8e6"
+  },
+  "apps/frontend/src/lib/bomRows.ts": {
+    "mtime": 1789793836.207754,
+    "ast_hash": "f826cab6b65f45c6dc44f83bd5950552",
+    "semantic_hash": "f826cab6b65f45c6dc44f83bd5950552"
   }
 }
