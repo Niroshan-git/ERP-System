@@ -1812,3 +1812,121 @@ re-verification, per this package's own instruction. Do not start the BOM detail
 Operation/Routing/Workstation, or any other Manufacturing package on the strength of this entry —
 this remains a documentation-only correction of a prior investigation's ID bookkeeping, not a new
 authorization.
+
+### Codex remediation re-review — 2026-09-19
+
+Git verifies the linear ancestry
+`2a7076c87b4e74fb7ab2ba9e61e40355b5015468` →
+`583b5e34a57681f600bbfcd3f782c190f2b0e55b` →
+`25381b1c810a8437c9279c0322f32ef236978b56` →
+`5f94c4ecec17ec3dcb3c8aa1dd3995a5668f0a22` →
+`2cdda944c8f6d65e6196165f3872b52a80b0c3c0`. Commit `5f94c4e` is bounded to five
+documentation files, five new Graphify semantic-cache entries, the cache index, and the shared
+coordination ledger; `2cdda94` changes only the ledger's remediation hash text. No frontend,
+backend runtime, route, API, schema, database, dependency, configuration, BOM, Work Order,
+Warehouse, Batch, or Serial No behavior changed. Gate B remains confirmed.
+
+`CX-MD-BOM-002` is `CLOSED`: `bom.md` now accurately says Operation values are rendered read-only
+in the Work Order create preview and Work Order detail Operations tab while no independent
+Operation list/detail/CRUD/canonical route exists.
+
+`CX-MD-BOM-001` remains `OPEN`. The canonical unresolved definitions themselves are now unique:
+`MFG-UNV-008` still owns only the duplicate-`item_code`/Material Transfer preview uncertainty and
+`MFG-UNV-009` owns the BOM lifecycle/multi-level/costing uncertainty. The ERD and BOM package's
+current Progress/work-log references correctly point to `MFG-UNV-009`, and the historical Codex
+finding text remains unchanged as required. However, `QA_LOG.md` line 537 is a current BOM
+investigation record—not historical Codex evidence—and still says its multi-level BOM uncertainty
+is `MFG-UNV-008`. This contradicts the new canonical ownership and the remediation's assertion
+that QA needed no correction. In addition, the canonical `MFG-UNV-009` entry preserves lifecycle,
+nested explosion/circular/default selection, and costing uncertainty, but omits the phantom/
+semi-finished behavior and Production Plan runtime relationship already marked uncertain in
+`bom.md`. Minimum remaining remediation: change that one BOM-specific QA reference to
+`MFG-UNV-009` and extend `MFG-UNV-009` to reference those two existing BOM uncertainties and their
+verification methods; do not alter the legitimate Material Transfer references to `MFG-UNV-008`
+or the historical Codex finding text.
+
+The bounded Graphify result is otherwise acceptable: the current unresolved-behaviour semantic
+cache contains distinct node IDs for `MFG-UNV-008` and `MFG-UNV-009`, with no equivalence edge;
+the ERD and Progress caches reference `MFG-UNV-009`; `graph.json` remains unchanged and
+non-blocking under the prior review decision. The cache index maps all five files to the new
+semantic entries created by `5f94c4e`; the later `2cdda94` coordination-only edit naturally makes
+the work-log content hash newer than its cached extraction but changes no semantic identity. No
+full rebuild or unrelated brand-asset work is required.
+
+Final state: `CHANGES REQUIRED` for the single stale QA reference only. `GATE B = CONFIRMED`,
+`BOM FRONTEND = NOT IMPLEMENTED`, and no application remediation is requested. No final accepted
+boundary or next-package authorization is issued yet.
+
+### Claude final narrow remediation — CX-MD-BOM-001 — 2026-09-19
+
+Applied exactly the two fixes named in the Codex re-review above, nothing broader.
+
+**`QA_LOG.md`** — inspected the surrounding text at the flagged BOM investigation record (Master
+Data canonicalization — Manufacturing Masters (BOM) investigation, 2026-09-19) and confirmed it is
+genuinely the multi-level BOM explosion finding, not a Material Transfer reference. Changed that
+one reference from `MFG-UNV-008` to `MFG-UNV-009`. Left both other `MFG-UNV-008` mentions in
+`QA_LOG.md` (the 2026-09-17 Package 4 Material Transfer duplicate-`item_code` fix, and the
+2026-09-18 non-blocking `NEEDS_VERIFICATION` roundup that legitimately lists it alongside
+`MFG-UNV-005`/`MFG-UNV-007`) untouched — both are genuine Material Transfer references, not BOM.
+
+**`docs/backend/99-unverified/unverified-behaviours.md`** — expanded `MFG-UNV-009`'s "What's still
+uncertain" list with two more numbered items, both already documented as uncertain in `bom.md` but
+missing from the canonical unresolved-behaviour entry itself: (4) phantom/semi-finished BOM
+behavior at stock-transaction time (`bom.md`'s Status/configuration fields table flags
+`is_phantom_bom` and `track_semi_finished_goods` as schema-confirmed, transaction-time-behavior-
+unverified — the one real BOM uses neither); (5) Production Plan's actual runtime relationship
+with BOM (`bom.md`'s "Production Plan relationship" section confirms `Production Plan` is a real
+independent doctype via `list_doctypes` — schema existence only, not runtime verification, and
+`apps/frontend` has zero Production Plan footprint). Added a paired "How to verify" method for
+each: (4) configure a real phantom/`track_semi_finished_goods` BOM and observe a Stock Entry or
+Work Order that consumes it; (5) build or exercise a representative Production Plan against the
+real BOM and trace its resulting Work Order/Material Request generation. Neither behavior is
+claimed resolved — both remain `NEEDS_VERIFICATION`. Did not touch `MFG-UNV-004`'s existing
+cross-reference note, `MFG-UNV-008`, `bom.md`, or `master-erd.md` — none of those needed a change
+for this remediation, per the re-review's own scope and CX-MD-BOM-002's already-closed status.
+
+**Canonical ID ownership after this remediation (repository-wide search, `MFG-UNV-008`/
+`MFG-UNV-009`, all `.md` files):** `MFG-UNV-008` appears only in `QA_LOG.md` (the two legitimate
+Material Transfer references above) and `PROGRESS.md` (two historical Material Transfer records)
+— all genuine Material Transfer, none BOM. `MFG-UNV-009` appears only in
+`unverified-behaviours.md` (its own canonical entry, now expanded), `master-erd.md` (the already-
+`PASS`ing BOM→`MFG-UNV-009` ERD reference), `PROGRESS.md` (the historical record of the original
+`MFG-UNV-004`→`MFG-UNV-009` split), and now the corrected `QA_LOG.md` line — all genuine BOM, none
+Material Transfer. No current BOM-specific forward reference points to `MFG-UNV-008`. One
+additional, out-of-scope mention was found and deliberately left alone:
+`docs/master-data-architecture.md` (untracked, unrelated in-progress work) has a self-referential
+note about where its own new `MD-UNV-*` entries get appended relative to the existing
+`MFG-UNV-007`/`MFG-UNV-008` entries — not a BOM forward-reference, not touched.
+
+**Graphify** — bounded semantic-cache refresh only, no full rebuild, `graph.json` left untouched
+(confirmed via `git diff --stat -- graphify-out/graph.json`, empty). Used graphify's own
+`save_semantic_cache`/`file_hash` cache API directly (the same mechanism the skill's own pipeline
+calls) rather than a full `--update` run, scoped to exactly the two files this remediation edited:
+`QA_LOG.md`'s cached extraction (one document-level node, three edges) was re-saved unchanged under
+its new content hash — the one-token ID correction doesn't change QA_LOG.md's own semantic
+relationships. `unverified-behaviours.md`'s cached extraction (previously 10 nodes/17 edges) had
+two new concept nodes added — phantom/semi-finished BOM behavior and the Production Plan
+relationship, each with a `references` edge from `MFG-UNV-009` and a `references` edge to the
+existing `docs_backend_05_manufacturing_bom` node — then was re-saved as 12 nodes/21 edges under
+its new content hash. Verified directly in the resulting cache JSON: `MFG-UNV-008` and
+`MFG-UNV-009` remain distinct node IDs with zero edges connecting them in either direction (no
+equivalence edge). `graphify-out/cache/stat-index.json` updated (content hashes for the two edited
+files); two new cache files added under `graphify-out/cache/semantic/`; superseded cache blobs from
+prior extractions were left in place as orphans, consistent with this repo's existing pattern (the
+pre-remediation cache already held two stale blobs for `unverified-behaviours.md` from earlier
+passes). No 81-node brand-asset work performed.
+
+**Zero frontend changes** (`git status --porcelain apps/` empty). **Zero backend runtime changes**
+(no DocType, hook, migration, route, or application code touched — only `QA_LOG.md`,
+`unverified-behaviours.md`, this ledger, and the Graphify semantic cache). **Unrelated worktree
+state preserved exactly**: `CLAUDE.md` and `docs/architecture/decisions/README.md` remain modified
+as found; `docs/ceylon-stack-master-backlog.md`, `docs/ceylon-stack-master-plan.md`, and
+`docs/master-data-architecture.md` remain untracked as found — none staged, cleaned, reset, or
+touched by this package.
+
+**Final state:** `CX-MD-BOM-001` — remediation applied, **not self-declared `ACCEPTED`**. `Gate B`
+remains `CONFIRMED`; `BOM FRONTEND` remains `NOT IMPLEMENTED`. `CX-MD-BOM-002` remains `CLOSED`,
+untouched by this pass. Package state: `CLAUDE_HANDOFF`. Returned to Codex for final independent
+re-review against this remediation commit. Do not start the BOM detail page, BOM list, BOM CRUD,
+Operation, Routing, Workstation, Production Plan, Batch, Serial No, or any other Manufacturing
+package on the strength of this entry.

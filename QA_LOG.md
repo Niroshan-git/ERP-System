@@ -534,7 +534,7 @@ applied the same day; no code logic changed and no new QA was required for it.
      pointer, and the full costing field set. Cross-checked against `list_documents` — only one
      real BOM exists (`BOM-FG-STEEL-BRACKET-ASSY-001`, `docstatus: 1`), with zero sub-assembly
      components, so multi-level explosion behavior could not be observed and is recorded as
-     `NEEDS_VERIFICATION` (`MFG-UNV-008`) rather than assumed.
+     `NEEDS_VERIFICATION` (`MFG-UNV-009`) rather than assumed.
   6. `list_doctypes` (module `Manufacturing`) confirmed `Operation`, `Routing`, `Workstation`,
      `Workstation Type`, and `Production Plan` are all real independent doctypes
      (`istable: 0`), not child tables — supporting their classification as

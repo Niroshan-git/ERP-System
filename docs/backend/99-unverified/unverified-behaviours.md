@@ -65,10 +65,26 @@ multi-level BOM explosion, circular-reference protection, and default-BOM select
 multi-BOM sub-assembly item — the one real BOM has zero sub-assembly components, so there is no
 real nested data to observe; (3) BOM costing's actual recompute trigger (Desk "Update Cost"
 action vs. scheduled job vs. submit-time only) and whether the one real BOM's `total_cost`
-currently reflects live valuation rates.
+currently reflects live valuation rates; (4) phantom/semi-finished BOM behavior at
+stock-transaction time — `bom.md`'s Status/configuration fields table flags `is_phantom_bom`
+(phantom BOMs are exploded through at stock-transaction time and never appear as their own stock
+item) and `track_semi_finished_goods` (per-operation semi-finished-goods tracking) as
+schema-confirmed fields whose actual transaction-time behavior is unexercised — the one real BOM
+does not use either; (5) Production Plan's actual runtime relationship with BOM — `bom.md`'s
+"Production Plan relationship" section confirms `Production Plan` (+ its child doctypes) is a
+real, independent `Manufacturing`-module doctype via `list_doctypes`, but this is schema
+existence only, not runtime verification: `apps/frontend` has zero Production Plan footprint (no
+route, action file, or component), so no representative Production Plan → BOM consumption →
+resulting manufacturing behavior (Work Order/Material Request generation, sub-assembly explosion)
+has been observed.
 **How to verify:** Scoped investigation (and any resulting write-testing) when a BOM Management
 frontend package is separately authorized and built, per the Current Mission priority lock —
-not before, since no such package exists to exercise these paths against.
+not before, since no such package exists to exercise these paths against. For (4) specifically:
+configure a real phantom BOM (`is_phantom_bom`) and/or a `track_semi_finished_goods` BOM on the
+dev instance, then submit a Stock Entry or Work Order that consumes it and inspect whether the
+phantom item is exploded through (never appearing as its own stock movement) as documented. For
+(5): build or exercise a representative `Production Plan` against the real BOM, then trace its
+resulting Work Order/Material Request generation and any sub-assembly BOM explosion it triggers.
 
 ### MFG-UNV-005 — Accounting (GL) impact of Material Transfer for Manufacture
 **Status:** `NEEDS_VERIFICATION`
