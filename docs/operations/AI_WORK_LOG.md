@@ -2807,6 +2807,21 @@ as the "Get Finished Goods" button. Re-ran `tsc`/`eslint` after — both clean.
 **State unchanged**: still `CLAUDE_HANDOFF`, still awaiting CLAUDE-A/Codex independent review —
 this amendment does not change acceptance status, it changes what the pending review covers.
 
+### Second amendment (2026-09-20, same day) — silent-failure bug found via live user testing
+
+The user clicked "Get Finished Goods" against two real Sales Orders on the live Hetzner
+instance and got no visible result and no error. Root cause confirmed live via
+`mcp__ceylon-stack__list_documents` against `BOM` (`docstatus=1, is_active=1`): **only one
+active, submitted BOM exists on this instance** — any Sales Order item resolving to a different
+item silently yields zero `po_items` rows per ERPNext's own documented BOM gate (`production-plan
+.md`'s "BOM required to be pulled in at all" — `if not bom_no: continue`, a real gate, not a
+defect in ERPNext). The frontend never checked for this empty-result case. Fixed:
+`ProductionPlanCreateForm.tsx`'s `runFetch` now takes a `kind: "demand" | "finished-goods"`
+parameter, and surfaces an explicit error when "Get Finished Goods" returns zero `po_items`,
+naming the two documented native causes (missing BOM, or qty already covered by an existing
+Work Order). `npx tsc --noEmit` and `eslint` re-run clean. Still folded into PP-2, still
+`CLAUDE_HANDOFF`. Full reasoning: `production-plan.md`'s "PP-2 second amendment" paragraph.
+
 ### Notes
 
 Do not begin a Production Plan submit/action package (Submit, Get Sub Assembly Items, Make Work

@@ -918,3 +918,22 @@ applied the same day; no code logic changed and no new QA was required for it.
 - **Not a new package**: folded into PP-2 because PP-2 was still `CLAUDE_HANDOFF`/unaccepted when
   this was added — see `AI_WORK_LOG.md`'s amendment note. Still awaiting independent
   cross-account review, unchanged.
+
+### Second amendment (same day) — real defect found via live user testing
+
+- **What happened**: user clicked "Get Finished Goods" against two real Sales Orders
+  (`SAL-ORD-2026-00032`, `SAL-ORD-2026-00022`) on the live Hetzner instance; nothing rendered,
+  no error shown.
+- **Root cause, confirmed live**: `mcp__ceylon-stack__list_documents` against `BOM`
+  (`docstatus=1, is_active=1`) returned exactly one row — `BOM-FG-STEEL-BRACKET-ASSY-001` for
+  `FG-STEEL-BRACKET-ASSY`. Neither Sales Order's item is that item, so ERPNext's own
+  `combine_so_items`/`get_items()` BOM gate (`production-plan.md`'s "BOM required to be pulled
+  in at all" — `if not bom_no: continue`) silently produced zero `po_items` rows. Expected
+  ERPNext behavior; the frontend gave no feedback for it.
+- **Fix**: `runFetch` now takes a `kind` parameter and surfaces an explicit error when "Get
+  Finished Goods" returns zero `po_items`, naming both documented native causes (no active BOM,
+  or qty already covered by an existing Work Order).
+- **Result**: PASS — `npx tsc --noEmit` clean, `eslint` clean on the changed file. Root cause
+  verified against live data (not assumed); the fix itself (UI error-surfacing only, no new
+  ERPNext call) verified by static checks, consistent with the rest of this package.
+- Still folded into PP-2, still `CLAUDE_HANDOFF`, unchanged acceptance status.

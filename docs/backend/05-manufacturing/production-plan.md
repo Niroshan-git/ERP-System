@@ -493,6 +493,21 @@ disabled "Save as Draft" naming what's still missing. This amendment predates an
 PP-2's still-pending independent review (PP-2 had not yet been reviewed/accepted when this was
 added — see `docs/operations/AI_WORK_LOG.md`), not a separate package.
 
+**PP-2 second amendment (2026-09-20, same day) — fixed a silent-failure bug found via live
+testing.** Real usage against the Hetzner instance surfaced that clicking "Get Finished Goods"
+against certain Sales Orders produced no visible result and no error — the wizard didn't check
+whether `combine_so_items` actually returned any `po_items` rows. Root cause, confirmed live via
+`mcp__ceylon-stack__list_documents` against `BOM` (`docstatus=1, is_active=1`): **only one
+active, submitted BOM exists on this instance** (`BOM-FG-STEEL-BRACKET-ASSY-001`, for
+`FG-STEEL-BRACKET-ASSY`) — any Sales Order whose item isn't that one silently yields zero
+`po_items` rows per the already-documented BOM gate above ("BOM required to be pulled in at
+all"). This is expected ERPNext behavior (a real gate, not a bug in ERPNext), but the frontend
+gave no feedback when it happened. Fixed: `runFetch` now takes a `kind: "demand" |
+"finished-goods"` parameter; when `kind === "finished-goods"` and the returned `po_items` is
+empty, it surfaces an explicit error naming the two documented native causes (missing active/
+submitted BOM, or remaining qty already fully covered by an existing Work Order) instead of
+silently doing nothing. `tsc`/`eslint` re-run clean.
+
 **Explicitly out of scope for PP-2** (unchanged from PP-1's own deferred list, still true):
 submit/cancel, "Get Sub Assembly Items" (BOM explosion), raw-material requirement calc/"Get
 Items for Purchase/Transfer", "Make Work Order", "Make Material Request", `reserve_stock`

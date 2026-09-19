@@ -87,12 +87,24 @@ export function ProductionPlanCreateForm({
     label: string,
     call: (d: ProductionPlanDraft) => Promise<ProductionPlanDraft>,
     sourceDraft: ProductionPlanDraft = draft,
+    kind: "demand" | "finished-goods" = "demand",
   ) {
     setFetchError(null);
     startFetchTransition(async () => {
       try {
         const updated = await call(sourceDraft);
         setDraft(updated);
+        if (kind === "finished-goods") {
+          if (updated.po_items.length === 0) {
+            setFetchError(
+              "No Finished Goods items could be resolved from the selected Sales Orders. ERPNext " +
+                "silently skips any item without an active, submitted BOM, or whose remaining quantity " +
+                "is already fully covered by an existing Work Order — check the items on the selected " +
+                "orders have a submitted BOM.",
+            );
+          }
+          return;
+        }
         if (updated.get_items_from === "Sales Order" && updated.sales_orders.length === 0) {
           setFetchError("No open Sales Orders matched these filters.");
         } else if (updated.get_items_from === "Material Request" && updated.material_requests.length === 0) {
@@ -133,7 +145,7 @@ export function ProductionPlanCreateForm({
       sales_orders: draft.sales_orders.filter((r) => selectedDemandKeys.has(r.sales_order)),
       material_requests: draft.material_requests.filter((r) => selectedDemandKeys.has(r.material_request)),
     };
-    runFetch("Get Finished Goods", getFinishedGoods, curated);
+    runFetch("Get Finished Goods", getFinishedGoods, curated, "finished-goods");
   }
 
   function updatePoItem(index: number, patch: Partial<ProductionPlanItemDraftRow>) {

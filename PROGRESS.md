@@ -2632,3 +2632,11 @@ than started as a separate one, since PP-2 hadn't been reviewed/accepted yet —
 `docs/operations/AI_WORK_LOG.md`'s matching amendment note and `docs/backend/
 05-manufacturing/production-plan.md`'s "PP-2 amended" paragraph for full reasoning. `npx tsc
 --noEmit` and `eslint` both clean on the changed file. Still `CLAUDE_HANDOFF`.
+
+**Second amendment, same day — real bug found via live user testing**: clicking "Get Finished
+Goods" against certain Sales Orders silently did nothing (no rows, no error). Root cause: only
+one active, submitted BOM exists on the instance (`BOM-FG-STEEL-BRACKET-ASSY-001`); any Sales
+Order item resolving to a different item is silently skipped by ERPNext's own BOM gate, and the
+wizard never checked for a zero-`po_items` result. Fixed — `runFetch` now surfaces an explicit
+error explaining the two documented native causes instead of doing nothing. `tsc`/`eslint`
+clean. Still `CLAUDE_HANDOFF`.
