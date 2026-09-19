@@ -27,7 +27,15 @@ erDiagram
     BOM_ITEM }o--o| BOM : "N:1 optional self-referential (bom_item.bom_no, sub-assembly/nested BOM)"
     BOM_OPERATION }o--|| OPERATION : "N:1 (bom_operation.operation)"
     BOM_OPERATION }o--o| WORKSTATION : "N:1 optional (bom_operation.workstation)"
-    PRODUCTION_PLAN }o--|| BOM : "N:1 (per Production Plan Item, NEEDS_VERIFICATION — no frontend, no test data)"
+    PRODUCTION_PLAN ||--o{ PRODUCTION_PLAN_ITEM : "po_items (1:N)"
+    PRODUCTION_PLAN ||--o{ PRODUCTION_PLAN_SUB_ASSEMBLY_ITEM : "sub_assembly_items (1:N)"
+    PRODUCTION_PLAN ||--o{ MATERIAL_REQUEST_PLAN_ITEM : "mr_items (1:N)"
+    PRODUCTION_PLAN_ITEM }o--|| ITEM : "N:1 (item_code)"
+    PRODUCTION_PLAN_ITEM }o--|| BOM : "N:1 (bom_no, per-row override — see production-plan.md multi-BOM section)"
+    PRODUCTION_PLAN_ITEM }o--o| SALES_ORDER : "N:1 optional (sales_order)"
+    PRODUCTION_PLAN_SUB_ASSEMBLY_ITEM }o--|| BOM : "N:1 (bom_no)"
+    WORK_ORDER }o--o| PRODUCTION_PLAN : "N:1 optional (work_order.production_plan)"
+    MATERIAL_REQUEST_ITEM }o--o| PRODUCTION_PLAN : "N:1 optional (material_request_item.production_plan) — NOT on Material Request parent"
     JOB_CARD }o--|| WORK_ORDER : "N:1 (job_card.work_order)"
     JOB_CARD }o--o| WORKSTATION : "N:1 optional (job_card.workstation)"
     JOB_CARD }o--o| QUALITY_INSPECTION_TEMPLATE : "N:1 optional (job_card.quality_inspection_template)"
@@ -70,7 +78,15 @@ erDiagram
   canonicalized here.
 - **`Production Plan` is a real, independent doctype with zero frontend footprint** — confirmed
   via `list_doctypes`; no route, action, or component references it anywhere in
-  `apps/frontend`. Not modeled further here; a future Manufacturing package's scope, not this one.
+  `apps/frontend`. Full schema/business-rule/relationship investigation (2026-09-19, source +
+  live-schema, no implementation, no live Production Plan document exists to test against) in
+  [`docs/backend/05-manufacturing/production-plan.md`](../05-manufacturing/production-plan.md) —
+  see `MFG-UNV-010` for what remains unverified. Building it is a future Manufacturing package's
+  scope, not this one.
+- **The Production Plan → Material Request relationship lives on `Material Request Item` (the
+  child row), not on `Material Request` itself** — `Material Request` has no Production Plan field
+  at all; only `Material Request Item.production_plan` does. A future frontend must join through
+  the child table.
 - **Warehouse appears in three independent FK roles on Work Order** (`source_warehouse`,
   `wip_warehouse`, `fg_warehouse`) — each optional, each a plain Link to the same `Warehouse`
   doctype, not three different entities.

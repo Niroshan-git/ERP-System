@@ -108,6 +108,49 @@ phantom item is exploded through (never appearing as its own stock movement) as 
 (5): build or exercise a representative `Production Plan` against the real BOM, then trace its
 resulting Work Order/Material Request generation and any sub-assembly BOM explosion it triggers.
 
+### MFG-UNV-010 — Production Plan runtime behavior (no live document exists)
+**Status:** `NEEDS_VERIFICATION` (schema + source-verified, zero runtime verification)
+**What's confirmed** (2026-09-19 Production Planning discovery package — live
+`get_doctype_fields`/`list_documents` + read-only `frappe/erpnext` GitHub source for
+`production_plan.py` and its `services/` submodules, no live write access, no ERPNext core files
+touched): full header/child-table schema; that Production Plan is submittable
+(`amended_from` present); that Sales Order eligibility is `docstatus=1` + an active BOM +
+`stock_qty - stock_reserved_qty > work_order_qty`; that `combine_items` groups by `bom_no` and
+records the original Sales Order breakdown in `prod_plan_references`; that BOM resolution per row
+is `SalesOrderItem.bom_no or Item.default_bom`, always overridable per-row (multi-BOM support,
+consistent with `bom.md`'s `Item 1───<BOM` finding); that sub-assembly explosion is entirely
+server-side and branches on `type_of_manufacturing` (In House → Work Order, Subcontract →
+consolidated Purchase Order, Material Request → no Work Order); that
+`skip_available_sub_assembly_item` skips creating a sub-assembly row when the sub-assembly
+warehouse already has enough projected qty; that the raw-material shortage formula is
+`max(0, required_qty - (available_qty - safety_stock))` with `available_qty` sourced from Bin
+`projected_qty` only when `ignore_existing_ordered_qty` is checked; that Work Order generation is
+one-per-`po_items`-row/one-per-in-house-`sub_assembly_items`-row with quantity-based (not hard)
+duplicate prevention; that the Production Plan → Material Request back-reference lives on
+`Material Request Item` (`production_plan`, `material_request_plan_item`), never on the `Material
+Request` parent doctype. Full detail in `docs/backend/05-manufacturing/production-plan.md`.
+**What's still uncertain:** (1) **everything above is source-derived, not live-observed** — zero
+Production Plan documents exist on this instance, so no actual Sales Order → Production Plan →
+Work Order/Material Request flow, sub-assembly explosion, or shortage calculation has been run and
+inspected; (2) a confirmed schema drift exists between the fetched GitHub source and the live
+instance — the source's Material Request auto-submit path reads `self.doc.get(
+"submit_material_request")`, but no such field exists in the live `Production Plan` schema,
+meaning the installed ERPNext version is close to but not identical to the fetched branch, so any
+source-derived claim could have similar small drifts elsewhere; (3) whether `make_work_order`/
+`make_material_request`/`get_sub_assembly_items` etc. actually require `docstatus = 1` (Submitted)
+before they're callable — that gate is enforced in Desk `.js`/button visibility, not in the `.py`
+read this pass; (4) `reserve_stock_for_production_plan` (Stock Reservation Entry creation) was not
+read — `reserve_stock`'s full effect beyond the `Bin` reserved-qty update is unconfirmed; (5)
+`Purchase Order.production_plan`-style back-reference for subcontracted sub-assembly rows was
+inferred from the Python (`production_plan` passed into `_subcontract_po_item`) but not confirmed
+against the live `Purchase Order`/`Purchase Order Item` schema.
+**How to verify:** Build or exercise a representative `Production Plan` on the dev instance (real
+Sales Order with a BOM-linked item, a BOM with at least one sub-assembly component) and trace the
+full Sales Order → BOM resolution → sub-assembly explosion → Work Order/Material Request generation
+flow end to end, comparing actual results against the formulas/rules documented in
+`production-plan.md`. Do this once a Production Plan frontend package that needs the write path
+exists — not as a standalone backend-only exercise, per the discovery package's read-only scope.
+
 ### MFG-UNV-005 — Accounting (GL) impact of Material Transfer for Manufacture
 **Status:** `NEEDS_VERIFICATION`
 **What's uncertain:** A submitted Material Transfer for Manufacture Stock Entry is known to move

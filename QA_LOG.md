@@ -723,3 +723,42 @@ applied the same day; no code logic changed and no new QA was required for it.
   qa-tester subagent was dispatched for this narrowly-scoped remediation pass — the fixes were
   reviewed directly against Codex's own findings above. Package state: `CLAUDE_HANDOFF`. Not
   self-declared accepted — returned to Codex for independent re-review.
+
+## Manufacturing — Production Planning discovery/canonicalization (2026-09-19)
+
+- **Package type**: investigation-only. No frontend code changed, so no functional test scenarios
+  were run.
+- **What was verified**:
+  1. Repository-wide search of `apps/frontend/src` (`Glob`/`Grep`, plus a graphify knowledge-graph
+     query) for any Production Plan route, action file, or component — zero matches anywhere.
+  2. Live schema verification (`mcp__ceylon-stack__get_doctype_fields`) against `Production Plan`
+     and all six of its child doctypes (`Production Plan Item`, `Production Plan Sub Assembly
+     Item`, `Production Plan Sales Order`, `Production Plan Material Request`, `Production Plan
+     Item Reference`, `Production Plan Material Request Warehouse`, `Material Request Plan Item`),
+     plus `Work Order`, `Material Request`, and `Material Request Item` to confirm the exact
+     back-reference fields between them.
+  3. `list_documents` against `Production Plan` — confirmed **zero real documents exist** on this
+     instance. No runtime behavior could be observed, only schema.
+  4. Read-only `frappe/erpnext` GitHub source (`production_plan.py` + `services/
+     sales_order_planning.py`/`sub_assembly.py`/`work_order_planning.py`/`material_request.py`,
+     fetched via `gh api`, never executed, no ERPNext core file touched) to source-verify the
+     business rules the schema alone couldn't answer — Sales Order eligibility, `combine_items`/
+     `combine_sub_items` grouping keys, per-row BOM override, sub-assembly `type_of_manufacturing`
+     branching, the raw-material shortage formula, Work Order/Material Request generation rules.
+  5. Cross-checked every field name/option pulled from the live schema against the fetched source
+     — matched almost exactly (one confirmed drift: `submit_material_request` referenced in source,
+     absent from the live schema), giving high but not exact version-match confidence.
+- **Not performed, and correctly so for a discovery/investigation-only package**: `npm run lint`,
+  `npx tsc --noEmit`, `npm run build`, route-manifest inspection, and authenticated browser testing
+  — none apply when zero frontend files changed. `qa-tester` was not invoked for the same reason:
+  there is no write path, no new route, and no changed payload to exercise against the live
+  instance. No Production Plan document was created on the live instance to test against — building
+  one was explicitly out of this package's read-only scope.
+- **Cleanup**: none required — no ERPNext document was created, updated, or deleted by this
+  package beyond ordinary read-only schema/list queries.
+- **Sign-off**: self-reviewed against the discovery brief's own checklist (repository investigation
+  before touching anything, real schema over guessed schema, STORED/SERVER-CALCULATED/
+  BUTTON-GENERATED distinction documented, no custom MRP/BOM-explosion logic designed, canonical
+  routing decision recorded without creating routes). Awaiting Codex's independent review of the
+  investigation's accuracy (there is no code diff to review); not self-declared accepted — see
+  `docs/operations/AI_WORK_LOG.md`'s matching entry for the full Claude Package Handoff.

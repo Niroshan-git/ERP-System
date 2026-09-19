@@ -2283,3 +2283,60 @@ domain status line), `docs/backend/15-migration/migration-status.md`,
 `docs/backend/99-unverified/unverified-behaviours.md` (`MFG-UNV-009`/`MFG-UNV-011` updated);
 `PROGRESS.md`; `QA_LOG.md`; `docs/operations/AI_WORK_LOG.md`. Package state: `CLAUDE_HANDOFF`. Not
 self-declared accepted — returned to Codex for independent re-review.
+
+## Manufacturing — Production Planning discovery/canonicalization (2026-09-19)
+
+**Investigation only, no implementation.** Authorized to establish Production Plan as the
+canonical Ceylon Stack Manufacturing planning workspace before any mutation workflow gets built,
+per the BOM Package 4B handoff's next-package instruction. `apps/frontend/src` was searched end to
+end first (`Glob`/`Grep`/graphify query): zero Production Plan footprint anywhere — no route under
+`manufacturing/production-plans` or elsewhere, no action file, no component. `git status` at the
+start of this session showed BOM Package 4B awaiting Codex re-review (`CLAUDE_HANDOFF`) — that
+package was not touched.
+
+Live-verified the full Production Plan domain model (`mcp__ceylon-stack__get_doctype_fields`
+against `Production Plan` + all six child doctypes, `Work Order`, `Material Request`, `Material
+Request Item`; `list_documents` confirms **zero Production Plan documents exist on this
+instance**). Since there is no live document to observe runtime behavior against, also fetched
+(read-only, via `gh api`, no ERPNext core files touched) the real `frappe/erpnext` GitHub source
+for `production_plan.py` and its `services/` submodules (`sales_order_planning.py`,
+`sub_assembly.py`, `work_order_planning.py`, `material_request.py`) to source-verify the business
+rules the discovery brief asked about: Sales Order eligibility (`docstatus=1`, active BOM,
+pending-qty filter), `combine_items`'s actual by-`bom_no` grouping key, per-row BOM override
+(confirms the BOM package's `Item 1───<BOM` finding extends to Production Plan), sub-assembly
+explosion and its `type_of_manufacturing` branch (In House/Subcontract/Material Request), the
+exact raw-material shortage formula, Work Order generation's one-row-per-Work-Order rule and
+quantity-based duplicate prevention, and where the Material Request back-reference actually lives
+(`Material Request Item.production_plan`, **not** on `Material Request` itself — a concrete,
+easy-to-get-wrong fact confirmed by live schema). Field-name cross-checking between the fetched
+source and the live schema matched almost exactly, with one confirmed drift
+(`submit_material_request` referenced in source, absent from live schema) — flagged as a reason to
+treat source-derived claims as high-confidence, not live-confirmed.
+
+Captured in a new `docs/backend/05-manufacturing/production-plan.md` baseline, cross-referenced
+from `master-erd.md`, `unverified-behaviours.md` (new `MFG-UNV-010`), `05-manufacturing/README.md`,
+and `migration-status.md`. No custom MRP/forecasting/AI logic was designed or implemented, per the
+discovery brief's explicit exclusion — ERPNext remains the sole planning/calculation authority.
+
+Checks: not applicable — no frontend file changed, so there is no lint/type-check/build/route
+delta to verify. `docs/ceylon-stack-documentation.html` was not touched; Production Plan already
+has no "Live" claim to correct, so `release-tracker` was not invoked (nothing shipped).
+
+**Recommended next package: PP-1 — Production Plan discovery + canonical read-only List/Detail.**
+A read-only `/manufacturing/production-plans` (list) + `/manufacturing/production-plans/[name]`
+(detail) pair, reusing the existing `DataTable`/entity-link patterns, would let a real Production
+Plan document be created via Desk and then observed through the frontend — the cheapest path to
+resolving `MFG-UNV-010`'s live-verification gap. Recommended progression after that: PP-2 (Draft
+create + Sales Order demand loading), PP-3 (material requirement visibility), PP-4/PP-5 (Work
+Order/Material Request generation actions) — sized only as a direction, not a mandatory structure,
+per the discovery brief's own instruction not to pre-commit to package boundaries before PP-1's
+real usage is observed.
+
+Files: `docs/backend/05-manufacturing/production-plan.md` (new);
+`docs/backend/05-manufacturing/README.md`; `docs/backend/11-relationships/master-erd.md`;
+`docs/backend/99-unverified/unverified-behaviours.md` (new `MFG-UNV-010`);
+`docs/backend/15-migration/migration-status.md`; `PROGRESS.md`; `QA_LOG.md`;
+`docs/operations/AI_WORK_LOG.md`. Zero files under `apps/frontend/` touched — confirmed by
+`git status` before closing this package. Package state: `CLAUDE_HANDOFF`. Not self-declared
+accepted — there is no code diff to review, only documentation-accuracy claims; returned to Codex
+for independent verification per the dual-agent operating model.

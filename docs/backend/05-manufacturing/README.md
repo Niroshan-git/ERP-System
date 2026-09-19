@@ -19,6 +19,13 @@ exists in the current build"):
   classification). **Investigated only, not implemented** — the Manufacturing Masters (BOM)
   package concluded Gate B (no usable BOM frontend exists to canonicalize); see `PROGRESS.md`
   and `docs/operations/AI_WORK_LOG.md` for the full handoff.
+- [`production-plan.md`](production-plan.md) — 2026-09-19 discovery/canonicalization baseline
+  (header/child-table schema, Sales Order sourcing rules, multi-BOM resolution, sub-assembly
+  explosion, material requirement formula, Work Order/Material Request generation, accounting/
+  stock impact). **Investigated only, not implemented** — zero frontend footprint, zero live
+  Production Plan documents exist to test against; source-derived behavior is flagged
+  `MFG-UNV-010`. See `PROGRESS.md` for the recommended next package (PP-1: canonical read-only
+  List/Detail).
 
 ## What's explicitly NOT covered
 
@@ -37,6 +44,10 @@ list/detail, BOM, Workstations, and OEE are each their own future scoped package
 - **Work Order Submit/Cancel** — Work Order Create exists (see `work-order.md`), but every
   created Work Order stays at `docstatus 0` (Draft); there is no Submit or Cancel action in the
   frontend for Work Order itself.
+- **Production Plan (planning workspace)** — no route, action, or component anywhere. Domain
+  investigated (schema, Sales Order sourcing, multi-BOM resolution, sub-assembly explosion, MRP
+  formula, Work Order/Material Request generation) 2026-09-19 without building any frontend — see
+  [`production-plan.md`](production-plan.md).
 
 > **Note on drift with `CLAUDE.md`'s Current Mission text**: as of this baseline, Work Order
 > Create (Package 3) and Material Transfer for Manufacture (Package 5) have actually been built,

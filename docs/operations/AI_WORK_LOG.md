@@ -2235,3 +2235,71 @@ Documentation: cardinality/default/lifecycle knowledge corrected by Codex; submi
 contract and narrowed `NEEDS_VERIFICATION` items documented by this remediation
 Release: not eligible yet — package state `CLAUDE_HANDOFF`, awaiting Codex's independent re-review
 of the remediation commit; not self-declared `ACCEPTED`
+
+## Package: Manufacturing — Production Planning Discovery/Canonicalization
+
+### Objective
+
+Establish Production Plan as the canonical Ceylon Stack Manufacturing planning workspace before
+any mutation workflow is built — per the assigning brief's explicit instruction to investigate the
+current repository and the real ERPNext model first, and per BOM Package 4B remediation's own
+handoff naming this as the next Manufacturing target. Explicitly gated: no Work Order/Material
+Request generation UI, no custom MRP/forecasting/AI logic, no route creation unless the smallest
+correct package is already fully verified — this package is investigation and backend-knowledge
+capture only.
+
+### Claude
+
+Started: 2026-09-19
+Completed: 2026-09-19 (investigation only; no implementation)
+Implementation Summary: **No frontend code written.** Repository-wide search
+(`Glob`/`Grep`/graphify query) of `apps/frontend/src` found zero Production Plan footprint — no
+route under `manufacturing/production-plans` or elsewhere, no action file, no component. BOM
+Package 4B's `CLAUDE_HANDOFF` state (commit `fd89ef8`, awaiting Codex re-review) was confirmed
+untouched and left exactly as found — this package did not modify it. Live-verified the full
+Production Plan domain model via `mcp__ceylon-stack__get_doctype_fields` against `Production Plan`
+and all six child doctypes plus `Work Order`/`Material Request`/`Material Request Item`;
+`list_documents` confirmed **zero Production Plan documents exist on this instance** — no runtime
+behavior observable from live data alone. To resolve the business-rule questions the brief asked
+about (Sales Order eligibility, `combine_items` semantics, multi-BOM resolution, sub-assembly
+explosion, MRP formula, Work Order/Material Request generation), read-only fetched the real
+`frappe/erpnext` GitHub source (`production_plan.py` and its `services/` submodules) via `gh api` —
+no execution, no ERPNext core file touched, no live server accessed. Cross-checked every
+source-derived field name/option against the live schema: matched almost exactly, with one
+confirmed drift (`submit_material_request` referenced in source, absent from live schema) —
+recorded as a reason to treat source-derived behavior as high-confidence reference, not
+live-confirmed. Captured in a new `docs/backend/05-manufacturing/production-plan.md` baseline;
+cross-referenced from `master-erd.md`, `unverified-behaviours.md` (new `MFG-UNV-010`),
+`05-manufacturing/README.md`, and `migration-status.md`.
+Files: `docs/backend/05-manufacturing/production-plan.md` (new);
+`docs/backend/05-manufacturing/README.md`; `docs/backend/11-relationships/master-erd.md`;
+`docs/backend/99-unverified/unverified-behaviours.md`; `docs/backend/15-migration/migration-status.md`;
+`PROGRESS.md`; `QA_LOG.md`; this log. Zero files under `apps/frontend/` touched — confirmed by
+`git status`/`git diff` before closing this package.
+Tests: Not applicable — no frontend code changed, so lint/typecheck/build/route-manifest checks
+have nothing new to verify.
+Handoff: `PACKAGE STATUS: CLAUDE_HANDOFF`. Recommended next package: **PP-1 — Production Plan
+discovery + canonical read-only List/Detail** (the cheapest path to resolving `MFG-UNV-010`'s
+live-verification gap, since it lets a real Production Plan document be created via Desk and then
+observed). Nothing in this package requires Codex to verify a code diff — only the accuracy of the
+investigation's documentation claims (schema values, source-code interpretation, route
+non-existence) against the live instance, the repository, and the fetched upstream source.
+Commit/Boundary: not yet committed at the time this entry was written — see the commit hash
+recorded in this session's final handoff message / the next `git log` entry on branch `frontend`.
+Parent boundary: `fd89ef8` (BOM Package 4B remediation's graphify-refresh commit, verified exactly
+`HEAD` before this package started).
+
+### Codex
+
+Review Started: _pending — not yet reviewed_
+Review Completed: _pending_
+Review State: _pending_ — handed off for independent review of the documentation/investigation's
+accuracy; Claude does not mark this reviewed or accepted on Codex's behalf.
+
+### Notes
+
+No live Production Plan document exists on this instance, so every business-rule claim in
+`production-plan.md` beyond raw schema is source-derived (`frappe/erpnext` GitHub, read-only) and
+explicitly flagged `MFG-UNV-010`, not live-confirmed. Per §19 of the assigning brief, this package
+does not depend on and did not touch the `CX-MFG-BOM-4B-003` exposed-credential finding, which
+remains `ACTION REQUIRED` and unresolved from the prior package.
