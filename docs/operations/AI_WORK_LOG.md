@@ -2269,8 +2269,10 @@ source-derived field name/option against the live schema: matched almost exactly
 confirmed drift (`submit_material_request` referenced in source, absent from live schema) —
 recorded as a reason to treat source-derived behavior as high-confidence reference, not
 live-confirmed. Captured in a new `docs/backend/05-manufacturing/production-plan.md` baseline;
-cross-referenced from `master-erd.md`, `unverified-behaviours.md` (new `MFG-UNV-010`),
-`05-manufacturing/README.md`, and `migration-status.md`.
+cross-referenced from `master-erd.md`, `unverified-behaviours.md` (filed as `MFG-UNV-010` at the
+time of this entry; renumbered to the canonical `MFG-UNV-012` by the 2026-09-19 remediation below,
+per `CX-MFG-PP-004`, after it was found to collide with a pre-existing BOM verification item of the
+same ID), `05-manufacturing/README.md`, and `migration-status.md`.
 Files: `docs/backend/05-manufacturing/production-plan.md` (new);
 `docs/backend/05-manufacturing/README.md`; `docs/backend/11-relationships/master-erd.md`;
 `docs/backend/99-unverified/unverified-behaviours.md`; `docs/backend/15-migration/migration-status.md`;
@@ -2279,8 +2281,9 @@ Files: `docs/backend/05-manufacturing/production-plan.md` (new);
 Tests: Not applicable — no frontend code changed, so lint/typecheck/build/route-manifest checks
 have nothing new to verify.
 Handoff: `PACKAGE STATUS: CLAUDE_HANDOFF`. Recommended next package: **PP-1 — Production Plan
-discovery + canonical read-only List/Detail** (the cheapest path to resolving `MFG-UNV-010`'s
-live-verification gap, since it lets a real Production Plan document be created via Desk and then
+discovery + canonical read-only List/Detail** (the cheapest path to resolving `MFG-UNV-012`'s
+live-verification gap — filed at the time of this entry as `MFG-UNV-010`, since renumbered per
+`CX-MFG-PP-004` — since it lets a real Production Plan document be created via Desk and then
 observed). Nothing in this package requires Codex to verify a code diff — only the accuracy of the
 investigation's documentation claims (schema values, source-code interpretation, route
 non-existence) against the live instance, the repository, and the fetched upstream source.
@@ -2321,16 +2324,19 @@ package boundary (`a4c4803`; coordination-only follow-up `8f0f83d`) and confirme
   canonical references ambiguous. Allocate a unique Production Plan ID (or renumber the older
   entry under the repository's chosen convention) and update every cross-reference atomically.
 
-`MFG-UNV-010`'s Production Plan runtime uncertainties remain open in substance. Source-derived
-behavior was not promoted to live-observed behavior. Graph semantic regeneration remains deferred
-and is not itself a rejection reason. Return the remediation as a documentation-only package; do
-not start PP-1 until re-review acceptance.
+`MFG-UNV-010`'s [renumbered to `MFG-UNV-012` by the remediation below, per `CX-MFG-PP-004`]
+Production Plan runtime uncertainties remain open in substance. Source-derived behavior was not
+promoted to live-observed behavior. Graph semantic regeneration remains deferred and is not itself
+a rejection reason. Return the remediation as a documentation-only package; do not start PP-1
+until re-review acceptance.
 
 ### Notes
 
 No live Production Plan document exists on this instance, so every business-rule claim in
 `production-plan.md` beyond raw schema is source-derived (`frappe/erpnext` GitHub, read-only) and
-explicitly flagged `MFG-UNV-010`, not live-confirmed. Per §19 of the assigning brief, this package
+explicitly flagged — filed at the time of this entry as `MFG-UNV-010`, renumbered to the canonical
+`MFG-UNV-012` by the remediation below per `CX-MFG-PP-004` — not live-confirmed. Per §19 of the
+assigning brief, this package
 does not depend on and did not touch the `CX-MFG-BOM-4B-003` exposed-credential finding, which
 remains `ACTION REQUIRED` and unresolved from the prior package.
 
@@ -2436,3 +2442,38 @@ Documentation: repository knowledge corrected per all four findings; release doc
 deferred-to-acceptance pattern as every other row in this ledger
 Release: not eligible — PP-1 remains locked and unstarted; this package only corrects prior
 documentation
+
+### Codex Independent Remediation Re-Review — 2026-09-19
+
+Review Target: Production Plan discovery/documentation package `a4c4803`, original coordination
+follow-up `8f0f83d`, remediation `08fdf99`, and remediation coordination follow-up `1a08742`.
+Review State: **CHANGES REQUIRED** — package boundary and documentation-only isolation verified,
+but two canonical consistency defects remain.
+
+- `CX-MFG-PP-001` (`HIGH`) — **STILL OPEN**. The detailed Production Plan model correctly
+  distinguishes `po_items.bom_no`, `sub_assembly_items.bom_no`, and read-only
+  `mr_items.from_bom`, but `docs/backend/99-unverified/unverified-behaviours.md:124-126` still
+  summarizes Production Plan BOM resolution as `SalesOrderItem.bom_no or Item.default_bom,
+  always overridable per-row`. That unqualified canonical wording can still be read as applying to
+  every BOM-bearing Production Plan row. Restrict the statement explicitly to
+  `po_items.bom_no`; retain the server-derived and read-only distinctions for the other fields.
+- `CX-MFG-PP-002` (`MEDIUM`) — **RESOLVED**. The master ERD contains all six principal child
+  relationships, all three required Work Order back-references, and both Material Request Item
+  back-references without inventing a Material Request header link.
+- `CX-MFG-PP-003` (`MEDIUM`) — **RESOLVED**. The accounting/stock section separates the
+  source-derived Bin reservation-quantity side effect, non-posting planning/order documents, and
+  downstream stock/GL posting documents. The material-requirement formula is correctly labeled a
+  conceptual/base expression and the backend remains authoritative.
+- `CX-MFG-PP-004` (`MEDIUM`) — **STILL OPEN**. The active register headings are unique
+  (`MFG-UNV-010` for BOM and `MFG-UNV-012` for Production Plan), but stale Production Plan
+  references remain in this ledger at lines 2272, 2282, 2324, and 2333 as reviewed. In particular,
+  the PP-1 note still says it would resolve `MFG-UNV-010`, which now identifies BOM. Update those
+  historical Production Plan references atomically to `MFG-UNV-012` or annotate the original ID
+  inline so the current identity is unambiguous; do not alter genuine BOM references.
+
+Validation: commit ancestry/file boundaries, staged and unstaged separation, repository-wide ID
+and stale-wording searches, Production Plan frontend-footprint search, cross-document ERD and
+accounting review, and `git diff --check` were performed. No application lint/typecheck/build was
+run because the package is documentation-only. Semantic Graphify regeneration remains deferred
+and non-blocking. No live Production Plan behavior was accepted; `MFG-UNV-012` remains
+`NEEDS_VERIFICATION`. PP-1 remains locked and must not begin until this remediation is accepted.

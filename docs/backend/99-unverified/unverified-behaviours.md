@@ -121,9 +121,14 @@ repository was updated atomically to match.
 touched): full header/child-table schema; that Production Plan is submittable
 (`amended_from` present); that Sales Order eligibility is `docstatus=1` + an active BOM +
 `stock_qty - stock_reserved_qty > work_order_qty`; that `combine_items` groups by `bom_no` and
-records the original Sales Order breakdown in `prod_plan_references`; that BOM resolution per row
-is `SalesOrderItem.bom_no or Item.default_bom`, always overridable per-row (multi-BOM support,
-consistent with `bom.md`'s `Item 1───<BOM` finding); that sub-assembly explosion is entirely
+records the original Sales Order breakdown in `prod_plan_references`; that the finished-good
+Production Plan row's BOM selection (`po_items.bom_no`) resolves as `SalesOrderItem.bom_no or
+Item.default_bom` and is user-editable/overridable afterward (multi-BOM support, consistent with
+`bom.md`'s `Item 1───<BOM` finding) — this applies specifically to `po_items.bom_no`, not to every
+BOM-bearing Production Plan field: `sub_assembly_items.bom_no` is server-derived from explosion and
+not confirmed independently user-selectable, and `mr_items.from_bom` is read-only source-BOM
+traceability, never a frontend selector (see `production-plan.md`'s "Multiple-BOM support"
+section for the full distinction); that sub-assembly explosion is entirely
 server-side and branches on `type_of_manufacturing` (In House → Work Order, Subcontract →
 consolidated Purchase Order, Material Request → no Work Order); that
 `skip_available_sub_assembly_item` skips creating a sub-assembly row when the sub-assembly
