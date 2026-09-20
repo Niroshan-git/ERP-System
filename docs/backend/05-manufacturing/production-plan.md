@@ -1107,6 +1107,14 @@ non-locking read already produces duplicates under ordinary sequential use, so a
 scenario would behave identically or worse. Recorded here as a known, source-confirmed gap in
 ERPNext's own implementation, not a Ceylon Stack one.
 
+**Independent-review addendum (2026-09-20, non-blocking):** a related but distinct nuance in
+`makeWorkOrderAction`'s own before/after diff-based reporting (see §S/§U below) — if a *different*
+concurrent request against the *same* Production Plan inserts a Work Order between this action's
+"before" and "after" snapshot queries, that document would be misattributed to this click's result
+panel. This is a reporting-attribution nuance, not the duplicate-*creation* gap above (the document
+itself is genuine either way, no data corruption) — flagged by PP-5's independent reviewer as a
+LOW-severity observation, not requiring remediation.
+
 ### S. Transaction / partial-failure semantics — SOURCE VERIFIED, not separately live-exercised
 
 No explicit `frappe.db.commit()` appears anywhere in `work_order_planning.py`'s creation loop

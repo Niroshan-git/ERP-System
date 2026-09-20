@@ -3099,3 +3099,82 @@ security/documentation-accuracy per protocol §7, with particular attention to t
 duplicate-generation finding and whether the UI-only warning is a sufficient mitigation), then
 Make Material Request or a BOM Management package (to unlock sub-assembly/subcontract runtime
 testing) as the next candidate.
+
+## Package: Production Plan PP-5 — independent review (temporary dual-Claude mode, 2026-09-20)
+
+**PACKAGE:** Production Plan PP-5 (Work Order Generation)
+**ROLE:** REVIEWER
+**AGENT:** a fresh session (context reset via `/clear` after the implementation session above),
+acting per `TEMP_DUAL_CLAUDE_MODE.md` §6 — re-derived the package boundary from Git evidence rather
+than trusting the `CLAUDE_HANDOFF` write-up, then delegated the actual review pass to a
+`code-reviewer` subagent to avoid anchoring on the implementer's own narrative (the reviewing
+session had already read `AI_WORK_LOG.md`/`QA_LOG.md`'s PP-5 entries while reconstructing state, so
+a fresh subagent gave a more independent read of the diff than this session reviewing it directly
+would have).
+**IMPLEMENTER:** prior session, no durable session identifier available (recorded above)
+**REVIEWER:** this session + `code-reviewer` subagent, no durable session identifier available
+**BASE COMMIT:** `fcc04c5`
+**IMPLEMENTATION COMMIT:** `0a5719b`
+
+### Verdict: **ACCEPTED** — no HIGH findings
+
+Independently confirmed against the actual diff and code (not the handoff write-up):
+
+1. **Security (protocol §7, most important check)** — `makeWorkOrderAction` takes only
+   `name: string` from the client; `callRunDocMethod(draft, "make_work_order")`'s method name is a
+   hardcoded string literal in server code, never client-derived; `callRunDocMethod`/`getDoc`/
+   `listDocs` in `lib/erpnext.ts` use hardcoded doctypes with `encodeURIComponent` on interpolated
+   values. No arbitrary-method or arbitrary-doctype injection path exists.
+2. **Server-side lifecycle gate** — the `docstatus === 1` re-check happens in the `"use server"`
+   action itself (re-fetches the Production Plan fresh), not only in the page component's render
+   gate — genuine defense-in-depth, consistent with the established `loadDraftOrThrow` precedent.
+3. **Diff-based created-document discovery** — a real but non-blocking correctness nuance not
+   separately called out in `production-plan.md`'s §R: if a concurrent request against the *same*
+   Production Plan creates a Work Order between this action's before/after snapshot queries, that
+   document could be misattributed to this click's result panel (still a real document, no data
+   corruption — a reporting nuance, not a duplicate-generation risk, which §R already documents
+   separately).
+4. **Duplicate-generation mitigation (UI warning only)** — assessed as adequate for this package's
+   scope: generated documents are Draft only (zero Bin/SLE/GL impact at creation time, confirmed
+   against the side-effect matrix), a human must separately submit a duplicate before it has any
+   operational/financial consequence, and the package brief explicitly excluded client-side
+   quantity reimplementation or a locking framework. Would only become blocking if one click could
+   produce duplicate *Submitted* Work Orders, which it cannot.
+5. **Documentation consistency** — `production-plan.md` §N–W matches the code exactly (field names,
+   the hardcoded method name, the diff-based reporting approach, the UI-only Completed/Closed
+   gating). `PROGRESS.md`/`QA_LOG.md` PP-5 entries present (Package Closure Rules items 3/4 already
+   satisfied pre-review).
+6. **Architecture/scope compliance** — no ERPNext/Frappe core files touched; headless boundary
+   respected (all access through existing `lib/erpnext.ts` helpers); `ProductionPlanMakeWorkOrderAction.tsx`
+   is a justified new component (the existing shared `DocActionBar.tsx` has no confirm-step or
+   result-payload rendering, so forking here isn't a duplicate of an existing reusable component);
+   package size/shape (3 files, ~284 lines, one transition) matches "one small package," and does
+   not reopen the still-gated Manufacturing scope items (Job Card, Workstations, OEE, standalone WO
+   create/submit/cancel).
+7. **ERPNext source claims** (exact file paths/class names cited in the implementer's write-up) —
+   the reviewing subagent had no live `frappe/erpnext` source access in its own session and could
+   not independently re-fetch those files; the claimed behavioral pattern is consistent with known
+   ERPNext conventions and this codebase's own prior source-verified sibling findings
+   (`get_sub_assembly_items`, PP-4), and the docs correctly distinguish `SOURCE VERIFIED` from
+   `LIVE VERIFIED` rather than overclaiming. Flagged as **not independently re-verified by the
+   reviewer**, not asserted as wrong — a residual gap for a future session with live `gh api`
+   access to close if it matters.
+
+**Two non-blocking LOW/MEDIUM observations** (not requiring remediation, worth carrying forward):
+the before/after diff-reporting misattribution race under concurrent activity (point 3 above,
+added to `production-plan.md`'s concurrency section), and a suggestion that if more "confirm, then
+show created-documents" actions get added in future manufacturing packages, extracting
+`ProductionPlanMakeWorkOrderAction`'s confirm/result pattern into a shared component would be
+reasonable — not a requirement with only one instance today.
+
+### State
+
+Production Plan PP-5 is now **ACCEPTED**. `MFG-UNV-012` state unchanged from the implementer's own
+narrowing (see above) — review found no new evidence changing it. Per `docs/controls/
+TEMP_DUAL_CLAUDE_MODE.md` §16, this acceptance is subject to Codex's reconciliation audit on return
+(2026-09-26) like every other package accepted under this temporary mode.
+
+**Recommended next action:** `release-tracker` for `docs/ceylon-stack-documentation.html` +
+Notion sync (deferred until acceptance per the implementer's own note above, now due), then Make
+Material Request or a BOM Management package as the next candidate per the implementer's own
+recommendation.
