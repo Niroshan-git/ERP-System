@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
+import Link from "next/link";
 import { listBomsForItem, type BomOption } from "@/lib/actions/bomLookup";
 import {
   getFinishedGoods,
@@ -462,7 +463,20 @@ export function ProductionPlanCreateForm({
                         aria-label={`Include ${r.label}`}
                       />
                     </td>
-                    <td className={`${cell} font-mono`}>{r.label}</td>
+                    <td className={`${cell} font-mono`}>
+                      {draft.get_items_from === "Sales Order" ? (
+                        <Link
+                          href={`/sales/orders/${encodeURIComponent(r.key)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-signal hover:underline"
+                        >
+                          {r.label}
+                        </Link>
+                      ) : (
+                        r.label
+                      )}
+                    </td>
                     {draft.get_items_from === "Sales Order" && <td className={cell}>{r.sub || "—"}</td>}
                     <td className={cell}>{r.date ? r.date.slice(0, 10) : "—"}</td>
                     {draft.get_items_from === "Sales Order" && (
