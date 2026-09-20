@@ -2953,3 +2953,112 @@ a future component-extraction suggestion), neither requiring remediation. Full v
 `docs/operations/AI_WORK_LOG.md`'s "PP-5 — independent review" entry. Subject to Codex's
 reconciliation audit on return (2026-09-26) per §16, like every package accepted under this
 temporary mode.
+
+## Manufacturing — Production Plan PP-6 (Material Request Generation, 2026-09-20)
+
+Implements the sibling execution transition to PP-5: Submitted Production Plan → ERPNext-native
+"Make Material Request" → generated Material Request document(s), with full traceability back to
+the plan. Delegates entirely to ERPNext's own `MaterialRequestService.make_material_request`
+(source: `erpnext/manufacturing/doctype/production_plan/services/material_request.py`,
+`erpnext/stock/doctype/material_request/material_request.py`'s `on_submit()`, `hooks.py`,
+`production_plan.js`'s `make_material_request`/`create_material_request`/`refresh` handlers —
+fetched read-only via `gh api`) — no quantity/grouping/eligibility logic reimplemented
+client-side. Full detail (method signature, security-critical no-reload difference from Make Work
+Order, Desk flow, grouping/quantity semantics, duplicate-generation finding, concurrency,
+transaction semantics, side-effect matrix, traceability, a new Production-Plan-cancel-block
+finding) in `docs/backend/05-manufacturing/production-plan.md`'s new "Material Request Generation
+(PP-6)" section.
+
+**New**: `lib/actions/productionPlanMaterialRequest.ts` (`makeMaterialRequestAction` — re-fetches
+the Production Plan and re-checks `docstatus === 1` fresh server-side; **security-critical**:
+unlike `make_work_order`, `make_material_request` never calls `self.doc.reload()`, so this action
+is the *only* thing standing between a client and injecting fabricated `mr_items` quantities into a
+real Material Request — it forwards the freshly-fetched real document completely untouched, plus
+one intentional `submit_material_request` flag, never merging any caller-supplied row data; diffs
+`Material Request` back-references before/after the call, deduped by name after a live-reproduced
+bug in the nested-filter query was found — see below), `components/
+ProductionPlanMakeMaterialRequestAction.tsx` (two-step inline confirm offering "Keep as Draft" /
+"Submit immediately", mirroring Desk's own `frappe.confirm` dialog exactly, with the duplicate-risk
+tradeoff spelled out since Desk's own dialog doesn't explain it), wired into the Production Plan
+detail page's header action bar next to the existing Make Work Order button. Visible when
+`docstatus === 1 && mr_items.length > 0` and `status` is not `Material Requested`/`Closed` — a
+UI-only convention mirroring Desk's own button visibility, not backend-enforced (confirmed:
+`make_material_request` carries **zero** server-side docstatus/status check). The previously
+PP-1-deferred "Material Request Traceability" placeholder on the Traceability tab is now a real
+table, joined through `Material Request Item.production_plan`. The Overview tab's
+scope-disclosure paragraph was updated.
+
+**Explicitly out of scope for PP-6** (per the package brief): Purchase Order creation, Purchase
+Receipt, Purchase Invoice, Reserve/Unreserve Stock, Stock Entry/Material Transfer/Manufacture,
+subcontract execution, Production Plan Cancel/Amend, workflow/approval, PP-7+.
+
+**Live-confirmed finding — a different duplicate-generation gap than Work Order's, same symptom**:
+`Material Request Plan Item.requested_qty` (the field the qty-to-request math nets against) is
+only incremented by `Material Request.on_submit()`, never by `make_material_request()` itself.
+Live-verified: choosing "Keep as Draft" and re-running the action before submitting the Material
+Request it just created generates a **second full-quantity duplicate** — `requested_qty` never
+moved. Choosing "Submit immediately" updates `requested_qty` synchronously in the same request,
+and a follow-up call correctly created zero new documents (genuinely idempotent). Mitigation in
+scope for this package (no client-side locking/quantity logic, per the same brief instruction
+PP-5 followed): both choices are presented explicitly with the tradeoff spelled out, rather than
+silently defaulting to one.
+
+**Checks run**: `npx tsc --noEmit` — clean. `npm run lint` — clean. `npm run build` — succeeded,
+exit 0, no new errors/warnings. `git diff --check` — clean (pre-existing CRLF warnings on files
+this package didn't touch the line-ending convention of, not a new issue).
+
+**Runtime verification**: `LIVE VERIFIED`, 2026-09-20, with the user's explicit go-ahead (this
+creates and submits real Material Request documents on the live instance), using the app's own
+service-account credentials (same source/handling as PP-2 through PP-5 — read from
+`apps/frontend/.env.local`, never written/modified/printed). Full round trip against the real
+Hetzner instance: created and submitted a fresh Production Plan (`MFG-PP-2026-00006`, from real
+open Sales Order `SAL-ORD-2026-00007`, same test item as every prior package), saved 3 computed
+`mr_items` rows → first `make_material_request` call (Draft) created `MAT-MR-2026-00005` (correct
+traceability, exact BOM-scaled quantities) → second call (no state change) created
+`MAT-MR-2026-00006`, confirming the duplicate finding above → deleted both Drafts → third call
+(auto-submit) created a Submitted Material Request and `requested_qty` updated immediately →
+fourth call created zero new documents (idempotent) → cleanup: cancelling the Production Plan was
+**blocked** (`LinkExistsError`) until the linked Submitted Material Request was cancelled+deleted
+first — a new, unplanned finding (see below) — then the Production Plan itself was cancelled and
+deleted, leaving zero residual trace. Full detail in `production-plan.md`'s §GG.
+
+**New finding beyond the package brief's own checklist**: cancelling a Production Plan is blocked
+by Frappe's generic `LinkExistsError` while a Submitted Material Request it created still exists —
+this independently confirms, for the first time with a real reproduction, the claim PP-4's own
+§C.1 had recorded on trust without independent verification. Also newly confirmed: `on_cancel()`
+has no Material-Request-deletion step at all (unlike Work Order's auto-delete-Draft cascade), so
+even a Draft Material Request would need manual deletion before/after a plan cancel — it is not
+auto-cleaned. Recorded as canonical-model knowledge; no UI change needed since Cancel isn't a
+shipped feature.
+
+**Bug found and fixed in this app's own code during testing (not an ERPNext defect)**: the nested
+list-filter `Material Request?filters=[["Material Request Item","production_plan","=",name]]`
+returns one row per matching child item, not one per distinct parent Material Request — live
+observed a 3-item Material Request coming back 3 times. Fixed (deduped by name) in both
+`productionPlanMaterialRequest.ts` and the Traceability tab's query in `page.tsx` before shipping.
+**The same unfixed pattern already exists in the previously-accepted PP-5 code**
+(`productionPlanWorkOrder.ts`'s `listSubcontractPurchaseOrderNames`) — deliberately left untouched
+here (out of this package's scope; no live sub-assembly/subcontract data exists to have triggered
+it there yet) and flagged for a future remediation package instead.
+
+**MFG-UNV-012 impact**: further narrowed — finished-good/Purchase-type Material Request generation
+is now `LIVE VERIFIED` and implemented; `make_material_request`'s lack of server-side docstatus
+enforcement and lack of `self.doc.reload()` are now confirmed; the Production-Plan-cancel-blocked
+finding is new. Sub-assembly/subcontract-sourced Material Request generation (`Material
+Transfer`/`Manufacture`/`Subcontracting` types), `reserve_stock`/Stock Reservation Entry creation,
+and multi-location "Get Items for Purchase / Transfer" remain unimplemented and unexercised — see
+`docs/backend/99-unverified/unverified-behaviours.md`'s updated entry.
+
+**Deferred / next package**: Job Card list/detail, BOM Management (to get real sub-assembly/
+subcontract test data onto this instance), or Cancel (still blocked on the same unresolved
+externally-linked-*Submitted-Work-Order* scenario — the Material-Request-linked variant is now
+resolved per this package's §DD). OEE and Workstations remain unbuilt, unchanged from the
+priority-lock note above.
+
+**Release Documentation**: not yet updated — same established pattern as every prior package in
+this ledger (`release-tracker` runs at documentation-closure/after independent acceptance, not at
+initial `CLAUDE_HANDOFF`).
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
+account before acceptance, not self-review.

@@ -181,6 +181,7 @@ reconstruct state without re-pasting this protocol.
 | 2026-09-20 | CLAUDE-B | IMPLEMENTER | Production Plan PP-2 | `2e9f8da` | `CLAUDE_HANDOFF` — awaiting CLAUDE-A/Codex review, not self-accepted — see `AI_WORK_LOG.md` |
 | 2026-09-20 | this session, no durable session identifier available | IMPLEMENTER | Production Plan PP-5 | `fcc04c5` | `CLAUDE_HANDOFF` — awaiting independent cross-review, not self-accepted — see `AI_WORK_LOG.md` |
 | 2026-09-20 | a later session (post-`/clear`), no durable session identifier available, + `code-reviewer` subagent | REVIEWER | Production Plan PP-5 | `0a5719b` | **ACCEPTED** — no HIGH findings, 2 non-blocking LOW/MEDIUM observations — see `AI_WORK_LOG.md`'s "PP-5 — independent review" entry |
+| 2026-09-20 | a later session (post-`/clear`), no durable session identifier available | IMPLEMENTER | Production Plan PP-6 | `812acae` | `CLAUDE_HANDOFF` — awaiting independent cross-review, not self-accepted — see `AI_WORK_LOG.md`'s "PP-6 — Material Request Generation" entry |
 
 **Ambiguity note (added 2026-09-20 housekeeping, CX-MFG-PP2-003):** the rows above label roles by
 account (`CLAUDE-A`/`CLAUDE-B`) only — they do not carry a durable session identifier, and `CLAUDE-A`

@@ -4,6 +4,7 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocActionBar } from "@/components/DocActionBar";
 import { DocField } from "@/components/DocField";
 import { DocTabs } from "@/components/DocTabs";
+import { ProductionPlanMakeMaterialRequestAction } from "@/components/ProductionPlanMakeMaterialRequestAction";
 import { ProductionPlanMakeWorkOrderAction } from "@/components/ProductionPlanMakeWorkOrderAction";
 import { ProductionPlanMaterialRequirementPanel } from "@/components/ProductionPlanMaterialRequirementPanel";
 import { ProductionPlanSubAssemblyPanel } from "@/components/ProductionPlanSubAssemblyPanel";
@@ -135,6 +136,24 @@ type GeneratedWorkOrderRow = {
   production_plan_sub_assembly_item?: string;
 };
 
+/** Material Request traceability (PP-6) — the back-reference lives on `Material Request Item`
+ * (the child row: `production_plan`, `material_request_plan_item`), not on the `Material Request`
+ * parent doctype itself, per production-plan.md's "Material Request generation" section. Queried
+ * via the same nested link-filter shape (`[Child Doctype, fieldname, op, value]` against the
+ * PARENT doctype's own list endpoint) the Work Order tab's own subcontract-Purchase-Order lookup
+ * already uses (`lib/actions/productionPlanWorkOrder.ts`'s `listSubcontractPurchaseOrderNames`) —
+ * deliberately not a direct `/api/resource/Material Request Item` list, since child-table
+ * doctypes have no independent DocPerm of their own and that access pattern was never verified
+ * against this instance's permission model. This returns parent-level Material Request fields
+ * only, not per-item line detail — a real, accepted scope narrowing versus a full child-row join;
+ * the canonical `/buying/material-requests/[name]` link already shows the full item breakdown. */
+type GeneratedMaterialRequestRow = {
+  name: string;
+  docstatus: 0 | 1 | 2;
+  material_request_type?: string;
+  transaction_date?: string;
+};
+
 const cell = "px-3 py-2";
 const plainTableWrap = "overflow-x-auto rounded-xl border border-border bg-surface";
 const plainTableHead = "border-b border-border bg-canvas text-graphite-500";
@@ -185,6 +204,23 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
     limit: 100,
     orderBy: "creation asc",
   });
+
+  // Material Request traceability (PP-6) — explicit backend back-reference, nested through the
+  // child row (`Material Request Item.production_plan`), same bounded-query shape as the Work
+  // Order traceability fetch above. Live-confirmed 2026-09-20: this nested child-table filter
+  // returns one row per MATCHING CHILD ROW, not one per distinct parent — a Material Request with
+  // 3 items all tracing back to this plan comes back 3 times in the raw response, so it must be
+  // deduped by `name` before rendering (see `productionPlanMaterialRequest.ts`'s
+  // `listMaterialRequestNames` for the same finding on the server-action side).
+  const generatedMaterialRequestsRaw = await listDocs<GeneratedMaterialRequestRow>("Material Request", {
+    fields: ["name", "docstatus", "material_request_type", "transaction_date"],
+    filters: [["Material Request Item", "production_plan", "=", doc.name]],
+    limit: 100,
+    orderBy: "creation asc",
+  });
+  const generatedMaterialRequests = Array.from(
+    new Map(generatedMaterialRequestsRaw.map((mr) => [mr.name, mr])).values(),
+  );
 
   const isDraft = doc.docstatus === 0;
   const stockDefaults = isDraft ? await getStockDefaults(doc.company) : null;
@@ -265,11 +301,12 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
         A Draft Production Plan can be submitted from this page (see Submit above) through
         ERPNext&apos;s own native lifecycle. Get Sub Assembly Items (Sub-Assemblies tab) and Get
         Items for Purchase Only (Material Requirements tab) are available while this plan is a
-        Draft — see those tabs. Make Work Order is available once this plan is Submitted (see the
-        button above) and delegates entirely to ERPNext&apos;s own native generation — see the
-        Generated Work Orders tab for the result. Get Sales Orders/Material Request, Get Finished
-        Goods, and Make Material Request remain unavailable here — see this record&apos;s current
-        backend-recorded state above.
+        Draft — see those tabs. Make Work Order and Make Material Request are both available once
+        this plan is Submitted (see the buttons above) and each delegates entirely to
+        ERPNext&apos;s own native generation, independently of one another — see the Generated
+        Work Orders tab and the Traceability tab&apos;s Material Request Traceability section for
+        each result. Get Sales Orders/Material Request and Get Finished Goods remain unavailable
+        here — see this record&apos;s current backend-recorded state above.
       </p>
     </div>
   );
@@ -658,12 +695,43 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
       </div>
 
       <h2 className="mb-2 text-sm font-semibold text-graphite-900">Material Request Traceability</h2>
-      <div className="rounded-xl border border-border bg-surface p-4 text-sm text-graphite-500">
-        Deferred in PP-1. Per the canonical model, a generated Material Request&apos;s link back to
-        this Production Plan lives on <code>Material Request Item.production_plan</code> (the child
-        row), not on the Material Request document itself — retrieving that relationship needs a
-        join through Material Request Item that would expand this package&apos;s scope, so it is
-        intentionally not shown here rather than approximated.
+      <p className="mb-3 text-xs text-graphite-500">
+        Per the canonical model, a generated Material Request&apos;s link back to this Production
+        Plan lives on <code>Material Request Item.production_plan</code> (the child row), not on
+        the Material Request document itself — this table joins through that back-reference.
+        Docstatus reflects whether each was created as Draft or Submitted (see Make Material
+        Request above); open a Material Request for its full item/quantity breakdown.
+      </p>
+      <div className={plainTableWrap}>
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className={plainTableHead}>
+              <th className={`${cell} font-semibold`}>Material Request</th>
+              <th className={`${cell} font-semibold`}>Docstatus</th>
+              <th className={`${cell} font-semibold`}>Type</th>
+              <th className={`${cell} font-semibold`}>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {generatedMaterialRequests.map((mr) => (
+              <tr key={mr.name} className="border-b border-border last:border-0">
+                <td className={cell}>
+                  <DocLink href={`/buying/material-requests/${encodeURIComponent(mr.name)}`}>{mr.name}</DocLink>
+                </td>
+                <td className={`${cell} text-graphite-500`}>{docstatusLabel(mr.docstatus)}</td>
+                <td className={`${cell} text-graphite-500`}>{mr.material_request_type || "—"}</td>
+                <td className={`${cell} font-mono text-graphite-500`}>{mr.transaction_date || "—"}</td>
+              </tr>
+            ))}
+            {generatedMaterialRequests.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-6 text-center text-graphite-500">
+                  No Material Requests generated from this Production Plan yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -693,7 +761,12 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
           />
         )}
         {doc.docstatus === 1 && !["Completed", "Closed"].includes(doc.status) && (
-          <ProductionPlanMakeWorkOrderAction name={doc.name} />
+          <div className="flex items-start gap-2">
+            <ProductionPlanMakeWorkOrderAction name={doc.name} />
+            {mrItems.length > 0 && !["Material Requested", "Closed"].includes(doc.status) && (
+              <ProductionPlanMakeMaterialRequestAction name={doc.name} />
+            )}
+          </div>
         )}
       </div>
       <DocTabs

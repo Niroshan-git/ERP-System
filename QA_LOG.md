@@ -1198,3 +1198,93 @@ the Subcontract-type sub-assembly → consolidated Purchase Order path, and the 
 package brief's own §24 allowance. No independent second-account review has run yet — this entry
 covers the implementing session's own in-session verification only, not the required cross-review
 under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`.
+
+## Manufacturing — Production Plan PP-6 (Material Request Generation, 2026-09-20)
+
+Self-tested by the implementing session (Claude Code), in-session, against the live Hetzner
+instance — with the user's explicit go-ahead, since this creates and submits real Material
+Request documents. Full narrative and evidence in `docs/backend/05-manufacturing/
+production-plan.md`'s "Material Request Generation (PP-6)" §GG; summarized here.
+
+**Test 1 — finished-good generation, happy path, Draft.** Created and submitted a fresh Production
+Plan (`MFG-PP-2026-00006`, sourced from real open Sales Order `SAL-ORD-2026-00007`,
+`FG-STEEL-BRACKET-ASSY` × 30), saved 3 computed `mr_items` rows (`RM-BOLT-M6X20`/`RM-COATING-CPD`/
+`RM-STEEL-SHEET-2MM`, exact BOM-scaled quantities from PP-4's own preview) → called the native
+`make_material_request` (via `run_doc_method`, mirroring `makeMaterialRequestAction`'s own payload
+exactly) with `submit_material_request: 0` → `MAT-MR-2026-00005` created, `docstatus 0`/Draft, one
+Material Request grouping all 3 items (single `sales_order` + single `material_request_type`),
+`production_plan`/`material_request_plan_item` traceability correct on every item row. **PASS.**
+
+**Test 2 — requested_qty after Draft creation.** Re-fetched the Production Plan immediately after
+Test 1: `mr_items[].requested_qty` still `0` on all 3 rows — confirms `make_material_request()`
+itself never writes this field; it is only written by a downstream `Material Request.on_submit()`.
+**PASS** (matches source read).
+
+**Test 3 — second-call / duplicate-generation behavior (the package's own required test, §11/§12
+of the brief).** Called `make_material_request` again immediately, `submit_material_request: 0`,
+no other state change. **Result: created a second Material Request, `MAT-MR-2026-00006`, same 3
+items, same full quantities — a genuine duplicate, not a skip.** Root cause confirmed via source:
+`requested_qty` was still `0` for every row (Test 2), so `qty_to_request = quantity − 0` computed
+the full amount again. **This is real, native ERPNext behavior, a different mechanism than PP-5's
+Work Order finding but the same user-visible symptom** — confirmed as a genuine, live-reproducible
+risk, not hypothetical. Flagged per the brief's own §11/§12 instruction; mitigation is the explicit
+Draft/Submit choice with the tradeoff spelled out (`ProductionPlanMakeMaterialRequestAction.tsx`),
+not a client-side quantity guess or locking framework (both explicitly out of scope).
+
+**Test 4 — auto-submit path and idempotency (§25 of the brief).** After deleting both Draft
+duplicates, called `make_material_request` a third time with `submit_material_request: 1` →
+created a Submitted Material Request; re-fetching the Production Plan immediately after showed
+`mr_items[].requested_qty` now exactly equal to `quantity` on every row (`120`/`1.5`/`24`) —
+confirms `Material Request.on_submit()`'s increment fires synchronously within the same request. A
+fourth call, same params, no other state change → **zero new Material Requests created** —
+confirms the auto-submit path is genuinely idempotent on re-click, unlike the Draft path in Test 3.
+**PASS.**
+
+**Test 5 — Bin/SLE/GL impact.** No stock existed at the test warehouse for these raw materials
+either way, so a before/after Bin diff was not meaningfully exercisable this session (same
+zero-stock precondition PP-4's own live test hit for this instance); confirmed via source read
+that `make_material_request()`'s own call chain contains no stock-ledger/GL-posting code path —
+`SOURCE VERIFIED`, not independently live-diffed this pass.
+
+**Test 6 — cancel-interaction (unplanned, found during cleanup).** Attempted to cancel
+`MFG-PP-2026-00006` while the Submitted Material Request from Test 4 still existed →
+**`LinkExistsError`, cancel blocked.** Cancelled and deleted the Material Request first, then the
+Production Plan cancel succeeded. This independently confirms, for the first time with a real
+reproduction, PP-4's own §C.1 claim (previously recorded on trust, not independently verified).
+Also confirmed: `on_cancel()` has no Material-Request-deletion step, so a still-Draft Material
+Request would not have been auto-cleaned either — unlike Work Order's auto-delete-Draft cascade
+(PP-5). **New finding, not previously flagged by any package brief.**
+
+**Test 7 — lifecycle-gate/schema checks (static, not live-mutating).** Confirmed via source read
+that `make_material_request` carries no server-side `docstatus`/`status` check — Ceylon Stack's own
+`makeMaterialRequestAction` is the actual enforcement point. Additionally confirmed (the one
+security-relevant difference from PP-5's own Make Work Order finding): `make_material_request` has
+**no `self.doc.reload()`** — it trusts the `run_doc_method` payload's `mr_items` values directly,
+making the server action's "always forward a freshly re-fetched, untouched document" discipline the
+actual security boundary, not merely defense-in-depth.
+
+**Test 8 — own-code bug found and fixed (not an ERPNext defect).** While diffing Material Request
+state before/after each call, the nested list-filter query (`Material Request` filtered via
+`[["Material Request Item","production_plan","=",name]]`) was observed returning **one row per
+matching child item**, not one per distinct parent — the 3-item Material Request from Test 1 came
+back 3 times in one query response. Fixed (deduped by `name`) in `listMaterialRequestNames()`
+(`productionPlanMaterialRequest.ts`) and the Traceability tab's equivalent query in `page.tsx`
+before shipping — re-verified `tsc`/`eslint`/`build` clean after the fix. **The identical unfixed
+pattern was found to already exist in the previously-accepted PP-5 code**
+(`listSubcontractPurchaseOrderNames`, `Purchase Order Item.production_plan`) — flagged for a future
+remediation package, not fixed here (out of PP-6's own scope).
+
+**Cleanup verification.** Final state after all tests: `MFG-PP-2026-00006`, `MAT-MR-2026-00005`,
+and `MAT-MR-2026-00006` all confirmed `404` on direct re-fetch — zero residual trace on the
+instance from this test.
+
+**Not independently testable** (same disclosed, recurring gap as PP-1 through PP-5): no
+authenticated browser click-path (this was a direct REST round trip mirroring the server action's
+exact calls, not a UI click test); no BOM with sub-assembly components exists on this instance, so
+`Material Transfer`/`Manufacture`/`Subcontracting`-type Material Request generation from
+sub-assembly rows remains source-verified only — `SOURCE VERIFIED / NOT RUNTIME VERIFIED`, per the
+package brief's own §24 allowance. Multi-Material-Request-per-click (spanning more than one Sales
+Order/type in the same call) was not exercised — this session's test data only produced the
+single-group case. No independent second-account review has run yet — this entry covers the
+implementing session's own in-session verification only, not the required cross-review under
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`.

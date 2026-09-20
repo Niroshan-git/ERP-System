@@ -7,18 +7,26 @@ raw-material/shortage calculation source-verified AND live-verified, and impleme
 PP-4, same day — see "Sub-Assembly Planning + Material Requirements (PP-4)" below. **Make Work
 Order (finished-good path) source-verified AND live-verified, and implemented**, as of PP-5, same
 day — including a live-confirmed duplicate-generation finding, see "Work Order Generation (PP-5)"
-below. Cancel investigated and its safe-path cleanup behavior live-confirmed, but deliberately not
-shipped as an app feature pending one remaining unresolved case (external downstream-linked-document
-cancel-block) — see PP-4's own clarification to that entry below. Amend is discovery-only. Make
-Material Request, `reserve_stock`/Stock Reservation Entry creation, multi-location "Get Items for
-Purchase / Transfer", and sub-assembly/subcontract Work Order generation (no test data exists on
-this instance) remain unverified/unimplemented). See `docs/backend/15-migration/migration-status.md`.
+below. **Make Material Request (finished-good/Purchase-type path) source-verified AND
+live-verified, and implemented**, as of PP-6, same day — including its own live-confirmed
+duplicate-generation finding (a different mechanism than Work Order's) and a live-confirmed
+Production-Plan-cancel-blocked-by-linked-Submitted-Material-Request finding, see "Material Request
+Generation (PP-6)" below — this also **upgrades** PP-4's own §C.1 clarification (recorded on trust,
+not independently verified at the time) to independently live-verified for the Material-Request
+case. Cancel remains investigated and its safe-path cleanup behavior live-confirmed, but
+deliberately not shipped as an app feature pending one remaining unresolved case (external,
+non-Ceylon-Stack-created *Submitted Work Order* specifically — see PP-6's §DD for what is now
+resolved vs. still open). Amend is discovery-only. `reserve_stock`/Stock Reservation Entry
+creation, multi-location "Get Items for Purchase / Transfer", and sub-assembly/subcontract Work
+Order/Material Request generation (no test data exists on this instance) remain
+unverified/unimplemented). See `docs/backend/15-migration/migration-status.md`.
 
 PP-1 (2026-09-19) was a discovery/canonicalization pass only, read-only. PP-2 (2026-09-20) added
 Draft-only create. PP-3 (2026-09-20, same day) added Submit only. PP-4 (2026-09-20, same day)
 added Get Sub Assembly Items + Get Items for Purchase Only (single-warehouse Material
-Requirements calc) on an existing saved Draft — see "Frontend footprint" below for exactly what
-shipped and what's still out of scope.
+Requirements calc) on an existing saved Draft. PP-5 (2026-09-20, same day) added Make Work Order.
+PP-6 (2026-09-20, same day) added Make Material Request — see "Frontend footprint" below for
+exactly what shipped and what's still out of scope.
 
 ## Source of truth for this baseline
 
@@ -1211,6 +1219,337 @@ generation" above, under "Sub-assemblies"), the `_sub_assembly_work_order`/
 `make_subcontracted_purchase_order` code paths, and the Purchase Order side effect could not be
 exercised live this session. Per the package brief's own §24 allowance, this is treated as an
 acceptable, honestly-disclosed limitation rather than fabricated coverage.
+
+## Material Request Generation (PP-6, 2026-09-20)
+
+Source: `production_plan.py`'s `make_material_request()` (a one-line delegator), full read of
+`services/material_request.py` (`MaterialRequestService`), `erpnext/stock/doctype/material_request/
+material_request.py` (`on_submit()`/`update_requested_qty_in_production_plan()`), `hooks.py`'s
+`doc_events` wiring, and `production_plan.js`'s `refresh(frm)`/`make_material_request`/
+`create_material_request` handlers, all fetched read-only via `gh api` against `frappe/erpnext`
+this session — then **live-verified** against the real Hetzner instance using the app's own
+"Frontend Integration" service-account credentials (read from `apps/frontend/.env.local`, never
+written/modified/printed). This resolves `MFG-UNV-012`'s Material Request generation uncertainty
+for the finished-good/Purchase-type path; sub-assembly/subcontract-sourced raw material requests
+(`Material Transfer`/`Manufacture`/`Subcontracting` types, multi-location transfer) remain
+source-only (no such data exists on this instance).
+
+### X. The exact method, and the critical difference from Make Work Order
+
+`make_material_request()` is `@frappe.whitelist()` directly on the `ProductionPlan` class
+(**Document-bound**, same `run_doc_method` REST boundary as `make_work_order`/
+`get_sub_assembly_items`), takes no arguments beyond the doc itself, and its body is
+`return MaterialRequestService(self).make_material_request()`.
+
+**Critical, security-relevant difference from `make_work_order`:** `WorkOrderCreationService.
+make_work_order()` opens with `self.doc.reload()`, discarding the payload and re-fetching the real
+document from the DB before doing anything else — so a tampered payload can't influence its
+quantity math. `MaterialRequestService.make_material_request()` has **no such reload** — it
+iterates `self.doc.mr_items` exactly as received, and (per `lib/erpnext.ts`'s own `callRunDocMethod`
+doc comment, already established by PP-2/PP-4) `frappe.get_doc(docs, check_permission=True)` never
+touches the DB for a fetch when called with a `docs` payload — it builds the in-memory `Document`
+purely from whatever dict is sent. **This means the caller is the entire trust boundary for the
+quantity math ERPNext runs.** `makeMaterialRequestAction` (this app's server action) is therefore
+not merely defense-in-depth the way `loadSubmittedOrThrow` is for `make_work_order` — it is the
+*only* thing preventing a client from smuggling inflated `mr_items.quantity`/fabricated rows into a
+real Material Request creation. The action re-fetches the real, saved Production Plan via `getDoc`
+and forwards that object completely untouched (plus the one intentional `submit_material_request`
+flag) — no caller-supplied row/qty data is ever accepted or merged in.
+
+Confirmed (same as `make_work_order`, `get_sub_assembly_items`): **no server-side `docstatus`
+assertion exists in this call chain either** — the `docstatus === 1` gate is exclusively the Desk-UI
+convention already documented in "Button/action visibility by docstatus" above. This app's own
+`loadSubmittedOrThrow` enforces `docstatus === 1` itself, same precedent as
+`productionPlanWorkOrder.ts`.
+
+### Y. Desk flow — a real confirm dialog, unlike Make Work Order's silent one-click
+
+```js
+make_material_request(frm) {
+    frappe.confirm(
+        __("Do you want to submit the material request"),
+        function () { frm.events.create_material_request(frm, 1); },
+        function () { frm.events.create_material_request(frm, 0); }
+    );
+},
+create_material_request(frm, submit) {
+    frm.doc.submit_material_request = submit;
+    frappe.call({ method: "make_material_request", freeze: true, doc: frm.doc,
+        callback: function (r) { frm.reload_doc(); } });
+},
+```
+
+Unlike `make_work_order`, Desk **does** ask the user one question before calling this method: Yes →
+`submit_material_request = 1`, No → `submit_material_request = 0`. `submit_material_request` is not
+a real schema field (confirmed schema drift already noted earlier in this document) — it is a
+transient key added directly to the in-memory `frm.doc` object for the duration of this one
+`run_doc_method` call, read only via `self.doc.get("submit_material_request")` in
+`_submit_material_requests()`, never persisted. This app's `ProductionPlanMakeMaterialRequestAction`
+reproduces the same explicit choice (labelled "Keep as Draft" / "Submit immediately"), with the
+duplicate-risk tradeoff spelled out — information Desk's own dialog never surfaces.
+
+Button visibility (confirmed from `production_plan.js refresh()`, inside the same
+`docstatus === 1` block as the Work Order button): `frm.doc.mr_items && frm.doc.mr_items.length &&
+!["Material Requested", "Closed"].includes(frm.doc.status)`. This app mirrors it as a UI-only rule
+in the page component, same convention as Work Order's own status gate.
+
+### Z. Grouping, quantity, and requested-qty semantics — source read in full
+
+```python
+def make_material_request(self):
+    self.validate_mr_subcontracted()
+    material_request_map = {}
+    material_request_list = []
+    for item in self.doc.mr_items:
+        qty_to_request = flt(flt(item.quantity) - flt(item.requested_qty), item.precision("quantity"))
+        if qty_to_request <= 0:
+            continue
+        self._add_item_to_material_request(item, qty_to_request, material_request_map, material_request_list)
+    if not material_request_list:
+        msgprint(_("All items are already requested"))
+        return
+    self._submit_material_requests(material_request_list)
+```
+
+- **Grouping key: `f"{sales_order}:{material_request_type}:"`** — one Material Request per unique
+  `(sales_order, material_request_type)` pair among `mr_items` rows with `qty_to_request > 0`. A
+  single click can therefore create **multiple** Material Requests (live-confirmed possible, though
+  this session's own test data only exercised the one-MR case — a single Sales Order, single type).
+  `material_request_type` per row falls back to `Item.default_material_request_type` when the row's
+  own value is unset; **no MR-type selection happens at this step** — it uses whatever `mr_items`
+  already carries from the earlier "Get Items for Purchase Only" step (PP-4), which on this
+  instance's only real BOM always resolved to `Purchase`. `Material Transfer` / `Manufacture` /
+  `Subcontracting` types are schema-supported by `mr_items.material_request_type` (PP-4's own
+  finding) but **NOT APPLICABLE / NOT test-verified** by this package — this app's action never
+  lets the client choose or override the type; it only forwards what ERPNext already computed.
+- **`qty_to_request = quantity − requested_qty`, precision-rounded.** This app never reimplements
+  or second-guesses this — the whole `mr_items` array is forwarded untouched (see §X).
+- **Generated Material Request fields** (`_material_request_item()`, `_new_material_request()`):
+  `status: "Draft"` (docstatus 0 until `_submit_material_requests()` optionally submits it),
+  `company` from the Production Plan, `material_request_type`, `transaction_date: nowdate()`,
+  per-item `item_code`/`qty` (`= qty_to_request`, **not** the row's full `quantity`)/`uom`/
+  `warehouse`/`schedule_date` (row's own, or `today + Item.lead_time_days`)/`from_warehouse` (only
+  for `Material Transfer` type)/`project` (from the linked Sales Order, if any), and — the
+  traceability fields — `production_plan` and `material_request_plan_item` (the `mr_items` row's
+  own `name`). **Live-confirmed exact match**, see §CC below.
+- **A group warehouse can never be a target** — `_material_request_item()` throws explicitly if
+  `mr_items.warehouse` resolves to a group warehouse (not exercised live this session — this
+  instance's only real target warehouse, `Finished Goods - CS`, is not a group).
+- **`_submit_material_requests()`**: for each newly-built Material Request, `flags.
+  ignore_permissions = 1`, `run_method("set_missing_values")`, `.save()` (always — this is what
+  actually persists it as Draft), then `if self.doc.get("submit_material_request"):
+  material_request.submit()`. **The requested-vs-required tracking this whole calculation depends
+  on is a *downstream* effect, not something `make_material_request` itself writes**: `Material
+  Request Plan Item.requested_qty` is only incremented by `Material Request.on_submit()` →
+  `update_requested_qty_in_production_plan()` (wired via `hooks.py`'s `doc_events: {"Material
+  Request": {"on_submit": "...update_completed_and_requested_qty", ...}}` — actually the direct
+  call inside `Material Request.on_submit()` itself, not the Stock-Entry-triggered hook function of
+  a similar name; that hook function is for a different call site, `update_completed_and_requested_qty`,
+  triggered by Stock Entry submit/cancel against the *Material Request* itself, not this path) —
+  which does `frappe.db.set_value("Material Request Plan Item", d.material_request_plan_item,
+  "requested_qty", requested_qty + d.qty)` for every item row with both `production_plan` and
+  `material_request_plan_item` set, then reloads the Production Plan and re-derives/writes its
+  `status` (`doc.set_status()` + `doc.db_set("status", doc.status)`).
+
+**This is the source of a real, live-confirmed duplicate-generation gap — see §AA.**
+
+### AA. Duplicate generation — LIVE CONFIRMED, same class of gap as Work Order, different mechanism
+
+**Finding:** clicking "Make Material Request" a second time with "Keep as Draft" selected both
+times, before the first Material Request has been submitted, creates a **second full-quantity
+Material Request for the same requirement** — not a skip, not a smaller top-up.
+
+Live-reproduced this session (`MFG-PP-2026-00006`, sourced from `SAL-ORD-2026-00007`,
+`FG-STEEL-BRACKET-ASSY` × 30, 3 raw-material `mr_items` rows — same test item as every prior
+package):
+
+1. First call, `submit_material_request: 0` → created `MAT-MR-2026-00005` (Draft, 3 items:
+   `RM-BOLT-M6X20` qty 120, `RM-COATING-CPD` qty 1.5, `RM-STEEL-SHEET-2MM` qty 24 — exact BOM-scaled
+   quantities, matching PP-4's own preview numbers exactly).
+2. Re-fetching the Production Plan immediately after showed `mr_items[].requested_qty` still `0`
+   for all three rows — confirms `requested_qty` is untouched by Draft creation, exactly as §Z
+   predicts (the `on_submit()` hook never fired).
+3. Second call, same params, no state change in between → created `MAT-MR-2026-00006` — a genuine
+   second full-quantity duplicate (`RM-BOLT-M6X20` qty 120 again, etc.), because `requested_qty`
+   was still `0` for every row.
+4. After deleting both Draft duplicates (cleanup) and calling a third time with
+   `submit_material_request: 1` → created a Submitted Material Request; the Production Plan's
+   `mr_items[].requested_qty` immediately matched `quantity` exactly (`120`/`1.5`/`24`) — confirming
+   `on_submit()`'s increment fired synchronously within the same request.
+5. A fourth call, same params (`submit_material_request: 1`, no other state change) → created
+   **zero** new Material Requests — `qty_to_request <= 0` for every row, confirming
+   `_submit_material_requests()`'s own `msgprint("All items are already requested")` no-op path and
+   proving the auto-submit path is genuinely idempotent on re-click, unlike the Draft path.
+
+**Root-cause distinction from Work Order's duplicate finding (PP-5, §Q):** Work Order's gap is a
+*read-side* filter (`get_committed_quantities()` only counts `docstatus == 1` Work Orders when
+computing pending qty at *creation* time). Material Request's gap is a *write-side* omission
+(`make_material_request()` never updates `requested_qty` itself — only a downstream document's own
+`on_submit()` does). Same user-visible symptom (Draft-state re-click duplicates), different
+mechanism — worth stating precisely rather than assuming Work Order's exact code path.
+
+**This app's mitigation, in scope for PP-6 (no client-side quantity/locking logic, matching the
+package brief's explicit instruction and PP-5's own precedent):** the Draft/Submit choice is
+presented explicitly (mirroring Desk's own dialog, see §Y) with the duplicate-risk tradeoff spelled
+out in the confirm panel and repeated as a warning after a Draft-result, so the user makes an
+informed choice — not a client-side qty guess or locking framework.
+
+### BB. Concurrency and transaction semantics
+
+`make_material_request()`'s own read (`self.doc.mr_items`, whatever the payload carries) has no
+locking of any kind — it's a plain in-memory loop, not even a fresh `SELECT`. Two near-simultaneous
+calls against the same Production Plan (two tabs, two users, or this app's own action clicked
+twice quickly) would each independently compute the same `qty_to_request` from the same stale
+`requested_qty` and each create a full-quantity Material Request — the same underlying gap as §AA,
+just triggered by simultaneity instead of sequential re-clicking. `Material Request Plan Item.
+requested_qty`'s own write, in `update_requested_qty_in_production_plan()`, is a plain
+`frappe.get_value()` read-then-`frappe.db.set_value()` write with **no `for_update=True`** either —
+a genuine, source-confirmed lost-update race is possible if two Material Requests referencing the
+same `mr_items` row were submitted concurrently, though this is materially less likely to be hit in
+practice than the sequential Draft-reclick case above. No locking framework is added for PP-6, per
+the same package-brief instruction PP-5 followed.
+
+No explicit `frappe.db.commit()` appears in `_submit_material_requests()`'s per-Material-Request
+loop — standard Frappe request-transaction semantics apply (well-established, not re-derived from
+this file specifically): the whole request commits atomically only if no exception escapes it. No
+exception is explicitly swallowed inside this loop (contrast Work Order's `OverProductionError`
+catch) — an exception partway through (e.g. the second of three grouped Material Requests failing
+`set_missing_values()`) would roll back the entire request, including any Material Request already
+`.save()`d earlier in the same loop, since Frappe requests don't commit per-statement. **SOURCE
+VERIFIED, not separately live-exercised** — this session's own test never produced more than one
+Material Request per call, so the multi-MR partial-failure path itself was not directly observed.
+
+### CC. Side-effect matrix (Make Material Request)
+
+| Effect | Result | Evidence |
+|---|---|---|
+| Production Plan field write | NO (own fields, e.g. `mr_items[].requested_qty`, unchanged by this call itself) | **LIVE VERIFIED** — re-fetched immediately after a Draft-generating call, `requested_qty` still `0` on every row |
+| Material Request insert | YES, one per distinct `(sales_order, material_request_type)` group | **LIVE VERIFIED** — `MAT-MR-2026-00005`/`-00006` |
+| Material Request docstatus on insert | Draft (`0`) unless `submit_material_request` truthy, then Submitted (`1`) in the same request | **LIVE VERIFIED** — both paths exercised |
+| `Material Request Plan Item.requested_qty` write | NO for Draft; YES (`quantity` added) immediately on Submit, via `Material Request.on_submit()` — not by `make_material_request()` itself | **LIVE VERIFIED** — both paths |
+| Traceability fields (`production_plan`, `material_request_plan_item` on `Material Request Item`) | YES, exact match | **LIVE VERIFIED** — see full item dump below |
+| Bin write | Not directly tested this session (no stock existed at the test warehouse either way) | SOURCE VERIFIED — `make_material_request()` itself contains no `Bin`/stock-ledger code path; any Bin `indented_qty` effect would come from `Material Request.update_requested_qty()`, a separate, unrelated method keyed off `is_stock_item`, not exercised/diffed this session |
+| Stock Ledger Entry | NO | SOURCE VERIFIED — no stock-posting code anywhere in `make_material_request()`'s call chain |
+| GL Entry | NO | SOURCE VERIFIED — same reasoning |
+| Work Order | NO (separate `make_work_order` action, not invoked) | SOURCE VERIFIED |
+| Purchase Order | NO (this call never creates one; only the Buying module's own PO-from-MR flow, out of scope, would) | SOURCE VERIFIED |
+| Stock Reservation Entry | NO (separate `reserve_stock` mechanism, not invoked) | SOURCE VERIFIED, consistent with prior packages |
+
+Live item-level dump (`MAT-MR-2026-00005`, Draft, first call):
+
+```
+company: "Ceylon Stack", material_request_type: "Purchase", transaction_date: "2026-09-20"
+items:
+  RM-BOLT-M6X20      qty 120  uom Nos    warehouse "Finished Goods - CS"  production_plan MFG-PP-2026-00006  material_request_plan_item k1blivo8sk
+  RM-COATING-CPD     qty 1.5  uom Litre  warehouse "Finished Goods - CS"  production_plan MFG-PP-2026-00006  material_request_plan_item k1b80cnstd
+  RM-STEEL-SHEET-2MM qty 24   uom Kg     warehouse "Finished Goods - CS"  production_plan MFG-PP-2026-00006  material_request_plan_item k1b630a247
+```
+
+### DD. New finding: Production Plan cancel is blocked by a linked Submitted Material Request
+
+Not predicted by this package's brief, discovered incidentally during cleanup: attempting to cancel
+`MFG-PP-2026-00006` (`docstatus: 2`) while the Submitted Material Request it created
+(`MAT-MR-2026-00006`, from the auto-submit test) still existed failed with a genuine Frappe
+`LinkExistsError`:
+
+```
+Cannot delete or cancel because Production Plan MFG-PP-2026-00006 is linked with
+Material Request MAT-MR-2026-00006
+```
+
+This **independently confirms**, for the first time with a real reproduction, the claim
+`production-plan.md`'s own §C.1 (PP-4) recorded on trust without independent verification:
+"Production Plan cancellation with submitted linked downstream documents is source-confirmed to
+fail safely through Frappe backlink checking / `LinkExistsError`." That claim can now be upgraded
+from "recorded per instruction, not independently verified" to **LIVE VERIFIED**, at least for the
+Material-Request-linked case specifically (the Work-Order-linked case remains as PP-5 left it —
+Work Orders are Draft-only at creation and get auto-deleted on cancel via `delete_draft_work_order()`
+before this check would ever matter for that path, and no *Submitted* Work Order linked to a
+Ceylon-Stack-created plan has been produced to test the WO-linked variant of this same check).
+
+Also newly confirmed: **`on_cancel()` has no Material-Request-deletion step at all** (contrast
+`delete_draft_work_order()`, which *does* auto-delete Draft Work Orders on cancel) — so even a
+still-*Draft* Material Request created from a plan would **not** be auto-cleaned by cancelling the
+Production Plan; it would need to be manually deleted first, same as the Submitted case above, just
+without the `LinkExistsError` blocking the cancel itself (a Draft downstream document doesn't
+trigger Frappe's backlink check the way a Submitted one does). This app does not ship a Cancel
+feature (per PP-3's own scope decision, unchanged), so this is recorded as canonical-model
+knowledge, not something requiring a UI change.
+
+### EE. A live-reproduced bug in this app's own query helper (not an ERPNext defect)
+
+While diffing before/after Material Request state during this test, the nested list-filter query
+`Material Request?filters=[["Material Request Item","production_plan","=","<name>"]]` was observed
+to return **one row per matching child item, not one per distinct parent** — a 3-item Material
+Request came back 3 times in the same response. `productionPlanMaterialRequest.ts`'s
+`listMaterialRequestNames()` and the Traceability tab's own query in `page.tsx` were both written
+to expect this and dedupe by `name` before use — fixed before shipping. **The same nested-filter
+pattern already exists, unfixed, in the previously-accepted PP-5 code**
+(`productionPlanWorkOrder.ts`'s `listSubcontractPurchaseOrderNames`, querying `Purchase Order` via
+`Purchase Order Item.production_plan`) — not fixed as part of this package (out of PP-6's scope,
+and no live sub-assembly/subcontract data exists on this instance to have actually triggered it
+yet, so it has produced no observed incorrect output so far). Flagged here for a future
+remediation package to fix at the source.
+
+### FF. Frontend footprint — PP-6 (2026-09-20)
+
+New: `lib/actions/productionPlanMaterialRequest.ts` (`makeMaterialRequestAction` — re-fetches and
+re-checks `docstatus === 1` fresh, forwards the untouched fetched document plus one
+`submit_material_request` flag, never merges any caller-supplied row data; diffs `Material Request`
+back-references before/after the native call, deduped by name per §EE), new component
+`ProductionPlanMakeMaterialRequestAction.tsx` (two-step inline confirm offering "Keep as Draft" /
+"Submit immediately", mirroring Desk's own dialog with the duplicate-risk tradeoff spelled out;
+result panel lists created Material Requests via the canonical `/buying/material-requests/[name]`
+route), wired into `production-plans/[name]/page.tsx`'s header action bar next to the existing Make
+Work Order button, visible when `docstatus === 1 && mr_items.length > 0 && status not in
+["Material Requested", "Closed"]` (UI-only convention mirroring Desk's own button gate, not
+server-enforced — see §X). The Traceability tab's previously-deferred "Material Request
+Traceability" placeholder is replaced with a real table (Material Request / Docstatus / Type /
+Date), joined through `Material Request Item.production_plan` per the canonical model, deduped per
+§EE. The Overview tab's scope-disclosure paragraph was updated to reflect both "Make ..." actions
+now being independently available on a Submitted plan. PP-1's other tabs, PP-2's create wizard,
+PP-3's Submit button, PP-4's two Draft-only planning panels, and PP-5's Make Work Order action are
+unchanged.
+
+### GG. Runtime verification, 2026-09-20 — full round trip against the real Hetzner instance
+
+With the user's explicit go-ahead (this creates and submits real Material Request documents, not a
+zero-trace create+delete):
+
+1. `get_open_sales_orders` → tried each eligible Sales Order's `combine_so_items` result in turn
+   until one yielded `po_items` (same known single-active-BOM gate as every prior package) →
+   `SAL-ORD-2026-00007` again, `FG-STEEL-BRACKET-ASSY` × 30 → `POST /api/resource/Production Plan`
+   created `MFG-PP-2026-00006` (Draft).
+2. `get_items_for_material_requests` (module-level, `for_warehouse` set **both** on the doc payload
+   and in the `warehouses` array — omitting it from the doc payload silently produced zero rows,
+   a real, easy-to-miss requirement not previously exercised this precisely) → 3 raw-material rows,
+   exact BOM-scaled quantities (see §Z).
+3. `PUT` saved `for_warehouse` + `mr_items` to the Draft (mirrors `saveMaterialRequirementsAction`).
+4. `PUT` `{"docstatus": 1}` → Submitted.
+5. First `make_material_request` (`submit_material_request: 0`) → `MAT-MR-2026-00005` (Draft, 3
+   items, exact traceability — see §CC).
+6. Re-fetch: `mr_items[].requested_qty` still `0` on all 3 rows.
+7. Second `make_material_request`, same params → `MAT-MR-2026-00006` — the duplicate, §AA.
+8. Deleted both Draft Material Requests (cleanup) — succeeded, Draft docs are freely deletable.
+9. Third `make_material_request` (`submit_material_request: 1`) → a new Submitted Material Request
+   (Frappe's naming series reused the name `MAT-MR-2026-00006` after the prior same-named Draft was
+   deleted — a naming-series-revert-on-delete coincidence that only affected this multi-step test
+   script's own before/after bookkeeping across cleanup boundaries, not `makeMaterialRequestAction`
+   itself, which only ever diffs within one single action call).
+10. Re-fetch: `mr_items[].requested_qty` now exactly `120`/`1.5`/`24` — matches `quantity` exactly.
+11. Fourth `make_material_request`, same params → zero new documents (§AA point 5).
+12. Cleanup: cancelled the Submitted Material Request (`docstatus: 2`, succeeded) → deleted it
+    (succeeded — a Cancelled Material Request was deletable here, same non-guaranteed-retention
+    pattern PP-3's own QA pass already found for a Cancelled Production Plan). Then cancelled the
+    Production Plan itself — **this only succeeded after** the linked Material Request was gone
+    (§DD's `LinkExistsError` finding, discovered when attempted in the other order) — then deleted
+    it. Final state: zero residual documents on the instance from this test (`MFG-PP-2026-00006`,
+    `MAT-MR-2026-00005`, `MAT-MR-2026-00006` all confirmed 404 on re-fetch).
+
+**Sub-assembly/subcontract-sourced Material Request generation (`Manufacture`/`Subcontracting`
+types, `_collect_po_items()`'s `sub_assembly_items` branch): SOURCE VERIFIED / NOT RUNTIME
+VERIFIED** — same gap as PP-4/PP-5's own sub-assembly limitations, no BOM with sub-assembly
+components exists on this instance.
 
 ## NEEDS_VERIFICATION
 

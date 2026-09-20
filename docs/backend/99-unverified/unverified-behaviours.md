@@ -110,21 +110,53 @@ resulting Work Order/Material Request generation and any sub-assembly BOM explos
 
 ### MFG-UNV-012 — Production Plan runtime behavior (no live document exists)
 **Status:** `NEEDS_VERIFICATION`, **partially resolved 2026-09-20 (PP-2, then further narrowed and
-live-verified by PP-3, then further narrowed and live-verified by PP-4, then further narrowed and
-live-verified by PP-5, all same day)** — demand sourcing and Draft creation are live-confirmed
-(PP-2, see below); submit lifecycle is now `LIVE VERIFIED` and implemented (PP-3, see below);
-sub-assembly explosion (`get_sub_assembly_items`) and single-warehouse raw-material shortage
-calculation (`get_items_for_material_requests`) are now `LIVE VERIFIED` and implemented (PP-4, see
-below); **finished-good Work Order generation (`make_work_order`) is now `LIVE VERIFIED` and
-implemented (PP-5)**, including a live-confirmed duplicate-generation finding (re-running the
-action before submitting the Work Order it just created generates a second full-quantity one) and
-a live-confirmed cancel-cascade (cancelling the source Production Plan hard-deletes any still-Draft
-Work Order it created) — see `production-plan.md`'s "Work Order Generation (PP-5)" section; cancel's
-safe-path behavior is live-confirmed as test cleanup but not shipped as an app feature; amend was
-investigated but deliberately left unimplemented; stock reservation (beyond confirming
-`reserve_stock=0` is a no-op), Make Material Request generation, sub-assembly/subcontract Work
-Order generation (no test data exists on this instance), and multi-location "Get Items for Purchase
-/ Transfer" remain entirely unexercised and unimplemented.
+live-verified by PP-3, PP-4, PP-5, and PP-6, all same day)** — demand sourcing and Draft creation
+are live-confirmed (PP-2, see below); submit lifecycle is now `LIVE VERIFIED` and implemented
+(PP-3, see below); sub-assembly explosion (`get_sub_assembly_items`) and single-warehouse
+raw-material shortage calculation (`get_items_for_material_requests`) are now `LIVE VERIFIED` and
+implemented (PP-4, see below); finished-good Work Order generation (`make_work_order`) is
+`LIVE VERIFIED` and implemented (PP-5), including a live-confirmed duplicate-generation finding
+(re-running the action before submitting the Work Order it just created generates a second
+full-quantity one) and a live-confirmed cancel-cascade (cancelling the source Production Plan
+hard-deletes any still-Draft Work Order it created) — see `production-plan.md`'s "Work Order
+Generation (PP-5)" section; **finished-good Material Request generation (`make_material_request`)
+is now `LIVE VERIFIED` and implemented (PP-6)**, including a live-confirmed duplicate-generation
+finding of its own (re-running the action before submitting the Draft Material Request it just
+created generates a second full-quantity one — the same class of gap as Work Order, but via a
+different mechanism: `requested_qty` only updates on `Material Request.on_submit()`) and a new,
+unplanned finding: cancelling the source Production Plan is **blocked** (`LinkExistsError`) while a
+Submitted Material Request it created still exists — the opposite of Work Order's auto-delete
+cascade, since `on_cancel()` has no Material-Request-deletion step at all — see
+`production-plan.md`'s "Material Request Generation (PP-6)" section. Cancel's safe-path behavior is
+live-confirmed as test cleanup but not shipped as an app feature; amend was investigated but
+deliberately left unimplemented; stock reservation (beyond confirming `reserve_stock=0` is a
+no-op), sub-assembly/subcontract Work Order generation (no test data exists on this instance), and
+multi-location "Get Items for Purchase / Transfer" remain entirely unexercised and unimplemented.
+
+**2026-09-20 update (PP-6 — Material Request generation, source read + live test):** full source
+read of `services/material_request.py`'s `MaterialRequestService.make_material_request()`,
+`erpnext/stock/doctype/material_request/material_request.py` (`on_submit()`/
+`update_requested_qty_in_production_plan()`), `hooks.py`'s `doc_events` wiring, and
+`production_plan.js`'s `make_material_request`/`create_material_request` handlers — see
+`production-plan.md`'s "Material Request Generation (PP-6)" section for full detail. Key
+resolutions: (a) `make_material_request` is Document-bound (`run_doc_method`, same boundary as
+`make_work_order`) but, unlike `make_work_order`, has **no `self.doc.reload()`** — it trusts
+whatever `mr_items` the caller's payload carries, making the caller (this app's server action) the
+entire trust boundary against a tampered quantity; (b) grouping is by `(sales_order,
+material_request_type)` — live-confirmed one Production Plan can and did produce multiple distinct
+Material Requests when those differ, one when they don't; (c) `requested_qty` (the field the
+qty-to-request math nets against) is incremented **only** by `Material Request.on_submit()`, not by
+mere Draft creation — live-confirmed: a Draft Material Request left `requested_qty` at `0`, and
+re-running the action created a second full-quantity duplicate; auto-submitting
+(`submit_material_request: 1`) increments it immediately, and a follow-up call correctly created
+zero new documents; (d) a real, live-reproduced bug was found in this app's own diffing helper
+during testing (not an ERPNext bug): the nested `[Material Request Item, production_plan, =,
+<name>]` list filter returns one PARENT row per MATCHING CHILD row, not one per distinct parent —
+fixed in `productionPlanMaterialRequest.ts`/`page.tsx` before shipping (dedupe by `name`); the
+**same unfixed pattern already exists in the accepted PP-5 code**
+(`productionPlanWorkOrder.ts`'s `listSubcontractPurchaseOrderNames`, `Purchase Order Item`) — not
+fixed here (out of this package's scope; no live sub-assembly/subcontract data exists to have
+triggered it yet), flagged for a future remediation package.
 
 **2026-09-20 update (PP-4 — sub-assembly explosion + raw-material calc, source read + live
 test):** full source read of `services/sub_assembly.py`, `services/sub_assembly_queries.py`,

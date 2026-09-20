@@ -3178,3 +3178,113 @@ TEMP_DUAL_CLAUDE_MODE.md` §16, this acceptance is subject to Codex's reconcilia
 Notion sync (deferred until acceptance per the implementer's own note above, now due), then Make
 Material Request or a BOM Management package as the next candidate per the implementer's own
 recommendation.
+
+## Package: Production Plan PP-6 — Material Request Generation (temporary dual-Claude mode, 2026-09-20)
+
+**PACKAGE:** Production Plan PP-6 (Material Request Generation)
+**ROLE:** IMPLEMENTER
+**AGENT:** this session (no durable session identifier exposed by the environment — recorded per
+`TEMP_DUAL_CLAUDE_MODE.md` §18's own instruction for that case)
+**IMPLEMENTER:** this session, no durable session identifier available
+**REVIEWER:** the other Claude account — not yet assigned; not self-reviewable per protocol §1
+**ASSIGNED BY:** Niroshan
+**ASSIGNMENT TIMESTAMP:** 2026-09-20
+**BASE COMMIT:** `812acae` (PP-5's own governance closure + documentation sync — `ACCEPTED`
+baseline per the assignment prompt: PP-1 through PP-5 all `ACCEPTED`)
+**TARGET:** Submitted Production Plan → ERPNext-native "Make Material Request" → generated
+Material Request document(s), with explicit `production_plan`/`material_request_plan_item`
+traceability — one execution transition only, per the assignment prompt's own explicit exclusion
+list (no Purchase Order, Purchase Receipt, Purchase Invoice, Make Work Order changes, Reserve/
+Unreserve Stock, Stock Entry, Material Transfer, Manufacture, subcontract execution, Production
+Plan Cancel/Amend, workflow/approval, PP-7+).
+
+### Objective
+
+Sibling package to PP-5: the second of Production Plan's two "Make ..." execution transitions.
+Same first-class concerns as PP-5 (idempotency, duplicate generation, traceability, permissions,
+concurrency, lifecycle state), plus an explicit instruction to investigate `submit_material_request`
+semantics and the Material Request vs. Material Requirement boundary that PP-4 already established.
+
+### Investigation (required before implementation)
+
+Full read of `production_plan.py`'s `make_material_request()` (one-line delegator),
+`services/material_request.py` (`MaterialRequestService` — the actual creation logic),
+`erpnext/stock/doctype/material_request/material_request.py`'s `on_submit()`/
+`update_requested_qty_in_production_plan()`, `hooks.py`'s `doc_events` wiring, and
+`production_plan.js`'s `refresh(frm)`/`make_material_request`/`create_material_request` handlers,
+all fetched read-only via `gh api` against `frappe/erpnext` this session. Full findings in
+`docs/backend/05-manufacturing/production-plan.md`'s new "Material Request Generation (PP-6)"
+section — summary:
+
+- `make_material_request` is Document-bound, whitelisted, no arguments — but **unlike
+  `make_work_order`, it never calls `self.doc.reload()`**. It trusts `self.doc.mr_items` exactly as
+  received in the `run_doc_method` payload, and `frappe.get_doc(docs)` never touches the DB for a
+  fetch — making the calling server action the *entire* trust boundary for the quantity math
+  ERPNext runs, not merely defense-in-depth. This is the single most important finding of this
+  package and is called out explicitly in both the implementation code comments and the backend doc.
+- Carries **zero server-side docstatus/status check** either — same Desk-UI-only convention already
+  established for `make_work_order`/`get_sub_assembly_items`.
+- Desk's own handler asks the user a real question (`frappe.confirm("Do you want to submit the
+  material request")`) before calling this method — `submit_material_request` is a transient,
+  non-schema flag set directly on the in-memory doc for the duration of one call, never persisted.
+- Grouping key: `(sales_order, material_request_type)` — one Material Request per unique
+  combination among `mr_items` rows with outstanding `quantity − requested_qty`.
+- **Live-confirmed duplicate-generation finding, different mechanism than PP-5's**:
+  `requested_qty` is only incremented by `Material Request.on_submit()`, never by
+  `make_material_request()` itself — so a Draft Material Request leaves the qty math unchanged,
+  and re-running the action before submitting it creates a genuine full-quantity duplicate.
+  Auto-submitting closes this gap immediately (confirmed idempotent on a follow-up call).
+- **New, unplanned finding**: cancelling the Production Plan is blocked by a real
+  `LinkExistsError` while a Submitted Material Request it created still exists — independently
+  confirms PP-4's own §C.1 claim, previously recorded on trust only. `on_cancel()` has no
+  Material-Request-deletion step, unlike Work Order's auto-delete-Draft cascade.
+- **Own-code bug found and fixed during live testing**: the nested `[Material Request Item,
+  production_plan, =, name]` list filter returns one row per matching child item, not one per
+  parent — fixed via dedup in this package's own two query sites; the identical unfixed pattern
+  already exists in the previously-accepted PP-5 code (`listSubcontractPurchaseOrderNames`) —
+  flagged for a future remediation package, not fixed here (out of this package's scope).
+
+### Implementation
+
+`lib/actions/productionPlanMaterialRequest.ts` (new) — `makeMaterialRequestAction`: re-fetches the
+Production Plan and re-checks `docstatus === 1` fresh; forwards the freshly-fetched document
+completely untouched (plus one `submit_material_request` flag) to `callRunDocMethod`, never
+merging any caller-supplied row/qty data, per the security-critical finding above; since
+`make_material_request()` returns nothing usable, diffs deduped `Material Request` back-reference
+queries taken immediately before and after the call. `components/
+ProductionPlanMakeMaterialRequestAction.tsx` (new) — two-step inline confirm offering "Keep as
+Draft" / "Submit immediately" (mirroring Desk's own dialog, with the duplicate-risk tradeoff
+spelled out), wired into the Production Plan detail page's header action bar next to Make Work
+Order, visible when `docstatus === 1 && mr_items.length > 0` and `status` not in `["Material
+Requested", "Closed"]`. The Traceability tab's previously-deferred Material Request section is now
+a real, deduped table. Package size: 2 new files (~150 lines combined) + edits to one existing
+page — matches "one small package," does not reopen any still-gated Manufacturing scope.
+
+### Verification
+
+`npx tsc --noEmit` / `npm run lint` / `npm run build` — all clean, re-run after the dedup fix.
+`git diff --check` — clean (pre-existing CRLF warnings only, on files this package's line endings
+didn't touch). Live round trip against the real Hetzner instance, user's explicit go-ahead
+obtained beforehand (this session, this conversation — not carried over from a prior session's
+authorization): created and submitted a fresh Production Plan (`MFG-PP-2026-00006`, same
+`SAL-ORD-2026-00007`/`FG-STEEL-BRACKET-ASSY` test fixture every prior package used), exercised
+Draft creation, the duplicate-on-Draft-reclick finding, auto-submit, idempotency-once-submitted,
+and the Production-Plan-cancel-block finding — full detail and exact evidence in
+`production-plan.md`'s §GG and `QA_LOG.md`'s PP-6 entry. Zero residual trace on the instance after
+cleanup (all three test documents confirmed 404 on re-fetch).
+
+### State
+
+Package state: **`CLAUDE_HANDOFF`. Not self-declared accepted.** Per `docs/controls/
+TEMP_DUAL_CLAUDE_MODE.md`, this requires independent cross-review from the other Claude account
+before acceptance — including independent verification of the security-critical no-reload finding
+(is forwarding the untouched fetched document actually sufficient, or does some other gap exist),
+the duplicate-generation mitigation, the new Production-Plan-cancel-block finding, and the
+deliberate decision not to fix PP-5's identical dedup bug in this package.
+
+**Recommended next action:** independent review of this package (architecture/ERPNext-compatibility/
+security/documentation-accuracy per protocol §7, with particular attention to the no-`reload()`
+trust-boundary claim and whether the Draft/Submit UI choice is a sufficient mitigation for the
+duplicate-generation finding), then a small remediation package to fix PP-5's own dedup bug
+(`listSubcontractPurchaseOrderNames`), Job Card list/detail, or a BOM Management package (to unlock
+real sub-assembly/subcontract runtime testing) as the next candidate.
