@@ -110,15 +110,21 @@ resulting Work Order/Material Request generation and any sub-assembly BOM explos
 
 ### MFG-UNV-012 — Production Plan runtime behavior (no live document exists)
 **Status:** `NEEDS_VERIFICATION`, **partially resolved 2026-09-20 (PP-2, then further narrowed and
-live-verified by PP-3, then further narrowed and live-verified by PP-4, all same day)** — demand
-sourcing and Draft creation are live-confirmed (PP-2, see below); submit lifecycle is now `LIVE
-VERIFIED` and implemented (PP-3, see below); sub-assembly explosion (`get_sub_assembly_items`) and
-single-warehouse raw-material shortage calculation (`get_items_for_material_requests`) are now
-`LIVE VERIFIED` and implemented (PP-4, see below); cancel's safe-path behavior is live-confirmed as
-test cleanup but not shipped as an app feature; amend was investigated but deliberately left
-unimplemented; stock reservation (beyond confirming `reserve_stock=0` is a no-op), Work
-Order/Material Request generation, and multi-location "Get Items for Purchase / Transfer" remain
-entirely unexercised and unimplemented.
+live-verified by PP-3, then further narrowed and live-verified by PP-4, then further narrowed and
+live-verified by PP-5, all same day)** — demand sourcing and Draft creation are live-confirmed
+(PP-2, see below); submit lifecycle is now `LIVE VERIFIED` and implemented (PP-3, see below);
+sub-assembly explosion (`get_sub_assembly_items`) and single-warehouse raw-material shortage
+calculation (`get_items_for_material_requests`) are now `LIVE VERIFIED` and implemented (PP-4, see
+below); **finished-good Work Order generation (`make_work_order`) is now `LIVE VERIFIED` and
+implemented (PP-5)**, including a live-confirmed duplicate-generation finding (re-running the
+action before submitting the Work Order it just created generates a second full-quantity one) and
+a live-confirmed cancel-cascade (cancelling the source Production Plan hard-deletes any still-Draft
+Work Order it created) — see `production-plan.md`'s "Work Order Generation (PP-5)" section; cancel's
+safe-path behavior is live-confirmed as test cleanup but not shipped as an app feature; amend was
+investigated but deliberately left unimplemented; stock reservation (beyond confirming
+`reserve_stock=0` is a no-op), Make Material Request generation, sub-assembly/subcontract Work
+Order generation (no test data exists on this instance), and multi-location "Get Items for Purchase
+/ Transfer" remain entirely unexercised and unimplemented.
 
 **2026-09-20 update (PP-4 — sub-assembly explosion + raw-material calc, source read + live
 test):** full source read of `services/sub_assembly.py`, `services/sub_assembly_queries.py`,
@@ -224,23 +230,26 @@ confirms: the Sales Order eligibility/pending-qty query, `po_items.bom_no` resol
 persistence all behave as documented. See `production-plan.md`'s `MFG-PP2-001` for the
 `run_doc_method` payload requirement this also surfaced (needs explicit `name`/`__islocal`/
 `__unsaved` on an unsaved-doc payload, or the live instance 404s).
-**What's still uncertain:** (1) everything **beyond the create flow above** remains
-source-derived, not live-observed — no actual Work Order/Material Request generation,
-sub-assembly explosion, or submit/cancel/stock-reservation lifecycle has been run and inspected
-(zero Production Plan documents are left on the instance between sessions, by design — the one
-created for this verification was deleted); (2) a confirmed schema drift exists between the
-fetched GitHub source and the live
-instance — the source's Material Request auto-submit path reads `self.doc.get(
-"submit_material_request")`, but no such field exists in the live `Production Plan` schema,
-meaning the installed ERPNext version is close to but not identical to the fetched branch, so any
-source-derived claim could have similar small drifts elsewhere; (3) whether `make_work_order`/
-`make_material_request`/`get_sub_assembly_items` etc. actually require `docstatus = 1` (Submitted)
-before they're callable — that gate is enforced in Desk `.js`/button visibility, not in the `.py`
-read this pass; (4) `reserve_stock_for_production_plan` (Stock Reservation Entry creation) was not
-read — `reserve_stock`'s full effect beyond the `Bin` reserved-qty update is unconfirmed; (5)
-`Purchase Order.production_plan`-style back-reference for subcontracted sub-assembly rows was
-inferred from the Python (`production_plan` passed into `_subcontract_po_item`) but not confirmed
-against the live `Purchase Order`/`Purchase Order Item` schema.
+**What's still uncertain:** (1) everything **beyond the create/submit/sub-assembly-planning/
+finished-good-Work-Order-generation flows now shipped (PP-2 through PP-5)** remains source-derived,
+not live-observed — Make Material Request generation, sub-assembly/subcontract Work Order
+generation, and stock-reservation lifecycle have not been run and inspected; (2) a confirmed schema
+drift exists between the fetched GitHub source and the live instance — the source's Material
+Request auto-submit path reads `self.doc.get("submit_material_request")`, but no such field exists
+in the live `Production Plan` schema, meaning the installed ERPNext version is close to but not
+identical to the fetched branch, so any source-derived claim could have similar small drifts
+elsewhere; (3) **partially resolved (PP-5, 2026-09-20):** `make_work_order` is now live-confirmed
+to carry **no server-side `docstatus`/`status` assertion of any kind** — the `docstatus = 1` gate
+is exclusively Desk `.js`/button-visibility, exactly as already suspected for `get_sub_assembly_items`.
+`make_material_request` was not re-checked this pass and remains open on the same question; (4)
+`reserve_stock_for_production_plan` (Stock Reservation Entry creation) was not read — `reserve_stock`'s
+full effect beyond the `Bin` reserved-qty update is unconfirmed; (5) **resolved (PP-5, 2026-09-20):**
+`Purchase Order Item.production_plan` (Link → Production Plan) is now **live-schema-confirmed**
+via `get_doctype_fields` against the real instance — the back-reference lives on the child row
+(`Purchase Order Item`), not the parent `Purchase Order` doctype, matching the Python read exactly.
+The actual subcontract-PO creation flow itself remains source-only — no Subcontract-type
+sub-assembly row exists on this instance to exercise it live (see `production-plan.md`'s "Work
+Order Generation (PP-5)" §W).
 **How to verify:** Sales Order → Draft Production Plan creation (PP-2), Submit (PP-3), and Get Sub
 Assembly Items / Get Items for Purchase Only (PP-4) are all now live-verified. Cancel needs
 Frappe's generic submitted-document cancel-block behavior read/tested before it can be shipped as

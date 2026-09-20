@@ -4,6 +4,7 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocActionBar } from "@/components/DocActionBar";
 import { DocField } from "@/components/DocField";
 import { DocTabs } from "@/components/DocTabs";
+import { ProductionPlanMakeWorkOrderAction } from "@/components/ProductionPlanMakeWorkOrderAction";
 import { ProductionPlanMaterialRequirementPanel } from "@/components/ProductionPlanMaterialRequirementPanel";
 import { ProductionPlanSubAssemblyPanel } from "@/components/ProductionPlanSubAssemblyPanel";
 import { StatusPill } from "@/components/StatusPill";
@@ -264,10 +265,11 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
         A Draft Production Plan can be submitted from this page (see Submit above) through
         ERPNext&apos;s own native lifecycle. Get Sub Assembly Items (Sub-Assemblies tab) and Get
         Items for Purchase Only (Material Requirements tab) are available while this plan is a
-        Draft — see those tabs. Get Sales Orders/Material Request, Get Finished Goods, Make Work
-        Order, and Make Material Request remain unavailable here — including on a Submitted plan,
-        where ERPNext itself would expose them — see this record&apos;s current backend-recorded
-        state above.
+        Draft — see those tabs. Make Work Order is available once this plan is Submitted (see the
+        button above) and delegates entirely to ERPNext&apos;s own native generation — see the
+        Generated Work Orders tab for the result. Get Sales Orders/Material Request, Get Finished
+        Goods, and Make Material Request remain unavailable here — see this record&apos;s current
+        backend-recorded state above.
       </p>
     </div>
   );
@@ -689,6 +691,9 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
             label="Submit"
             pendingLabel="Submitting…"
           />
+        )}
+        {doc.docstatus === 1 && !["Completed", "Closed"].includes(doc.status) && (
+          <ProductionPlanMakeWorkOrderAction name={doc.name} />
         )}
       </div>
       <DocTabs

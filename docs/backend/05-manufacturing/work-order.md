@@ -148,6 +148,22 @@ non-blocking `NEEDS_VERIFICATION`.
 - **`MFG-WF-001`** — This frontend only ever calls `createDoc`, never `submitDoc`/`cancelDoc`, on
   Work Order itself. Every Work Order created here stays at `docstatus 0` (Draft) indefinitely
   from this app's perspective — Submit/Cancel is a distinct future scoped package.
+- **`MFG-WF-003`** (PP-5, 2026-09-20) — Work Order can now also be created via **Production Plan →
+  Make Work Order** (`ProductionPlanMakeWorkOrderAction.tsx` / `lib/actions/productionPlanWorkOrder.ts`
+  → ERPNext's native `WorkOrderCreationService.make_work_order`), a second creation path alongside
+  this doctype's own `/manufacturing/work-orders/new` form. Live-confirmed (`MFG-WO-2026-00009`,
+  2026-09-20): starts `docstatus 0`/Draft, same as this app's own create flow (`MFG-WF-001` still
+  holds — nothing submits it), but with `production_plan`/`production_plan_item`/
+  `production_plan_sub_assembly_item` back-references populated and inserted with
+  `flags.ignore_mandatory = True` / `flags.ignore_validate = True` — ERPNext trusts its own
+  upstream Production Plan data and bypasses Work Order's normal create-time validation entirely
+  for this path (a real trust-boundary distinction from this app's own `createDoc` path, which runs
+  full validation). See `production-plan.md`'s "Work Order Generation (PP-5)" section for the full
+  quantity semantics, the live-confirmed duplicate-generation finding (re-running "Make Work Order"
+  before submitting the Work Order it just created generates a second full-quantity one, since
+  ERPNext's own pending-qty calculation only nets out *Submitted* Work Orders), and the
+  live-confirmed cancel-cascade (cancelling the source Production Plan hard-deletes any still-Draft
+  Work Order it created, via `delete_draft_work_order()`).
 - **`MFG-WF-002`** — The ERPNext-native mechanism for a Work-Order-specific material deviation
   during production (add a non-BOM item, remove one, substitute one) is **Stock-Entry-driven, not
   a Work Order edit** — see `material-transfer.md`'s `MFG-STK-001`/`MFG-STK-002` and
@@ -158,7 +174,7 @@ non-blocking `NEEDS_VERIFICATION`.
 
 | Action | Built in this frontend? | Behavior |
 |---|---|---|
-| Create | **Yes** | `createDoc("Work Order", {...})` → `docstatus 0`. ERPNext's `validate()` auto-populates `required_items`; `operations` is now sent explicitly by this app (see `MFG-UNV-004a`, fixed 2026-09-17, field set corrected 2026-09-18). |
+| Create | **Yes — two paths** | (1) Direct: `createDoc("Work Order", {...})` → `docstatus 0`. ERPNext's `validate()` auto-populates `required_items`; `operations` is now sent explicitly by this app (see `MFG-UNV-004a`, fixed 2026-09-17, field set corrected 2026-09-18). (2) Via Production Plan → Make Work Order (PP-5, 2026-09-20): native `make_work_order`, also `docstatus 0`, but with Production Plan back-references and `ignore_mandatory`/`ignore_validate` flags — see `MFG-WF-003`. |
 | Save (Draft edit) | No | Not exposed; see `MFG-VAL-003` for what would happen if it were. |
 | Submit | No | Future package. Submitting is what actually makes `canTransferMaterials()` return true, and is a prerequisite Desk-side action this app assumes already happened for a Work Order it displays. |
 | Cancel | No | Future package. |

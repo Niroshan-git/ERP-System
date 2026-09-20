@@ -4,13 +4,15 @@ Domain status: `DOCUMENTED` (schema + business-rule source-verified; **create fl
 live-write-verified** as of PP-2, 2026-09-20; **submit lifecycle source-verified AND
 live-verified, and implemented**, as of PP-3, same day; **sub-assembly explosion and
 raw-material/shortage calculation source-verified AND live-verified, and implemented**, as of
-PP-4, same day — see "Sub-Assembly Planning + Material Requirements (PP-4)" below. Cancel
-investigated and its safe-path cleanup behavior live-confirmed, but deliberately not shipped as
-an app feature pending one remaining unresolved case (external downstream-linked-document
+PP-4, same day — see "Sub-Assembly Planning + Material Requirements (PP-4)" below. **Make Work
+Order (finished-good path) source-verified AND live-verified, and implemented**, as of PP-5, same
+day — including a live-confirmed duplicate-generation finding, see "Work Order Generation (PP-5)"
+below. Cancel investigated and its safe-path cleanup behavior live-confirmed, but deliberately not
+shipped as an app feature pending one remaining unresolved case (external downstream-linked-document
 cancel-block) — see PP-4's own clarification to that entry below. Amend is discovery-only. Make
-Work Order/Make Material Request, `reserve_stock`/Stock Reservation Entry creation, and
-multi-location "Get Items for Purchase / Transfer" remain unverified/unimplemented). See
-`docs/backend/15-migration/migration-status.md`.
+Material Request, `reserve_stock`/Stock Reservation Entry creation, multi-location "Get Items for
+Purchase / Transfer", and sub-assembly/subcontract Work Order generation (no test data exists on
+this instance) remain unverified/unimplemented). See `docs/backend/15-migration/migration-status.md`.
 
 PP-1 (2026-09-19) was a discovery/canonicalization pass only, read-only. PP-2 (2026-09-20) added
 Draft-only create. PP-3 (2026-09-20, same day) added Submit only. PP-4 (2026-09-20, same day)
@@ -973,6 +975,234 @@ explode through sub-assemblies; a single-level-BOM plan (the only kind currently
 can skip that step and go straight to Material Requirements. No "Make Work Order"/"Make Material
 Request" action, no Reserve Stock action, no multi-location "Purchase / Transfer" dialog. PP-1's
 five other tabs, PP-2's create wizard, and PP-3's Submit button are unchanged.
+
+## Work Order Generation (PP-5, 2026-09-20)
+
+Source: `production_plan.py`'s `make_work_order()` (a one-line delegator), full read of
+`services/work_order_planning.py` (`WorkOrderCreationService`) and
+`services/work_order_quantities.py` (`ProductionPlanWorkOrderQuantities`), plus
+`production_plan.js`'s `refresh(frm)`/`get_items_for_work_order`/`make_work_order` handlers, all
+fetched read-only via `gh api` against `frappe/erpnext` this session — then **live-verified**
+against the real Hetzner instance using the app's own "Frontend Integration" service-account
+credentials (read from `apps/frontend/.env.local`, never written/modified/printed). This narrows
+`MFG-UNV-012`'s Work Order generation uncertainty for the **finished-good path**; sub-assembly/
+subcontract Work Order generation remains source-only (no such data exists on this instance — see
+"Runtime verification" below).
+
+### N. The exact method, and the key finding: zero server-side lifecycle gate
+
+`make_work_order()` is `@frappe.whitelist()` directly on the `ProductionPlan` class (**Document-bound**,
+not module-level — same `run_doc_method` REST boundary as `get_sub_assembly_items`, not
+`callMethodWithResult`), takes **no arguments**, and its entire body is
+`return WorkOrderCreationService(self).make_work_order()`. That service's own `make_work_order()`
+opens with `self.doc.reload()` — the very first thing it does is discard whatever was in the
+payload and re-fetch the real document fresh from the DB by name, so (unlike PP-2's never-saved-doc
+case) no `__islocal`/`__unsaved` placeholder handling is needed here — a plain re-fetched doc is
+sufficient as the `run_doc_method` payload.
+
+**Confirmed (again, consistent with PP-3's own "Button/action visibility by docstatus" finding):
+no server-side `docstatus`/`status` assertion exists anywhere in this call chain.** The
+`docstatus === 1` gate is exclusively a Desk-UI convention (`production_plan.js refresh()` wraps
+the "Work Order / Subcontract PO" button in `if (frm.doc.docstatus === 1)`, further gated by
+`frm.doc.status !== "Closed"`/`"Completed"` and a client-side `get_items_for_work_order(frm)`
+heuristic that reads `frm.doc.__onload.pending_work_order_qty` or falls back to a naive
+`planned_qty > ordered_qty` check) — calling `make_work_order` directly against a Draft or
+Cancelled Production Plan would not be rejected by ERPNext itself. Ceylon Stack's own server
+action (`makeWorkOrderAction`, `lib/actions/productionPlanWorkOrder.ts`) is therefore the actual
+enforcement point: it re-fetches the document and rejects anything but `docstatus === 1` itself,
+mirroring `loadDraftOrThrow`'s established defense-in-depth precedent for the Draft-only actions,
+just inverted. It deliberately does **not** additionally block on `status` (`"Completed"`/
+`"Closed"`) — Desk doesn't enforce that server-side either, so doing so here would make Ceylon
+Stack stricter than ERPNext itself for no documented reason; that distinction is left as a
+UI-only visibility rule (button hidden, not a hard block) in the page component.
+
+### O. Desk flow — no dialog, one click generates everything pending
+
+`production_plan.js`'s `make_work_order(frm)` handler is exactly:
+```js
+make_work_order(frm) {
+    frappe.call({ method: "make_work_order", freeze: true, doc: frm.doc,
+        callback: function () { frm.reload_doc(); } });
+},
+```
+No row-selection dialog, no quantity prompt — Desk asks nothing and generates Work Orders (and any
+Subcontract-type Purchase Orders) for **every** row with outstanding pending quantity in one call,
+then reloads the whole form. Ceylon Stack's UI mirrors this: one confirm step, one call, no
+per-row picker — building a row-selection dialog would be inventing a capability ERPNext's own
+Desk doesn't have.
+
+### P. Quantity semantics — server-authoritative, and NOT the same field the Production Plan displays
+
+`WorkOrderCreationService.get_production_items()` sources each row's Work Order `qty` from
+`ProductionPlanWorkOrderQuantities(self.doc.name).get_pending_quantities(self.doc)`, **not** from
+the stored `po_items.pending_qty`/`ordered_qty` fields the Production Plan detail page displays.
+`get_pending_quantities()`:
+```python
+committed = self.get_committed_quantities()   # docstatus == 1 Work Orders only, this production_plan only
+pending[row.name] = max(0, row.planned_qty - committed.get(row.name, 0))
+```
+`get_committed_quantities()` filters `{"production_plan": self.production_plan, "docstatus": 1}` —
+**two consequences, both live-confirmed this session:**
+
+1. **Scoped to Work Orders created from *this* Production Plan specifically** — a Work Order that
+   happens to reference the same Sales Order/item through a different path (e.g. created directly
+   via this app's own Work Order create flow, or a different Production Plan) does **not** reduce
+   the pending qty. Live-observed: `SAL-ORD-2026-00007` already had a real, unrelated Submitted
+   Work Order (`MFG-WO-2026-00006`, qty 30, `production_plan: null`) before this test; a fresh
+   Production Plan sourced from the same Sales Order still computed the full `pending_qty: 30` —
+   ERPNext correctly ignored the unrelated Work Order.
+2. **Only counts *Submitted* (`docstatus == 1`) Work Orders — Draft does not count.** This is the
+   source of the duplicate-generation finding below.
+
+This app never reimplements this calculation — `makeWorkOrderAction` sends no quantity of its own;
+every number in a created Work Order is ERPNext's own computation.
+
+### Q. Duplicate generation — LIVE CONFIRMED, real and reproducible (not hypothetical)
+
+**Finding:** clicking "Make Work Order" a second time, before the Work Order(s) the first click
+created have been Submitted, creates a **second full-quantity Work Order for the same row** — not
+a skip, not a smaller top-up. This is native ERPNext behavior (a direct consequence of §P's
+`docstatus == 1`-only committed-quantity filter), reproduced live this session, not a Ceylon
+Stack defect:
+
+1. First call against a real Submitted Production Plan (`MFG-PP-2026-00005`, `po_items` row
+   `FG-STEEL-BRACKET-ASSY` × 30) created `MFG-WO-2026-00009` (Draft, qty 30, correct
+   `production_plan_item` back-reference).
+2. Re-fetching the Production Plan showed `po_items[0].ordered_qty` still `0.0` and
+   `pending_qty` still `30.0` — **the stored Production Plan fields are not updated by Work Order
+   creation at all**; they're only recomputed on the Production Plan's own next `validate()`/save,
+   which `make_work_order()` never triggers (it never calls `self.doc.save()`).
+3. Calling `make_work_order` again immediately, with no other state change, created
+   `MFG-WO-2026-00010` — **a second Work Order, qty 30, same `production_plan_item`** —
+   because `MFG-WO-2026-00009` was still `docstatus 0` and so contributed nothing to
+   `get_committed_quantities()`'s `docstatus == 1` filter.
+4. `create_work_order()`'s own duplicate guard (`OverProductionError`, via
+   `ProductionPlanWorkOrderQuantities.validate_work_order()`) is enforced at a **Work Order's own
+   submit** time, not at this creation step — and Draft-stage creation runs with
+   `flags.ignore_validate = True` regardless, so nothing in the creation path itself would have
+   caught this even if the check were relevant here.
+
+**This app's mitigation, in scope for PP-5 (no client-side quantity logic, no locking framework —
+per the package brief's explicit instruction):** an honest, visible warning in the result panel
+after a successful generation (`ProductionPlanMakeWorkOrderAction.tsx`) telling the user the
+created Work Orders are Draft and that re-running the action before submitting them will create
+duplicates — information Desk itself never surfaces. The button itself is not disabled after a
+successful run (ERPNext gives this app no reliable signal to know pending qty has reached zero
+without re-fetching and re-deriving it, which would be exactly the reimplementation the brief
+prohibits) — the warning is the deliberate, in-scope answer instead of a client-side qty guess.
+
+### R. Concurrency
+
+`get_committed_quantities()`'s default call (used by `get_pending_quantities()`, i.e. the read that
+decides how much to create) passes `for_update=False` — a plain, non-locking `SELECT`. Two
+near-simultaneous "Make Work Order" clicks (two browser tabs, or two users) would both read the
+same pending quantity and both create a full-quantity Work Order, independent of the duplicate
+Draft-state finding above — the same underlying gap, just triggered by simultaneity instead of
+sequential re-clicking. (Contrast: `validate_work_order()`, the check that runs at an individual
+Work Order's own *submit* time, does use `for_update=True` — a real locking read — but that step is
+downstream of creation and not part of this app's current scope, see `work-order.md`'s `MFG-WF-001`.)
+No custom locking framework is added for PP-5, per the package brief's own instruction not to
+over-build for an unconfirmed race — but this is not merely theoretical: §Q above proves the
+non-locking read already produces duplicates under ordinary sequential use, so a concurrent-click
+scenario would behave identically or worse. Recorded here as a known, source-confirmed gap in
+ERPNext's own implementation, not a Ceylon Stack one.
+
+### S. Transaction / partial-failure semantics — SOURCE VERIFIED, not separately live-exercised
+
+No explicit `frappe.db.commit()` appears anywhere in `work_order_planning.py`'s creation loop
+(`make_work_order_for_finished_goods` → `make_work_order_for_subassembly_items` →
+`make_subcontracted_purchase_order`, each iterating and calling `.insert()`). Standard Frappe
+request-transaction semantics therefore apply (well-established Frappe behavior, not re-derived
+from this file specifically): the whole HTTP request runs inside one DB transaction that commits
+only if no exception escapes the request handler. The one exception `create_work_order()` itself
+swallows is `OverProductionError` (skip that row, continue the loop); any other exception during
+`wo.insert()` (e.g. a validation failure on a later row) would propagate uncaught and roll back
+the **entire request** — including Work Orders already inserted earlier in the same loop, since
+they share the one uncommitted transaction. **Conclusion: true partial persistence (some created,
+some not, from a single click) should not occur** — either the whole batch commits, or an
+unhandled exception rolls all of it back. This app's diff-based result reporting (`makeWorkOrderAction`
+queries Work Order/Purchase Order state before and after, rather than trusting a fabricated
+"success" message) reports whatever actually landed either way, so this claim isn't load-bearing
+for correctness even if it turns out to be wrong in some edge case not exercised here.
+
+### T. Side-effect matrix (Make Work Order)
+
+| Effect | Result | Evidence |
+|---|---|---|
+| Production Plan field write | NO (own fields unchanged by this call — `ordered_qty`/`pending_qty`/`status` stay stale until the plan's own next validate/save) | **LIVE VERIFIED** — re-fetched `MFG-PP-2026-00005` after Work Order creation still showed `ordered_qty: 0.0`, `status: "Submitted"` |
+| Work Order insert | YES, one per `po_items` row (finished-good) / one per In-House `sub_assembly_items` row | **LIVE VERIFIED** (finished-good path) / SOURCE VERIFIED (sub-assembly path — no test data) |
+| Work Order docstatus on insert | Draft (`0`) — `wo.insert()` only, never `.submit()` | **LIVE VERIFIED** — `MFG-WO-2026-00009`/`-00010` both `docstatus: 0` |
+| Purchase Order insert (subcontracted sub-assembly rows only) | NO for this plan (no sub-assembly rows existed) | **LIVE VERIFIED for the no-sub-assembly case** — 0 Purchase Orders found via `Purchase Order Item.production_plan` filter; SOURCE VERIFIED only for the Subcontract-row-present case |
+| Bin write | NO | **LIVE VERIFIED** — `FG-STEEL-BRACKET-ASSY @ Finished Goods - CS` Bin byte-identical before/after (`reserved_qty 30 / projected_qty 80 / actual_qty 0`) |
+| Stock Reservation Entry | NO from this call itself (separate `reserve_stock` mechanism, not invoked here) | SOURCE VERIFIED, consistent with prior PP-2/3/4 findings |
+| Stock Ledger Entry | NO | **LIVE VERIFIED** — 0 rows for `voucher_no = MFG-WO-2026-00009` |
+| GL Entry | NO | **LIVE VERIFIED** — 0 rows for `voucher_no = MFG-WO-2026-00009` |
+| Material Request | NO (separate `make_material_request` action, not invoked) | SOURCE VERIFIED |
+
+### U. Traceability fields — live-confirmed, exact match to the source read
+
+`MFG-WO-2026-00009` (finished-good Work Order created from `po_items` row `t5v585ubnk`):
+`production_plan: "MFG-PP-2026-00005"`, `production_plan_item: "t5v585ubnk"`,
+`production_plan_sub_assembly_item: null`, `bom_no: "BOM-FG-STEEL-BRACKET-ASSY-001"`,
+`company: "Ceylon Stack"`, `fg_warehouse: "Finished Goods - CS"` (carried from the `po_items` row's
+own `warehouse`), `source_warehouse: null` (this BOM has no `default_source_warehouse` set —
+confirms the mapping is real, not that it always resolves to a value), `wip_warehouse: null` (no
+default WIP warehouse configured for this company in Manufacturing Settings — same reasoning),
+`sales_order: "SAL-ORD-2026-00007"`, `project: null`, `use_multi_level_bom: 1` — **not** forced to
+`0`, because this Production Plan's `sub_assembly_items` table was empty (the "force `0` when the
+plan has sub-assembly rows" branch in `make_work_order_for_finished_goods` did not apply here — the
+finding itself is now live-confirmed for the applicable/inapplicable-branch distinction, not just
+the source read).
+
+### V. Frontend footprint — PP-5 (2026-09-20)
+
+New: `lib/actions/productionPlanWorkOrder.ts` (`makeWorkOrderAction` — re-fetches and re-checks
+`docstatus === 1` fresh, same defense-in-depth precedent as `loadDraftOrThrow`; diffs
+`Work Order`/`Purchase Order` back-reference queries before/after the native call instead of
+trusting a fabricated name list, since `make_work_order()` itself returns nothing usable — see §N),
+new component `ProductionPlanMakeWorkOrderAction.tsx` (two-step inline confirm, no modal framework;
+result panel lists created Work Order links via the canonical `/manufacturing/work-orders/[name]`
+route, and carries the duplicate-generation warning from §Q), wired into
+`production-plans/[name]/page.tsx`'s header action bar next to the existing Submit button, visible
+when `docstatus === 1 && status not in ["Completed", "Closed"]` (UI-only convention mirroring Desk,
+not server-enforced — see §N). No "Make Material Request" action, no Reserve Stock action, no
+subcontract-PO-specific UI (the Purchase Order side effect is only surfaced as an honest notice if
+the single native call happens to produce one — see §N of `productionPlanWorkOrder.ts`'s own
+doc comments). PP-1's five other tabs, PP-2's create wizard, PP-3's Submit button, and PP-4's two
+Draft-only planning panels are unchanged. The Overview tab's scope-disclosure paragraph was
+updated to reflect Make Work Order now being available on a Submitted plan.
+
+### W. Runtime verification, 2026-09-20 — full round trip against the real Hetzner instance
+
+With the user's explicit go-ahead (this creates real Draft Work Order documents, not a zero-trace
+create+delete):
+
+1. `get_open_sales_orders` confirmed `SAL-ORD-2026-00007` still eligible (its Sales Order Item's
+   own stale `work_order_qty: 0.0` field, unrelated to the real `MFG-WO-2026-00006` Work Order
+   already linked to it outside any Production Plan — see §P(1)). `combine_so_items` →
+   `POST /api/resource/Production Plan` created a real Draft, `MFG-PP-2026-00005`
+   (`FG-STEEL-BRACKET-ASSY` × 30, same shape as every prior package's test).
+2. `PUT .../MFG-PP-2026-00005` with `{"docstatus": 1}` → `200`, `status: "Submitted"`.
+3. **First `make_work_order` call** (via `run_doc_method`, mirroring `makeWorkOrderAction` exactly)
+   → created `MFG-WO-2026-00009` — see §U for full field confirmation.
+4. **Second `make_work_order` call**, no state change in between → created `MFG-WO-2026-00010`,
+   a genuine duplicate — see §Q.
+5. **Cleanup**: `PUT .../MFG-PP-2026-00005` with `{"docstatus": 2}` → `200`, `status: "Cancelled"`.
+   Re-querying Work Orders for this plan immediately after returned **zero rows** —
+   `on_cancel()`'s `delete_draft_work_order()` (already source-documented in this file's own
+   "Submit / Cancel / Amend lifecycle" section) **live-confirmed**: both Draft Work Orders were
+   hard-deleted automatically as part of cancelling the Production Plan, leaving zero residual
+   trace beyond the Cancelled Production Plan itself (same audit-retention pattern as PP-3/PP-4's
+   own cleanup). Final checks: `Bin` unchanged, `Sales Order Item.production_plan_qty` reverted to
+   `0.0`, both Work Order names 404 on direct fetch.
+
+**Sub-assembly / subcontract Work Order generation: SOURCE VERIFIED / NOT RUNTIME VERIFIED** — no
+BOM with sub-assembly components exists on this instance (same gap `bom.md`/`MFG-UNV-009` and
+PP-4's own section already flag), so the `type_of_manufacturing` branch logic (§"Work Order
+generation" above, under "Sub-assemblies"), the `_sub_assembly_work_order`/
+`make_subcontracted_purchase_order` code paths, and the Purchase Order side effect could not be
+exercised live this session. Per the package brief's own §24 allowance, this is treated as an
+acceptable, honestly-disclosed limitation rather than fabricated coverage.
 
 ## NEEDS_VERIFICATION
 

@@ -1140,3 +1140,61 @@ cases this entry hadn't exercised:
 - **Not independently testable** (same disclosed, recurring gap as PP-1 through PP-3): no
   authenticated browser click-path; no real multi-level BOM on this instance to exercise
   "sub-assembly rows actually populate and save."
+
+## Manufacturing — Production Plan PP-5 (Work Order Generation, 2026-09-20)
+
+Self-tested by the implementing session (Claude Code), in-session, against the live Hetzner
+instance — with the user's explicit go-ahead, since this creates real Draft Work Order documents
+rather than a zero-trace create+delete. Full narrative and evidence in `docs/backend/
+05-manufacturing/production-plan.md`'s "Work Order Generation (PP-5)" §W; summarized here.
+
+**Test 1 — finished-good generation, happy path.** Created and submitted a fresh Production Plan
+(`MFG-PP-2026-00005`, sourced from real open Sales Order `SAL-ORD-2026-00007`,
+`FG-STEEL-BRACKET-ASSY` × 30) → called the native `make_work_order` (via `run_doc_method`, mirroring
+`makeWorkOrderAction`'s own payload exactly) → `MFG-WO-2026-00009` created, `docstatus 0`/Draft,
+`bom_no`/`fg_warehouse`/`sales_order`/`production_plan`/`production_plan_item` all correct,
+`use_multi_level_bom: 1` (not forced to `0`, correctly — this plan had no `sub_assembly_items`).
+**PASS.**
+
+**Test 2 — Bin/SLE/GL impact.** Compared `Bin` (`FG-STEEL-BRACKET-ASSY` @ `Finished Goods - CS`)
+before/after: byte-identical (`reserved_qty 30 / projected_qty 80 / actual_qty 0`). `Stock Ledger
+Entry`/`GL Entry` filtered on `voucher_no = MFG-WO-2026-00009`: zero rows either. Confirms Work
+Order creation itself posts no stock/accounting impact. **PASS.**
+
+**Test 3 — second-call / duplicate-generation behavior (the package's own required test, §7/§23
+of the brief).** Called `make_work_order` again immediately, no other state change. **Result:
+created a second Work Order, `MFG-WO-2026-00010`, same row, same qty 30 — a genuine duplicate, not
+a skip.** Root cause confirmed via source: `ProductionPlanWorkOrderQuantities.get_committed_
+quantities()` only counts `docstatus == 1` (Submitted) Work Orders; the first call's Work Order was
+still Draft, so it contributed nothing to the second call's pending-qty calculation. Re-fetching the
+Production Plan between the two calls also showed `po_items[0].ordered_qty` still `0.0` — the
+Production Plan's own stored fields are never updated by Work Order creation, only by the plan's
+own next `validate()`/save, which this action never triggers. **This is real, native ERPNext
+behavior — confirmed as a genuine, live-reproducible risk, not a hypothetical.** Flagged per the
+brief's own §7/§8 instruction rather than silently shipped; mitigation is an honest UI warning
+(`ProductionPlanMakeWorkOrderAction.tsx`), not a client-side quantity guess or a locking framework
+(both explicitly out of scope per the brief).
+
+**Test 4 — cancel-cascade cleanup.** Cancelled `MFG-PP-2026-00005` (`docstatus 1 → 2`). Re-queried
+Work Orders for this plan immediately after: **zero rows** — both `MFG-WO-2026-00009` and
+`-00010` were hard-deleted automatically by `on_cancel()`'s `delete_draft_work_order()` (already
+source-documented since PP-3, now live-confirmed). Direct fetch of both Work Order names returned
+`404`. `Bin` unchanged; `Sales Order Item.production_plan_qty` reverted to `0.0`, consistent with
+PP-3's own submit/cancel round trip. **PASS** — this also served as the test's own cleanup, leaving
+zero residual trace beyond the Cancelled Production Plan itself (audit-retained, same as PP-3/PP-4).
+
+**Test 5 — lifecycle-gate/schema checks (static, not live-mutating).** Confirmed via source read
+(not independently re-derived beyond what `production-plan.md` §N documents) that `make_work_order`
+carries no server-side `docstatus`/`status` check — Ceylon Stack's own `makeWorkOrderAction` is the
+actual enforcement point (re-fetches and re-checks `docstatus === 1` fresh). Confirmed via live
+`get_doctype_fields` that `Purchase Order Item.production_plan` exists (resolves a prior
+`NEEDS_VERIFICATION` item) — the parent `Purchase Order` doctype itself has no such field.
+
+**Not independently testable** (same disclosed, recurring gap as PP-1 through PP-4): no
+authenticated browser click-path (this was a direct REST round trip mirroring the server action's
+exact calls, not a UI click test); no BOM with sub-assembly components exists on this instance, so
+the Subcontract-type sub-assembly → consolidated Purchase Order path, and the In-House sub-assembly
+→ Work Order path, remain source-verified only — `SOURCE VERIFIED / NOT RUNTIME VERIFIED`, per the
+package brief's own §24 allowance. No independent second-account review has run yet — this entry
+covers the implementing session's own in-session verification only, not the required cross-review
+under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`.

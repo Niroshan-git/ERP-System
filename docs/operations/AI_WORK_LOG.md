@@ -2961,3 +2961,141 @@ started — no lifecycle actions, workflow, or new Production Plan behavior were
 
 **Recommended next action:** independent housekeeping verification of this package, then PP-3
 planning.
+
+## Package: Production Plan PP-5 — Work Order Generation (temporary dual-Claude mode, 2026-09-20)
+
+**PACKAGE:** Production Plan PP-5 (Work Order Generation)
+**ROLE:** IMPLEMENTER
+**AGENT:** this session (no durable session identifier exposed by the environment — recorded per
+`TEMP_DUAL_CLAUDE_MODE.md` §18's own instruction for that case)
+**IMPLEMENTER:** this session, no durable session identifier available
+**REVIEWER:** the other Claude account — not yet assigned; not self-reviewable per protocol §1
+**ASSIGNED BY:** Niroshan
+**ASSIGNMENT TIMESTAMP:** 2026-09-20
+**BASE COMMIT:** `fcc04c5` (PP-4 + its in-session governance closure — `ACCEPTED` baseline per the
+assignment prompt: PP-1/PP-2/PP-2-housekeeping/PP-3/PP-4 all `ACCEPTED`)
+**TARGET:** Submitted Production Plan → ERPNext-native "Make Work Order" → generated Work Order
+document(s), with explicit `production_plan`/`production_plan_item`/`production_plan_sub_assembly_item`
+traceability — one execution transition only, per the assignment prompt's own explicit exclusion
+list (no Make Material Request, Reserve Stock, subcontract PO as its own feature, Material
+Transfer, Manufacture Stock Entry, Finish Work Order, Cancel/Amend Production Plan, workflow,
+mobile, AI).
+
+### Objective
+
+First PP package that generates a downstream manufacturing document from a Production Plan.
+Idempotency, duplicate generation, traceability, permissions, concurrency, and lifecycle state
+were treated as first-class concerns per the assignment prompt's own framing — not implementation
+afterthoughts.
+
+### Investigation (required before implementation)
+
+Full read of `production_plan.py`'s `make_work_order()` (one-line delegator),
+`services/work_order_planning.py` (`WorkOrderCreationService` — the actual creation logic),
+`services/work_order_quantities.py` (`ProductionPlanWorkOrderQuantities` — the pending-quantity
+calculation), and `production_plan.js`'s `refresh(frm)`/`get_items_for_work_order`/`make_work_order`
+handlers, all fetched read-only via `gh api` against `frappe/erpnext` this session. Cross-checked
+against live `get_doctype_fields` for `Purchase Order Item` (confirmed `production_plan` exists on
+the child row, resolving a prior `NEEDS_VERIFICATION` item). Full findings in `docs/backend/
+05-manufacturing/production-plan.md`'s new "Work Order Generation (PP-5)" section — summary:
+
+- `make_work_order` is Document-bound, whitelisted, no arguments, first line `self.doc.reload()`
+  (discards whatever payload was sent, re-fetches by name) — carries **zero server-side
+  docstatus/status check**; the `docstatus === 1` gate is exclusively Desk-UI convention, same
+  pattern already established for `get_sub_assembly_items`.
+- Desk's own handler is a bare `frappe.call({ method: "make_work_order", doc: frm.doc })` — no
+  row-selection dialog, no quantity prompt. One click generates everything pending.
+- Quantity is server-computed (`ProductionPlanWorkOrderQuantities.get_pending_quantities`), scoped
+  to `{production_plan: this plan, docstatus: 1}` — **only Submitted Work Orders count**, and the
+  scoping is per-plan, not per-item/Sales-Order.
+- **Live-confirmed duplicate-generation finding**: because Draft Work Orders don't count, calling
+  "Make Work Order" twice before submitting the first result's Work Order creates a genuine
+  duplicate (second full-quantity Work Order for the same row) — a real, source-confirmed gap in
+  ERPNext's own implementation, not a Ceylon Stack defect. Flagged per the assignment prompt's own
+  §7/§8/§23 instruction rather than silently shipped.
+- **Live-confirmed cancel-cascade**: cancelling the source Production Plan hard-deletes any
+  still-Draft Work Order it created (`delete_draft_work_order()`, already source-documented since
+  PP-3, now live-exercised).
+- No explicit per-item `frappe.db.commit()` in the creation loop → standard Frappe
+  request-transaction semantics (source-reasoned, not separately re-derived): an uncaught
+  exception partway through should roll back the whole request, not leave a partial result.
+- Purchase Order creation (subcontracted sub-assembly rows) is an inherent side effect of the same
+  single native call, not a separate feature Ceylon Stack built — surfaced only as an honest
+  best-effort notice if it happens to occur; no live sub-assembly/subcontract data exists on this
+  instance to exercise that path (`SOURCE VERIFIED / NOT RUNTIME VERIFIED`, per the assignment
+  prompt's own §24 allowance).
+
+### Implementation
+
+`lib/actions/productionPlanWorkOrder.ts` (new) — `makeWorkOrderAction`: re-fetches the Production
+Plan and re-checks `docstatus === 1` fresh (defense-in-depth, mirroring `loadDraftOrThrow`'s
+established precedent, inverted); calls native `make_work_order` via `callRunDocMethod`; since that
+method returns nothing usable, diffs `Work Order`/`Purchase Order` back-reference queries taken
+immediately before and after the call to report what was actually created — an honest post-hoc
+observation, not a fabricated name guess or fragile `msgprint`-HTML parse.
+`components/ProductionPlanMakeWorkOrderAction.tsx` (new) — two-step inline confirm (no modal
+framework, matching existing codebase conventions), result panel with canonical Work Order links
+and the duplicate-generation warning. Wired into `production-plans/[name]/page.tsx`'s header action
+bar, visible when `docstatus === 1 && status not in ["Completed", "Closed"]` (UI-only convention,
+not server-enforced — matches Desk's own gate exactly). Overview tab's scope-disclosure paragraph
+corrected.
+
+No client-side quantity/eligibility logic was added anywhere — every number in a created Work
+Order is ERPNext's own computation.
+
+### Runtime verification
+
+`LIVE VERIFIED`, 2026-09-20, with the user's explicit go-ahead (asked via `AskUserQuestion` before
+proceeding, since this creates real Draft Work Order documents, unlike PP-2's zero-trace
+create+delete test). Full round trip, service-account credentials (read from
+`apps/frontend/.env.local`, never written/modified/printed): created+submitted a fresh Production
+Plan (`MFG-PP-2026-00005`, real Sales Order `SAL-ORD-2026-00007`) → first `make_work_order` call →
+`MFG-WO-2026-00009` (Draft, all traceability fields correct, zero Bin/SLE/GL impact) → second call
+→ `MFG-WO-2026-00010` (confirms the duplicate-generation finding) → cancelled the Production Plan
+→ both Work Orders auto-deleted, zero residual trace beyond the Cancelled plan itself (same
+audit-retention pattern as PP-3/PP-4's own cleanup). Full detail in `production-plan.md`'s §W and
+`QA_LOG.md`'s PP-5 entry.
+
+### Package isolation
+
+Confirmed via `git status` before editing: `docs/architecture/decisions/README.md` (pre-existing
+modification, unrelated Master Data ADR work) and three untracked planning docs
+(`docs/ceylon-stack-master-backlog.md`, `docs/ceylon-stack-master-plan.md`,
+`docs/master-data-architecture.md`) were pre-existing unrelated in-progress work — none staged,
+edited, or reverted by this package. Only `apps/frontend/src/lib/actions/productionPlanWorkOrder.ts`
+(new), `apps/frontend/src/components/ProductionPlanMakeWorkOrderAction.tsx` (new),
+`apps/frontend/src/app/(app)/manufacturing/production-plans/[name]/page.tsx` (edited),
+`docs/backend/05-manufacturing/production-plan.md`, `docs/backend/05-manufacturing/work-order.md`,
+`docs/backend/99-unverified/unverified-behaviours.md`, `PROGRESS.md`, `QA_LOG.md`, and this file
+were touched.
+
+### Tests
+
+`npx tsc --noEmit` — clean. `npm run lint` — clean. `npm run build` — succeeded, exit 0, no new
+errors/warnings. `git diff --check` — clean (pre-existing CRLF notices on files this package
+didn't touch the line-ending convention of). Draft/Cancelled Production Plan → no "Make Work
+Order" button (code-verified: the page only renders `ProductionPlanMakeWorkOrderAction` when
+`docstatus === 1`); a Submitted plan → button renders; after generation → Generated Work Orders
+tab reflects the new documents (via `revalidatePath` + `router.refresh()`, same mechanism every
+other mutating action in this app uses). Stale-state rejection: `makeWorkOrderAction` re-fetches
+and would reject a non-`docstatus === 1` document even if the rendering page's own snapshot were
+stale — not independently re-exercised against a real race this session (see the Concurrency
+finding in `production-plan.md`'s §R, which documents the gap rather than closing it).
+
+### State
+
+`MFG-UNV-012` further narrowed: finished-good Work Order generation is now `LIVE VERIFIED` and
+implemented; `make_work_order`'s lack of server-side docstatus enforcement is confirmed;
+`Purchase Order Item.production_plan` schema question resolved. Make Material Request,
+sub-assembly/subcontract Work Order generation, and `reserve_stock`/Stock Reservation Entry
+creation remain `NEEDS_VERIFICATION`/unimplemented — see `docs/backend/99-unverified/
+unverified-behaviours.md`'s updated entry.
+
+**No self-acceptance.** Per `TEMP_DUAL_CLAUDE_MODE.md`, this package is `CLAUDE_HANDOFF` and
+requires independent cross-review from the other Claude account before acceptance.
+
+**Recommended next action:** independent review of this package (architecture/ERPNext-compatibility/
+security/documentation-accuracy per protocol §7, with particular attention to the live-confirmed
+duplicate-generation finding and whether the UI-only warning is a sufficient mitigation), then
+Make Material Request or a BOM Management package (to unlock sub-assembly/subcontract runtime
+testing) as the next candidate.

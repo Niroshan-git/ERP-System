@@ -1320,14 +1320,14 @@
     "semantic_hash": "7c47e487a7a3c191352d53cdbd14a5c6"
   },
   "PROGRESS.md": {
-    "mtime": 1789889125.0569997,
-    "ast_hash": "fb1bb6a21e83ba6b2c5e9cd51f005ae2",
-    "semantic_hash": "fb1bb6a21e83ba6b2c5e9cd51f005ae2"
+    "mtime": 1789906290.6493425,
+    "ast_hash": "70f01600d405f818433d788ad194f7f5",
+    "semantic_hash": "70f01600d405f818433d788ad194f7f5"
   },
   "QA_LOG.md": {
-    "mtime": 1789889155.134899,
-    "ast_hash": "53b331fcfad491b012d78f0474365e74",
-    "semantic_hash": "53b331fcfad491b012d78f0474365e74"
+    "mtime": 1789906209.346291,
+    "ast_hash": "ac8bb774028ef8a13d18218a69af904a",
+    "semantic_hash": "ac8bb774028ef8a13d18218a69af904a"
   },
   "README.md": {
     "mtime": 1789564925.3630126,
@@ -1605,9 +1605,9 @@
     "semantic_hash": "fcd96918a5aa1f42ed1756317e8e3a04"
   },
   "docs/backend/05-manufacturing/work-order.md": {
-    "mtime": 1789749355.247569,
-    "ast_hash": "7c16166b29f33e3f048debae64c71b43",
-    "semantic_hash": "7c16166b29f33e3f048debae64c71b43"
+    "mtime": 1789906116.0519683,
+    "ast_hash": "094c9062b32052e56e1954a7894c54ac",
+    "semantic_hash": "094c9062b32052e56e1954a7894c54ac"
   },
   "docs/backend/11-relationships/master-erd.md": {
     "mtime": 1789837270.6731977,
@@ -1620,9 +1620,9 @@
     "semantic_hash": "b733fc61cd515a3c2cbc9ad58870bde4"
   },
   "docs/backend/99-unverified/unverified-behaviours.md": {
-    "mtime": 1789889085.6466875,
-    "ast_hash": "678a681f8ddd7b0e0529ec6c7f63f124",
-    "semantic_hash": "678a681f8ddd7b0e0529ec6c7f63f124"
+    "mtime": 1789906143.2384715,
+    "ast_hash": "d2b8046eb5b8457eadfeb1e7d2297d56",
+    "semantic_hash": "d2b8046eb5b8457eadfeb1e7d2297d56"
   },
   "docs/backend/README.md": {
     "mtime": 1789661163.6024814,
@@ -2175,9 +2175,9 @@
     "semantic_hash": "85696af0bab22c2b4056c30479ad98fc"
   },
   "docs/operations/AI_WORK_LOG.md": {
-    "mtime": 1789887801.10979,
-    "ast_hash": "9944c48b84615b4ccab584caacb03b95",
-    "semantic_hash": "9944c48b84615b4ccab584caacb03b95"
+    "mtime": 1789906253.05481,
+    "ast_hash": "9e1c125344a0481cff1d2cfcfd8ec247",
+    "semantic_hash": "9e1c125344a0481cff1d2cfcfd8ec247"
   },
   "apps/frontend/src/app/(app)/master-data/addresses/[name]/page.tsx": {
     "mtime": 1789766097.6005893,
@@ -2375,9 +2375,9 @@
     "semantic_hash": "f826cab6b65f45c6dc44f83bd5950552"
   },
   "apps/frontend/src/app/(app)/manufacturing/production-plans/[name]/page.tsx": {
-    "mtime": 1789887749.730593,
-    "ast_hash": "d2f79a1585a1d7c5c6e923c59e9fcf95",
-    "semantic_hash": "d2f79a1585a1d7c5c6e923c59e9fcf95"
+    "mtime": 1789905622.9881911,
+    "ast_hash": "7bf6d81cfa8f8d2bb532c681e473ad11",
+    "semantic_hash": "7bf6d81cfa8f8d2bb532c681e473ad11"
   },
   "apps/frontend/src/app/(app)/manufacturing/production-plans/actions.ts": {
     "mtime": 1789887729.8968809,
@@ -2410,18 +2410,43 @@
     "semantic_hash": "09f044c324269b64d0ddaa769dc65212"
   },
   "apps/frontend/src/lib/productionPlanRows.ts": {
-    "mtime": 1789844028.6192868,
-    "ast_hash": "1c0a0678e2294759b6af24e937c621c8",
-    "semantic_hash": "1c0a0678e2294759b6af24e937c621c8"
+    "mtime": 1789897340.2407107,
+    "ast_hash": "16a1d14fb3f01fb17ff8767e4ef1e585",
+    "semantic_hash": "16a1d14fb3f01fb17ff8767e4ef1e585"
   },
   "docs/backend/05-manufacturing/production-plan.md": {
-    "mtime": 1789889050.7929013,
-    "ast_hash": "21f7abb87ae40d938bc7b5eb57b70c83",
-    "semantic_hash": "21f7abb87ae40d938bc7b5eb57b70c83"
+    "mtime": 1789906094.9872954,
+    "ast_hash": "46147b4e9abb446f3ae715123ecf7f6d",
+    "semantic_hash": "46147b4e9abb446f3ae715123ecf7f6d"
   },
   "docs/controls/TEMP_DUAL_CLAUDE_MODE.md": {
-    "mtime": 1789885719.059646,
-    "ast_hash": "afa5662fc85a43f9010eab98ef44c3f3",
-    "semantic_hash": "afa5662fc85a43f9010eab98ef44c3f3"
+    "mtime": 1789906259.7534456,
+    "ast_hash": "95f42ea87fa414790efae8328eeeed5d",
+    "semantic_hash": "95f42ea87fa414790efae8328eeeed5d"
+  },
+  "apps/frontend/src/components/ProductionPlanMakeWorkOrderAction.tsx": {
+    "mtime": 1789905991.0591266,
+    "ast_hash": "421915e449b3f2fe06d08eb734afb5da",
+    "semantic_hash": "421915e449b3f2fe06d08eb734afb5da"
+  },
+  "apps/frontend/src/components/ProductionPlanMaterialRequirementPanel.tsx": {
+    "mtime": 1789895950.814144,
+    "ast_hash": "c520fc8499e462ab535c5b957f28db75",
+    "semantic_hash": "c520fc8499e462ab535c5b957f28db75"
+  },
+  "apps/frontend/src/components/ProductionPlanSubAssemblyPanel.tsx": {
+    "mtime": 1789895921.8245947,
+    "ast_hash": "af6d3d1ef3286a5234562b8eb5bda789",
+    "semantic_hash": "af6d3d1ef3286a5234562b8eb5bda789"
+  },
+  "apps/frontend/src/lib/actions/productionPlanPlanning.ts": {
+    "mtime": 1789897316.8831265,
+    "ast_hash": "24ec1dfd2b2ec47c477700bd004b37e0",
+    "semantic_hash": "24ec1dfd2b2ec47c477700bd004b37e0"
+  },
+  "apps/frontend/src/lib/actions/productionPlanWorkOrder.ts": {
+    "mtime": 1789905592.7374747,
+    "ast_hash": "250f78b97095f7afaafd39313b2e16ff",
+    "semantic_hash": "250f78b97095f7afaafd39313b2e16ff"
   }
 }
