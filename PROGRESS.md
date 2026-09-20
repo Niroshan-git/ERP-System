@@ -3183,3 +3183,62 @@ clean.
 Package state: `CLAUDE_HANDOFF`. Not self-accepted — per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`,
 awaiting independent review. PP-8/PP-9 not started; PP-7 implementation (if any is ever warranted)
 was not started — this package concluded at discovery, per its own scope.
+
+## 2026-09-21 — Production Plan PP-7R — Controlled Multi-Level Runtime Qualification Continuation
+
+Completes PP-7's runtime objective; not a new feature package, not PP-8. **No application code was
+changed.** Baseline confirmed before starting: HEAD `5760875` (PP-7 discovery commit), PP-1–PP-6 and
+PP-5R `ACCEPTED`, PP-7 discovery/Gate A `ACCEPTED` by independent review, PP-7 runtime objective
+`OPEN`, `PP5R-R-01` open/non-blocking, PP-8 locked.
+
+**Gates cleared before any write:** re-confirmed environment identity (same Hetzner instance, same
+`frappe_docker-*` stack, `erpnext 16.34.2`/`frappe 16.33.1`/`smart_factory` installed on site
+`frontend`); proved remote-write capability directly (created and deleted a throwaway `PP7R-CAPTEST`
+Item, independently re-queried to confirm zero residue) rather than assuming it, since the prior
+PP-7 session's blocker turned out to be tooling-specific, not environment-specific.
+
+**Runtime test completed** — a real two-level BOM fixture (`PP7-TEST-FG` → `PP7-TEST-SUB` →
+`PP7-TEST-RM-A`/`RM-B`, plus `PP7-TEST-FG` → `PP7-TEST-RM-C` directly), planned via this app's own
+accepted native-method sequence end to end: `get_open_sales_orders` → `combine_so_items` → Draft
+Production Plan → `get_sub_assembly_items` → `get_items_for_material_requests` → submit →
+`make_work_order`. Every quantity matched the hand-computed expectation exactly for 10 planned FG
+(`SUB: 20`, `RM-A: 80`, `RM-B: 100`, `RM-C: 30`). Both a finished-good and a subassembly Draft Work
+Order were generated in one call, confirming the `production_plan_item`/
+`production_plan_sub_assembly_item` asymmetry live for the first time. Every persisted-state claim
+was independently re-verified after the fact (separate process call or raw SQL, never the acting
+call's own return value) — this caught one real discrepancy: a Sales Order insert against a disabled
+customer failed but left a plausible-looking in-memory object, which a follow-up query confirmed had
+never actually persisted.
+
+**Documentation corrected, not just added to:** `docs/backend/05-manufacturing/production-plan.md`'s
+§JJ was factually wrong about subassembly `fg_warehouse` coming from company defaults — corrected
+with live evidence that the header `sub_assembly_warehouse` override wins (CX-MFG-PP7-DISC-002).
+§KK's `skip_available_sub_assembly_item` description was oversimplified ("cache first result, reuse
+it") — replaced with the actual reset/exhaustion mechanics found on a closer source re-trace
+(CX-MFG-PP7-DISC-004). `get_bom_children`'s role was clarified as read-only, no BOM-selection logic
+of its own (CX-MFG-PP7-DISC-001). CX-MFG-PP7-DISC-003 recorded as resolved (independent
+positive-absence sweep reproduced the original reviewer's zero-everywhere finding). New §PP section
+holds the full fixture/evidence/side-effect-audit writeup. `unverified-behaviours.md`'s `MFG-UNV-012`
+updated to promote multi-level explosion, material-requirement flattening, subassembly Work Order
+generation/asymmetry, and the `fg_warehouse` precedence question to `LIVE VERIFIED`; the actual
+stock-sufficiency branch, subassembly duplicate-generation, and subcontract rows remain `SOURCE
+VERIFIED / RUNTIME DEFERRED` (not exercised, deliberately, per governance).
+
+**Cleanup: fully completed and independently verified.** All fixture Items/BOMs/Sales Order/
+Production Plan/Work Orders were cancelled (where submitted) and deleted in dependency order; a
+post-cleanup positive-absence sweep confirmed zero residual `PP7`-pattern rows across every doctype
+checked pre-test. Zero unexpected `Stock Ledger Entry`/`GL Entry`/`Stock Entry`/`Material Request`/
+`Purchase Order`/`Stock Reservation Entry` activity at any point.
+
+**Discovery decision:** `A. RUNTIME QUALIFICATION COMPLETE — EXISTING IMPLEMENTATION SUFFICIENT`. No
+implementation gap was found; PP-4/PP-5/PP-6's existing behavior matched every runtime observation.
+
+**Not touched, by design:** no application code anywhere in `apps/frontend`/`apps/smart_factory`;
+`docs/ceylon-stack-documentation.html` and Notion (explicitly out of scope until PP-7 overall is
+independently accepted); PP-8 remains locked.
+
+**Tests**: no application code changed, so `tsc`/`lint`/`build` do not apply; `git diff --check`
+clean on the documentation-only diff.
+
+Package state: `CLAUDE_HANDOFF`. Not self-accepted — per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`,
+awaiting independent review to close PP-7 overall and, separately, authorize unlocking PP-8.

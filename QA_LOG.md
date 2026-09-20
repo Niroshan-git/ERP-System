@@ -1374,3 +1374,62 @@ implementing session's own in-session verification only, not the required cross-
 - **Sign-off**: implementing session's own in-session work only. Per
   `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this is `CLAUDE_HANDOFF` — not self-accepted; no
   independent review has run yet.
+
+## 2026-09-21 — Production Plan PP-7R — Controlled Multi-Level Runtime Qualification (live test, completes PP-7)
+
+- **Package tested**: none — documentation/evidence package only, no application code changed.
+- **Result**: **A. RUNTIME QUALIFICATION COMPLETE — EXISTING IMPLEMENTATION SUFFICIENT.** A real
+  two-level BOM fixture (`PP7-TEST-FG` → `PP7-TEST-SUB` → `PP7-TEST-RM-A`/`RM-B`, plus
+  `PP7-TEST-FG` → `PP7-TEST-RM-C` directly) was built and run through this app's own accepted
+  native-method sequence end to end against the live Hetzner instance. No implementation gap found.
+- **Verification performed**:
+  1. Confirmed governance baseline (`git status`/`git log --oneline -15`, HEAD `5760875`) before
+     starting; confirmed PP-7 discovery/Gate A `ACCEPTED`, PP-7 runtime objective `OPEN`, PP-8
+     locked.
+  2. Environment safety gate: SSH to `62.238.22.161`, `docker ps` matched the documented
+     `frappe_docker-*` stack (`v16.34.2`), `bench version` inside the backend container confirmed
+     `frappe 16.33.1`/`erpnext 16.34.2`/`smart_factory 0.0.1` on site `frontend`.
+  3. Remote-write capability gate: created a throwaway `PP7R-CAPTEST` Item via
+     `bench execute frappe.client.insert`, deleted it, independently re-queried to confirm zero
+     residue — proved write capability directly rather than assuming it.
+  4. Pre-test positive-absence sweep (raw `get_list` calls across `Item`/`BOM`/`Sales Order`/
+     `Production Plan`/`Work Order`/`Material Request`/`Purchase Order`/`Stock Ledger Entry`/
+     `GL Entry`/`Stock Reservation Entry`, all `PP7%`-filtered): zero rows everywhere, matching the
+     independent Gate A reviewer's own prediction.
+  5. Built the fixture (5 Items, 2 submitted BOMs, 1 submitted Sales Order) and ran the full
+     accepted flow (`get_open_sales_orders` → `combine_so_items` → insert → `get_sub_assembly_items`
+     → save → `get_items_for_material_requests` → submit → `make_work_order`), independently
+     re-verifying persistence after every write via either a separate `bench execute` call or raw
+     SQL — never trusting the acting call's own return value. This caught a real discrepancy: a
+     Sales Order insert against a disabled customer (`QA Test Customer Sales E2E`) failed with
+     `PartyDisabled` but left an in-memory object with a plausible `name`/`qty`; a follow-up query
+     confirmed it had never persisted. Switched to `Grant Plastics Ltd.` (enabled, already used by
+     prior PP1–PP6 manufacturing test Sales Orders) and re-ran successfully.
+  6. Every quantity matched the hand-computed sanity check exactly for 10 planned FG: `SUB: 20`,
+     `RM-A: 80`, `RM-B: 100`, `RM-C: 30`.
+  7. `make_work_order` (single invocation) generated exactly one finished-good and one subassembly
+     Draft Work Order, confirming the `production_plan_item`/`production_plan_sub_assembly_item`
+     asymmetry and the `fg_warehouse` header-override precedence (CX-MFG-PP7-DISC-002) live.
+  8. Side-effect audit (before/after, raw SQL): zero `Stock Ledger Entry`/`GL Entry`/`Stock Entry`/
+     `Material Request`/`Purchase Order` rows for any `PP7%` item or this Production Plan's name at
+     any checkpoint.
+  9. Cleanup executed in dependency order (Work Orders → Production Plan → Sales Order → BOMs →
+     Items, cancel-then-delete for submitted documents, no `--force`/link-bypass); post-cleanup
+     positive-absence sweep confirmed zero residual rows across every doctype checked pre-test.
+  10. `git diff --check` clean on the documentation-only diff (no application code changed, so
+      `tsc`/`lint`/`build` do not apply).
+- **Documentation corrections verified against source, not just asserted**: CX-MFG-PP7-DISC-001
+  (`get_bom_children` is read-only, no BOM-selection logic), CX-MFG-PP7-DISC-002 (`fg_warehouse`
+  header-override, not company default — §JJ was wrong and is corrected), CX-MFG-PP7-DISC-004
+  (`skip_available_sub_assembly_item`'s reset/exhaustion mechanics re-traced and found more nuanced
+  than either the original doc text or the discovery finding's own proposed correction — documented
+  precisely, with the actual stock-sufficiency branch itself still flagged `SOURCE VERIFIED /
+  RUNTIME DEFERRED` since the fixture deliberately carried zero stock).
+- **Not independently testable this session, deliberately deferred, not overclaimed**:
+  `skip_available_sub_assembly_item`'s actual stock-sufficiency/exhaustion branch (needs non-zero
+  stock, out of scope), subassembly duplicate-generation on a second `make_work_order` call
+  (skipped — no acceptance-relevant benefit, added cleanup risk), subcontract-typed subassembly rows
+  (explicitly out of scope), concurrency/high-volume behavior.
+- **Sign-off**: implementing session's own in-session work only. Per
+  `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this is `CLAUDE_HANDOFF` — not self-accepted; PP-7
+  overall requires independent review to close, and PP-8 stays locked until then.

@@ -1630,8 +1630,30 @@ fieldnames exist: `production_plan`, `production_plan_item`, `production_plan_su
 `bom_no`, `sales_order`, `sales_order_item`, `fg_warehouse`, `wip_warehouse`, `from_wip_warehouse`,
 `source_warehouse` (`work_order.json`, direct grep). `source_warehouse` for a subassembly Work
 Order comes from `BOM.default_source_warehouse` of that subassembly's own BOM, not a Production
-Plan field; `wip_warehouse`/`fg_warehouse`/`scrap_warehouse` come from company defaults
-(`get_default_warehouse`), same as the finished-good path.
+Plan field. **Correction (CX-MFG-PP7-DISC-002, PP-7R, live-verified 2026-09-21):** the claim above
+that `fg_warehouse` "comes from company defaults, same as the finished-good path" was factually
+inaccurate and is withdrawn. The actual mechanism, confirmed both from source and now from a live
+Work Order: `work_order_data` is first populated with the company-default `fg_warehouse` (same
+`get_default_warehouse`/`set_default_warehouses` helper used everywhere else), but
+`prepare_data_for_sub_assembly_items()` then unconditionally copies the sub-assembly row's own
+`fg_warehouse` field over that initial value (already correctly stated two paragraphs above — this
+correction concerns §JJ's warehouse-summary sentence only, not the row-copy claim itself, which was
+always right). Row-level `fg_warehouse` on a `sub_assembly_items` row is itself sourced from
+`self.sub_assembly_warehouse` if set (`get_sub_assembly_items`'s own `warehouse=self.
+sub_assembly_warehouse` parameter, threaded through to each generated row), so in practice the
+header's Sub Assembly Warehouse field — not the company default — determines a subassembly Work
+Order's `fg_warehouse` whenever it's set. `wip_warehouse` and `scrap_warehouse` are **not** part of
+that row-copy override and remain company-default-only for subassembly Work Orders exactly as
+originally claimed — only `fg_warehouse` was wrong. **Live evidence:** `MFG-PP-2026-00006` had
+`sub_assembly_warehouse = "Work In Progress - CS"`, set deliberately distinct from the company's
+default FG warehouse (`Finished Goods - CS`) specifically to make this distinguishable; the
+resulting subassembly Work Order (`MFG-WO-2026-00011`, `production_item: "PP7-TEST-SUB"`) persisted
+with `fg_warehouse: "Work In Progress - CS"` — the header override, not the company default — while
+its sibling finished-good Work Order (`MFG-WO-2026-00010`) persisted `fg_warehouse: "Finished Goods
+- CS"` (the `po_items` row's own warehouse, per §U, unaffected by this correction).
+`wip_warehouse`/`source_warehouse` were `NULL` on both live rows (no WIP/source warehouse
+configured for either BOM/company on this instance — consistent with, not contradicting, the
+company-default claim for those two fields specifically).
 
 **Quantity**, for both FG and subassembly rows, comes from `ProductionPlanWorkOrderQuantities(self.name).get_pending_quantities(self)`
 — a "pending" calculation, not a raw planned-qty copy — matching §P's existing claim, now confirmed
@@ -1657,15 +1679,53 @@ ID link. `data.production_plan_item = row.name` is set once, at the top of each 
 explosion — every sub-assembly row generated from exploding one finished-good row carries that same
 `production_plan_item` back-reference, regardless of how deep it sits in that row's own subtree.
 
-**`skip_available_sub_assembly_item` — exact semantics (§2.C), fully source-traced:**
+**Clarification (CX-MFG-PP7-DISC-001, PP-7R):** `get_bom_children` performs **no BOM-selection
+algorithm of its own** — it is an alias for `bom.get_children` and simply returns each BOM Item
+child row as-is, including whatever `bom_no` (`d.value`) is already stored on that row. Which BOM a
+component resolves to is decided once, at BOM-authoring time (a BOM Item row is auto-linked to the
+component item's active/default submitted BOM when the BOM is saved), not by this function or by
+`get_sub_assembly_items` at explosion time. **Live evidence:** `BOM-PP7-TEST-FG-001`'s `PP7-TEST-SUB`
+component row carried `bom_no: "BOM-PP7-TEST-SUB-001"` immediately on BOM creation, before
+`get_sub_assembly_items` was ever called — confirming the linkage `get_bom_children` reads is
+pre-existing data, not something it computes.
+
+**`skip_available_sub_assembly_item` — exact semantics (§2.C), fully source-traced, corrected and
+deepened per CX-MFG-PP7-DISC-004 (PP-7R, 2026-09-21):**
 - **Validation-time**: if enabled without `self.sub_assembly_warehouse` set, the bound method throws
-  immediately, before any explosion happens.
-- **Read-only stock check**: when enabled, each first-encountered `item_code` gets a `Bin` lookup
-  (`get_bin_details`, `for_warehouse=self.sub_assembly_warehouse`) — purely a read (`Bin.projected_qty`),
-  no mutation of `Bin`, `Stock Ledger Entry`, or anything else. Once an item_code has been checked
-  once (tracked via an in-memory list passed through the recursion, confusingly reusing the same
-  parameter name as the child-table field), later occurrences of the same item_code anywhere in the
-  tree skip the Bin re-check and reuse the first result.
+  immediately, before any explosion happens. **Live-verified**: `MFG-PP-2026-00006` threw exactly
+  this error (`"Row #1: Please select the Sub Assembly Warehouse"`) on the first `get_sub_assembly_
+  items()` attempt, before `sub_assembly_warehouse` was set — also newly confirming
+  `skip_available_sub_assembly_item` **defaults to enabled** (`"default": "1"` in
+  `production_plan.json`), a previously undocumented default that makes this validation the common
+  case, not an edge case, for any caller that doesn't explicitly clear the checkbox.
+- **Correction — this is not a simple "cache first result, reuse it" model.** Direct re-read of the
+  module-level helper (`production_plan.py`:2052-2069) shows the Bin lookup itself IS cached per
+  `item_code` (`bin_details.setdefault(...)`, fetched once), but the **availability check is not a
+  simple cache hit/miss** — the line `_bin_dict.original_projected_qty = _bin_dict.projected_qty`
+  resets the working balance back to the item's fixed, never-mutated `Bin.projected_qty` on *every*
+  occurrence of that `item_code`, for as long as that item_code has not yet been recorded as
+  exhausted. Concretely, within one `po_items` (finished-good) row's own explosion: if occurrence 1
+  of an item needs less than the full `Bin.projected_qty`, it is marked fully covered and the
+  decremented remainder is **discarded**, not carried forward — occurrence 2 of the *same* item_code
+  elsewhere in that row's subtree is checked again against the *original, undiminished*
+  `Bin.projected_qty`, not a running balance. Only when a *single* occurrence's requirement exceeds
+  the (still-full) `Bin.projected_qty` does that occurrence register a shortfall, and that item_code
+  is appended to an in-memory "already processed" list — from that point on, in the *entire remaining
+  traversal* (including later, unrelated `po_items` rows, since each row's tracking list is seeded
+  from every item_code that has appeared in any earlier row's exploded output), every further
+  occurrence of that item_code skips the reduction logic entirely and is charged the full theoretical
+  quantity with **zero** stock credit. Net effect: available stock can be credited more than once
+  across sibling occurrences that each individually stay within it (no true cross-occurrence
+  drawdown while every check keeps passing), but the moment any single occurrence exceeds the
+  available balance, that item is "used up" for the rest of the document, not just that branch. **Not
+  independently re-verified this session against non-zero stock** — the PP-7R fixture deliberately
+  carried no stock for `PP7-TEST-RM-A`/`RM-B`/`RM-C` per governance (§22 of the PP-7R brief: don't
+  post stock solely to exercise this flag), so only the zero-`Bin.projected_qty` path (`>0` check
+  false, reduction skipped entirely, full required qty charged) is `LIVE VERIFIED` — confirmed by
+  `MFG-PP-2026-00006`'s `mr_items` output matching the fixture's full theoretical quantities exactly
+  (RM-A: 80, RM-B: 100, RM-C: 30, for 10 planned FG). The reset/exhaustion mechanics described above
+  remain `SOURCE VERIFIED / RUNTIME DEFERRED` — a future package with authorized stock-posting scope
+  would be needed to exercise the sufficiency branch live.
 - **Effect on generated rows**: the row is **always appended** to `sub_assembly_items` regardless of
   available stock — `stock_qty` (the actual production-need quantity) gets reduced toward 0 as
   available `Bin.projected_qty` is consumed, but `required_qty` (the gross theoretical need) is
@@ -1780,10 +1840,151 @@ session's attempt.
 QUALIFICATION BLOCKED — STATE EXACT BLOCKER` (see the package handoff for the full statement). This
 does not apply to the source-discovery objective, which is substantially complete (§HH–NN above).
 
+**Superseded 2026-09-21 (PP-7R):** the blocker described above was specific to that prior session's
+own sandbox permission classifier, not a standing environment or governance restriction. A
+follow-up session confirmed both SSH and Frappe-console write capability against the same instance
+(a throwaway `PP7R-CAPTEST` Item was created and deleted before any fixture work began, specifically
+to prove write capability rather than assume it), then completed the runtime qualification this
+section could not. See §PP below for the full result; §HH–OO above are left unchanged as the
+historical record of the blocked attempt.
+
+### PP. PP-7R — Controlled Multi-Level Runtime Qualification, live-confirmed (2026-09-21)
+
+Environment re-confirmed identical to every prior PP package before any write: SSH to
+`62.238.22.161`, `docker ps` showing the same `frappe_docker-*` stack (image `frappe/erpnext:
+v16.34.2`), `bench version` inside `frappe_docker-backend-1` confirming `frappe 16.33.1` /
+`erpnext 16.34.2` / `smart_factory 0.0.1`, site `frontend` (`default_site` in
+`common_site_config.json`) with `installed_apps: ["frappe", "erpnext", "smart_factory"]`. A
+pre-test positive-absence sweep (`Item`/`BOM`/`Sales Order`/`Production Plan`/`Work Order`/
+`Material Request`/`Purchase Order`/`Stock Ledger Entry`/`GL Entry`/`Stock Reservation Entry`, all
+filtered on the `PP7%`/`%PP7%` naming pattern) returned zero rows everywhere, matching the
+independent Gate A reviewer's own prediction exactly.
+
+**Fixture** (company `Ceylon Stack` — the convention every prior PP package used, not the
+`(Demo)` company; warehouses `Stores - CS`/`Work In Progress - CS`/`Finished Goods - CS`; customer
+`Grant Plastics Ltd.`, reused from prior PP1–PP6 manufacturing test Sales Orders after the
+originally-planned `QA Test Customer Sales E2E` turned out to be `disabled` and correctly rejected
+the Sales Order with `PartyDisabled` — confirmed by re-querying for the document afterward rather
+than trusting the in-memory object, which still carried a name/qty from the failed attempt):
+
+| Item | Item Group | Role |
+|---|---|---|
+| `PP7-TEST-FG` | Products | Finished good, sold |
+| `PP7-TEST-SUB` | Sub Assemblies | Subassembly (1 level deep) |
+| `PP7-TEST-RM-A` / `RM-B` | Raw Material | `BOM-PP7-TEST-SUB-001` components |
+| `PP7-TEST-RM-C` | Raw Material | `BOM-PP7-TEST-FG-001` direct component |
+
+`BOM-PP7-TEST-SUB-001` (submitted, default): 1 `PP7-TEST-SUB` = 4 `RM-A` + 5 `RM-B`.
+`BOM-PP7-TEST-FG-001` (submitted, default): 1 `PP7-TEST-FG` = 2 `PP7-TEST-SUB` + 3 `RM-C`. Its
+`PP7-TEST-SUB` row's `bom_no` was auto-populated to `BOM-PP7-TEST-SUB-001` at BOM save time, before
+any explosion method ran — direct evidence for CX-MFG-PP7-DISC-001 (§KK). Sales Order
+`SAL-ORD-2026-00040`: 10 × `PP7-TEST-FG`, submitted.
+
+**Flow reproduced exactly matching this app's own accepted integration path** (same native
+methods `lib/actions/productionPlanCreate.ts`/`productionPlanPlanning.ts`/`productionPlanWorkOrder.ts`
+call via `run_doc_method`, invoked directly here since a live browser session wasn't in scope):
+`get_open_sales_orders` → sales_orders table set to just `SAL-ORD-2026-00040` (the native
+`get_open_sales_orders` call itself, run without a customer/item filter, correctly pulled *every*
+open Sales Order on the company including unrelated PP1–PP6 fixtures — expected, undocumented-
+elsewhere-until-now behavior, not a defect — so the table was narrowed to the one SO under test
+before combining, exactly as a real user selecting rows in the grid would) → `combine_so_items` →
+`po_items` correctly populated (`PP7-TEST-FG`, `bom_no: BOM-PP7-TEST-FG-001`, `planned_qty: 10`,
+`warehouse: Finished Goods - CS`) → `insert()` → `MFG-PP-2026-00006` (Draft, independently
+re-queried after insert to confirm persistence, not just the in-memory object).
+
+**`get_sub_assembly_items`**: first call threw `"Row #1: Please select the Sub Assembly Warehouse"`
+— live confirmation that `skip_available_sub_assembly_item` defaults enabled (see §KK correction
+above). Retried with `sub_assembly_warehouse = "Work In Progress - CS"` (deliberately different
+from the company default FG warehouse, to make CX-MFG-PP7-DISC-002 distinguishable rather than
+inconclusive): produced exactly one `sub_assembly_items` row — `production_item: PP7-TEST-SUB`,
+`bom_no: BOM-PP7-TEST-SUB-001`, `qty: 20` (2 × 10, correct), `bom_level: 0`, `parent_item_code:
+PP7-TEST-FG`, `fg_warehouse: "Work In Progress - CS"` (the header override, not the company
+default — see §JJ correction), `type_of_manufacturing: "In House"`, `supplier: null`. `RM-C` does
+**not** appear here (it has no BOM — it flows to `mr_items` directly instead, correctly). Saved;
+independently re-queried via raw SQL (bypassing the ORM entirely) and matched exactly.
+
+**`get_items_for_material_requests`** (the free-standing function, called directly — matches
+§LL's "confirmed pure function" claim: attempting to persist its raw output into `mr_items` failed
+with `MandatoryError: warehouse` for all three rows, exactly as expected since the function itself
+never sets a `warehouse` when none is passed in, and the failed `save()` left zero rows persisted,
+independently confirmed via SQL count) returned exactly the expected multi-level-flattened set:
+
+| item_code | quantity | main_item_code | from_bom | Expected (§14 sanity check) |
+|---|---|---|---|---|
+| `PP7-TEST-RM-C` | 30.0 | `PP7-TEST-FG` | `BOM-PP7-TEST-FG-001` | 30 ✓ |
+| `PP7-TEST-RM-A` | 80.0 | `PP7-TEST-SUB` | `BOM-PP7-TEST-SUB-001` | 80 ✓ |
+| `PP7-TEST-RM-B` | 100.0 | `PP7-TEST-SUB` | `BOM-PP7-TEST-SUB-001` | 100 ✓ |
+
+All three exactly match the hand-computed expectation for 10 FG — direct confirmation that
+multi-level flattening (§LL) correctly nets a two-level tree (FG → SUB → RM-A/RM-B, plus FG → RM-C
+directly) into one flat raw-material list, live, not just from source.
+
+**Submit** (`MFG-PP-2026-00006`, `docstatus 0 → 1`): zero `Stock Ledger Entry`/`GL Entry` rows for
+any `PP7%` item or this plan's name, before and after — matching the standing "submit never posts"
+claim, now live-confirmed for a plan that actually has non-empty `sub_assembly_items` (every prior
+live submit test had empty `sub_assembly_items`/`mr_items`).
+
+**`make_work_order`**, called once: generated exactly two Draft Work Orders in the same call,
+confirming §II's "both in one call" claim live for the first time —
+
+| | `MFG-WO-2026-00010` (FG) | `MFG-WO-2026-00011` (SUB) |
+|---|---|---|
+| `production_item` | `PP7-TEST-FG` | `PP7-TEST-SUB` |
+| `qty` | 10 | 20 |
+| `bom_no` | `BOM-PP7-TEST-FG-001` | `BOM-PP7-TEST-SUB-001` |
+| `sales_order` | `SAL-ORD-2026-00040` | `SAL-ORD-2026-00040` |
+| `production_plan_item` | *(set, row `tfkcfro0p9`)* | `NULL` |
+| `production_plan_sub_assembly_item` | `NULL` | *(set, row `uu3a86p472`)* |
+| `fg_warehouse` | `Finished Goods - CS` | `Work In Progress - CS` |
+| `source_warehouse` / `wip_warehouse` | `NULL` / `NULL` | `NULL` / `NULL` |
+| `docstatus` | 0 (Draft) | 0 (Draft) |
+
+This is a live, first-time confirmation of the exact asymmetry §JJ predicted from source
+(`production_plan_item` XOR `production_plan_sub_assembly_item`, never both), and of the
+`fg_warehouse` correction above. `source_warehouse`/`wip_warehouse` being `NULL` on both rows is
+consistent with (not contrary to) source: neither BOM has a `default_source_warehouse` set, and no
+WIP warehouse is configured in this company's Manufacturing Settings — the same "no default
+configured, so nothing to carry" reasoning §U already established for the FG path, now confirmed to
+apply identically to the subassembly path. A second `make_work_order` invocation (to runtime-test
+subassembly duplicate-generation, §NN) was deliberately **not** performed — not required for this
+package's primary objective and would have added cleanup risk for no acceptance-relevant benefit;
+subassembly duplicate-generation remains `SOURCE VERIFIED / RUNTIME DEFERRED`.
+
+**Side-effect audit** (before/after, via independent raw SQL, bypassing the ORM): `Stock Ledger
+Entry`, `GL Entry`, `Stock Entry Detail`, `Material Request Item`, and `Purchase Order Item` all
+returned zero rows for any `PP7%` item at every checkpoint (post-Draft-creation, post-submit,
+post-Make-Work-Order) — no unexpected posting anywhere in the flow.
+
+**No Material Request was created** (per governance: not required to close a specifically-scoped
+gap, and this package's primary objective — multi-level explosion + subassembly Work Order
+generation — was already fully exercised via `get_items_for_material_requests`'s direct-call
+evidence above).
+
+**Cleanup**, in dependency order, each step independently verified: delete both Draft Work Orders →
+cancel + delete `MFG-PP-2026-00006` → cancel + delete `SAL-ORD-2026-00040` → cancel + delete
+`BOM-PP7-TEST-FG-001` → cancel + delete `BOM-PP7-TEST-SUB-001` → delete all 5 `PP7-TEST-*` Items.
+Every step succeeded without error; no `--force`/link-bypass flags used. Post-cleanup positive-
+absence sweep (raw SQL, same shape as the pre-test sweep) confirmed **zero** residual rows across
+`Item`/`BOM`/`Sales Order`/`Production Plan`/`Work Order`/`Material Request`/`Purchase Order`/
+`Stock Ledger Entry`/`GL Entry`/`Stock Reservation Entry`.
+
+**CX-MFG-PP7-DISC-003** (positive absence checks finding zero `PP7`-pattern records before this
+package began): confirmed correct and **resolved** by this session's own independent pre-test
+sweep, which found the same zero-everywhere result the original reviewer reported. No remediation
+was ever needed.
+
+**No application code was changed.** This package is evidence/documentation only —
+`git diff --check` and the working-tree diff for this commit touch only `docs/`.
+
 ## NEEDS_VERIFICATION
 
 See `docs/backend/99-unverified/unverified-behaviours.md` → `MFG-UNV-012` for the consolidated
-list (no live Production Plan document exists to test any of this against; all of it is
-source-derived, high-confidence but not live-confirmed). Note: this item was originally
-misassigned `MFG-UNV-010` — a number already in use by an unrelated BOM verification item — and was
-renumbered to `MFG-UNV-012` per Codex review finding `CX-MFG-PP-004`.
+list. As of PP-7R (2026-09-21), multi-level subassembly explosion, multi-level material-requirement
+flattening (zero-stock case), subassembly Work Order generation, subassembly Work Order
+backreference asymmetry, and the `fg_warehouse` precedence question are `LIVE VERIFIED`. Still
+`NEEDS_VERIFICATION`/`SOURCE VERIFIED, RUNTIME DEFERRED`: `skip_available_sub_assembly_item`'s
+stock-sufficiency/exhaustion branch against non-zero stock, subassembly duplicate-generation on a
+second `make_work_order` call, subcontract-typed subassembly rows, and any concurrency/high-volume
+behavior. Note: this item was originally misassigned `MFG-UNV-010` — a number already in use by an
+unrelated BOM verification item — and was renumbered to `MFG-UNV-012` per Codex review finding
+`CX-MFG-PP-004`.

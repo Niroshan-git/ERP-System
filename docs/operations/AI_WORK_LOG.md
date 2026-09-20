@@ -3594,3 +3594,90 @@ code changes without a stop). Until then, `MFG-UNV-012`'s subassembly/multi-leve
 review of this discovery package (source-accuracy spot-check, confirm no code changes occurred,
 confirm the blocker claim, confirm documentation accuracy) is the natural next step before any
 further PP-7 runtime attempt.
+
+## Package: Production Plan PP-7R — Controlled Multi-Level Runtime Qualification Continuation (temporary dual-Claude mode, 2026-09-21)
+
+**PACKAGE:** PP-7R (completes PP-7's runtime objective; not a new feature package, not PP-8)
+**ROLE:** Primary implementer/runtime investigator
+**BASELINE VERIFIED:** HEAD `5760875` before starting (PP-7 discovery commit); PP-1–PP-6, PP-5R
+`ACCEPTED`; PP-7 discovery/Gate A `ACCEPTED` by independent review; PP-7 runtime objective `OPEN`;
+`PP5R-R-01` open/non-blocking; PP-8 locked. Working tree had pre-existing unrelated changes
+(`docs/architecture/decisions/README.md` modified, three untracked master-plan/backlog docs) —
+preserved untouched throughout, not staged or reverted.
+**STATUS:** `CLAUDE_HANDOFF`
+
+### Gates cleared before any write
+
+**Environment safety gate:** SSH to `62.238.22.161` confirmed live; `docker ps` matched the
+documented `frappe_docker-*` stack, image `frappe/erpnext:v16.34.2`; `bench version` inside
+`frappe_docker-backend-1` confirmed `frappe 16.33.1`/`erpnext 16.34.2`/`smart_factory 0.0.1`; site
+`frontend` (the `default_site`) has `installed_apps: ["frappe", "erpnext", "smart_factory"]` —
+identical to every prior PP package's environment, not ambiguous.
+
+**Remote-write capability gate:** rather than assume write access (the prior PP-7 session's blocker
+was tooling-specific, not environment-specific), this session proved it directly — created a
+throwaway `PP7R-CAPTEST` Item via `bench execute frappe.client.insert`, then deleted it
+(`frappe.client.delete`) and independently re-queried to confirm zero residue, before starting any
+fixture work.
+
+### Runtime qualification — complete, not blocked
+
+Full fixture, flow, evidence, and side-effect audit written up in
+`docs/backend/05-manufacturing/production-plan.md`'s new §PP (do not duplicate the detail here —
+see that section for the complete table-by-table evidence). Summary: a real two-level BOM fixture
+(`PP7-TEST-FG` → `PP7-TEST-SUB` → `PP7-TEST-RM-A`/`RM-B`, plus `PP7-TEST-FG` → `PP7-TEST-RM-C`
+directly) was built, planned via this app's own accepted native-method sequence
+(`get_open_sales_orders` → `combine_so_items` → insert → `get_sub_assembly_items` → save →
+`get_items_for_material_requests` → submit → `make_work_order`), and every quantity/traceability/
+warehouse claim in §HH–NN of the PP-7 discovery package was either confirmed live or corrected
+where source re-reading found the prior claim imprecise (CX-MFG-PP7-DISC-002, fully corrected;
+CX-MFG-PP7-DISC-004, refined beyond its own original framing after a closer trace of the reset/
+exhaustion mechanics; CX-MFG-PP7-DISC-001, confirmed and documented; CX-MFG-PP7-DISC-003, resolved
+by an independent repeat of the same positive-absence sweep). Every persistence claim in this
+package was independently re-verified after the fact — either via a separate `bench execute` call
+in a different process than the one that performed the write, or via raw SQL bypassing the ORM
+entirely — rather than trusted from the acting call's own in-memory return value (this caught one
+real discrepancy: a failed `Sales Order` insert against a disabled customer left an in-memory object
+with a plausible-looking `name`/`qty`, which a follow-up query confirmed had never actually
+persisted).
+
+**Zero unexpected side effects**: no `Stock Ledger Entry`, `GL Entry`, `Stock Entry`, `Material
+Request`, `Purchase Order`, or `Stock Reservation Entry` was created anywhere in the flow — all
+Work Orders remained Draft, no execution or accounting documents were touched, exactly as scoped.
+
+**Cleanup fully completed** in dependency order (Work Orders → Production Plan → Sales Order →
+BOMs → Items, cancelling submitted documents before deleting, no `--force`/link-bypass), with a
+post-cleanup positive-absence sweep confirming zero residual `PP7`-pattern rows across every
+doctype checked pre-test.
+
+### Not touched, by design
+
+No application code anywhere in `apps/frontend` or `apps/smart_factory` was changed — this package
+is evidence/documentation only, per its own explicit scope lock (§28 of the brief: any implementation
+gap found would stop the package, not trigger a fix). None was found; the existing PP-4/PP-5/PP-6
+implementation matched every runtime observation. `docs/ceylon-stack-documentation.html` and Notion
+were **not** updated (explicitly out of scope for PP-7R per the brief — those sync only after PP-7
+overall independent acceptance). PP-8 remains locked; this package does not unlock it.
+
+### Tests
+
+No application code changed. `git diff --check` clean on the documentation-only diff for this
+package's commit.
+
+### Discovery decision (§37)
+
+**A. RUNTIME QUALIFICATION COMPLETE — EXISTING IMPLEMENTATION SUFFICIENT.** Every behavior this
+package set out to qualify (multi-level explosion, multi-level material-requirement flattening,
+subassembly Work Order generation and its traceability asymmetry, the `fg_warehouse` precedence
+question) matched what PP-4/PP-5/PP-6 already implement and what the PP-7 discovery package already
+predicted from source — no implementation gap was found, only a runtime-evidence gap that this
+package now closes.
+
+### Recommended next action
+
+Independent review of this PP-7R package (spot-check the §PP evidence against a fresh read of the
+same source lines, confirm the documentation corrections to CX-MFG-PP7-DISC-001/002/004 are
+accurate, confirm no application code changed, confirm the cleanup/absence-sweep claims). **PP-7
+overall is not self-accepted by this entry** — only independent review can close PP-7 and, separately,
+authorize unlocking PP-8. Until then PP-8 stays locked and `docs/ceylon-stack-documentation.html`/
+Notion stay untouched.

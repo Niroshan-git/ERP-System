@@ -186,7 +186,10 @@ one row (§KK — a previously undocumented multi-level behavior); (f) a third
 and routes a subassembly straight into Material Request generation instead of Work Order generation
 (§LL); (g) PP-5's live-confirmed finished-good duplicate-generation mechanism reads from source as
 equally applicable to subassembly Work Orders (same underlying `get_pending_quantities()` call),
-but this is a source inference, not runtime-confirmed for the subassembly case (§NN).
+but this is a source inference, not runtime-confirmed for the subassembly case (§NN). **Superseded
+2026-09-21 (PP-7R):** the runtime block below was session-specific, not a standing restriction — see
+the PP-7R update further down for the completed live test that promotes (b)–(f) above to `LIVE
+VERIFIED`.
 
 **Blocked, not skipped:** the controlled runtime test (temporary `PP7-TEST-*` Items/BOMs/Sales
 Order/Production Plan, same authorized pattern as PP-4's live test data) was attempted against the
@@ -198,6 +201,46 @@ cleanup. Sub-assembly/subcontract Work Order generation, multi-level Material Re
 therefore all remain `SOURCE VERIFIED / RUNTIME DEFERRED`, not promoted to `LIVE VERIFIED` — the
 next attempt needs either this environment's write permission granted, or the same test run
 performed from a session/tooling context without that restriction.
+
+**2026-09-21 update (PP-7R — controlled multi-level runtime qualification, live test,
+completing PP-7):** the write-permission blocker recorded in the PP-7 update below was specific to
+that prior session's sandbox classifier, not a standing restriction — a follow-up session confirmed
+both SSH and Frappe-console write capability (verified with a throwaway, immediately-deleted test
+Item before any fixture work began) and completed the runtime test PP-7 could not. Full evidence,
+fixture detail, and side-effect audit in `production-plan.md`'s new "§PP. PP-7R" section. **Promoted
+to `LIVE VERIFIED`**: (a) multi-level BOM explosion is genuinely recursive against a real two-level
+fixture (FG → SUB → RM-A/RM-B, plus FG → RM-C directly) — `get_sub_assembly_items` produced exactly
+one `PP7-TEST-SUB` row (`qty: 20` for 10 planned FG), correctly omitting the non-BOM `RM-C` leaf; (b)
+multi-level material-requirement flattening — `get_items_for_material_requests` returned exactly
+`RM-A: 80`, `RM-B: 100`, `RM-C: 30`, matching the hand-computed expectation for the full two-level
+tree exactly; (c) `make_work_order` generates both a finished-good and a subassembly Work Order in
+one call, live-confirmed for the first time (`MFG-WO-2026-00010`/`-00011`); (d) the
+`production_plan_item` XOR `production_plan_sub_assembly_item` asymmetry between FG and subassembly
+Work Orders is live-confirmed, not just source-derived; (e) **CX-MFG-PP7-DISC-002 resolved**: a
+subassembly Work Order's `fg_warehouse` is the header `sub_assembly_warehouse` override, not the
+company default (`MFG-WO-2026-00011` persisted `fg_warehouse: "Work In Progress - CS"`, the
+deliberately-distinct override value, not the company's `Finished Goods - CS` default) —
+`production-plan.md`'s §JJ text claiming otherwise was wrong and has been corrected; (f)
+**CX-MFG-PP7-DISC-001 resolved**: `get_bom_children` performs no BOM-selection logic itself, it
+only reads the `bom_no` already stored on a BOM Item row (confirmed live: `BOM-PP7-TEST-FG-001`'s
+`PP7-TEST-SUB` row carried `bom_no: "BOM-PP7-TEST-SUB-001"` immediately on save, before any
+explosion method ran); (g) **CX-MFG-PP7-DISC-004 refined**: `skip_available_sub_assembly_item`
+defaults to *enabled* (`"default": "1"`, previously undocumented — live-confirmed by the
+"Please select the Sub Assembly Warehouse" throw on first attempt), and its stock-check is not a
+simple cache-and-reuse — a closer source re-trace (not itself runtime-exercised; the fixture
+deliberately carried zero stock per governance) found the working balance resets per occurrence
+until a single occurrence exceeds it, at which point that item_code is exhausted for the rest of
+the document, not just that branch — see `production-plan.md`'s §KK correction for the full
+mechanics; (h) **CX-MFG-PP7-DISC-003 resolved** — a fresh pre-test positive-absence sweep
+independently reproduced the original reviewer's zero-everywhere finding. **Still `SOURCE VERIFIED /
+RUNTIME DEFERRED`, not promoted**: `skip_available_sub_assembly_item`'s actual stock-sufficiency/
+exhaustion branch (needs non-zero stock, out of this package's scope), subassembly
+duplicate-generation on a second `make_work_order` call (deliberately not performed — no
+acceptance-relevant benefit, added cleanup risk), subcontract-typed subassembly rows (explicitly
+out of scope), and any concurrency/high-volume behavior. All test data (`PP7-TEST-*` Items, both
+BOMs, the Sales Order, the Production Plan, both Draft Work Orders) was fully cleaned up and a
+post-cleanup absence sweep confirmed zero residual rows. No application code was changed — this is a
+documentation/evidence-only package; final PP-7 acceptance still requires independent review.
 
 **2026-09-20 update (PP-4 — sub-assembly explosion + raw-material calc, source read + live
 test):** full source read of `services/sub_assembly.py`, `services/sub_assembly_queries.py`,
