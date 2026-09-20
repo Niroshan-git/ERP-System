@@ -3681,3 +3681,119 @@ accurate, confirm no application code changed, confirm the cleanup/absence-sweep
 overall is not self-accepted by this entry** — only independent review can close PP-7 and, separately,
 authorize unlocking PP-8. Until then PP-8 stays locked and `docs/ceylon-stack-documentation.html`/
 Notion stay untouched.
+
+## Package: Production Plan PP-7R — independent review (temporary dual-Claude mode, 2026-09-21)
+
+**PACKAGE:** Production Plan PP-7R (Controlled Multi-Level Runtime Qualification Continuation)
+**ROLE:** REVIEWER
+**AGENT:** an independent Claude reviewing session under `TEMP_DUAL_CLAUDE_MODE.md`, no durable
+session identifier available. This session began post-`/clear` with no memory of having performed
+the PP-7R implementation, and reconstructed the package boundary from repository evidence (this
+entry, `TEMP_DUAL_CLAUDE_MODE.md`'s Session Log, `git log`/`git diff`) rather than trusting the
+`CLAUDE_HANDOFF` write-up as proof, per §6.
+**IMPLEMENTER:** prior session, no durable session identifier available (recorded above)
+**REVIEWER:** this session, no durable session identifier available
+**BASE COMMIT:** `5760875`
+**IMPLEMENTATION COMMIT:** `746847a`
+
+### Verdict: **ACCEPTED** — no HIGH findings
+
+Independently confirmed against the actual diff and live instance, not the handoff write-up:
+
+1. **No application code changed** — `git diff --stat 5760875 746847a` touches only `PROGRESS.md`,
+   `QA_LOG.md`, `docs/backend/05-manufacturing/production-plan.md`,
+   `docs/backend/99-unverified/unverified-behaviours.md`, `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`,
+   `docs/operations/AI_WORK_LOG.md`, and `graphify-out/**` (generated index artifacts). Nothing in
+   `apps/frontend` or `apps/smart_factory`.
+2. **Package isolation** — the pre-existing unrelated working-tree changes
+   (`docs/architecture/decisions/README.md`, `docs/ceylon-stack-master-backlog.md`,
+   `docs/ceylon-stack-master-plan.md`, `docs/master-data-architecture.md`) do not appear in the
+   implementation commit's file list and remain modified/untracked in the working tree exactly as
+   before — confirmed untouched.
+3. **Cleanup/absence-sweep claim — independently re-verified live, not trusted from the write-up.**
+   SSH'd to `62.238.22.161` and ran `frappe.db.exists` (via `bench execute`, ORM path, not the
+   implementer's own SQL) against every specific document name the package claims to have created
+   and deleted: `SAL-ORD-2026-00040`, `MFG-PP-2026-00006`, `MFG-WO-2026-00010`, `MFG-WO-2026-00011`,
+   `BOM-PP7-TEST-FG-001`, `BOM-PP7-TEST-SUB-001`, and all five `PP7-TEST-*` Items — every single one
+   returned empty (nonexistent). Positive control (`frappe.db.exists("Item", "APP-CAP-SPORT")` and
+   `frappe.db.get_value("Sales Order", {}, "name")`) confirmed the same mechanism correctly returns
+   truthy values for documents that do exist, ruling out a silent-failure explanation for the empty
+   results. Cleanup claim holds.
+4. **CX-MFG-PP7-DISC-001 (`get_bom_children` is a plain alias) — confirmed at source.** Line 32 of
+   `production_plan.py` on the live container:
+   `from erpnext.manufacturing.doctype.bom.bom import get_children as get_bom_children` — a direct
+   import alias, exactly as claimed. No BOM-selection logic of its own.
+5. **CX-MFG-PP7-DISC-004 (Bin reset/exhaustion mechanics) — confirmed at source, line-for-line.**
+   Read `get_sub_assembly_items` (lines ~2052-2085) directly on the container: `_bin_dict.
+   original_projected_qty = _bin_dict.projected_qty` does reset the working balance to the
+   never-mutated `Bin.projected_qty` on every occurrence of an item_code (not a running balance);
+   the `else` branch appends `d.item_code` to `sub_assembly_items` (the exhausted-list) only when a
+   single occurrence's `stock_qty` exceeds that balance, and once appended, the `d.item_code not in
+   sub_assembly_items` gate at the top skips the entire check-and-reduce block for every later
+   occurrence, charging the full theoretical `stock_qty` with zero credit. This is a subtle,
+   correctly-traced piece of source analysis — verified word-for-word against the actual mechanics,
+   not just plausible-sounding.
+6. **Documentation internal consistency** — the package's own narrative (`SAL-ORD-2026-00040`
+   created after a `PartyDisabled`-rejected attempt against a disabled customer) is consistent with
+   the live Sales Order series currently sitting at `SAL-ORD-2026-00038` with no `-039`/`-040`
+   existing — the numbering gap matches the claimed failed-then-retried sequence rather than
+   contradicting it.
+7. **Runtime evidence classification** — the package's own `LIVE VERIFIED` vs `SOURCE VERIFIED /
+   RUNTIME DEFERRED` labeling (zero-stock path verified, non-zero-stock exhaustion branch and
+   second-`make_work_order` duplicate-generation still deferred) is accurate and appropriately
+   conservative — it does not claim more than what was actually exercised.
+
+**One non-blocking finding — `PP7R-R-01`:**
+
+- **Severity:** LOW — documentation-precision gap on a corrected claim, not a code defect (no code
+  changed in this package).
+- **Area:** CX-MFG-PP7-DISC-002's corrected `fg_warehouse` explanation.
+- **Evidence:** the doc attributes the `fg_warehouse` override to "`get_sub_assembly_items`'s own
+  `warehouse=self.sub_assembly_warehouse` parameter, threaded through to each generated row." Direct
+  source read shows this is not quite where the override happens: `get_sub_assembly_items`'s row-dict
+  construction (~lines 2087-2109) does not set `fg_warehouse` at all. The actual override is a
+  separate, later step in `set_sub_assembly_items_based_on_level`:
+  `if not is_group_warehouse: data.fg_warehouse = self.sub_assembly_warehouse`. The doc also omits
+  the `is_group_warehouse` gate entirely — if `sub_assembly_warehouse` is itself a group warehouse,
+  the override does **not** apply and `fg_warehouse` stays at the company default, contrary to the
+  doc's unconditional "whenever it's set" phrasing.
+- **Impact:** the live-verified *outcome* (`MFG-WO-2026-00011.fg_warehouse` = the header override) is
+  real and correctly demonstrated for the non-group-warehouse case tested. The risk is narrow: a
+  future reader relying on this doc's mechanism description, rather than the outcome, could
+  incorrectly assume the override always applies, missing the group-warehouse exception.
+- **Required action:** track a small doc-precision fix to `production-plan.md`'s CX-MFG-PP7-DISC-002
+  paragraph (correct function attribution + add the `is_group_warehouse` gate) as non-urgent backlog,
+  same treatment as `PP5R-R-01`. Not fixed during this review/closure per §6 (reviewer reviews,
+  original implementer or a future package remediates).
+- **Status:** non-blocking, does not gate PP-7R/PP-7 acceptance.
+
+**Reviewer test-execution coverage (recorded honestly):** did not re-run the full live fixture/flow
+(BOM creation, `get_open_sales_orders`/`combine_so_items`/`get_sub_assembly_items`/
+`get_items_for_material_requests`/`make_work_order`) — that would recreate and re-delete a full
+qualification fixture at material live-server risk for a review pass, which is out of proportion to
+what independent review requires. Instead verified via (a) the strongest available independent
+signal for a documentation/evidence package — a live absence sweep on the exact document names
+claimed, proving no residue and no fabricated deletion narrative — and (b) direct source reads for
+the two corrected/non-trivial claims (CX-MFG-PP7-DISC-001, -004). CX-MFG-PP7-DISC-002 was source-
+verified but with the `PP7R-R-01` precision gap noted above. The quantitative flattening table
+(RM-A 80/RM-B 100/RM-C 30) and the "two Work Orders in one `make_work_order` call" claim were not
+independently re-derived from source in this review — accepted on the strength of everything above
+plus consistency with the already-`ACCEPTED` PP-4/PP-5/PP-6 implementation these claims build on.
+
+### State
+
+Production Plan PP-7R is now **ACCEPTED**. **PP-7 (overall, discovery + runtime qualification) is
+now CLOSED / ACCEPTED** — PP-7R was the last open item blocking PP-7's overall acceptance, and this
+review closes it. `MFG-UNV-012` state unchanged from PP-7R's own narrowing (see PP-7R's
+implementation entry above); `PP7R-R-01` is a new non-blocking documentation-precision item, tracked
+above, not added to `MFG-UNV-012` (it is a doc-attribution gap, not an unverified ERPNext behavior).
+Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` §16, this acceptance is subject to Codex's
+reconciliation audit on return (2026-09-26), like every other package accepted under this temporary
+mode.
+
+**PP-8 is unlocked for planning only, not implementation.**
+
+**Recommended next action:** `release-tracker` for `docs/ceylon-stack-documentation.html` + Notion
+sync (PP-7 overall just closed); `PP7R-R-01` tracked as non-blocking backlog (doc-precision fix to
+CX-MFG-PP7-DISC-002); PP-8 discovery/scoping may proceed when requested, but no PP-8 implementation
+until a separate, explicit unlock.

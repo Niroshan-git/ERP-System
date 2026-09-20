@@ -3242,3 +3242,19 @@ clean on the documentation-only diff.
 
 Package state: `CLAUDE_HANDOFF`. Not self-accepted — per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`,
 awaiting independent review to close PP-7 overall and, separately, authorize unlocking PP-8.
+
+## 2026-09-21 — Production Plan PP-7R — independent review — ACCEPTED, PP-7 CLOSED
+
+Independent review (separate session, post-`/clear`, per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`)
+verdict: **ACCEPTED**, no HIGH findings, one non-blocking LOW finding (`PP7R-R-01` — a documentation-
+attribution gap in CX-MFG-PP7-DISC-002's `fg_warehouse` explanation, not a code defect). Verified
+independently: no application code changed; package isolation from unrelated working-tree changes;
+a live re-check on the actual Hetzner instance confirming every `PP7-TEST-*`/`SAL-ORD-2026-00040`/
+`MFG-PP-2026-00006`/`MFG-WO-2026-00010`/`-00011` fixture document is genuinely gone (not merely
+claimed gone); and a direct source read of `production_plan.py` on the container confirming
+CX-MFG-PP7-DISC-001 and -004 exactly as documented. Full findings in `AI_WORK_LOG.md`'s "PP-7R —
+independent review" entry.
+
+**PP-7 (discovery + runtime qualification, overall) is now CLOSED / ACCEPTED.** PP-8 is unlocked for
+planning only, not implementation — a separate, explicit unlock is still required before any PP-8
+build work begins.
