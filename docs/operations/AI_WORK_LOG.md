@@ -3288,3 +3288,33 @@ trust-boundary claim and whether the Draft/Submit UI choice is a sufficient miti
 duplicate-generation finding), then a small remediation package to fix PP-5's own dedup bug
 (`listSubcontractPurchaseOrderNames`), Job Card list/detail, or a BOM Management package (to unlock
 real sub-assembly/subcontract runtime testing) as the next candidate.
+
+## Package: Production Plan PP-6 — independent review closure (temporary dual-Claude mode, 2026-09-20)
+
+**PACKAGE:** Production Plan PP-6 (Material Request Generation)
+**ROLE:** GOVERNANCE CLOSURE RECORD
+**BASE COMMIT:** `812acae`
+**IMPLEMENTATION COMMIT:** `43986cd`
+
+**Verdict communicated:** Niroshan relayed the independent-review outcome directly to this session
+as `FINAL REVIEW STATE: ACCEPTED`. This session did not itself perform or witness the review pass
+(no reviewer subagent transcript, no re-derived findings) — unlike PP-5's closure entry above,
+which documents an in-session independent review, this entry only records that the review happened
+and its outcome, per `TEMP_DUAL_CLAUDE_MODE.md`'s requirement that a session never self-accept its
+own package. The open items PP-6's own handoff flagged for review attention — the no-`reload()`
+trust-boundary claim, the Draft/Submit duplicate-generation mitigation, the Production-Plan-cancel
+`LinkExistsError` finding, and the deliberate decision not to fix PP-5's identical dedup bug in this
+package — are treated as resolved by that acceptance, not independently re-checked here.
+
+### State
+
+Production Plan PP-6 is now **ACCEPTED**. PP-6 gate: **CLOSED**. `MFG-UNV-012` state unchanged from
+the implementer's own narrowing (see PP-6's implementation entry above). Per `docs/controls/
+TEMP_DUAL_CLAUDE_MODE.md` §16, this acceptance is subject to Codex's reconciliation audit on return
+(2026-09-26) like every other package accepted under this temporary mode.
+
+**PP-7 is unlocked for planning only, not implementation**, per Niroshan's explicit gate statement.
+
+**Recommended next action:** `release-tracker` for `docs/ceylon-stack-documentation.html` + Notion
+sync (a package was just accepted); PP-7 scoping/planning may proceed when requested, but no PP-7
+implementation until a separate, explicit implementation unlock.
