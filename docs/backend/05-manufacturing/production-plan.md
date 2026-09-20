@@ -2,18 +2,21 @@
 
 Domain status: `DOCUMENTED` (schema + business-rule source-verified; **create flow
 live-write-verified** as of PP-2, 2026-09-20; **submit lifecycle source-verified AND
-live-verified, and implemented**, as of PP-3, same day — full round trip (create → submit →
-inspect side effects → cancel-for-cleanup) run against the real Hetzner instance, see "Submit /
-Cancel / Amend lifecycle" and "Frontend footprint" below. Cancel investigated and its safe-path
-cleanup behavior live-confirmed, but deliberately not shipped as an app feature pending one
-remaining unresolved case (external downstream-linked-document cancel-block). Amend is
-discovery-only. Get Sub Assembly Items, raw-material calc, Make Work Order/Make Material Request,
-and `reserve_stock`/Stock Reservation Entry creation remain unverified and unimplemented). See
+live-verified, and implemented**, as of PP-3, same day; **sub-assembly explosion and
+raw-material/shortage calculation source-verified AND live-verified, and implemented**, as of
+PP-4, same day — see "Sub-Assembly Planning + Material Requirements (PP-4)" below. Cancel
+investigated and its safe-path cleanup behavior live-confirmed, but deliberately not shipped as
+an app feature pending one remaining unresolved case (external downstream-linked-document
+cancel-block) — see PP-4's own clarification to that entry below. Amend is discovery-only. Make
+Work Order/Make Material Request, `reserve_stock`/Stock Reservation Entry creation, and
+multi-location "Get Items for Purchase / Transfer" remain unverified/unimplemented). See
 `docs/backend/15-migration/migration-status.md`.
 
 PP-1 (2026-09-19) was a discovery/canonicalization pass only, read-only. PP-2 (2026-09-20) added
-Draft-only create. PP-3 (2026-09-20, same day) added Submit only — see "Frontend footprint" below
-for exactly what shipped and what's still out of scope.
+Draft-only create. PP-3 (2026-09-20, same day) added Submit only. PP-4 (2026-09-20, same day)
+added Get Sub Assembly Items + Get Items for Purchase Only (single-warehouse Material
+Requirements calc) on an existing saved Draft — see "Frontend footprint" below for exactly what
+shipped and what's still out of scope.
 
 ## Source of truth for this baseline
 
@@ -734,6 +737,25 @@ feature** — no Cancel button/action was added — pending a future package tha
 Frappe's generic cancel-link-check source or live-tests the downstream-linked-document case
 specifically.
 
+### C.1 Cancel — clarification carried in from the PP-4 package brief (2026-09-20)
+
+The PP-4 package brief instructed this session to record, as accepted upstream evidence: *"Production
+Plan cancellation with submitted linked downstream documents is source-confirmed to fail safely
+through Frappe backlink checking / LinkExistsError."* Recorded here per that instruction, but with
+its evidence provenance stated honestly: **this session did not itself re-derive or independently
+verify the specific Frappe mechanism (`LinkExistsError`/backlink checking) behind that claim** —
+no `frappe/frappe` source path implementing a generic cancel-time backlink check was read this
+session, and no live test exercised the actual scenario (an app-created plan being cancelled while
+an *externally*-created submitted Work Order/Material Request still links back to it — the one
+scenario `on_cancel()`'s own source, read directly in §C above, does not itself guard against:
+`delete_draft_work_order()` only ever touches Draft Work Orders, `update_bin_qty()`/
+`update_sales_order()`/`update_stock_reservation()` don't block anything, and nothing else in
+`on_cancel()`'s own body raises). If this specific mechanism needs to be cited as evidence for
+shipping Cancel as a feature, it should first be independently confirmed the same way every other
+claim in this document was — either a source read of the actual Frappe check that would run, or a
+live test of the exact linked-submitted-document scenario. Cancel is **still not shipped** as an
+app feature by PP-4 for exactly this reason — this clarification does not change that.
+
 ### D. Amend — discovery only, not implemented
 
 `amended_from: DF.Link | None` in the schema and `is_submittable: 1` together confirm Production
@@ -779,6 +801,157 @@ Submit button on `/manufacturing/production-plans/[name]` visible only when `doc
 same component/pattern already used by Sales Order/Purchase Order/Delivery Note/etc. No cancel
 button, no amend button, no downstream "Make ..." action, no editing of a submitted plan. PP-1's
 seven read-only tabs and PP-2's Draft create wizard are unchanged.
+
+## Sub-Assembly Planning + Material Requirements (PP-4, 2026-09-20)
+
+Source: full read of `production_plan.py`'s method table, `services/sub_assembly.py`,
+`services/sub_assembly_queries.py`, `services/material_request.py`, `services/planning_queries.py`,
+and `production_plan.js`'s `get_sub_assembly_items`/`get_items_for_mr`/`transfer_materials`/
+`get_items_for_material_requests` handlers, all fetched read-only via `gh api` against
+`frappe/erpnext` this session — then **live-verified end to end** against the real Hetzner
+instance using the app's own "Frontend Integration" service-account credentials (read from the
+existing `apps/frontend/.env.local`, never written/modified/printed). Both native calls below are
+implemented; Make Work Order, Make Material Request, `reserve_stock`, and the multi-location
+"Get Items for Purchase / Transfer" dialog remain out of scope (deferred, not investigated to the
+same depth).
+
+### H. Two different REST boundaries, two different persistence models — the key finding
+
+PP-2/PP-3 already established `run_doc_method` for **Document-bound** whitelisted methods
+(`get_open_sales_orders`, `combine_so_items`, `get_sub_assembly_items` — all defined directly on
+the `ProductionPlan` class via `@frappe.whitelist()`). PP-4 additionally confirms
+`get_items_for_material_requests` is a **different kind of whitelisted method** — a free-standing
+module-level function (`services/material_request.py`), re-exported at
+`erpnext.manufacturing.doctype.production_plan.production_plan.get_items_for_material_requests`
+for backward compatibility, which is the exact dotted path `production_plan.js`'s
+`get_items_for_material_requests(frm, warehouses)` handler calls via the generic
+`/api/method/<dotted.path>` boundary (`callMethodWithResult` in `lib/erpnext.ts`), not
+`run_doc_method`.
+
+This distinction has a real, confirmed consequence for what each call does to the document:
+
+**`get_sub_assembly_items`** (`SubAssemblyService.get_sub_assembly_items`, source read in full):
+clears `self.doc.sub_assembly_items` then `self.doc.append(...)`s the BOM-explosion result —
+**pure in-memory Document mutation**, zero `frappe.db`/`.save()`/`.insert()` calls anywhere in it
+or `sub_assembly_queries.py`'s explosion helpers. Matches Desk's own `production_plan.js`:
+`frm.dirty()` is called *before* the RPC (marking the form as having unsaved changes) and the
+callback only does `refresh_field("sub_assembly_items")` — no auto-save. **Confirmed this app's
+`callRunDocMethod` (`lib/erpnext.ts`, built for PP-2's never-saved-doc case) works identically
+against an existing, already-saved Draft** — per `run_doc_method`'s own source
+(`frappe.get_doc(docs, check_permission=True)` always builds its in-memory Document from the
+payload dict, never touching the DB for a fetch, regardless of whether the payload's `name`
+happens to match a real row) — no new `lib/erpnext.ts` helper was needed for this extension.
+
+**`get_items_for_material_requests`** (module-level function, source read in full): reads
+Bin/Item/BOM/supplier data and **returns a plain list of computed dicts** — confirmed **zero
+persistence side effects of any kind**, not even an in-memory Document mutation, since it never
+even holds a `Document` instance (`doc = frappe._dict(frappe.parse_json(doc))` — a plain dict, not
+a Frappe `Document`). Matches Desk: the callback manually rebuilds `mr_items` client-side from the
+plain array (`frm.set_value("mr_items", []); r.message.forEach(row => frm.add_child(...))`) —
+there's no document-level state to discard, unlike the sub-assembly call above.
+
+**Consequence for this app's architecture**: both calls are genuinely read-only against ERPNext
+regardless of which boundary they use — the only way either result reaches the database is an
+explicit, separate `updateDoc` (`PUT /api/resource/Production Plan/<name>`) this app performs
+itself, matching the existing "preview, then save" precedent PP-2 already established for the
+create wizard, now applied to an existing saved Draft instead of a never-saved one.
+
+### I. Sub-assembly options actually exposed (scope decision)
+
+Investigated (source, §"Sub-assemblies" above) vs. exposed by this package:
+
+| Field | Classification | Reasoning |
+|---|---|---|
+| `sub_assembly_warehouse` | **REQUIRED FOR PP-4** | Drives `fg_warehouse` assignment on every non-group-warehouse sub-assembly row; required by the server itself when `skip_available_sub_assembly_item` is checked (`_validate_sub_assembly_row` throws otherwise) |
+| `skip_available_sub_assembly_item` ("Consider Projected Qty in Calculation") | **OPTIONAL BUT USEFUL** | The one behavior-changing toggle worth exposing — skips a sub-assembly row when the warehouse already has enough projected qty |
+| `combine_sub_items` | **OPTIONAL BUT USEFUL** | Simple boolean, native consolidation-by-key behavior already documented above |
+| `include_exploded_items` (per `po_items` row) | **NOT APPLICABLE — already exists** | PP-2's own `po_items` field, not new to PP-4 |
+
+### J. Material Requirement options actually exposed (scope decision)
+
+| Field | Classification | Reasoning |
+|---|---|---|
+| `for_warehouse` | **REQUIRED FOR PP-4** | The whole calculation needs a target; Desk itself throws (`get_items_for_mr`) if unset before calling |
+| `ignore_existing_ordered_qty` ("Consider Projected Qty (RM)") | **REQUIRED FOR PP-4** | Decides whether the shortage nets against existing Bin stock at all — the single most consequential toggle for whether the result is useful SME planning output or a maximal worst-case number |
+| `include_non_stock_items` | **OPTIONAL BUT USEFUL** | Simple boolean, widens which rows appear |
+| `consider_minimum_order_qty` | **OPTIONAL BUT USEFUL** | Simple boolean, rounds purchase qty up to a real MOQ |
+| `include_safety_stock` | **OPTIONAL BUT USEFUL** | Simple boolean, nets safety stock into the shortage |
+| `include_subcontracted_items` | **DEFERRED** | Ties into subcontracting PO generation, a materially larger business flow out of this package's scope |
+| `raw_material_group_warehouse` + multi-location "transfer from" warehouses | **DEFERRED** | The "Get Items for Purchase / Transfer" dialog (picking several source warehouses to net stock from before purchasing the remainder) — this package ships only the simpler, single-warehouse "Get Items for Purchase Only" scope (`get_items_for_mr`'s exact native call shape: `warehouses: [{ warehouse: for_warehouse }]`) |
+| Reserve Stock (`reserve_stock`, Reserve/Unreserve for Sub-assembly/Raw Materials) | **NOT APPLICABLE** | Explicitly out of scope per package brief — a separate future package |
+
+### K. Side-effect matrix (PP-4 actions)
+
+| Action | Production Plan mutation | Bin write | Stock Reservation Entry | Stock Ledger Entry | GL Entry | Work Order | Material Request | Purchase Order | Evidence |
+|---|---|---|---|---|---|---|---|---|---|
+| Get Sub Assembly Items (preview) | In-memory only, discarded at response end | NO | NO | NO | NO | NO | NO | NO | **LIVE VERIFIED** — real saved Draft (`MFG-PP-2026-00005`) re-fetched immediately after the call still showed `sub_assembly_items: []` |
+| Get Items for Purchase Only (preview) | NO — not even in-memory (never holds a `Document`) | NO | NO | NO | NO | NO | NO | NO | **LIVE VERIFIED** — same test, `mr_items` still `[]` on re-fetch after the call |
+| Save Sub-Assembly Items / Save Material Requirements (this app's own explicit persist step) | YES — plain field `PUT`, `docstatus` stays `0` | NO | NO | NO | NO | NO | NO | NO | **LIVE VERIFIED** — `Bin` for the test item/warehouse (`reserved_qty: 30`, `projected_qty: 80`) was byte-identical before and after saving 3 real `mr_items` rows to the Draft; this narrows the existing `update_bin_qty()`-only-fires-on-submit/cancel/close claim from "source-derived" to "live-confirmed for a Draft field save specifically" |
+
+### L. Runtime verification, 2026-09-20 — full round trip against the real Hetzner instance
+
+With real live-write credentials this session (no explicit go-ahead needed beyond what PP-2/PP-3
+already established, since — like PP-2's own test — this leaves zero residual trace, see
+cleanup step below):
+
+1. `get_open_sales_orders` → `combine_so_items` against real open Sales Orders on the instance,
+   then `POST /api/resource/Production Plan` created a real Draft, `MFG-PP-2026-00005`
+   (`FG-STEEL-BRACKET-ASSY`, `BOM-FG-STEEL-BRACKET-ASSY-001`, `planned_qty: 30`,
+   `warehouse: "Finished Goods - CS"`, sourced from `SAL-ORD-2026-00007`) — same shape as PP-2's
+   and PP-3's own tests.
+2. **`get_sub_assembly_items`**, called via `run_doc_method` against the doc **re-fetched by its
+   real saved name** (not a placeholder), returned `sub_assembly_items: []` — correct and
+   expected: `BOM-FG-STEEL-BRACKET-ASSY-001` (the only active, submitted BOM on this instance) has
+   zero sub-assembly components (single-level BOM), so this exercises and confirms the "valid
+   empty result" path, not a defect. Re-fetching the saved Draft immediately after confirmed
+   nothing was persisted (`sub_assembly_items: []` on the real document, matching the in-memory-
+   only claim in §H).
+3. **`get_items_for_material_requests`**, called against the same re-fetched doc plus
+   `for_warehouse: "Finished Goods - CS"` and `warehouses: [{ warehouse: "Finished Goods - CS" }]`,
+   returned 3 real computed rows — `RM-BOLT-M6X20` (qty `120` = `4 × 30`), `RM-COATING-CPD`
+   (`1.5` = `0.05 × 30`), `RM-STEEL-SHEET-2MM` (`24` = `0.8 × 30`) — all correctly scaled from the
+   BOM's own per-unit component quantities against `planned_qty: 30`, `material_request_type:
+   "Purchase"` on every row (no sub-assemblies to route through "Manufacture"/subcontract types),
+   `actual_qty: 0` everywhere (this instance has no on-hand stock for these raw materials, so the
+   full BOM-required quantity became the shortage — correct given `ignore_existing_ordered_qty`
+   was left unset/`0` for this test, matching its documented "treat every row as zero-available"
+   default behavior). Re-fetching the saved Draft again confirmed `mr_items: []` still — zero
+   persistence from this call either, confirming §H's "not even in-memory" claim.
+4. **`PUT /api/resource/Production Plan/MFG-PP-2026-00005`** with `{ sub_assembly_warehouse,
+   sub_assembly_items: [], for_warehouse, mr_items: <the 3 rows above> }` — the exact mechanism
+   `saveSubAssemblyItemsAction`/`saveMaterialRequirementsAction` use — returned `200`,
+   `mr_items.length === 3`, `sub_assembly_items.length === 0`, `docstatus` unchanged at `0`.
+5. **Bin check**: the `FG-STEEL-BRACKET-ASSY` @ `Finished Goods - CS` Bin (`reserved_qty: 30`,
+   `projected_qty: 80`, `actual_qty: 0`) was queried before and after step 4 — **byte-identical**,
+   confirming saving `mr_items`/`sub_assembly_items` to a Draft via a plain field update does not
+   itself trigger `update_bin_qty()` (which `on_submit()`/`on_cancel()`/`set_status(close=...)`
+   call explicitly — a Draft field save is none of those).
+6. **Cleanup**: `DELETE /api/resource/Production Plan/MFG-PP-2026-00005` — succeeded, zero
+   residual trace left on the instance (same zero-trace precedent as PP-2's own create+delete
+   test).
+
+### M. Frontend footprint — PP-4 (2026-09-20)
+
+New: `lib/actions/productionPlanPlanning.ts` (`getSubAssemblyItemsPreview`/
+`saveSubAssemblyItemsAction`/`getMaterialRequirementsPreview`/`saveMaterialRequirementsAction` —
+each re-fetches the real document and re-checks `docstatus === 0` itself before calling ERPNext or
+persisting, same defense-in-depth precedent as `updateBomAction`), two new whitelisted row parsers
+in `lib/productionPlanRows.ts` (`parseProductionPlanSubAssemblyItemRows`/
+`parseProductionPlanMaterialRequestPlanItemRows` — drop calculation-only keys the native responses
+also carry, e.g. `item_name`/`description`/`main_bom`/`indent`, keeping only fields this baseline
+actually documents on each child doctype), and two new client components
+(`ProductionPlanSubAssemblyPanel`/`ProductionPlanMaterialRequirementPanel`) that replace the
+Sub-Assemblies/Material Requirements tabs' content **only while `docstatus === 0`** — a Submitted
+or Cancelled plan still shows PP-1's original static read-only tables, unchanged. Both panels are
+read-only-result (no editable cells on the computed rows — unlike PP-2's `po_items`, nothing here
+is a genuine user judgment call ERPNext leaves open; "trust the preview, save it as-is") and
+require an explicit "Get ..." then a separate explicit "Save ..." click — no auto-persist. The
+Material Requirements panel reads sub-assembly rows off the **currently saved** document (not
+client-side component state), so saving the Sub-Assemblies tab first is what makes raw materials
+explode through sub-assemblies; a single-level-BOM plan (the only kind currently on this instance)
+can skip that step and go straight to Material Requirements. No "Make Work Order"/"Make Material
+Request" action, no Reserve Stock action, no multi-location "Purchase / Transfer" dialog. PP-1's
+five other tabs, PP-2's create wizard, and PP-3's Submit button are unchanged.
 
 ## NEEDS_VERIFICATION
 

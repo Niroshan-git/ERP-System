@@ -110,12 +110,44 @@ resulting Work Order/Material Request generation and any sub-assembly BOM explos
 
 ### MFG-UNV-012 — Production Plan runtime behavior (no live document exists)
 **Status:** `NEEDS_VERIFICATION`, **partially resolved 2026-09-20 (PP-2, then further narrowed and
-live-verified by PP-3 same day)** — demand sourcing and Draft creation are live-confirmed (PP-2,
-see below); submit lifecycle is now `LIVE VERIFIED` and implemented (PP-3, see below); cancel's
-safe-path behavior is live-confirmed as test cleanup but not shipped as an app feature; amend was
-investigated but deliberately left unimplemented; stock reservation (beyond confirming
-`reserve_stock=0` is a no-op), sub-assembly explosion, and Work Order/Material Request generation
-remain entirely unexercised and unimplemented.
+live-verified by PP-3, then further narrowed and live-verified by PP-4, all same day)** — demand
+sourcing and Draft creation are live-confirmed (PP-2, see below); submit lifecycle is now `LIVE
+VERIFIED` and implemented (PP-3, see below); sub-assembly explosion (`get_sub_assembly_items`) and
+single-warehouse raw-material shortage calculation (`get_items_for_material_requests`) are now
+`LIVE VERIFIED` and implemented (PP-4, see below); cancel's safe-path behavior is live-confirmed as
+test cleanup but not shipped as an app feature; amend was investigated but deliberately left
+unimplemented; stock reservation (beyond confirming `reserve_stock=0` is a no-op), Work
+Order/Material Request generation, and multi-location "Get Items for Purchase / Transfer" remain
+entirely unexercised and unimplemented.
+
+**2026-09-20 update (PP-4 — sub-assembly explosion + raw-material calc, source read + live
+test):** full source read of `services/sub_assembly.py`, `services/sub_assembly_queries.py`,
+`services/material_request.py`, `services/planning_queries.py`, and
+`production_plan.js`'s corresponding button handlers — see `production-plan.md`'s "Sub-Assembly
+Planning + Material Requirements (PP-4)" section for the full detail. Key resolutions: (a)
+`get_sub_assembly_items` is a Document-bound whitelisted method that mutates only the in-memory
+document (no `frappe.db`/`.save()` call anywhere in it), confirmed live against a real *saved*
+Draft (`MFG-PP-2026-00005`) — re-fetching the document immediately after the call showed nothing
+persisted; (b) `get_items_for_material_requests` is a *different* kind of whitelisted method — a
+free-standing module-level function, not Document-bound — confirmed to make zero persistence
+calls of any kind (it never even constructs a `Document`, just a plain dict), live-confirmed the
+same way; (c) this app's own explicit "Save" step (a plain `updateDoc` field `PUT`) was
+live-confirmed not to trigger `update_bin_qty()` or any other side effect — the real `Bin` row for
+the test item/warehouse was byte-identical before and after saving 3 real computed `mr_items` rows
+to the Draft, narrowing the existing "only submit/cancel/close call `update_bin_qty()`" claim from
+source-derived to live-confirmed for a Draft field save specifically; (d) `get_sub_assembly_items`
+returning an empty result for the one real BOM on this instance (`BOM-FG-STEEL-BRACKET-ASSY-001`,
+which has zero sub-assembly components) exercised and confirmed the "valid empty result, not a
+defect" path only — a BOM with sub-assemblies has still never been observed on this instance, so
+real multi-level explosion (`bom_level > 0`, `type_of_manufacturing: "Subcontract"`/`"Material
+Request"` branches) remains entirely unexercised, same gap `MFG-UNV-009`(4)/(5) already flagged
+for BOM itself. Make
+Work Order, Make Material Request, `reserve_stock`, and multi-location "Get Items for Purchase /
+Transfer" were not implemented or independently investigated this pass — still `NEEDS_
+VERIFICATION`. A clarification the PP-4 package brief asked to carry into `production-plan.md`
+about Cancel's behavior against externally-linked submitted downstream documents was recorded with
+its evidence provenance disclosed (not independently re-verified this session) — see
+`production-plan.md`'s §C.1; this does **not** change Cancel's still-unshipped status.
 
 **2026-09-20 update (PP-3 — submit lifecycle, source read + live test):** full source read of
 `production_plan.py`'s `on_submit()`/`on_cancel()`, `production_plan.json` (doctype metadata:
@@ -209,17 +241,21 @@ read — `reserve_stock`'s full effect beyond the `Bin` reserved-qty update is u
 `Purchase Order.production_plan`-style back-reference for subcontracted sub-assembly rows was
 inferred from the Python (`production_plan` passed into `_subcontract_po_item`) but not confirmed
 against the live `Purchase Order`/`Purchase Order Item` schema.
-**How to verify:** Sales Order → Draft Production Plan creation (PP-2) and Submit (PP-3) are both
-now live-verified. Cancel needs Frappe's generic submitted-document cancel-block behavior
-read/tested before it can be shipped as a feature — specifically whether cancelling is blocked
-when an externally-created (Desk, not this app) submitted Work Order/Material Request still
-links back to the plan; PP-3's own live cancel test used a plan with no such downstream documents,
-so this specific case remains open. The remaining sub-assembly/raw-material/downstream-generation
-gap needs a BOM with at least one sub-assembly component (none exists on this instance yet)
-submitted through: Submit → Get Sub Assembly Items → Make Work Order/Make Material Request →
-downstream generation, comparing actual results against the formulas/rules documented in
-`production-plan.md`. Do this once a Production Plan action package (a future package, explicitly
-out of scope for PP-3) exists.
+**How to verify:** Sales Order → Draft Production Plan creation (PP-2), Submit (PP-3), and Get Sub
+Assembly Items / Get Items for Purchase Only (PP-4) are all now live-verified. Cancel needs
+Frappe's generic submitted-document cancel-block behavior read/tested before it can be shipped as
+a feature — specifically whether cancelling is blocked when an externally-created (Desk, not this
+app) submitted Work Order/Material Request still links back to the plan; PP-3's own live cancel
+test used a plan with no such downstream documents, so this specific case remains open (the PP-4
+package brief asked this session to record an upstream claim about this exact mechanism —
+`LinkExistsError`/backlink checking — but that claim's evidence provenance was disclosed rather
+than treated as independently re-verified; see `production-plan.md`'s §C.1). The remaining
+multi-level-explosion/downstream-generation gap needs a BOM with at least one sub-assembly
+component (none exists on this instance yet) run through: Get Sub Assembly Items (now real, not
+hypothetical — PP-4 ships it) → Make Work Order/Make Material Request → downstream generation,
+comparing actual results against the formulas/rules documented in `production-plan.md`. Do this
+once a Production Plan generation-action package (a future package, explicitly out of scope for
+PP-4) exists.
 
 ### MFG-UNV-005 — Accounting (GL) impact of Material Transfer for Manufacture
 **Status:** `NEEDS_VERIFICATION`

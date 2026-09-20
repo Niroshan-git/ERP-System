@@ -4,9 +4,12 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocActionBar } from "@/components/DocActionBar";
 import { DocField } from "@/components/DocField";
 import { DocTabs } from "@/components/DocTabs";
+import { ProductionPlanMaterialRequirementPanel } from "@/components/ProductionPlanMaterialRequirementPanel";
+import { ProductionPlanSubAssemblyPanel } from "@/components/ProductionPlanSubAssemblyPanel";
 import { StatusPill } from "@/components/StatusPill";
 import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
 import { productionPlanStatus } from "@/lib/erpStatus";
+import { getStockDefaults } from "@/lib/stockDefaults";
 import { submitProductionPlanAction } from "../actions";
 
 /**
@@ -182,6 +185,9 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
     orderBy: "creation asc",
   });
 
+  const isDraft = doc.docstatus === 0;
+  const stockDefaults = isDraft ? await getStockDefaults(doc.company) : null;
+
   const status = productionPlanStatus(doc);
   const poItems = doc.po_items ?? [];
   const salesOrders = doc.sales_orders ?? [];
@@ -256,11 +262,12 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
 
       <p className="text-xs text-graphite-500">
         A Draft Production Plan can be submitted from this page (see Submit above) through
-        ERPNext&apos;s own native lifecycle. Get Sales Orders/Material Request, Get Finished Goods,
-        Get Sub Assembly Items, Calculate Material Requirements, Make Work Order, and Make Material
-        Request remain unavailable here — including on a Submitted plan, where ERPNext itself would
-        expose them — see this record&apos;s current backend-recorded state above and in the tabs
-        below.
+        ERPNext&apos;s own native lifecycle. Get Sub Assembly Items (Sub-Assemblies tab) and Get
+        Items for Purchase Only (Material Requirements tab) are available while this plan is a
+        Draft — see those tabs. Get Sales Orders/Material Request, Get Finished Goods, Make Work
+        Order, and Make Material Request remain unavailable here — including on a Submitted plan,
+        where ERPNext itself would expose them — see this record&apos;s current backend-recorded
+        state above.
       </p>
     </div>
   );
@@ -399,7 +406,18 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
     </div>
   );
 
-  const subAssembliesTab = (
+  const subAssembliesTab = isDraft && stockDefaults ? (
+    <ProductionPlanSubAssemblyPanel
+      name={doc.name}
+      warehouses={stockDefaults.warehouses}
+      initialOptions={{
+        sub_assembly_warehouse: doc.sub_assembly_warehouse,
+        skip_available_sub_assembly_item: doc.skip_available_sub_assembly_item,
+        combine_sub_items: doc.combine_sub_items,
+      }}
+      initialRows={subAssemblyItems}
+    />
+  ) : (
     <div>
       <p className="mb-3 text-xs text-graphite-500">
         Generated entirely by ERPNext&apos;s own server-side BOM explosion — not recomputed here.{" "}
@@ -476,7 +494,20 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
     </div>
   );
 
-  const materialRequirementsTab = (
+  const materialRequirementsTab = isDraft && stockDefaults ? (
+    <ProductionPlanMaterialRequirementPanel
+      name={doc.name}
+      warehouses={stockDefaults.warehouses}
+      initialOptions={{
+        for_warehouse: doc.for_warehouse ?? "",
+        ignore_existing_ordered_qty: doc.ignore_existing_ordered_qty,
+        include_non_stock_items: doc.include_non_stock_items,
+        consider_minimum_order_qty: doc.consider_minimum_order_qty,
+        include_safety_stock: doc.include_safety_stock,
+      }}
+      initialRows={mrItems}
+    />
+  ) : (
     <div>
       <p className="mb-3 text-xs text-graphite-500">
         Required Qty is ERPNext&apos;s own computed shortage figure — not recalculated by this app.{" "}

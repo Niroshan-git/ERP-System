@@ -1017,3 +1017,65 @@ full detail):
 - A *Cancelled* Production Plan could be hard-deleted on this instance (narrower than "cancelled
   docs are always retained") — recorded as a documentation correction in `production-plan.md`,
   not acted on by any code in this app.
+
+## Manufacturing — Production Plan PP-4 (Sub-Assembly Planning + Material Requirements, 2026-09-20)
+
+- **Result**: **PASS**, with real live-write verification of both native calls this package
+  ships (Get Sub Assembly Items, Get Items for Purchase Only), plus the explicit Save step each
+  one requires.
+- **What was verified**:
+  1. `npx tsc --noEmit` — clean. `npm run lint` — clean. `npm run build` — succeeded, exit 0, no
+     new errors/warnings, `/manufacturing/production-plans/[name]` still registers correctly.
+  2. **Live end-to-end round trip against the real Hetzner instance**, run directly against
+     ERPNext's REST API using the app's own "Frontend Integration" service-account credentials
+     (read from `apps/frontend/.env.local`, never written, modified, or printed). Unlike PP-3's
+     submit test, no explicit go-ahead was needed first — every step here is reversible/
+     discardable and left zero residual trace, same category as PP-2's own create+delete test:
+     - `get_open_sales_orders` → `combine_so_items` → `POST /api/resource/Production Plan`
+       created a real Draft, `MFG-PP-2026-00005` (`FG-STEEL-BRACKET-ASSY`,
+       `BOM-FG-STEEL-BRACKET-ASSY-001`, `planned_qty: 30`, sourced from `SAL-ORD-2026-00007`).
+     - `get_sub_assembly_items`, called via `run_doc_method` against the doc **re-fetched by its
+       real saved name** (the first time this app's `callRunDocMethod` was exercised against an
+       already-saved document rather than PP-2's never-saved placeholder case) — returned
+       `sub_assembly_items: []`, correct for this instance's one BOM (no sub-assembly
+       components). Re-fetching the saved Draft immediately after confirmed **nothing was
+       persisted** — `sub_assembly_items: []` on the real document, matching the in-memory-only
+       claim in `production-plan.md`'s §H.
+     - `get_items_for_material_requests`, called against the same re-fetched doc with
+       `for_warehouse: "Finished Goods - CS"` — returned 3 real, correctly-scaled shortage rows
+       (`RM-BOLT-M6X20: 120`, `RM-COATING-CPD: 1.5`, `RM-STEEL-SHEET-2MM: 24` — each exactly
+       `BOM per-unit qty × 30`). Re-fetching again confirmed **nothing was persisted** by this
+       call either — `mr_items: []` still, confirming this method holds no document state at all
+       (not even in-memory).
+     - `PUT /api/resource/Production Plan/MFG-PP-2026-00005` — the exact mechanism
+       `saveSubAssemblyItemsAction`/`saveMaterialRequirementsAction` use — persisted both
+       results (`mr_items.length === 3`, `sub_assembly_items.length === 0`), `docstatus`
+       unchanged at `0`.
+     - **Bin check**: `FG-STEEL-BRACKET-ASSY` @ `Finished Goods - CS` (`reserved_qty: 30`,
+       `projected_qty: 80`, `actual_qty: 0`) queried before and after the save — **byte-identical**,
+       confirming a Draft field save of `mr_items`/`sub_assembly_items` does not itself trigger
+       `update_bin_qty()`.
+     - **Cleanup**: `DELETE /api/resource/Production Plan/MFG-PP-2026-00005` — succeeded, zero
+       residual trace.
+  3. **In-session verification of the whitelisting/parsing layer**: confirmed
+     `parseProductionPlanSubAssemblyItemRows`/`parseProductionPlanMaterialRequestPlanItemRows`
+     against the actual live response shapes captured above — every field the native response
+     returned that this baseline documents on the respective child doctype survived the parse;
+     calculation-only keys not confirmed as real schema fields (`item_name`, `description`,
+     `main_bom`, `indent`, `is_sub_contracted_item`) were correctly dropped before the `PUT`.
+  4. Confirmed via the same live session that **no Work Order, Material Request, Purchase Order,
+     Stock Ledger Entry, or GL Entry was created** by any step above — only the Production Plan
+     document and the `Bin` row already documented were touched at all, and the `Bin` row itself
+     was unchanged.
+- **Not performed, disclosed boundary**: no authenticated frontend-UI click-path test (no working
+  test login credentials this session — same recurring gap as every prior Production Plan
+  package). No real multi-level/sub-assembly BOM exists on this instance, so the "real
+  sub-assembly rows returned and saved" case (as opposed to the "valid empty result" case
+  exercised above) remains untested — same gap noted in `MFG-UNV-012`. Multi-location "Get Items
+  for Purchase / Transfer" was not implemented, so it was not tested either.
+- **Sign-off**: in-session review against this package's own scope boundary (Get Sub Assembly
+  Items + Get Items for Purchase Only only; no Make Work Order/Make Material Request/Reserve
+  Stock/Cancel/Amend shipped; backend remains authoritative; both native calls confirmed
+  preview-only until this app's own explicit Save). Not self-declared accepted — per
+  `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, needs independent review from the other Claude
+  account before acceptance; see `docs/operations/AI_WORK_LOG.md`'s matching ledger row.

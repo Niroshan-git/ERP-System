@@ -2734,3 +2734,102 @@ Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (temporary dual-Claude mode, Codex unavailable
 2026-09-20 through 2026-09-25), this needs independent review from the other Claude account
 before acceptance, not self-review.
+
+## Manufacturing — Production Plan PP-4 (Sub-Assembly Planning + Material Requirements, 2026-09-20)
+
+Fourth Production Plan package, same day as PP-1/PP-2/PP-3. Adds two more planning-stage native
+calls to an **existing, saved Draft** (not the create wizard): Get Sub Assembly Items (BOM
+explosion) and Get Items for Purchase Only (single-warehouse raw-material shortage calc). Still
+planning only — no "Make Work Order"/"Make Material Request", no Reserve Stock, no Cancel/Amend.
+
+**Investigation, before any code was written**: full read of `production_plan.py`'s method table
+plus `services/sub_assembly.py`, `services/sub_assembly_queries.py`, `services/material_request.py`,
+`services/planning_queries.py`, and the corresponding `production_plan.js` button handlers
+(`gh api` against `frappe/erpnext`, read-only, same as every prior Production Plan package). Key
+finding, not assumed going in: `get_sub_assembly_items` and `get_items_for_material_requests` are
+two genuinely different kinds of whitelisted method — the former is Document-bound
+(`run_doc_method`, in-memory-only mutation), the latter is a free-standing module-level pure
+calculation (`callMethodWithResult`, zero persistence of any kind, not even in-memory) — see
+`docs/backend/05-manufacturing/production-plan.md`'s new §H for the full detail. This shaped the
+whole implementation: both are "preview, then this app's own explicit Save" flows, not
+auto-persisting native actions.
+
+**What shipped**:
+- `lib/actions/productionPlanPlanning.ts` — `getSubAssemblyItemsPreview`/`saveSubAssemblyItemsAction`
+  (native `get_sub_assembly_items` via `callRunDocMethod`, extended for the first time to an
+  *existing saved* Draft rather than PP-2's never-saved case — no new `lib/erpnext.ts` helper
+  needed, confirmed by source-reading `run_doc_method`'s own mechanics) and
+  `getMaterialRequirementsPreview`/`saveMaterialRequirementsAction` (native
+  `get_items_for_material_requests` via `callMethodWithResult`, single-warehouse "Purchase Only"
+  scope). Every function re-fetches the real document and re-checks `docstatus === 0` itself
+  before calling ERPNext or persisting — same defense-in-depth precedent as `updateBomAction`
+  (`master-data/boms/actions.ts`), never trusting the page that rendered the button.
+- `lib/productionPlanRows.ts` gained `parseProductionPlanSubAssemblyItemRows`/
+  `parseProductionPlanMaterialRequestPlanItemRows` — whitelist the native response down to fields
+  this baseline actually documents on each child doctype, dropping calculation-only keys
+  (`item_name`, `description`, `main_bom`, `indent`, `is_sub_contracted_item`) the native responses
+  also carry.
+- `components/ProductionPlanSubAssemblyPanel.tsx` / `ProductionPlanMaterialRequirementPanel.tsx` —
+  new client components, each: options form → "Get ..." button (preview only, explicit
+  server-function call via `useTransition`, no `FormData`/`useActionState` needed since there's no
+  document creation here) → read-only result table → separate "Save ..." button. Neither auto-saves.
+  The Material Requirements panel deliberately reads sub-assembly rows off the *currently saved*
+  document, not this page's own component state — saving the Sub-Assemblies tab first is what
+  makes raw materials explode through sub-assemblies; skipping it (the only real case this instance
+  can exercise, since its one BOM is single-level) is equally valid.
+- `[name]/page.tsx` — the Sub-Assemblies and Material Requirements tabs now render the
+  interactive panel in place of PP-1's static table **only while `docstatus === 0`**; a
+  Submitted/Cancelled plan is completely unchanged (still PP-1's original read-only tables).
+  Overview tab's explanatory paragraph updated to name what's now available on a Draft.
+  `getStockDefaults(doc.company)` reused (same helper PP-2's create wizard already uses) to
+  populate the Warehouse selects.
+
+**Explicitly out of scope, same as before**: Make Work Order, Make Material Request,
+`reserve_stock`/Stock Reservation Entry creation, multi-location "Get Items for Purchase /
+Transfer" (the dialog letting several "transfer from" warehouses net stock before purchasing the
+remainder — only the simpler single-`for_warehouse` "Purchase Only" scope shipped), Cancel, Amend,
+editing an already-saved `po_items`/header row from this package.
+
+**Cancel clarification carried in from the package brief**: recorded in `production-plan.md`
+(§C.1) with its evidence provenance disclosed — this session did not itself independently verify
+the specific `LinkExistsError`/backlink-checking mechanism the brief asked to have recorded, and
+says so explicitly rather than presenting it as freshly source-verified. Does not change Cancel's
+still-unshipped status.
+
+**Checks run**: `npx tsc --noEmit` — clean. `npm run lint` — clean. `npm run build` — succeeded,
+exit 0, no new errors/warnings, `/manufacturing/production-plans/[name]` still registers
+correctly.
+
+**Runtime verification**: `LIVE VERIFIED`, 2026-09-20, using the app's own service-account
+credentials (same source/handling as PP-2/PP-3 — read from `apps/frontend/.env.local`, never
+written/modified/printed). Full round trip against the real Hetzner instance: created a fresh
+Draft (`MFG-PP-2026-00005`, from a real open Sales Order) → `get_sub_assembly_items` against the
+*real saved* doc returned `sub_assembly_items: []` (correct — the one active BOM on this instance
+has no sub-assembly components) with nothing persisted on re-fetch → `get_items_for_material_
+requests` returned 3 correctly-scaled real raw-material shortage rows with nothing persisted on
+re-fetch either → `PUT` (the exact mechanism the two Save actions use) persisted both results,
+`docstatus` stayed `0` → the real `Bin` for the test item/warehouse was confirmed byte-identical
+before and after that save (no `update_bin_qty()` side effect from a Draft field save, as
+expected) → the test Draft was deleted, zero residual trace. Full detail, including exact
+quantities, in `production-plan.md`'s §L. Unlike PP-3's submit test, this needed no explicit
+go-ahead — like PP-2's own test, every step here is reversible/discardable and left nothing
+behind.
+
+**MFG-UNV-012 impact**: further narrowed and live-verified — see `docs/backend/99-unverified/
+unverified-behaviours.md`'s updated entry. Sub-assembly explosion and single-warehouse
+raw-material calc are now `LIVE VERIFIED` for the single-level-BOM case; real multi-level
+explosion (a BOM with actual sub-assembly components) has still never been observed on this
+instance and remains unexercised. Make Work Order/Make Material Request/`reserve_stock`/
+multi-location transfer sourcing remain unimplemented and unexercised.
+
+**Deferred / next package**: multi-location "Get Items for Purchase / Transfer", Make Work
+Order/Make Material Request (the natural next Production Plan action packages, both gated
+Submitted-only per PP-3's own finding), Cancel (still blocked on the same unresolved
+externally-linked-document scenario), or a BOM Management package that adds a real
+multi-level/sub-assembly BOM to this instance so PP-4's explosion path can be exercised beyond the
+empty-result case. Job Cards, Workstations, and OEE remain unbuilt, unchanged from the
+priority-lock note above.
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
+account before acceptance, not self-review.
