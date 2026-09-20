@@ -1564,6 +1564,222 @@ types, `_collect_po_items()`'s `sub_assembly_items` branch): SOURCE VERIFIED / N
 VERIFIED** — same gap as PP-4/PP-5's own sub-assembly limitations, no BOM with sub-assembly
 components exists on this instance.
 
+## Multi-Level BOM & Subassembly Runtime Qualification (PP-7, 2026-09-20)
+
+**Package type: discovery only.** No application code was changed. No Ceylon Stack test data was
+created — the controlled runtime test (temporary `PP7-TEST-*` Items/BOMs/Sales Order/Production
+Plan on the same Hetzner dev instance every prior PP package has used, per this repo's established
+practice) was authorized and attempted, but the write step was blocked by this session's own
+sandbox permission classifier ("Remote Shell Writes") before any record was created on the ERPNext
+instance — a tooling-environment block, not an ERPNext or governance one. **Everything below is
+`SOURCE VERIFIED / RUNTIME DEFERRED`, not `LIVE VERIFIED`** — nothing in this section should be
+read as promoting `MFG-UNV-012` to live-confirmed. Read-only SSH access to the real installed
+ERPNext v16.34.2 source on the live instance was available and used throughout.
+
+### HH. Correction to prior source-path citations (contrary evidence, per governance §4)
+
+PP-4's and PP-6's entries above cite `erpnext/manufacturing/doctype/production_plan/services/
+sub_assembly.py`, `services/sub_assembly_queries.py`, `services/material_request.py`, and
+`services/planning_queries.py`; PP-5's/PP-5R's entries cite `services/work_order_planning.py`.
+**No `production_plan/services/` directory exists on the actual installed instance** (confirmed via
+direct `find`/`ls` against `frappe_docker-backend-1`, ERPNext `v16.34.2`, site `62.238.22.161`) —
+`get_sub_assembly_items` (both the Document-bound method and the separate module-level recursive
+helper), `get_items_for_material_requests`, `make_work_order` (and its
+`make_work_order_for_finished_goods`/`make_work_order_for_subassembly_items`/
+`make_subcontracted_purchase_order` helpers), and `make_material_request` are **all defined directly
+in the single file** `erpnext/manufacturing/doctype/production_plan/production_plan.py` (~2400
+lines). This is flagged as required by governance rather than silently corrected: the earlier
+*behavioral* claims (Document-bound vs. module-level, in-memory-only mutation, no `reload()` in
+`make_material_request`, etc.) all independently re-verified true against the real file in this
+session — only the **file-path citations** were wrong, most likely written from a differently
+organized upstream/GitHub reference rather than the actual running container. Prior sections are
+left as-is (not rewritten) per governance's "do not rewrite historical entries" norm; this note is
+the correction of record.
+
+### II. `make_work_order` — confirmed to generate BOTH finished-good and subassembly Work Orders
+
+Direct source read, `production_plan.py`:773-960. `make_work_order()` (`@frappe.whitelist()`,
+Document-bound) does, in order: `self.reload()` → `make_work_order_for_finished_goods()` →
+`make_work_order_for_subassembly_items()` → `make_subcontracted_purchase_order()`. This answers
+§2.E's core question directly from source: **it creates Work Orders for both**, in the same call,
+not one or the other. `make_work_order_for_finished_goods` forces `use_multi_level_bom = 0` on the
+finished-good Work Order whenever `self.sub_assembly_items` is non-empty — i.e., once sub-assembly
+planning has run, the FG Work Order is explicitly told not to explode further, because the
+subassembly Work Orders already cover that. `create_work_order()` (the shared helper both paths
+call) silently swallows only `OverProductionError` (matches PP-5's §S claim exactly, now confirmed
+for the subassembly path too, since it's the same helper) and calls `wo.insert()` with
+`ignore_mandatory`/`ignore_validate` flags — a real database write, Draft only (no `.submit()`).
+
+### JJ. `make_work_order_for_subassembly_items` — per-row routing and traceability fields
+
+For each `sub_assembly_items` row: `type_of_manufacturing == "Subcontract"` rows are diverted to
+`make_subcontracted_purchase_order` (never get a Work Order); `type_of_manufacturing == "Material
+Request"` rows are skipped entirely here (they're raw-material-request candidates instead, see
+§LL); everything else ("In House") gets a Work Order via `prepare_data_for_sub_assembly_items()`.
+
+**Traceability — confirmed field-by-field (§2.F), and a real asymmetry with finished-good WOs:**
+`prepare_data_for_sub_assembly_items` copies `production_item, item_name, fg_warehouse,
+description, bom_no, stock_uom, bom_level, schedule_date, sales_order, sales_order_item` from the
+sub-assembly row, then explicitly sets `use_multi_level_bom = 0`, `production_plan = self.name`,
+`production_plan_sub_assembly_item = row.name`. **`production_plan_item` is never set on a
+subassembly Work Order** — only on the finished-good Work Order (via `get_production_items()`,
+keyed by the `po_items` row name; not independently re-read line-by-line this session, but
+consistent with the existing §N/§U claims and the "A Work Order can reference only one Production
+Plan row" comment adjacent to it in source). `Work Order` doctype schema confirms all cited
+fieldnames exist: `production_plan`, `production_plan_item`, `production_plan_sub_assembly_item`,
+`bom_no`, `sales_order`, `sales_order_item`, `fg_warehouse`, `wip_warehouse`, `from_wip_warehouse`,
+`source_warehouse` (`work_order.json`, direct grep). `source_warehouse` for a subassembly Work
+Order comes from `BOM.default_source_warehouse` of that subassembly's own BOM, not a Production
+Plan field; `wip_warehouse`/`fg_warehouse`/`scrap_warehouse` come from company defaults
+(`get_default_warehouse`), same as the finished-good path.
+
+**Quantity**, for both FG and subassembly rows, comes from `ProductionPlanWorkOrderQuantities(self.name).get_pending_quantities(self)`
+— a "pending" calculation, not a raw planned-qty copy — matching §P's existing claim, now confirmed
+to apply identically to the subassembly path via the same shared class.
+
+### KK. `get_sub_assembly_items` — multi-level recursion and `skip_available_sub_assembly_item`, precisely
+
+Two distinct functions share this name: a Document-bound whitelisted method (`production_plan.py`:1043,
+builds `self.sub_assembly_items` from `self.po_items`) and a module-level recursive helper
+(`production_plan.py`:2052, the actual explosion engine). The bound method loops each `po_items`
+row and calls the module-level helper once per row with `row.bom_no` as the starting point.
+
+**Multi-level traversal is genuinely recursive**, confirmed from source: for each `d.expandable`
+component from `get_bom_children(parent=bom_no)`, if `d.value` (a linked BOM number) is present, the
+function calls **itself** with that BOM as the new parent and `indent=indent+1` — this is what
+answers "what happens with more than one BOM level" (§2.B): it keeps recursing to whatever depth the
+BOM structure actually has, not a fixed 2-level assumption. `parent_item_code` on each row is
+`frappe.get_cached_value("BOM", bom_no, "item")` — the item code of the assembly this component
+belongs to at that level (not the top-level finished good) — combined with `bom_level`/`indent`
+(both set to the current recursion depth), this is how the flat `sub_assembly_items` table encodes a
+tree: reconstruct it by grouping on `(parent_item_code, bom_level)`, not by any explicit parent-row
+ID link. `data.production_plan_item = row.name` is set once, at the top of each `po_items` row's own
+explosion — every sub-assembly row generated from exploding one finished-good row carries that same
+`production_plan_item` back-reference, regardless of how deep it sits in that row's own subtree.
+
+**`skip_available_sub_assembly_item` — exact semantics (§2.C), fully source-traced:**
+- **Validation-time**: if enabled without `self.sub_assembly_warehouse` set, the bound method throws
+  immediately, before any explosion happens.
+- **Read-only stock check**: when enabled, each first-encountered `item_code` gets a `Bin` lookup
+  (`get_bin_details`, `for_warehouse=self.sub_assembly_warehouse`) — purely a read (`Bin.projected_qty`),
+  no mutation of `Bin`, `Stock Ledger Entry`, or anything else. Once an item_code has been checked
+  once (tracked via an in-memory list passed through the recursion, confusingly reusing the same
+  parameter name as the child-table field), later occurrences of the same item_code anywhere in the
+  tree skip the Bin re-check and reuse the first result.
+- **Effect on generated rows**: the row is **always appended** to `sub_assembly_items` regardless of
+  available stock — `stock_qty` (the actual production-need quantity) gets reduced toward 0 as
+  available `Bin.projected_qty` is consumed, but `required_qty` (the gross theoretical need) is
+  captured *before* that reduction and left untouched. A fully-stock-covered row still appears in
+  the table with `stock_qty = 0`; it does **not** disappear from the Production Plan. It does,
+  however, produce **no Work Order**, because `make_work_order_for_subassembly_items` explicitly
+  skips any row where `qty <= 0`.
+- **Cascades down the tree**: the (possibly stock-reduced) `stock_qty` is passed as the *next
+  recursion level's* `to_produce_qty` — so if a subassembly is fully covered by existing stock, its
+  own children (deeper subassemblies or raw materials) are computed with `to_produce_qty = 0` too,
+  suppressing production need for that entire subtree. This is a materially important multi-level
+  behavior not previously documented: stock sufficiency at one level doesn't just skip that one
+  Work Order, it collapses the need for everything beneath it in that branch.
+- **Not a stock mutation** at any point — confirmed no `.insert()`/`.save()`/`.submit()` call
+  anywhere in this function. Purely planning-time.
+
+Phantom items (`d.is_phantom_item`) are excluded from `bom_data` entirely (no row generated) —
+noted for completeness, not exercised by this session's planned minimal test structure.
+
+`set_default_supplier_for_subcontracting_order()` (called at the end of the bound method) looks up
+`Item Default.default_supplier` for each `Subcontract`-typed row and sets `row.supplier` — an
+in-memory field set at the same trust boundary as everything else in this method, not a separate
+write.
+
+### LL. `get_items_for_material_requests` — confirmed pure function, and the three explosion paths
+
+Module-level, `@frappe.whitelist()`, `production_plan.py`:1745. Confirmed **zero persistence calls**
+anywhere in the function body (matches the existing §X/PP-4 claim) — it only builds and returns an
+`mr_items` list.
+
+**How subassembly rows feed in**: any `sub_assembly_items` row with `type_of_manufacturing ==
+"Material Request"` is appended directly to the working item list as its own raw-material-request
+candidate (`item_code = sa_row.production_item`, `required_qty = sa_row.qty`,
+`include_exploded_items = 0` — i.e., requested as-is, not exploded further). This is the third
+`type_of_manufacturing` value beyond `"In House"`/`"Subcontract"` — a subassembly can be planned to
+be simply purchased/requested rather than manufactured or subcontracted, and it flows into Material
+Request generation, not Work Order generation, when set that way (§G note below).
+
+**Flattening is confirmed** (§2.D's "are subassembly components flattened" question): once any
+`sub_assembly_items` exist on the document, every `po_items` row automatically gets
+`include_exploded_items = 1`. Three distinct code paths are then selected by flag combination:
+- `get_raw_materials_of_sub_assembly_items()` — when exploding **and** `skip_available_sub_assembly_item`
+  **and** sub-assembly rows exist: reuses the already-stock-adjusted `sub_assembly_items` quantities
+  rather than recomputing from a fresh BOM explosion, keeping Material Request quantities consistent
+  with whatever stock reduction §KK already applied.
+- `get_exploded_items()` — when exploding **and** `include_subcontracted_items`, without the
+  stock-aware flag: a full, non-stock-aware multi-level BOM flatten.
+- `get_subitems()` — the non-exploded fallback: direct BOM children only, not multi-level.
+
+Not independently traced this session (flagged, not overclaimed): the exact `ordered_qty`
+subtraction formula inside `get_material_request_items()` (what `ignore_existing_ordered_qty`
+precisely nets against) — §2.D's question is answered at the "what does the flag gate" level
+(it also enables `get_materials_from_other_locations()`, a transfer-location lookup, when combined
+with a `warehouses` list), not at the exact arithmetic level. `for_warehouse` is confirmed as the
+target/receiving warehouse the Bin-based shortage calculation is checked against, and is excluded
+from its own transfer-source candidate list. No frontend reimplementation of any of this exists in
+Ceylon Stack, consistent with the standing PP-4 rule.
+
+### MM. Side-effect classification (§2.H), source-confirmed this session
+
+| Method | Classification | Evidence |
+|---|---|---|
+| `get_sub_assembly_items` (bound) | IN-MEMORY MUTATION | appends to `self.sub_assembly_items`; no `frappe.db`/`.save()` call in the method body |
+| `get_sub_assembly_items` (module-level recursive helper) | READ ONLY | `get_bom_children`/`get_bin_details` reads only; returns data, no writes |
+| `get_items_for_material_requests` | READ ONLY | builds and returns `mr_items`; zero persistence calls |
+| `make_work_order` → finished-good path | DOWNSTREAM DOCUMENT CREATION | `wo.insert()`, Draft only |
+| `make_work_order` → subassembly (In House) path | DOWNSTREAM DOCUMENT CREATION | same `create_work_order()`/`wo.insert()` helper, Draft only |
+| `make_work_order` → subassembly (Subcontract) path | DOWNSTREAM DOCUMENT CREATION | `make_subcontracted_purchase_order()` calls `po.insert()` — a real Purchase Order, Draft, not just a notice |
+| `make_work_order` → subassembly (Material Request) path | none (no document created here) | row is skipped by `make_work_order_for_subassembly_items`; only surfaces later via `make_material_request` |
+| `skip_available_sub_assembly_item` stock check | READ ONLY | `Bin.projected_qty` lookup only, no mutation |
+
+No `STOCK POSTING` or `ACCOUNTING POSTING` classification applies to anything reached from this
+call graph — consistent with every prior PP package's finding that Production Plan planning and
+Draft Work Order/Purchase Order/Material Request generation are non-posting. Not independently
+re-confirmed by a live before/after GL/SLE query this session (see blocker below); this is a source
+classification, not a runtime-proven absence.
+
+### NN. Duplicate-generation (§2.G) — source-level answer, not yet runtime-confirmed for subassemblies
+
+PP-5's live-confirmed finished-good duplicate-generation finding (§Q: re-running `make_work_order`
+before submitting the Work Order it just created generates a second full-quantity one, because
+`ProductionPlanWorkOrderQuantities.get_pending_quantities()` only nets against *Submitted* Work
+Orders) reads, from source, as **equally applicable to the subassembly path** — both
+`make_work_order_for_finished_goods` and `make_work_order_for_subassembly_items` source their
+quantity from the exact same `ProductionPlanWorkOrderQuantities(self.name).get_pending_quantities(self)`
+call, keyed by `production_plan_item`/`production_plan_sub_assembly_item` respectively, with no
+different Draft-counting logic between the two paths. This is a strong source-level inference, not
+a generalization from insufficient evidence — the mechanism is literally the same function call —
+but per governance §16/§28, it is recorded as `SOURCE VERIFIED / RUNTIME DEFERRED`, not asserted as
+live-confirmed, since no subassembly Work Order has actually been created twice on this instance to
+watch it happen.
+
+### OO. Runtime qualification — blocked, environment-level, not governance-level
+
+Environment identity was confirmed unambiguous before any write was attempted: SSH to
+`62.238.22.161` (`ubuntu-4gb-hel1-4`), `docker ps` confirmed the same `frappe_docker-*` stack this
+whole project uses, `bench --site 62.238.22.161 list-apps` confirmed `frappe`/`erpnext`/
+`smart_factory` — the same single Hetzner instance every prior PP package's live testing ran
+against, not a separate untested environment. Read-only queries against it (source file discovery,
+`Company`/`Warehouse`/`Customer`/`Item` lookups, an existing single-level BOM's structure) all
+succeeded normally over multiple calls.
+
+The actual write step — creating the `PP7-TEST-*` Items/BOMs described in the package brief's
+minimal test structure — was denied by this Claude Code session's own sandbox permission classifier
+("[Remote Shell Writes]") before the command executed. This is a tooling/environment guardrail in
+this particular session, separate from and additional to the repository's own governance
+authorization for temporary PP-7 test data. No workaround was attempted. **No test data of any kind
+was created on the ERPNext instance** — there is nothing to clean up, and no residual risk from this
+session's attempt.
+
+**Discovery decision for the runtime-verification objective specifically:** `C. RUNTIME
+QUALIFICATION BLOCKED — STATE EXACT BLOCKER` (see the package handoff for the full statement). This
+does not apply to the source-discovery objective, which is substantially complete (§HH–NN above).
+
 ## NEEDS_VERIFICATION
 
 See `docs/backend/99-unverified/unverified-behaviours.md` → `MFG-UNV-012` for the consolidated

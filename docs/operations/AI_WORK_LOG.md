@@ -3455,3 +3455,142 @@ mode.
 remediation for `listSubcontractPurchaseOrderNames`/`listMaterialRequestNames`, not urgent); PP-7
 scoping/planning may proceed when requested, but no PP-7 implementation until a separate, explicit
 unlock.
+
+## Package: Production Plan PP-7 — Multi-Level BOM & Subassembly Runtime Qualification (temporary dual-Claude mode, 2026-09-20)
+
+**PACKAGE:** PP-7 (Multi-Level BOM & Subassembly Runtime Qualification)
+**ROLE:** Implementation/Discovery Claude
+**PACKAGE TYPE:** Discovery + controlled runtime verification — explicitly not a frontend feature
+implementation package.
+**BASELINE VERIFIED:** HEAD `34f6319` before starting; PP-1 through PP-6 and PP-5R all `ACCEPTED`;
+`PP5R-R-01` open/non-blocking; PP-7 unlocked for planning/discovery.
+**STATUS:** `CLAUDE_HANDOFF`
+
+### Environment identity (confirmed before any write attempt)
+
+SSH to `62.238.22.161` → hostname `ubuntu-4gb-hel1-4`. `docker ps` on that host matched the
+documented `frappe_docker-*` stack (`frontend`, `backend`, `scheduler`, `queue-short`/`-long`,
+`websocket`, `redis-queue`, `redis-cache`, `db`), ERPNext image `v16.34.2`. `bench --site
+62.238.22.161 list-apps` confirmed `frappe`/`erpnext`/`smart_factory` installed on that site — the
+same single Hetzner instance every prior PP package's live/source verification has used, not a
+different or ambiguous environment. Not a customer production system (no live clients yet, per
+`CLAUDE.md`).
+
+### Source discovery — complete
+
+Read `erpnext/manufacturing/doctype/production_plan/production_plan.py` directly on the live
+container (no `services/` submodule exists there — see the contrary-evidence finding below) for:
+`make_work_order` (lines ~773-791), `make_work_order_for_finished_goods` (~793-803),
+`make_work_order_for_subassembly_items` (~805-829), `prepare_data_for_sub_assembly_items`
+(~831-853), `make_subcontracted_purchase_order` (~855-897), `create_work_order` (~903-926),
+`get_sub_assembly_items` bound method (~1043-1109), its helpers `set_sub_assembly_items_based_on_level`/
+`set_default_supplier_for_subcontracting_order`/`combine_subassembly_items` (~1111-1171), the
+module-level recursive `get_sub_assembly_items` helper (~2052-2126), and `get_items_for_material_requests`
+(~1745-1940). Cross-checked `erpnext/manufacturing/doctype/work_order/work_order.json` for
+`production_plan`/`production_plan_item`/`production_plan_sub_assembly_item`/`bom_no`/
+`sales_order`/`fg_warehouse`/`wip_warehouse`/`source_warehouse` fieldnames. Full findings written up
+in `docs/backend/05-manufacturing/production-plan.md`'s new §HH–OO and summarized in
+`docs/backend/99-unverified/unverified-behaviours.md`'s `MFG-UNV-012`.
+
+**Contrary-evidence finding (governance §4 — flagged, not silently corrected):** PP-4/PP-5/PP-6/PP-5R
+entries above cite `production_plan/services/sub_assembly.py`, `services/sub_assembly_queries.py`,
+`services/material_request.py`, `services/planning_queries.py`, `services/work_order_planning.py`.
+**No such `services/` directory exists** on the real installed instance — confirmed by direct `find`
+against the container. All cited methods live directly in the single `production_plan.py` file. The
+behavioral claims in those prior entries were independently re-verified true against the real file
+this session (Document-bound vs. module-level distinction, in-memory-only mutation, no `reload()` in
+`make_material_request`, the `OverProductionError`-only swallow, etc.) — only the file-path citations
+were incorrect, most likely from a differently organized upstream reference rather than the actual
+running container. Prior entries were not rewritten (historical-entry preservation norm); this entry
+is the correction of record.
+
+**Key new findings, all `SOURCE VERIFIED / RUNTIME DEFERRED`:**
+1. `make_work_order` generates Work Orders for **both** finished goods and subassemblies in the same
+   call (`make_work_order_for_finished_goods` + `make_work_order_for_subassembly_items`), plus
+   subcontracted Purchase Orders for `Subcontract`-typed subassembly rows
+   (`make_subcontracted_purchase_order`, a real `po.insert()`).
+2. Subassembly Work Orders get `production_plan` + `production_plan_sub_assembly_item` set but
+   **never `production_plan_item`** — confirmed asymmetry with finished-good Work Orders, which do
+   carry `production_plan_item`.
+3. Multi-level BOM explosion (module-level `get_sub_assembly_items`) is genuinely recursive to
+   arbitrary depth via `get_bom_children`, not a hardcoded 2-level assumption. Tree structure is
+   flat-list-encoded via `parent_item_code` (the assembly item at that level) + `bom_level`/`indent`
+   (recursion depth), not an explicit parent-row ID link.
+4. `skip_available_sub_assembly_item` is confirmed read-only (`Bin.projected_qty` lookup, no
+   mutation), but its stock-sufficiency deduction **cascades down an entire subtree** once a
+   subassembly is fully covered by stock — a previously undocumented multi-level behavior. The row
+   still appears in `sub_assembly_items` even at qty 0; it just produces no Work Order.
+5. A third `type_of_manufacturing` value, `"Material Request"`, exists alongside
+   `"In House"`/`"Subcontract"` and routes a subassembly directly into Material Request generation
+   (via `get_items_for_material_requests`'s explicit handling of that type) instead of Work Order
+   generation.
+6. `get_items_for_material_requests` confirmed as a pure function (zero persistence calls); three
+   distinct explosion paths (`get_raw_materials_of_sub_assembly_items` /
+   `get_exploded_items` / `get_subitems`) selected by flag combination, all flattening across BOM
+   levels except the non-exploded fallback.
+7. PP-5's live-confirmed finished-good duplicate-generation mechanism reads from source as equally
+   applicable to subassembly Work Orders (identical `ProductionPlanWorkOrderQuantities.get_pending_quantities()`
+   call underlies both paths) — a strong source-level inference, explicitly recorded as inference,
+   not asserted as live-confirmed.
+
+Side-effect classification table (§2.H) recorded in full in `production-plan.md`'s §MM — no
+`STOCK POSTING`/`ACCOUNTING POSTING` classification applies anywhere in this call graph, consistent
+with every prior package's finding, though not independently re-proven by a live before/after
+GL/SLE query this session.
+
+### Controlled runtime test — attempted, blocked at the environment/tooling level
+
+Read-only queries against the live instance succeeded without incident across multiple calls
+(`Company`/`Warehouse`/`Customer`/`UOM` lookups, an existing single-level BOM's structure, confirming
+no reusable multi-level structure already existed on the instance to avoid creating new test data).
+
+The write step — creating the minimal `PP7-TEST-FG` / `PP7-TEST-SUB` / `PP7-TEST-RMA/B/C` Items and
+their BOMs described in the package brief — was **denied by this Claude Code session's own sandbox
+permission classifier** ("[Remote Shell Writes]") before the command executed against the remote
+host. This is a tooling/environment guardrail specific to this session, separate from and additional
+to the repository's own governance authorization for temporary PP-7 test data (which was granted in
+the package brief). No workaround was attempted, consistent with this session's standing instruction
+not to route around a denied action.
+
+**Result: no test data of any kind was created on the ERPNext instance.** Nothing needed cleanup;
+zero residual risk from this attempt. Everything gated on live evidence — sub-assembly Work Order
+generation, multi-level Material Request flattening, the stock-cascade behavior, and subassembly
+duplicate-generation — remains `SOURCE VERIFIED / RUNTIME DEFERRED`, not promoted to `LIVE VERIFIED`.
+`MFG-UNV-012`'s status line was updated to reflect the new source-verified detail without claiming
+any of it as live-confirmed.
+
+### Not touched, by design
+
+`PP5R-R-01` (not fixed; `listSubcontractPurchaseOrderNames`/`listMaterialRequestNames` untouched).
+No application code anywhere in `apps/frontend` or `apps/smart_factory` was changed — this package
+found no implementation gap requiring a code change, only a runtime-evidence gap. Stock Reservation,
+subcontract workflow UI, Purchase Order creation UI, Stock Entry, Work Order submission, Job Cards,
+Quality Inspection, accounting posting, PP-8, PP-9 — none started. `docs/ceylon-stack-documentation.html`
+and Notion not touched (discovery only, no shipped capability to sync).
+
+### Tests
+
+No application code changed, so `tsc`/`lint`/`build` do not apply. `git diff --check` clean on the
+documentation edits.
+
+### Discovery decision (§28)
+
+**C. RUNTIME QUALIFICATION BLOCKED — STATE EXACT BLOCKER**, specifically for the live-runtime
+objective: this session's sandbox permission classifier denies remote-host write operations, and no
+workaround was attempted. The source-discovery objective is separately assessed as substantially
+complete (§HH–NN in `production-plan.md`) and does not share this blocker.
+
+This is **not** a "B. IMPLEMENTATION GAP FOUND" result — no gap in the existing PP-4/PP-5/PP-6/PP-5R
+frontend implementation was identified; the multi-level path was simply not yet runtime-exercised,
+which is a testing-evidence gap, not an implementation gap.
+
+### Recommended next action
+
+Re-attempt the controlled runtime test (Sections 5-18 of the PP-7 brief) from a session/tooling
+context where remote-host write operations are permitted, using the same minimal `PP7-TEST-*`
+structure and safety constraints already specified (no stock/GL postings, mandatory cleanup, no
+code changes without a stop). Until then, `MFG-UNV-012`'s subassembly/multi-level branches stay
+`SOURCE VERIFIED / RUNTIME DEFERRED`. PP-8/PP-9 remain not started and out of scope. Independent
+review of this discovery package (source-accuracy spot-check, confirm no code changes occurred,
+confirm the blocker claim, confirm documentation accuracy) is the natural next step before any
+further PP-7 runtime attempt.

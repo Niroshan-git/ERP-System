@@ -1331,3 +1331,46 @@ implementing session's own in-session verification only, not the required cross-
 - **Sign-off**: implementing session's own in-session verification only. Per
   `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this is `CLAUDE_HANDOFF` pending independent review —
   not self-accepted.
+
+## 2026-09-20 — Production Plan PP-7 — Multi-Level BOM & Subassembly discovery (runtime test blocked)
+
+- **Package tested**: none — this is a discovery/documentation-only package, no application code
+  changed. No Ceylon Stack frontend or `smart_factory` app code was touched.
+- **Result**: **N/A (documentation package)**. Source discovery against the live instance's actual
+  installed ERPNext v16.34.2 (`production_plan.py`) is complete and recorded in
+  `docs/backend/05-manufacturing/production-plan.md`'s new "Multi-Level BOM & Subassembly Runtime
+  Qualification (PP-7)" section. The authorized controlled runtime test (temporary `PP7-TEST-*`
+  Items/BOMs/Sales Order/Production Plan) was attempted against the same Hetzner instance used by
+  every prior PP package, but the write step was denied by this session's own sandbox permission
+  classifier ("Remote Shell Writes") before any record was created — an environment/tooling block,
+  not a governance or ERPNext one. No test data exists on the instance; there is nothing to clean up.
+- **Verification performed**:
+  1. Confirmed governance baseline (`git status`/`git log --oneline -15`, HEAD `34f6319`) before
+     starting.
+  2. Confirmed environment identity unambiguously before attempting any write: SSH to
+     `62.238.22.161` (`ubuntu-4gb-hel1-4`), `docker ps` matched the documented `frappe_docker-*`
+     stack, `bench --site 62.238.22.161 list-apps` confirmed `frappe`/`erpnext`/`smart_factory` —
+     the same site every prior package's live testing used.
+  3. Read-only source discovery succeeded over multiple SSH calls: located and read
+     `production_plan.py`'s `make_work_order`, `make_work_order_for_finished_goods`,
+     `make_work_order_for_subassembly_items`, `make_subcontracted_purchase_order`,
+     `get_sub_assembly_items` (bound method + module-level recursive helper), and
+     `get_items_for_material_requests` in full; cross-checked `Work Order` doctype JSON for the
+     traceability fieldnames in question.
+  4. Discovered and recorded a real discrepancy in prior packages' source-path citations
+     (`services/*.py` files that do not exist on the real instance — see
+     `unverified-behaviours.md`'s PP-7 update) — the underlying behavioral claims independently
+     re-verified true regardless.
+  5. Attempted the authorized write step (creating `PP7-TEST-*` Items and BOMs via `bench console`)
+     — denied by the sandbox classifier. Did not attempt to restructure the command to route around
+     the block.
+  6. `git diff --check` clean on all documentation edits (no code changed, so `tsc`/`lint`/`build`
+     are not applicable to this package).
+- **Not independently testable this session**: everything requiring a live Production Plan/Work
+  Order/Purchase Order/Material Request against a real multi-level BOM — sub-assembly Work Order
+  generation, multi-level Material Request flattening, `skip_available_sub_assembly_item`'s
+  stock-cascade behavior, and subassembly duplicate-generation all remain `SOURCE VERIFIED /
+  RUNTIME DEFERRED`, per the package brief's own explicit allowance for exactly this outcome.
+- **Sign-off**: implementing session's own in-session work only. Per
+  `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this is `CLAUDE_HANDOFF` — not self-accepted; no
+  independent review has run yet.

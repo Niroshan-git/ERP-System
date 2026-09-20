@@ -3126,3 +3126,60 @@ finding, `PP5R-R-01` (500-row query cap applies before frontend dedup in
 worsened here), tracked as backlog, not remediated as part of this closure. Full verdict in
 `docs/operations/AI_WORK_LOG.md`'s "PP-5R — independent review" entry. PP-7 unlocked for planning
 only, not implementation.
+
+## 2026-09-20 — Production Plan PP-7 — Multi-Level BOM & Subassembly Runtime Qualification (discovery)
+
+Discovery/controlled-runtime-verification package, not a feature implementation. **No application
+code was changed.** Baseline confirmed before starting: HEAD `34f6319` (PP-5R governance closure),
+PP-1 through PP-6 and PP-5R all `ACCEPTED`, `PP5R-R-01` open/non-blocking, PP-7 unlocked for
+planning/discovery per prior turns of this same session.
+
+**Source discovery (complete):** read the actual installed ERPNext `v16.34.2` source directly on
+the live Hetzner instance (`62.238.22.161`, `frappe_docker-backend-1`, site `62.238.22.161`) via
+SSH — `erpnext/manufacturing/doctype/production_plan/production_plan.py` in full for
+`make_work_order`, `make_work_order_for_finished_goods`, `make_work_order_for_subassembly_items`,
+`make_subcontracted_purchase_order`, `get_sub_assembly_items` (both the Document-bound method and
+the separate recursive module-level helper), and `get_items_for_material_requests`; cross-checked
+`work_order.json` for the traceability fieldnames. Full findings recorded in
+`docs/backend/05-manufacturing/production-plan.md`'s new "Multi-Level BOM & Subassembly Runtime
+Qualification (PP-7)" section (§HH–OO) and summarized in `unverified-behaviours.md`'s `MFG-UNV-012`.
+
+**Notable findings:** (1) a real discrepancy — prior PP-4/PP-5/PP-6/PP-5R docs cite a
+`production_plan/services/*.py` file split that does not exist on the real instance; all these
+methods live in the single `production_plan.py` file. Behavioral claims re-verified true regardless
+— only file-path citations were wrong. Flagged per governance rather than silently fixed. (2)
+`make_work_order` confirmed to generate Work Orders for both finished goods and subassemblies in
+one call, plus subcontracted Purchase Orders. (3) subassembly Work Orders get `production_plan` +
+`production_plan_sub_assembly_item` but never `production_plan_item` — a genuine asymmetry with
+finished-good Work Orders. (4) multi-level BOM explosion is genuinely recursive to arbitrary depth.
+(5) `skip_available_sub_assembly_item`'s stock check is read-only (`Bin.projected_qty`), but its
+effect cascades down an entire subtree once a subassembly is fully stock-covered — not previously
+documented. (6) a third `type_of_manufacturing` value, `"Material Request"`, routes a subassembly to
+Material Request generation instead of Work Order generation.
+
+**Controlled runtime test: attempted, blocked at the environment level, not performed.**
+Environment identity was confirmed unambiguous (same Hetzner instance, same `frappe_docker` stack,
+same site every prior package used) before any write was attempted. The write step itself — creating
+temporary `PP7-TEST-*` Items/BOMs for the minimal multi-level structure the package brief specified
+— was denied by this Claude Code session's own sandbox permission classifier ("Remote Shell
+Writes") before the command executed. No workaround was attempted. **No test data of any kind was
+created on the ERPNext instance** — nothing to clean up, zero residual risk. Everything requiring
+live evidence (sub-assembly Work Order generation, multi-level Material Request flattening, the
+stock-cascade behavior, subassembly duplicate-generation) remains `SOURCE VERIFIED / RUNTIME
+DEFERRED`, not promoted to `LIVE VERIFIED`.
+
+**Discovery decision:** `C. RUNTIME QUALIFICATION BLOCKED — STATE EXACT BLOCKER` for the runtime
+objective specifically; source discovery objective is substantially complete.
+
+**Documentation updated:** `docs/backend/05-manufacturing/production-plan.md`,
+`docs/backend/99-unverified/unverified-behaviours.md` (`MFG-UNV-012`), `QA_LOG.md`. No
+`docs/ceylon-stack-documentation.html` or Notion update — discovery only, no shipped capability.
+`PP5R-R-01` was not touched; `listSubcontractPurchaseOrderNames`/`listMaterialRequestNames` were not
+modified.
+
+**Tests**: no application code changed, so `tsc`/`lint`/`build` do not apply; `git diff --check`
+clean.
+
+Package state: `CLAUDE_HANDOFF`. Not self-accepted — per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`,
+awaiting independent review. PP-8/PP-9 not started; PP-7 implementation (if any is ever warranted)
+was not started — this package concluded at discovery, per its own scope.

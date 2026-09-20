@@ -162,6 +162,43 @@ NOT RUNTIME VERIFIED for the duplicate-parent-row case specifically, since no li
 sub-assembly/subcontract data exists on this instance to exercise it end-to-end — see
 `production-plan.md`'s "PP-5R remediation" note.
 
+**2026-09-20 update (PP-7 — multi-level BOM/subassembly discovery, source read only, runtime
+blocked):** full source read of `get_sub_assembly_items` (both the Document-bound method and the
+recursive module-level helper), `get_items_for_material_requests`, `make_work_order` and its
+`make_work_order_for_finished_goods`/`make_work_order_for_subassembly_items`/
+`make_subcontracted_purchase_order` helpers, directly against the real installed
+`production_plan.py` on the live instance — see `production-plan.md`'s "Multi-Level BOM &
+Subassembly Runtime Qualification (PP-7)" section (§HH–OO) for full detail. Key resolutions,
+`SOURCE VERIFIED / RUNTIME DEFERRED` (not live-confirmed — see blocker below): (a) **contrary
+evidence, per governance**: prior PP-4/PP-5/PP-6/PP-5R entries cite a
+`production_plan/services/*.py` file split that does not exist on the real instance — all these
+methods live directly in `production_plan.py`; the behavioral claims themselves independently
+re-verified true, only the file-path citations were wrong (§HH); (b) `make_work_order` confirmed
+from source to generate Work Orders for **both** finished goods and subassemblies in the same call,
+plus subcontracted Purchase Orders for `Subcontract`-typed subassembly rows (§II); (c) subassembly
+Work Orders get `production_plan` + `production_plan_sub_assembly_item` set but **never**
+`production_plan_item` — a real, confirmed asymmetry with finished-good Work Orders (§JJ); (d)
+multi-level BOM explosion is genuinely recursive to arbitrary depth, not a fixed 2-level assumption
+(§KK); (e) `skip_available_sub_assembly_item` is a read-only `Bin.projected_qty` check whose stock
+reduction **cascades down the entire subtree** beneath a fully-covered subassembly, not just that
+one row (§KK — a previously undocumented multi-level behavior); (f) a third
+`type_of_manufacturing` value, `"Material Request"`, exists alongside `"In House"`/`"Subcontract"`
+and routes a subassembly straight into Material Request generation instead of Work Order generation
+(§LL); (g) PP-5's live-confirmed finished-good duplicate-generation mechanism reads from source as
+equally applicable to subassembly Work Orders (same underlying `get_pending_quantities()` call),
+but this is a source inference, not runtime-confirmed for the subassembly case (§NN).
+
+**Blocked, not skipped:** the controlled runtime test (temporary `PP7-TEST-*` Items/BOMs/Sales
+Order/Production Plan, same authorized pattern as PP-4's live test data) was attempted against the
+same Hetzner instance every prior package used — environment identity confirmed unambiguous — but
+the write step was denied by this session's own sandbox permission classifier ("Remote Shell
+Writes") before any record was created. No test data exists on the instance; nothing needed
+cleanup. Sub-assembly/subcontract Work Order generation, multi-level Material Request flattening,
+`skip_available_sub_assembly_item`'s stock-cascade behavior, and subassembly duplicate-generation
+therefore all remain `SOURCE VERIFIED / RUNTIME DEFERRED`, not promoted to `LIVE VERIFIED` — the
+next attempt needs either this environment's write permission granted, or the same test run
+performed from a session/tooling context without that restriction.
+
 **2026-09-20 update (PP-4 — sub-assembly explosion + raw-material calc, source read + live
 test):** full source read of `services/sub_assembly.py`, `services/sub_assembly_queries.py`,
 `services/material_request.py`, `services/planning_queries.py`, and
