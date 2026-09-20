@@ -1288,3 +1288,46 @@ Order/type in the same call) was not exercised — this session's test data only
 single-group case. No independent second-account review has run yet — this entry covers the
 implementing session's own in-session verification only, not the required cross-review under
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`.
+
+## 2026-09-20 — Production Plan PP-5R — Subcontract Purchase Order traceability dedup remediation
+
+- **Package tested**: narrow remediation of the known PP-5 defect flagged during PP-6 QA (Test 8
+  above) — `listSubcontractPurchaseOrderNames()` (`productionPlanWorkOrder.ts`) returning one row
+  per matching `Purchase Order Item` child row instead of one per distinct parent Purchase Order.
+  No new functionality; no subcontract Purchase Orders created, submitted, or cancelled as part of
+  this package.
+- **Result**: **PASS** — code-level fix confirmed against the accepted PP-6 precedent; `SOURCE
+  VERIFIED / NOT RUNTIME VERIFIED` for the duplicate-row case itself, same as PP-5 and PP-6 already
+  disclosed, since no sub-assembly/subcontract test data exists on this instance to reproduce a
+  Purchase Order with multiple matching child rows.
+- **Verification performed**:
+  1. Confirmed the defect at the source: `listSubcontractPurchaseOrderNames` used the identical
+     nested `[Child Doctype, field, op, value]` filter shape as PP-6's `listMaterialRequestNames`,
+     which PP-6's own QA pass (Test 8) live-confirmed returns one parent row per matching child row.
+  2. Applied the identical fix already accepted in PP-6: `[...new Set(rows.map((r) => r.name))]`.
+     Reasoned through Test Cases A–F from the remediation brief (single PO/single row, single
+     PO/multiple rows, two POs, zero matches, non-contiguous duplicates, empty/malformed names) —
+     `Set` dedup by exact `name` handles all of them without fabricating or inferring identity.
+  3. Confirmed no regression to PP-5's `makeWorkOrderAction` before/after diffing logic, PP-5's
+     Draft-duplicate-Work-Order caveat, or PP-6's `listMaterialRequestNames`/`makeMaterialRequestAction`
+     (neither touched).
+  4. Query limit (500) left unchanged, same as PP-6's own precedent — realistic per-plan subcontract
+     PO counts are far below that cap; not a generic pagination framework, per the package brief's
+     explicit instruction not to expand scope there.
+  5. Verified a canonical Purchase Order detail route already exists
+     (`/buying/purchase-orders/[name]`) before wiring the result panel to link to it — did not invent
+     a route.
+  6. `npx tsc --noEmit`, `npm run lint`, `npm run build` all clean. `git diff --check` clean (only
+     pre-existing CRLF-normalization warnings, no actual whitespace errors).
+  7. No database writes performed — this remains a read-only traceability query; verified no
+     arbitrary doctype/field/filter input is accepted (Production Plan `name` is the only caller
+     input, same as the pre-existing code).
+- **Not independently testable this session**: no live subcontract Purchase Order exists on this
+  instance (no BOM with Subcontract-type sub-assembly rows has been created), so the actual
+  duplicate-row scenario could not be reproduced end-to-end — the fix is verified by code inspection
+  and by exact parity with PP-6's already-live-verified analogous fix, not by a fresh live
+  reproduction. Per the remediation brief's own §13 allowance, `SOURCE VERIFIED / NOT RUNTIME
+  VERIFIED` is accepted evidence here; no production data was fabricated to upgrade it.
+- **Sign-off**: implementing session's own in-session verification only. Per
+  `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this is `CLAUDE_HANDOFF` pending independent review —
+  not self-accepted.

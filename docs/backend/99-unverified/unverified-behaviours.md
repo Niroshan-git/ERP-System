@@ -153,10 +153,14 @@ zero new documents; (d) a real, live-reproduced bug was found in this app's own 
 during testing (not an ERPNext bug): the nested `[Material Request Item, production_plan, =,
 <name>]` list filter returns one PARENT row per MATCHING CHILD row, not one per distinct parent —
 fixed in `productionPlanMaterialRequest.ts`/`page.tsx` before shipping (dedupe by `name`); the
-**same unfixed pattern already exists in the accepted PP-5 code**
+**same pattern also existed in the accepted PP-5 code**
 (`productionPlanWorkOrder.ts`'s `listSubcontractPurchaseOrderNames`, `Purchase Order Item`) — not
 fixed here (out of this package's scope; no live sub-assembly/subcontract data exists to have
-triggered it yet), flagged for a future remediation package.
+triggered it yet), flagged for a future remediation package. **Fixed 2026-09-20 (PP-5R):** same
+`[...new Set(...)]` dedupe applied to `listSubcontractPurchaseOrderNames`; still SOURCE VERIFIED /
+NOT RUNTIME VERIFIED for the duplicate-parent-row case specifically, since no live
+sub-assembly/subcontract data exists on this instance to exercise it end-to-end — see
+`production-plan.md`'s "PP-5R remediation" note.
 
 **2026-09-20 update (PP-4 — sub-assembly explosion + raw-material calc, source read + live
 test):** full source read of `services/sub_assembly.py`, `services/sub_assembly_queries.py`,

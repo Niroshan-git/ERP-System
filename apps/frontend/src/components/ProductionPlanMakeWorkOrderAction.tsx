@@ -125,10 +125,24 @@ export function ProductionPlanMakeWorkOrderAction({ name }: { name: string }) {
             </div>
           )}
           {result.purchaseOrders && result.purchaseOrders.length > 0 && (
-            <p className="mt-2 text-graphite-900">
-              {result.purchaseOrders.length} subcontracting Purchase Order(s) were also created
-              (Subcontract-type sub-assembly rows) — see the Buying module.
-            </p>
+            <div className="mt-2">
+              <p className="mb-1 text-graphite-900">
+                {result.purchaseOrders.length} subcontracting Purchase Order(s) were also created
+                (Subcontract-type sub-assembly rows):
+              </p>
+              <ul className="space-y-0.5">
+                {result.purchaseOrders.map((po) => (
+                  <li key={po}>
+                    <Link
+                      href={`/buying/purchase-orders/${encodeURIComponent(po)}`}
+                      className="font-mono text-signal hover:underline"
+                    >
+                      {po}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       )}

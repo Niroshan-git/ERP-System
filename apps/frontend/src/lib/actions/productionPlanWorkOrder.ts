@@ -70,6 +70,15 @@ async function listWorkOrderNames(name: string): Promise<string[]> {
  * whole action — this is a peripheral notice, not the action's core result, and no sub-assembly/
  * subcontract test data exists on this instance to have exercised this path live (see
  * production-plan.md's PP-5 section — SOURCE VERIFIED / NOT RUNTIME VERIFIED).
+ *
+ * **PP-5R (2026-09-20):** same nested `[Child Doctype, field, op, value]` shape as
+ * `listMaterialRequestNames` in `productionPlanMaterialRequest.ts` (PP-6), which was live-confirmed
+ * to return one PARENT row per MATCHING CHILD row, not one per distinct parent — a Purchase Order
+ * with multiple items all carrying `production_plan = <name>` would come back once per matching
+ * item. Deduping here mirrors that already-accepted fix, so a single subcontracting Purchase Order
+ * with several matching lines is reported once instead of once per line. Not separately
+ * runtime-verified against live subcontract PO data (see caveat above) — inherited from the
+ * PP-6 precedent, not a fresh live observation.
  */
 async function listSubcontractPurchaseOrderNames(name: string): Promise<string[] | null> {
   try {
@@ -78,7 +87,7 @@ async function listSubcontractPurchaseOrderNames(name: string): Promise<string[]
       filters: [["Purchase Order Item", "production_plan", "=", name]],
       limit: 500,
     });
-    return rows.map((r) => r.name);
+    return [...new Set(rows.map((r) => r.name))];
   } catch {
     return null;
   }

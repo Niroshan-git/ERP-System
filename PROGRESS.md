@@ -3062,3 +3062,60 @@ initial `CLAUDE_HANDOFF`).
 Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
 account before acceptance, not self-review.
+
+## 2026-09-20 — Production Plan PP-5R — Subcontract Purchase Order traceability dedup remediation
+
+Small, isolated remediation of the one known defect PP-6's own QA pass flagged in the previously
+accepted PP-5 code (see PP-6's entry above, Test 8): `listSubcontractPurchaseOrderNames()`
+(`apps/frontend/src/lib/actions/productionPlanWorkOrder.ts`) queries `Purchase Order` via the
+nested filter `[["Purchase Order Item", "production_plan", "=", name]]` — the same shape PP-6's
+`listMaterialRequestNames()` uses for `Material Request`, which PP-6 live-confirmed returns one
+PARENT row per MATCHING CHILD row, not one per distinct parent. Left unfixed at PP-5's own
+acceptance because no live subcontract/sub-assembly data existed to have actually triggered it;
+flagged there for exactly this kind of follow-up package.
+
+**Baseline verified before work**: PP-1 through PP-6 all `ACCEPTED` (PP-6's governance closure
+`7066766`, release-tracker sync `7bd2f6c`); `git status`/`git log` confirmed HEAD and the pre-existing
+unrelated working-tree changes (`docs/architecture/decisions/README.md`, the three untracked
+`docs/ceylon-stack-master-*`/`docs/master-data-architecture.md` files) — none of those were touched,
+staged, or reverted by this package.
+
+**Fix**: applied the identical, already-accepted PP-6 dedup pattern —
+`[...new Set(rows.map((r) => r.name))]` — to `listSubcontractPurchaseOrderNames`. One Purchase Order
+parent now always yields exactly one returned name, regardless of how many of its `Purchase Order
+Item` rows reference the Production Plan. No change to the query's filter, fields, or 500-row limit
+(same precedent PP-6 already established: realistic per-plan Purchase Order counts are far below
+that cap; a generic pagination framework was explicitly out of scope per the remediation brief).
+
+**UI**: `ProductionPlanMakeWorkOrderAction.tsx`'s result panel previously rendered
+`purchaseOrders` as a plain count + "see the Buying module" (no link — unlike the Work Order list
+right above it, which already links each name). Verified a canonical Purchase Order detail route
+already exists (`/buying/purchase-orders/[name]`, used elsewhere in `apps/buying`) before wiring
+each returned name to it via `next/link`, matching the Work Order list's own pattern. No new route
+was created.
+
+**Evidence level**: `SOURCE VERIFIED / NOT RUNTIME VERIFIED` for the duplicate-row case itself — no
+subcontract Purchase Order exists on this instance (same sub-assembly/BOM data gap PP-4/PP-5/PP-6
+already disclosed), so the fix could not be reproduced end-to-end live. Confidence instead comes
+from exact parity with PP-6's own dedup fix, which *was* live-confirmed against real duplicate rows
+for the analogous Material Request case. No production data was fabricated to manufacture a
+higher evidence level, per the remediation brief's explicit instruction.
+
+**Not touched, by design**: PP-5's `make_work_order` call, its before/after diffing logic, and its
+Draft-duplicate-Work-Order caveat; PP-6's `listMaterialRequestNames`/`makeMaterialRequestAction`/
+`ProductionPlanMakeMaterialRequestAction.tsx`; any subcontract Purchase Order creation, submission,
+cancellation, or supplier/warehouse logic. No PP-7 functionality was started.
+
+**Documentation updated**: `docs/backend/05-manufacturing/production-plan.md` (new "PP-5R
+remediation" note under §EE) and `docs/backend/99-unverified/unverified-behaviours.md`
+(`MFG-UNV-012`'s PP-6 update note now records the fix). `docs/ceylon-stack-documentation.html` was
+deliberately **not** touched — this is a correctness remediation to an already-Live feature, not a
+new shipped feature, per the remediation brief's own instruction. Notion likewise not touched (no
+governance requirement surfaced one).
+
+**Tests**: `npx tsc --noEmit`, `npm run lint`, `npm run build` all clean; `git diff --check` clean
+(pre-existing CRLF-normalization warnings only, no real whitespace errors).
+
+Package state: `CLAUDE_HANDOFF`. No self-accept — per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`,
+this needs independent review from the other Claude account before acceptance. PP-7 remains
+unlocked for planning only and was not started.

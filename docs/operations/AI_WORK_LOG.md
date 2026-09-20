@@ -3318,3 +3318,41 @@ TEMP_DUAL_CLAUDE_MODE.md` §16, this acceptance is subject to Codex's reconcilia
 **Recommended next action:** `release-tracker` for `docs/ceylon-stack-documentation.html` + Notion
 sync (a package was just accepted); PP-7 scoping/planning may proceed when requested, but no PP-7
 implementation until a separate, explicit implementation unlock.
+
+## Package: Production Plan PP-5R — Subcontract PO traceability dedup remediation (temporary dual-Claude mode, 2026-09-20)
+
+**PACKAGE:** PP-5R (Production Plan / Subcontract Purchase Order Traceability Remediation)
+**ROLE:** Implementation Claude
+**BASELINE VERIFIED:** PP-1 through PP-6 all `ACCEPTED` (PP-6 governance closure `7066766`,
+release-tracker sync `7bd2f6c`) — confirmed via `git status`/`git log --oneline -15` before work.
+**STATUS:** `CLAUDE_HANDOFF`
+
+**Scope:** fixed exactly the one defect PP-6's own QA pass flagged as a known, deliberately-unfixed
+gap in the accepted PP-5 code (see PP-6's entry above): `listSubcontractPurchaseOrderNames()`
+(`apps/frontend/src/lib/actions/productionPlanWorkOrder.ts`) used the same nested
+`[Purchase Order Item, production_plan, =, name]` filter shape PP-6's `listMaterialRequestNames()`
+uses, and PP-6 live-confirmed that shape returns one parent row per matching child row, not one per
+distinct parent. Applied the identical, already-accepted PP-6 dedup fix
+(`[...new Set(rows.map((r) => r.name))]`). Also linked the result panel's Purchase Order names to
+the existing canonical `/buying/purchase-orders/[name]` route (verified to already exist, not
+invented) — the Work Order list right above it in the same panel was already linked; the Purchase
+Order list was not.
+
+**Not touched:** PP-5's `make_work_order` call/diffing logic/Draft-duplicate-Work-Order caveat;
+PP-6's Material Request generation code; any subcontract Purchase Order create/submit/cancel logic;
+PP-7 (no implementation started — remains unlocked for planning only).
+
+**Evidence level:** `SOURCE VERIFIED / NOT RUNTIME VERIFIED` for the duplicate-row case itself — no
+subcontract Purchase Order exists on this instance to reproduce it live; confidence comes from exact
+parity with PP-6's own live-verified analogous fix. No test data fabricated to raise this.
+
+**Tests:** `npx tsc --noEmit`, `npm run lint`, `npm run build` clean; `git diff --check` clean.
+
+**Documentation updated:** `docs/backend/05-manufacturing/production-plan.md`,
+`docs/backend/99-unverified/unverified-behaviours.md` (`MFG-UNV-012`), `QA_LOG.md`, `PROGRESS.md`.
+`docs/ceylon-stack-documentation.html` and Notion deliberately not touched — this is a correctness
+remediation to an already-Live feature, not a new shipped feature.
+
+**Recommended next action:** independent review of this remediation (verify the dedup fix and the
+new PO link, confirm no PP-5/PP-6 regression, confirm no PP-7 scope crept in), then PP-7 scoping may
+proceed when requested — implementation still requires a separate, explicit unlock.

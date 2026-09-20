@@ -1491,6 +1491,19 @@ and no live sub-assembly/subcontract data exists on this instance to have actual
 yet, so it has produced no observed incorrect output so far). Flagged here for a future
 remediation package to fix at the source.
 
+**PP-5R remediation (2026-09-20):** fixed at the source. `listSubcontractPurchaseOrderNames` now
+dedupes with the identical `[...new Set(rows.map((r) => r.name))]` pattern `listMaterialRequestNames`
+already uses — same nested-filter shape, same fix. This is a read-only result-normalization change:
+no ERPNext data is written, `make_work_order`'s own logic and PP-5's Draft-duplicate-generation
+caveat (§Q) are untouched. Still **SOURCE VERIFIED / NOT RUNTIME VERIFIED** — no live
+sub-assembly/subcontract test data exists on this instance to exercise the duplicate-parent-row
+case end-to-end (same gap noted above), so this closes the known defect at the code level without
+upgrading its evidence level. The result panel (`ProductionPlanMakeWorkOrderAction.tsx`) was also
+updated to link each returned Purchase Order via the canonical `/buying/purchase-orders/[name]`
+route (that route already existed, confirmed by inspection — not newly built here), matching how
+Work Order names and PP-6's Material Request names are already linked, instead of the previous
+plain count + "see the Buying module" text.
+
 ### FF. Frontend footprint — PP-6 (2026-09-20)
 
 New: `lib/actions/productionPlanMaterialRequest.ts` (`makeMaterialRequestAction` — re-fetches and
