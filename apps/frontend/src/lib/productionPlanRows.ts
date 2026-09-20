@@ -175,7 +175,6 @@ export type ProductionPlanMaterialRequestPlanItemRowInput = {
   required_bom_qty?: number;
   sales_order?: string;
   uom?: string;
-  stock_uom?: string;
   conversion_factor?: number;
 };
 
@@ -207,7 +206,6 @@ export function parseProductionPlanMaterialRequestPlanItemRows(
       ...(Number.isFinite(Number(r.required_bom_qty)) ? { required_bom_qty: Number(r.required_bom_qty) } : {}),
       ...(typeof r.sales_order === "string" && r.sales_order ? { sales_order: r.sales_order } : {}),
       ...(typeof r.uom === "string" && r.uom ? { uom: r.uom } : {}),
-      ...(typeof r.stock_uom === "string" && r.stock_uom ? { stock_uom: r.stock_uom } : {}),
       ...(Number.isFinite(Number(r.conversion_factor)) ? { conversion_factor: Number(r.conversion_factor) } : {}),
     }));
 }

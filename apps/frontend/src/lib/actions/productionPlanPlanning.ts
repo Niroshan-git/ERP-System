@@ -90,7 +90,19 @@ export async function saveSubAssemblyItemsAction(
   rows: ProductionPlanSubAssemblyItemRowInput[],
 ): Promise<void> {
   await loadDraftOrThrow(name);
-  await callAndHumanize(() => updateDoc("Production Plan", name, { ...options, sub_assembly_items: rows }));
+  // Named fields only — never spread `options`/`rows` straight into a persisting `updateDoc`
+  // call. Both are ordinary function parameters with no runtime enforcement of their shape
+  // (a Server Action is a directly-invokable endpoint), so `rows` is re-run through the same
+  // whitelist parser the preview path already uses, matching `buildBomFields`/`parseLocationRows`'s
+  // established "construct the payload key by key" convention (`master-data/boms/actions.ts`,
+  // `sales/pick-lists/actions.ts`) — code-reviewer finding, PP-4 in-session review.
+  const fields = {
+    sub_assembly_warehouse: options.sub_assembly_warehouse,
+    skip_available_sub_assembly_item: options.skip_available_sub_assembly_item,
+    combine_sub_items: options.combine_sub_items,
+    sub_assembly_items: parseProductionPlanSubAssemblyItemRows(rows),
+  };
+  await callAndHumanize(() => updateDoc("Production Plan", name, fields));
   revalidatePath(`/manufacturing/production-plans/${encodeURIComponent(name)}`);
 }
 
@@ -151,6 +163,15 @@ export async function saveMaterialRequirementsAction(
   rows: ProductionPlanMaterialRequestPlanItemRowInput[],
 ): Promise<void> {
   await loadDraftOrThrow(name);
-  await callAndHumanize(() => updateDoc("Production Plan", name, { ...options, mr_items: rows }));
+  // Named fields only — same reasoning as `saveSubAssemblyItemsAction` above.
+  const fields = {
+    for_warehouse: options.for_warehouse,
+    ignore_existing_ordered_qty: options.ignore_existing_ordered_qty,
+    include_non_stock_items: options.include_non_stock_items,
+    consider_minimum_order_qty: options.consider_minimum_order_qty,
+    include_safety_stock: options.include_safety_stock,
+    mr_items: parseProductionPlanMaterialRequestPlanItemRows(rows),
+  };
+  await callAndHumanize(() => updateDoc("Production Plan", name, fields));
   revalidatePath(`/manufacturing/production-plans/${encodeURIComponent(name)}`);
 }

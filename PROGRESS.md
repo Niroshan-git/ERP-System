@@ -2830,6 +2830,18 @@ multi-level/sub-assembly BOM to this instance so PP-4's explosion path can be ex
 empty-result case. Job Cards, Workstations, and OEE remain unbuilt, unchanged from the
 priority-lock note above.
 
+**In-session `code-reviewer` finding, fixed same day, before independent review**: the first
+committed version (`770167c`) of `saveSubAssemblyItemsAction`/`saveMaterialRequirementsAction`
+spread the caller-supplied `options`/`rows` function parameters directly into `updateDoc`'s
+payload, rather than constructing the persisted field set explicitly — the one deviation from
+this codebase's otherwise-universal "build the payload key by key" convention (`buildBomFields`,
+`parseLocationRows`), a real gap since a Server Action is a directly-invokable endpoint with no
+runtime enforcement of a TypeScript parameter's shape. Fixed: both save actions now name every
+field explicitly and re-run `rows` through the same whitelist parser the preview path already
+uses. Re-verified live against the real instance after the fix (fresh Draft
+`MFG-PP-2026-00006`, same round trip as before, same zero-trace cleanup). `npx tsc --noEmit`/
+`npm run lint`/`npm run build` all re-run clean after the fix.
+
 Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
 account before acceptance, not self-review.

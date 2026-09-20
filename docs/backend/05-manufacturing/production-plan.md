@@ -935,7 +935,16 @@ cleanup step below):
 New: `lib/actions/productionPlanPlanning.ts` (`getSubAssemblyItemsPreview`/
 `saveSubAssemblyItemsAction`/`getMaterialRequirementsPreview`/`saveMaterialRequirementsAction` —
 each re-fetches the real document and re-checks `docstatus === 0` itself before calling ERPNext or
-persisting, same defense-in-depth precedent as `updateBomAction`), two new whitelisted row parsers
+persisting, same defense-in-depth precedent as `updateBomAction`. **Correction (in-session
+`code-reviewer` finding, same day):** the first version of the two save actions spread the
+caller-supplied `options`/`rows` parameters directly into `updateDoc`'s payload — a real deviation
+from this codebase's otherwise-universal "construct the persisted field set explicitly, key by
+key" convention (`buildBomFields`, `parseLocationRows`, etc.), since a Server Action is a directly
+-invokable endpoint with no runtime enforcement of a TypeScript parameter's shape. Fixed: both save
+actions now build the `updateDoc` payload from named fields only, and re-run `rows` through the
+same whitelist parser the preview path already uses, before persisting — closing the gap where a
+caller invoking a save action directly (skipping the preview step) could have smuggled arbitrary
+extra top-level Production Plan fields or child-row keys through), two new whitelisted row parsers
 in `lib/productionPlanRows.ts` (`parseProductionPlanSubAssemblyItemRows`/
 `parseProductionPlanMaterialRequestPlanItemRows` — drop calculation-only keys the native responses
 also carry, e.g. `item_name`/`description`/`main_bom`/`indent`, keeping only fields this baseline
