@@ -2738,6 +2738,24 @@ actually mattered — native method calls, payload correctness, Draft persistenc
 directly against the real API instead, which is *stronger* evidence than a browser click-path
 would have been for exactly the parts PP-1 couldn't verify at all.
 
+> **Correction (PP-3 QA pass, 2026-09-20) — additive, does not rewrite the record above.** The
+> claim that `MFG-PP-2026-00001` was "deleted as cleanup" was incorrect: the PP-3 `qa-tester`
+> subagent independently confirmed it is still live on the instance (Draft, `docstatus: 0`,
+> unchanged since its `2026-09-20 01:25:43` creation) — the delete call either failed silently or
+> was never actually issued. A second, previously undocumented Draft, `MFG-PP-2026-00002`
+> (created `2026-09-20 01:31:04`, same shape), also exists with no record anywhere of how or why.
+> Both remain **live on the instance as of this note** — the user was asked whether to delete them
+> as part of PP-3 closure and chose to leave them in place for now, documented here instead. Both
+> are Draft (`docstatus: 0`), which per this same page's own "Accounting / stock impact" analysis
+> carries zero GL/Bin/stock-ledger footprint regardless of how long they remain. Whoever next
+> touches Production Plan should be aware these two exist and are safe to delete at any time
+> (Draft, no references) but doing so was intentionally left to the user, not automated. Separately,
+> the same QA pass found that on this instance a *Cancelled* (not Draft) Production Plan could
+> also be hard-deleted via a plain `DELETE` call when nothing links to it — narrower evidence than
+> "Submitted Production Plans can't be deleted, only cancelled" (that statement is still correct
+> for a *Submitted* plan; a *Cancelled* one may not always need to stay permanent) — see
+> `production-plan.md`'s Cancel section for the caveat.
+
 ### Documentation Checklist
 
 Backend: `UPDATED` — `docs/backend/05-manufacturing/production-plan.md` (new native-method
@@ -2890,6 +2908,15 @@ text — the app has no canonical Material Request detail route today (checked: 
 `/buying/material-requests/[name]` or equivalent page exists), so adding one would be new
 unrelated behavior, not a use of an existing convention. No eligibility, quantity, Customer,
 selection, curation, consolidation, "Get Finished Goods", or save behavior was touched.
+
+> **Correction (PP-3, 2026-09-20) — additive, does not rewrite the record above.** The claim "no
+> canonical Material Request detail route exists" was incorrect at the time it was written and
+> remained incorrect since: `apps/frontend/src/app/(app)/buying/material-requests/[name]/page.tsx`
+> was already a real, full detail route (form/status/connections/comments) before this entry was
+> written — it was not created by any later package. The housekeeping review that authorized PP-3
+> independently caught this. No Material Request UI was changed to correct this note (out of
+> PP-3's scope per its own brief); this correction exists solely so a future Production Plan
+> traceability package does not inherit the wrong assumption that no such route exists.
 
 ### CX-MFG-PP2-003 — dual-Claude audit identity (RESOLVED / prospective convention established)
 

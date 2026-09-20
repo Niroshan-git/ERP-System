@@ -2640,3 +2640,97 @@ Order item resolving to a different item is silently skipped by ERPNext's own BO
 wizard never checked for a zero-`po_items` result. Fixed — `runFetch` now surfaces an explicit
 error explaining the two documented native causes instead of doing nothing. `tsc`/`eslint`
 clean. Still `CLAUDE_HANDOFF`.
+
+## Manufacturing — Production Plan PP-3 (Submit lifecycle, 2026-09-20)
+
+**Package objective**: PP-2's own "Deferred / next package" note above named this as the logical
+next step. Scoped narrowly to Submit only (Draft → Submitted, ERPNext-native `docstatus` 0→1) —
+explicitly not a full lifecycle package. Cancel and Amend were investigated (source-read) but
+deliberately not implemented this package; "Get Sub Assembly Items", raw-material calc, "Make
+Work Order", "Make Material Request", and `reserve_stock`/Stock Reservation Entry wiring remain
+locked, unchanged from PP-2's own scope boundary.
+
+**Investigation before implementation**: fetched `production_plan.py` (`on_submit()`/
+`on_cancel()`), `production_plan.json` (doctype metadata — `is_submittable: 1`, zero
+`allow_on_submit` fields, `Manufacturing User` submit/cancel/amend permissions), `production_plan.js`
+(Desk client script — confirmed every "Make .../Reserve .../Close" custom button is gated
+`docstatus === 1`; confirmed via the field-level `depends_on` in the JSON that "Get Finished
+Goods" and "Get Sub Assembly Items" are both `docstatus == 0`-gated, a new finding — the latter
+was previously ambiguous), and `services/reservation.py` (confirmed `reserve_stock` at submit
+creates real `Stock Reservation Entry` documents via `StockReservation.
+make_stock_reservation_entries()`, not just a Bin field write — moot for this app since its
+create form never sets `reserve_stock`). All fetched read-only via `gh api` against
+`frappe/erpnext`. Full write-up, including the exact submit side-effect matrix:
+`docs/backend/05-manufacturing/production-plan.md`'s new "Submit / Cancel / Amend lifecycle"
+section.
+
+**Built**:
+- `apps/frontend/src/app/(app)/manufacturing/production-plans/actions.ts` — new
+  `submitProductionPlanAction(name)`, calling the existing `submitDoc("Production Plan", name)`
+  helper already used by every other submittable doctype in this app — no new lifecycle
+  mechanism introduced. `humanizeError`'s 403 message generalized from
+  "...create this production plan" to "...save this production plan" since it's now shared
+  across create and submit, matching the convention already used by Sales Order/Purchase Order's
+  own `humanizeError`.
+- `apps/frontend/src/app/(app)/manufacturing/production-plans/[name]/page.tsx` — a `DocActionBar`
+  Submit button in the header, visible only when `doc.docstatus === 0`, same component/pattern as
+  Purchase Order/Sales Order/Delivery Note's own Submit buttons. Overview tab's explanatory
+  paragraph updated to name Submit as now available while reiterating everything else (including
+  the Submitted-only "Make ..." actions) stays out of scope.
+
+**Documentation correction (unrelated to Submit itself, per this package's brief)**: the PP-2
+housekeeping record's claim that "no canonical Material Request detail route exists" was
+independently found incorrect — `/buying/material-requests/[name]` was already a real, full
+detail page. Corrected additively in `docs/operations/AI_WORK_LOG.md` (the historical record is
+preserved, not rewritten); no Material Request UI was touched.
+
+**Checks run**: `npx tsc --noEmit` — clean. `npm run lint` — clean. `npm run build` — succeeded,
+exit 0, `/manufacturing/production-plans/[name]` registered correctly, no new errors/warnings.
+`git diff --check` — clean (only pre-existing CRLF-normalization notices, no actual whitespace
+errors). No dev-server click-path test was possible — same recurring limitation as every prior
+Production Plan package (no working test login credentials this session).
+
+**Runtime verification**: `LIVE VERIFIED`, 2026-09-20, with the user's explicit go-ahead (asked
+first, since — unlike PP-2's zero-trace create+delete test — a submit test is a real lifecycle
+transition on a real Sales Order and can't be undone back to a zero-trace state). Using the
+app's own "Frontend Integration" service-account credentials (read from the existing
+`apps/frontend/.env.local`, never written/modified/printed), ran the full round trip directly
+against the real Hetzner instance: created a real Draft (`MFG-PP-2026-00004`, from
+`SAL-ORD-2026-00007` — the same Sales Order PP-2's own live test used) → submitted it via the
+exact `submitDoc()` REST mechanism (`PUT .../Production Plan/MFG-PP-2026-00004` with
+`{"docstatus": 1}`) → confirmed `Sales Order Item.production_plan_qty` went `0.0` → `30.0` with
+zero change to `Bin`/`Stock Ledger Entry`/`GL Entry`/`Work Order`/`Stock Reservation Entry` →
+cancelled it for cleanup (direct `docstatus: 2` REST call — Cancel is not a shipped app feature,
+this was solely to restore state) → confirmed `production_plan_qty` reverted to `0.0` with
+everything else still unchanged. Every row of the submit side-effect matrix in
+`production-plan.md` is now backed by a real observation, not just source reading. The only
+residual trace on the instance is `MFG-PP-2026-00004` itself, permanently `Cancelled` (expected —
+Frappe retains cancelled docs for audit, does not delete them).
+
+**MFG-UNV-012 impact**: further narrowed and live-verified — see `docs/backend/99-unverified/
+unverified-behaviours.md`'s updated entry. Submit lifecycle is now `LIVE VERIFIED`;
+`get_sub_assembly_items`'s docstatus gate is resolved (Draft-only); `make_work_order`/
+`make_material_request`'s Submitted-only gate is confirmed at the Desk-JS level (still not a
+`.py`-level assertion); Cancel's safe-path behavior (no downstream Work Orders/Material Requests)
+is live-confirmed via the cleanup step above. Amend, stock reservation beyond the `reserve_stock=0`
+no-op, sub-assembly explosion, and Work Order/Material Request generation remain unimplemented
+and/or unexercised.
+
+**Explicitly not implemented**: Cancel as a shipped feature (its safe-path behavior is now
+live-confirmed via the cleanup test above, but Frappe's generic submitted-document cancel-block
+behavior against an *externally*-created linked Work Order/Material Request was not tested — this
+live test's plan had none to begin with — so it stays `NEEDS_VERIFICATION` and locked, per this
+package's own conservative-scope instruction), Amend (discovery-only — `amended_from` confirms the
+standard pattern exists, not implemented), "Get Sub Assembly Items", raw-material calc, "Make Work
+Order", "Make Material Request", `reserve_stock`'s actual reservation effect, editing an
+already-saved Draft or a Submitted plan (no `allow_on_submit` fields exist to expose).
+
+**Deferred / next package**: Cancel (once Frappe's generic cancel-link-check is read/tested), or
+"Get Sub Assembly Items" (now confirmed Draft-only-gated, which changes its natural place in the
+sequence) are the next logical candidates within Production Plan — not started here. Job Cards,
+Workstations, and OEE remain unbuilt, unchanged from the priority-lock note above.
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (temporary dual-Claude mode, Codex unavailable
+2026-09-20 through 2026-09-25), this needs independent review from the other Claude account
+before acceptance, not self-review.

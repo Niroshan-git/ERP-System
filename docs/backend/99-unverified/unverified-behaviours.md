@@ -109,9 +109,51 @@ phantom item is exploded through (never appearing as its own stock movement) as 
 resulting Work Order/Material Request generation and any sub-assembly BOM explosion it triggers.
 
 ### MFG-UNV-012 — Production Plan runtime behavior (no live document exists)
-**Status:** `NEEDS_VERIFICATION`, **partially resolved 2026-09-20 (PP-2)** — demand sourcing and
-Draft creation are now live-confirmed (see below); submit/cancel lifecycle, stock reservation,
-sub-assembly explosion, and Work Order/Material Request generation remain unexercised.
+**Status:** `NEEDS_VERIFICATION`, **partially resolved 2026-09-20 (PP-2, then further narrowed and
+live-verified by PP-3 same day)** — demand sourcing and Draft creation are live-confirmed (PP-2,
+see below); submit lifecycle is now `LIVE VERIFIED` and implemented (PP-3, see below); cancel's
+safe-path behavior is live-confirmed as test cleanup but not shipped as an app feature; amend was
+investigated but deliberately left unimplemented; stock reservation (beyond confirming
+`reserve_stock=0` is a no-op), sub-assembly explosion, and Work Order/Material Request generation
+remain entirely unexercised and unimplemented.
+
+**2026-09-20 update (PP-3 — submit lifecycle, source read + live test):** full source read of
+`production_plan.py`'s `on_submit()`/`on_cancel()`, `production_plan.json` (doctype metadata:
+`is_submittable: 1`, zero `allow_on_submit` fields), `production_plan.js` (Desk client script
+button-visibility gates), and `services/reservation.py` — see `production-plan.md`'s "Submit /
+Cancel / Amend lifecycle" section for the full matrix and evidence. Key resolutions: (a) submit
+itself never creates a Work Order, Material Request, Purchase Order, or Stock Reservation Entry,
+and posts no GL/Stock Ledger Entry — its only real side effect for a Production Plan this app can
+currently create is writing `Sales Order Item.production_plan_qty` back onto the source Sales
+Order (when Sales-Order-sourced), plus a Bin reserved-qty write that is a guaranteed no-op today
+since `mr_items`/`sub_assembly_items` are always empty for an app-created plan; (b) uncertainty
+(3) from the original filing is resolved for `get_sub_assembly_items` specifically — it is gated
+`docstatus == 0` (Draft-only) in the doctype JSON, not Submitted-only; `make_work_order`/
+`make_material_request` remain confirmed Submitted-only (Desk-JS-level gate, not a `.py`-level
+assertion — still a UI convention, not a hard backend guarantee); (c) uncertainty (4) is now more
+precise: `reserve_stock` at submit calls `reserve_stock_for_production_plan()`, which **does**
+create real `Stock Reservation Entry` documents (a document-creation side effect, not merely a
+Bin field write) — but this app's create form never sets `reserve_stock`, so it's moot for any
+plan this app builds.
+
+**Live-verified same day**, with the user's explicit go-ahead: a full round trip against the real
+Hetzner instance — create a real Draft (`MFG-PP-2026-00004`, from `SAL-ORD-2026-00007`, the same
+Sales Order PP-2's own live test used) → submit it via the exact `submitDoc()` REST mechanism →
+confirm `Sales Order Item.production_plan_qty` went `0.0` → `30.0` with zero `Bin`/`Stock Ledger
+Entry`/`GL Entry`/`Work Order`/`Stock Reservation Entry` change → cancel it (direct `docstatus: 2`
+REST call, test cleanup only, Cancel is not a shipped feature) → confirm `production_plan_qty`
+reverted to `0.0` with everything else still unchanged. Every row of the submit side-effect
+matrix is now `LIVE VERIFIED`, not merely source-derived. Submit is implemented
+(`submitProductionPlanAction`, reusing the existing `submitDoc()` REST mechanism already proven
+for every other submittable doctype in this app). Cancel's *safe-path* behavior (a plan with no
+downstream Work Orders/Material Requests, `reserve_stock=0`) is now live-confirmed to work exactly
+as `on_cancel()`'s source predicts, but Cancel is still **not shipped as an app feature**: this
+test plan never had any downstream Work Order/Material Request, so uncertainty (1) below — whether
+Frappe's *generic* submitted-document cancel-block additionally applies when an external,
+non-Ceylon-Stack-created submitted Work Order/Material Request links back to the plan — remains
+untested and `NEEDS_VERIFICATION`. Amend remains discovery-only (`amended_from` +
+`is_submittable: 1` confirm the standard pattern exists; not implemented, not justified as
+trivial while Cancel is still locked as a feature).
 **ID note (2026-09-19):** originally filed as `MFG-UNV-010`, which collided with the pre-existing
 BOM detail-page verification item below of the same ID (`CX-MFG-PP-004`). Renumbered to
 `MFG-UNV-012` — the BOM item keeps its original `MFG-UNV-010` identity unchanged, since it was
@@ -167,12 +209,17 @@ read — `reserve_stock`'s full effect beyond the `Bin` reserved-qty update is u
 `Purchase Order.production_plan`-style back-reference for subcontracted sub-assembly rows was
 inferred from the Python (`production_plan` passed into `_subcontract_po_item`) but not confirmed
 against the live `Purchase Order`/`Purchase Order Item` schema.
-**How to verify:** Sales Order → Draft Production Plan creation is now verified (above, PP-2). The
-remaining gap needs a BOM with at least one sub-assembly component (none exists on this instance
-yet) submitted through: Submit → sub-assembly explosion → Make Work Order/Make Material Request →
+**How to verify:** Sales Order → Draft Production Plan creation (PP-2) and Submit (PP-3) are both
+now live-verified. Cancel needs Frappe's generic submitted-document cancel-block behavior
+read/tested before it can be shipped as a feature — specifically whether cancelling is blocked
+when an externally-created (Desk, not this app) submitted Work Order/Material Request still
+links back to the plan; PP-3's own live cancel test used a plan with no such downstream documents,
+so this specific case remains open. The remaining sub-assembly/raw-material/downstream-generation
+gap needs a BOM with at least one sub-assembly component (none exists on this instance yet)
+submitted through: Submit → Get Sub Assembly Items → Make Work Order/Make Material Request →
 downstream generation, comparing actual results against the formulas/rules documented in
-`production-plan.md`. Do this once a Production Plan submit/action package (a future package,
-explicitly out of scope for PP-2) exists.
+`production-plan.md`. Do this once a Production Plan action package (a future package, explicitly
+out of scope for PP-3) exists.
 
 ### MFG-UNV-005 — Accounting (GL) impact of Material Transfer for Manufacture
 **Status:** `NEEDS_VERIFICATION`

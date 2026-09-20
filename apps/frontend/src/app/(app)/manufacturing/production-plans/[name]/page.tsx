@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { DocActionBar } from "@/components/DocActionBar";
 import { DocField } from "@/components/DocField";
 import { DocTabs } from "@/components/DocTabs";
 import { StatusPill } from "@/components/StatusPill";
 import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
 import { productionPlanStatus } from "@/lib/erpStatus";
+import { submitProductionPlanAction } from "../actions";
 
 /**
  * Field shapes below are read off `docs/backend/05-manufacturing/production-plan.md` (the
@@ -253,10 +255,12 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
       </div>
 
       <p className="text-xs text-graphite-500">
-        Read-only view of ERPNext&apos;s own Production Plan record. Get Sales Orders/Material Request,
-        Get Finished Goods, Get Sub Assembly Items, Calculate Material Requirements, Make Work Order,
-        and Make Material Request are not performed by this app — see this record&apos;s current
-        backend-recorded state above and in the tabs below.
+        A Draft Production Plan can be submitted from this page (see Submit above) through
+        ERPNext&apos;s own native lifecycle. Get Sales Orders/Material Request, Get Finished Goods,
+        Get Sub Assembly Items, Calculate Material Requirements, Make Work Order, and Make Material
+        Request remain unavailable here — including on a Submitted plan, where ERPNext itself would
+        expose them — see this record&apos;s current backend-recorded state above and in the tabs
+        below.
       </p>
     </div>
   );
@@ -641,11 +645,20 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
           { label: doc.name },
         ]}
       />
-      <div className="mb-4">
-        <h1 className="text-2xl font-medium text-graphite-900">{doc.name}</h1>
-        <div className="mt-1">
-          <StatusPill label={status.label} tone={status.tone} />
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-medium text-graphite-900">{doc.name}</h1>
+          <div className="mt-1">
+            <StatusPill label={status.label} tone={status.tone} />
+          </div>
         </div>
+        {doc.docstatus === 0 && (
+          <DocActionBar
+            action={submitProductionPlanAction.bind(null, doc.name)}
+            label="Submit"
+            pendingLabel="Submitting…"
+          />
+        )}
       </div>
       <DocTabs
         tabs={[

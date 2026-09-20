@@ -937,3 +937,83 @@ applied the same day; no code logic changed and no new QA was required for it.
   verified against live data (not assumed); the fix itself (UI error-surfacing only, no new
   ERPNext call) verified by static checks, consistent with the rest of this package.
 - Still folded into PP-2, still `CLAUDE_HANDOFF`, unchanged acceptance status.
+
+## Manufacturing — Production Plan PP-3 (Submit lifecycle, 2026-09-20)
+
+- **Result**: **PASS**, with real live-write verification of the exact feature being shipped —
+  the first Production Plan package to exercise Submit itself, not just create, against a real
+  document on the live instance.
+- **What was verified**:
+  1. `npx tsc --noEmit` — clean. `npm run lint` — clean. `npm run build` — succeeded, exit 0,
+     `/manufacturing/production-plans/[name]` registered, no new errors/warnings. `git diff
+     --check` — clean (only pre-existing CRLF-normalization notices).
+  2. **In-session `code-reviewer` pass** against the diff (`production-plans/actions.ts` +
+     `[name]/page.tsx`) — verdict: approve, no blocking issues. Confirmed: no new lifecycle
+     framework introduced (`submitProductionPlanAction` traced line-for-line against
+     `submitPurchaseOrderAction`); `doc.docstatus === 0` gate backed by an already-fetched,
+     already-rendered field (no new fetch dependency); `doc.name` bound server-side via
+     `.bind(null, doc.name)` from a server-rendered page, not client-influenceable beyond
+     ERPNext's own REST-layer permission check; error-message wording now matches the dominant
+     "Not allowed to save this X" convention used by 20 of 22 other doctype `actions.ts` files.
+     Zero regression risk to PP-1/PP-2 (neither file's own logic was touched, only the shared
+     detail page's header/one paragraph).
+  3. **Live end-to-end round-trip against the real Hetzner instance**, run directly against
+     ERPNext's REST API using the app's own "Frontend Integration" service-account credentials
+     (the same credentials `apps/frontend` uses at runtime — read from the existing
+     `apps/frontend/.env.local`, never written, modified, or printed) — **run only after
+     explicitly asking the user first**, since (unlike PP-2's zero-trace create+delete test) a
+     submit test is a genuine lifecycle transition that leaves a permanent audit trail:
+     - Baseline captured first: `Sales Order Item rgs0926h83` (`FG-STEEL-BRACKET-ASSY` on
+       `SAL-ORD-2026-00007`) had `production_plan_qty: 0.0`; the `Bin` for that item/warehouse
+       had `reserved_qty: 30.0` / `projected_qty: 80.0` / `actual_qty: 0.0`.
+     - `get_open_sales_orders` → `combine_so_items` against the same Sales Order PP-2 used
+       reproduced PP-2's exact result (one `po_items` row, `planned_qty: 30`) — confirms nothing
+       drifted in the interim.
+     - `POST /api/resource/Production Plan` (mirroring `createProductionPlanAction`'s payload)
+       created a real Draft, `MFG-PP-2026-00004` (`docstatus: 0`, `reserve_stock: 0`,
+       `mr_items: []`, `sub_assembly_items: []`).
+     - **`PUT /api/resource/Production Plan/MFG-PP-2026-00004` with `{"docstatus": 1}`** — the
+       exact call `submitDoc()`/`submitProductionPlanAction` makes — returned `200`,
+       `docstatus: 1`, `status: "Submitted"`.
+     - Re-queried immediately after: `Sales Order Item.production_plan_qty` `0.0` → **`30.0`**
+       (the one predicted real side effect — confirmed exactly); `Bin` values **unchanged**;
+       `Stock Ledger Entry`/`GL Entry`/`Work Order`/`Stock Reservation Entry` counts for this
+       plan all **0**. Every row of `production-plan.md`'s submit side-effect matrix confirmed
+       live, no discrepancy from the source-derived prediction.
+     - **Cleanup**: `PUT .../MFG-PP-2026-00004` with `{"docstatus": 2}` (direct REST — Cancel is
+       not a shipped feature in this package; used solely to restore state) — `200`,
+       `status: "Cancelled"`. Re-confirmed `production_plan_qty` reverted to `0.0`, everything
+       else still unchanged. The only residual trace left on the instance is
+       `MFG-PP-2026-00004` itself, permanently `Cancelled` — expected (Frappe retains cancelled
+       docs for audit) and disclosed, not hidden.
+  4. **In-session `qa-tester` pass** run in parallel against the same diff — see its findings
+     folded into this entry and into `PROGRESS.md`/`production-plan.md`.
+- **Not performed, disclosed boundary**: no authenticated frontend-UI click-path test (no working
+  test login credentials this session — same recurring gap as every prior Production Plan
+  package). Cancel as a shipped app feature was not tested (it isn't shipped); the one Cancel
+  scenario that remains genuinely open — an externally-created (Desk, not this app) submitted
+  Work Order/Material Request still linking back to a plan at cancel time — was not exercised,
+  since this test plan had no such downstream documents.
+- **Sign-off**: in-session review against this package's own scope boundary (Submit-only; no
+  Cancel/Amend/Get Sub Assembly Items/Make Work Order/Make Material Request shipped; backend
+  remains authoritative; `ErpNextError` propagation intact). Not self-declared accepted — per
+  `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, needs independent review from the other Claude
+  account before acceptance; see `docs/operations/AI_WORK_LOG.md`'s matching ledger row.
+
+### QA-tester's independent live test (same day) — additional findings, not blocking
+
+The `qa-tester` subagent run in parallel also had working live write credentials this session and
+independently ran its own create → submit → cancel → delete cycle (`MFG-PP-2026-00003`,
+`planned_qty: 1`, same Sales Order), reproducing this entry's own result exactly (`docstatus`
+0→1→2, `production_plan_qty` 0→1→0) and leaving zero residue (its own test artifact was
+successfully hard-deleted after cancel). Verdict: **ACCEPT**. Two additional, non-blocking
+findings surfaced and handled as follows (see `AI_WORK_LOG.md`'s matching correction note for
+full detail):
+- `MFG-PP-2026-00001` (from PP-2's own live verification) and an undocumented `MFG-PP-2026-00002`
+  are both still live on the instance as Draft documents — PP-2's docs incorrectly claimed
+  `MFG-PP-2026-00001` was deleted. Both are harmless (Draft, zero GL/stock impact) — the user was
+  asked whether to delete them as part of PP-3 closure and chose to leave them in place, so they
+  remain live and documented rather than removed.
+- A *Cancelled* Production Plan could be hard-deleted on this instance (narrower than "cancelled
+  docs are always retained") — recorded as a documentation correction in `production-plan.md`,
+  not acted on by any code in this app.

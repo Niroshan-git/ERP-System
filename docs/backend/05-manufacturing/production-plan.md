@@ -1,13 +1,19 @@
 # Production Plan — Backend Knowledge Baseline
 
-Domain status: `DOCUMENTED` (schema + business-rule source-verified; **create flow now
-live-write-verified** as of PP-2, 2026-09-20 — see "Frontend footprint" below. Submit/cancel,
-Get Sub Assembly Items, raw-material calc, Make Work Order/Make Material Request remain
-unverified). See `docs/backend/15-migration/migration-status.md`.
+Domain status: `DOCUMENTED` (schema + business-rule source-verified; **create flow
+live-write-verified** as of PP-2, 2026-09-20; **submit lifecycle source-verified AND
+live-verified, and implemented**, as of PP-3, same day — full round trip (create → submit →
+inspect side effects → cancel-for-cleanup) run against the real Hetzner instance, see "Submit /
+Cancel / Amend lifecycle" and "Frontend footprint" below. Cancel investigated and its safe-path
+cleanup behavior live-confirmed, but deliberately not shipped as an app feature pending one
+remaining unresolved case (external downstream-linked-document cancel-block). Amend is
+discovery-only. Get Sub Assembly Items, raw-material calc, Make Work Order/Make Material Request,
+and `reserve_stock`/Stock Reservation Entry creation remain unverified and unimplemented). See
+`docs/backend/15-migration/migration-status.md`.
 
-PP-1 (2026-09-19) was a discovery/canonicalization pass only, read-only. PP-2 (2026-09-20) adds
-Draft-only create — see "Frontend footprint" below for exactly what shipped and what's still out
-of scope.
+PP-1 (2026-09-19) was a discovery/canonicalization pass only, read-only. PP-2 (2026-09-20) added
+Draft-only create. PP-3 (2026-09-20, same day) added Submit only — see "Frontend footprint" below
+for exactly what shipped and what's still out of scope.
 
 ## Source of truth for this baseline
 
@@ -535,6 +541,244 @@ already-canonical routes: Item → `/master-data/items/[name]`, BOM → `/master
 Warehouse → `/master-data/warehouses/[name]`, Work Order → `/manufacturing/work-orders/[name]`,
 Sales Order → `/sales/orders/[name]`, Material Request → `/buying/material-requests/[name]` — all
 five already exist and should be reused, not duplicated.
+
+## Submit / Cancel / Amend lifecycle (PP-3, 2026-09-20)
+
+Source: `erpnext/manufacturing/doctype/production_plan/production_plan.py`'s `on_submit()`/
+`on_cancel()`, `production_plan.json` (doctype metadata), `production_plan.js` (Desk client
+script), and `services/reservation.py` (`ProductionPlanStockReservation`), all fetched read-only
+via `gh api` against `frappe/erpnext` this session. **No live write access existed this session**
+(no MCP write tool, no frontend login session) — everything below is `SOURCE VERIFIED`, not
+`LIVE VERIFIED`, unless explicitly marked otherwise. This is a narrower, more precise version of
+the same drift risk already flagged in `MFG-UNV-012`: the installed instance is close to but not
+proven identical to this fetched branch.
+
+### A. Submit is plain Frappe native submit — confirmed
+
+`production_plan.json`'s doctype-level `is_submittable: 1`, and `amended_from` in the schema,
+both confirm this (already noted in the header table above). Nothing about Production Plan's
+submit path is special-cased at the REST boundary — Ceylon Stack's existing `submitDoc(doctype,
+name)` helper (`lib/erpnext.ts`, `PATCH` the doc with `docstatus: 1` via `/api/resource/<doctype>/
+<name>`, the same mechanism already used for Sales Order/Purchase Order/Work Order/Delivery
+Note/etc.) is the correct, sufficient mechanism — no new lifecycle framework was introduced.
+
+### B. `on_submit()` — exact source, line by line
+
+```python
+def on_submit(self):
+    self.update_bin_qty()
+    self.update_sales_order()
+    self.add_reference_to_raw_materials()
+    self.update_stock_reservation()
+```
+
+- **`update_bin_qty()`**: for every `mr_items` row with a `warehouse`, writes a `Bin` reserved-qty
+  update (`update_reserved_qty_for_production_plan()`); for every `sub_assembly_items` row with
+  `fg_warehouse` **and** `type_of_manufacturing == "In House"`, writes a different `Bin`
+  reserved-qty update (`update_reserved_qty_for_for_sub_assembly()`). **Both child tables are
+  populated only by "Get Sub Assembly Items" and "Get Items for Purchase/Transfer" — actions this
+  app does not perform (still locked).** A Production Plan created through this app's current
+  create flow (PP-2) always has empty `mr_items`/`sub_assembly_items`, so `update_bin_qty()` is a
+  guaranteed no-op for every Production Plan this app can itself submit today. This does **not**
+  post a Stock Ledger Entry or GL Entry either way — it is a `Bin`-table reserved-qty field write,
+  consistent with what `production-plan.md`'s existing Accounting/Stock section already documented
+  as source-derived.
+- **`update_sales_order()`**: for every `po_items` row with a `sales_order`/`sales_order_item`
+  reference, writes `Sales Order Item.production_plan_qty` (a plain field update via
+  `frappe.db.set_value`, not a full Sales Order re-save) to the sum of `planned_qty` across
+  submitted (`docstatus=1`) Production Plan Item rows referencing that same Sales Order Item. **This
+  is the one real, always-possible persistent side effect for an app-created, Sales-Order-sourced
+  Production Plan** — submitting one **will** write to the source Sales Order's line-item
+  `production_plan_qty` field. It never touches Sales Order Item `qty`/`delivered_qty`/
+  `billed_qty`/GL, and it does not re-submit or lock the Sales Order itself.
+- **`add_reference_to_raw_materials()`**: for every `mr_items` row, tries to match it to a
+  `sub_assembly_items` row by `(production_item == main_item_code, bom_no == from_bom)` and sets
+  `sub_assembly_item_reference`; throws only if `reserve_stock` is checked **and** a row's
+  `main_item_code`/`from_bom` looks inconsistent with the matched BOM's own item. No-op (empty
+  loop, no throw possible) when `mr_items` is empty, which — as above — is always true for a
+  Production Plan this app can currently submit.
+- **`update_stock_reservation()`**: `if not self.reserve_stock: return` — an explicit early exit.
+  **This app's create form never sets `reserve_stock`** (`ProductionPlanCreateForm.tsx` has no
+  such field; it defaults to `0`/unchecked server-side), so this is also a guaranteed no-op today.
+  If it were checked, source shows it calls `reserve_stock_for_production_plan(self)` →
+  `ProductionPlanStockReservation(doc).reserve()`, which — via `StockReservation(...)
+  .make_stock_reservation_entries()` — **does create real `Stock Reservation Entry` documents**
+  (a genuine persistent side effect, separate from the Bin reserved-qty write above). This
+  confirms `MFG-UNV-012`'s uncertainty (4) beyond the Bin-only claim: `reserve_stock` submit-time
+  behavior is a document-creation side effect, not merely a field write — but it is moot for this
+  app today since the field is never set to `1` by anything this app builds.
+
+**Submit side-effect matrix (for a Production Plan created by this app's current PP-2 create
+flow specifically — `reserve_stock=0`, `mr_items=[]`, `sub_assembly_items=[]`):**
+
+| Effect | Result | Evidence |
+|---|---|---|
+| Stock Ledger Entry | NO | **LIVE VERIFIED** (`MFG-PP-2026-00004`, 2026-09-20 — 0 rows before/after submit) |
+| GL Entry | NO | **LIVE VERIFIED** (same test — 0 rows before/after submit) |
+| Work Order creation | NO | **LIVE VERIFIED** (same test — 0 rows) + SOURCE VERIFIED (`on_submit()` never calls `make_work_order`; that's a separate whitelisted method, button-gated to `docstatus === 1` in `production_plan.js`, never auto-invoked) |
+| Material Request creation | NO | SOURCE VERIFIED — same reasoning, `make_material_request` is separate and button-gated (not independently re-checked live this pass, no `mr_items` existed to make one from) |
+| Purchase Order creation | NO | SOURCE VERIFIED |
+| Bin reserved-qty update | NO (no-op — no `mr_items`/`sub_assembly_items` rows exist to iterate) | **LIVE VERIFIED** — `reserved_qty`/`projected_qty`/`actual_qty` on the real `Bin` row were identical before and after submit |
+| Stock Reservation Entry creation | NO (`reserve_stock` never set by this app) | **LIVE VERIFIED** (0 `Stock Reservation Entry` rows for this plan, before/after) |
+| Sales Order Item `production_plan_qty` write | **YES**, when sourced from a Sales Order | **LIVE VERIFIED** — `0.0` → `30.0` on submit, reverted to `0.0` on cancel, exact values |
+| Other persistent effect | `status` recomputed to `Draft`→`Submitted`/`Not Started`/etc. via `set_status()` (called from `validate()`, not `on_submit()` itself) | **LIVE VERIFIED** — `status: "Draft"` → `"Submitted"` on the real document |
+
+**Runtime verification performed: `LIVE VERIFIED`, 2026-09-20, against the real Hetzner
+instance.** With the user's explicit go-ahead (this is a genuine lifecycle transition on a real
+business Sales Order, not a zero-trace create+delete like PP-2's own live test), a full round
+trip was run directly against ERPNext's REST API using the app's own "Frontend Integration"
+service-account credentials (the same credentials `apps/frontend` uses at runtime; read from the
+existing `apps/frontend/.env.local`, never written/modified/printed):
+
+1. `get_open_sales_orders` → `combine_so_items` against `SAL-ORD-2026-00007` (the same Sales
+   Order PP-2's own live test used) reproduced PP-2's exact result: one `po_items` row
+   (`FG-STEEL-BRACKET-ASSY`, `BOM-FG-STEEL-BRACKET-ASSY-001`, `planned_qty: 30`,
+   `warehouse: "Finished Goods - CS"`) — confirms the Sales Order's pending qty was unaffected by
+   any activity between PP-2 and PP-3.
+2. **Baseline captured before creating anything**: `Sales Order Item rgs0926h83`
+   (`FG-STEEL-BRACKET-ASSY` on `SAL-ORD-2026-00007`) had `production_plan_qty: 0.0`; `Bin`
+   (`FG-STEEL-BRACKET-ASSY` @ `Finished Goods - CS`) had `reserved_qty: 30.0`,
+   `projected_qty: 80.0`, `actual_qty: 0.0`.
+3. `POST /api/resource/Production Plan` (mirroring `createProductionPlanAction`'s exact payload
+   shape) created a real Draft, `MFG-PP-2026-00004` (`docstatus: 0`, `reserve_stock: 0`,
+   `mr_items: []`, `sub_assembly_items: []` — the exact precondition this section's analysis
+   assumed).
+4. **`PUT /api/resource/Production Plan/MFG-PP-2026-00004` with `{"docstatus": 1}`** — the exact
+   same REST call `submitDoc()`/`submitProductionPlanAction` makes — returned `200`, `docstatus:
+   1`, `status: "Submitted"`.
+5. **Immediately after submit**, re-queried everything the matrix below predicts:
+   - `Sales Order Item rgs0926h83.production_plan_qty`: `0.0` → **`30.0`** — the one predicted
+     real side effect, confirmed live, exact value.
+   - `Bin` (`FG-STEEL-BRACKET-ASSY` @ `Finished Goods - CS`): **unchanged** — `reserved_qty: 30.0`,
+     `projected_qty: 80.0`, `actual_qty: 0.0` — confirms `update_bin_qty()` was a genuine no-op.
+   - `Stock Ledger Entry` count for this Production Plan: **0**. `GL Entry` count: **0**.
+     `Work Order` count (`production_plan = MFG-PP-2026-00004`): **0**. `Stock Reservation
+     Entry` count (`from_voucher_no = MFG-PP-2026-00004`): **0**.
+   - This live-confirms every row of the submit side-effect matrix below, exactly as predicted
+     from source — no discrepancy found.
+6. **Cleanup**: `PUT .../MFG-PP-2026-00004` with `{"docstatus": 2}` (direct REST — Cancel is not
+   a shipped app feature, this was solely for test cleanup, using the same underlying mechanism
+   the eventual Cancel feature would) — returned `200`, `status: "Cancelled"`. Re-queried
+   afterward: `Sales Order Item.production_plan_qty` reverted to **`0.0`** (exactly as
+   `update_sales_order()`'s re-run-on-cancel logic in §C below predicts — this plan's own rows are
+   now excluded from the `docstatus=1` sum); `Bin` values unchanged; SLE/GL/WO/SRE counts still
+   all `0`. The only residual trace on the instance is `MFG-PP-2026-00004` itself, permanently in
+   `Cancelled` status (expected and harmless — Frappe cancelled docs are retained for audit, not
+   deleted).
+
+This is the strongest possible confirmation available without a second real submit: the
+mechanism (`submitDoc` → plain REST PATCH → ERPNext's own `on_submit()`) is proven not just by
+analogy to other doctypes' submits, but by this exact Production Plan lifecycle, live, on this
+exact instance.
+
+### C. Cancel — investigated, deliberately NOT implemented this package
+
+```python
+def on_cancel(self):
+    self.db_set("status", "Cancelled")
+    self.delete_draft_work_order()
+    self.delete_production_plan_schedule()
+    self.update_bin_qty()
+    self.update_sales_order()
+    self.update_stock_reservation()
+    self.delete_sub_assembly_and_material_rows()
+```
+
+- `delete_draft_work_order()`: deletes (hard `frappe.delete_doc`) any **Draft only**
+  (`docstatus=0`) Work Order referencing this plan; submitted Work Orders are explicitly left
+  alone (`docstatus=0` filter). Not destructive to submitted business documents.
+- `delete_production_plan_schedule()`: deletes rows from a **new doctype not previously
+  documented in this baseline**, `Production Plan Schedule` (feeds the Desk-only "Production
+  Schedule"/"Plan Visualizer" custom buttons, both gated `docstatus === 1` in `production_plan.js`
+  and neither built by this app) — irrelevant to any Production Plan this app creates, since
+  nothing here ever writes to that doctype.
+- `update_bin_qty()`, `update_sales_order()`, `update_stock_reservation()`: same functions as
+  submit, re-run on cancel — for an app-created plan (empty `mr_items`/`sub_assembly_items`,
+  `reserve_stock=0`) these are the same guaranteed no-ops as above, **except**
+  `update_sales_order()`, which recomputes `Sales Order Item.production_plan_qty` — since this
+  plan's own Production Plan Item rows are now `docstatus=2` (excluded from
+  `get_so_wise_planned_qty`'s `docstatus=1` filter), the recompute correctly writes the value back
+  down (to whatever other still-submitted plans contribute, or `0`) — a deliberate, expected
+  un-planning of the source Sales Order line, not a bug.
+- `delete_sub_assembly_and_material_rows()`: hard-deletes `Production Plan Sub Assembly Item`/
+  `Material Request Plan Item` rows for this plan and clears both tables in memory — no-op for an
+  app-created plan (both already empty).
+
+**Live-confirmed, 2026-09-20 (test cleanup, not a shipped feature):** cancelling
+`MFG-PP-2026-00004` (a plan with zero downstream Work Orders/Material Requests, `reserve_stock=0`)
+via the same `docstatus: 2` REST mechanism succeeded (`200`, `status: "Cancelled"`) and behaved
+exactly as `on_cancel()`'s source predicts: `Sales Order Item.production_plan_qty` reverted
+`30.0` → `0.0`; `Bin`, `Stock Ledger Entry`, `GL Entry`, `Work Order`, and `Stock Reservation
+Entry` all remained unchanged/zero. This narrows uncertainty (2) above (no live cancel had been
+run) but **does not resolve uncertainty (1)**: this test plan never had any downstream Work
+Order/Material Request to begin with, so Frappe's generic submitted-document cancel-block
+behavior when an *externally-created* (Desk, not this app) submitted Work Order/Material Request
+still links back to the plan remains untested.
+
+**Additional finding (PP-3 QA pass, 2026-09-20):** on this instance, a separate `qa-tester` live
+test found that a *Cancelled* Production Plan (`docstatus: 2`) with nothing linking to it could
+still be hard-deleted via a plain `DELETE /api/resource/Production Plan/<name>` call (200/202,
+then confirmed 404 on refetch) — narrower than "cancelled Frappe documents are always retained
+for audit," which generally holds for *Submitted* documents but is not an absolute guarantee for
+every *Cancelled* one on every instance/permission configuration. Not relied upon by anything in
+this app (no delete action is exposed for a submitted/cancelled Production Plan here) — noted
+purely as an evidence correction to the general assumption stated earlier in this document.
+
+**Why Cancel is still deferred as a shipped feature, despite this successful cleanup test:** the
+one still-unresolved question — (1) above — is exactly the scenario that matters for a plan a
+*user* of this app might submit and then, after using Desk directly to create downstream
+documents against it, try to cancel from this app. Per the PP-3 brief's own instruction ("Cancel
+is NOT automatically authorized merely because Submit is" / "Only implement Cancel in PP-3 if...
+no unresolved destructive lifecycle ambiguity remains"), Cancel is left **locked as an app
+feature** — no Cancel button/action was added — pending a future package that either reads
+Frappe's generic cancel-link-check source or live-tests the downstream-linked-document case
+specifically.
+
+### D. Amend — discovery only, not implemented
+
+`amended_from: DF.Link | None` in the schema and `is_submittable: 1` together confirm Production
+Plan supports the standard Frappe amend pattern (a new Draft copy referencing the cancelled
+original via `amended_from` — already displayed read-only on the detail page since PP-1). No
+Amend action was built; per the PP-3 brief, Amend stays discovery-only unless "trivial, native,
+fully verified, and explicitly justified" — it is not, since Cancel itself (its prerequisite) is
+still locked.
+
+### E. `allow_on_submit` — none
+
+`production_plan.json`: **zero** fields anywhere in the doctype (header or child tables) are
+flagged `allow_on_submit`. A Submitted Production Plan is fully immutable through the standard
+field-save path — every mutation ERPNext performs against a Submitted plan (status changes,
+Bin/reservation writes, the "Close"/"Re-open" custom buttons) goes through whitelisted methods
+using `db_set`/direct DB writes, bypassing the normal submitted-doc field-permission check
+entirely, not through `allow_on_submit`. Nothing here is exposed by this app.
+
+### F. Button/action visibility by docstatus — confirmed from `production_plan.json` + `production_plan.js`
+
+| Action | Visible when | Evidence |
+|---|---|---|
+| Get Sales Orders / Get Material Request | Always (gated by `get_items_from`, not docstatus) | `depends_on` on the field itself: none; section `depends_on` only checks `get_items_from` |
+| Get Finished Goods (`get_items`) | `docstatus == 0` only | Field `depends_on: eval:doc.get_items_from && doc.docstatus == 0` — matches PP-2's own Draft-only create flow exactly |
+| Get Sub Assembly Items | `docstatus == 0` only | Field `depends_on: eval:doc.po_items && doc.po_items.length && doc.docstatus == 0` — **new finding**: this action is Draft-only, not Submitted-only as `MFG-UNV-012` previously left ambiguous |
+| Get Items for Purchase Only / Get Items for Purchase-Transfer (raw-material calc) | No docstatus gate at field or section level | Both `depends_on: None` — visible regardless of docstatus per schema (still locked/out of scope for this app either way) |
+| Make Work Order / Subcontract PO, Make Material Request, Close/Re-open, Reserve for Sub-assembly/Raw Materials, Schedule Items, Production Plan Summary/Schedule/Visualizer | `docstatus == 1` only | `production_plan.js` `refresh(frm)`: the entire custom-button block is wrapped in `if (frm.doc.docstatus === 1)` |
+| Submit | `docstatus === 0` | Standard Frappe submittable convention, confirmed by `is_submittable: 1` + no workflow doctype involved |
+| Cancel | `docstatus === 1` (standard convention) | Not implemented this package — see §C above |
+
+This directly narrows `MFG-UNV-012` uncertainty (3) — whether `make_work_order`/
+`make_material_request`/`get_sub_assembly_items` require `docstatus = 1`: **`get_sub_assembly_items`
+does not** (Draft-only); **`make_work_order`/`make_material_request` do** (Submitted-only,
+confirmed via the Desk button gate, not a `.py`-level check — the underlying whitelisted methods
+themselves still carry no server-side docstatus assertion, so this remains a Desk-UI-level
+convention, not a hard backend guarantee, exactly as `MFG-UNV-012` already flagged).
+
+### G. Frontend footprint — PP-3 (2026-09-20)
+
+Added: `submitProductionPlanAction` in `manufacturing/production-plans/actions.ts` (calls the
+existing `submitDoc("Production Plan", name)` — no new lifecycle helper), and a `DocActionBar`
+Submit button on `/manufacturing/production-plans/[name]` visible only when `doc.docstatus === 0`,
+same component/pattern already used by Sales Order/Purchase Order/Delivery Note/etc. No cancel
+button, no amend button, no downstream "Make ..." action, no editing of a submitted plan. PP-1's
+seven read-only tabs and PP-2's Draft create wizard are unchanged.
 
 ## NEEDS_VERIFICATION
 
