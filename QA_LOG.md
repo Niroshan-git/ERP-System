@@ -1079,3 +1079,64 @@ full detail):
   preview-only until this app's own explicit Save). Not self-declared accepted — per
   `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, needs independent review from the other Claude
   account before acceptance; see `docs/operations/AI_WORK_LOG.md`'s matching ledger row.
+
+### In-session `code-reviewer` pass (same day) — one blocking finding, fixed
+
+Reviewed commit `770167c` against the five binding control docs and established frontend
+patterns (`updateBomAction`/`setBomAvailability` in `master-data/boms/actions.ts`,
+`parseLocationRows` in `sales/pick-lists/actions.ts`). **Finding**: `saveSubAssemblyItemsAction`/
+`saveMaterialRequirementsAction` spread the caller-supplied `options`/`rows` function parameters
+directly into `updateDoc`'s payload rather than constructing the persisted field set explicitly —
+the one deviation in this package from the codebase's otherwise-universal "build the payload key
+by key" convention, and a real gap since a Server Action is a directly-invokable endpoint with no
+runtime enforcement of a TypeScript parameter's shape (a caller invoking a save action directly,
+skipping the read-only preview UI, could smuggle arbitrary extra fields into the `PUT`). Confirmed
+everything else was sound: `name` correctly `encodeURIComponent`-ed, `docstatus === 0` re-checked
+fresh server-side (not trusting the caller), both preview functions confirmed non-persisting
+regardless of payload shape, tab-swap regression risk correctly gated, scope matched the package
+brief exactly. **Fixed same day** (commit `524e825`, `CX-MFG-PP4-001`): both save actions now name
+every field explicitly and re-run `rows` through the same whitelist parser the preview path
+already uses. Re-verified live after the fix (fresh Draft `MFG-PP-2026-00006`, same round trip,
+zero residual trace); `tsc`/`lint`/`build` all re-run clean.
+
+### Independent `qa-tester` pass (same day, separate session/test data) — **PASS**, two doc corrections
+
+Ran its own independent live round trip (`MFG-PP-2026-00005`, planned_qty `12` — the earlier test
+Draft of the same name had already been deleted) rather than trusting this entry's own write-up.
+Confirmed everything above: both native calls non-persisting regardless of outcome (including when
+`get_sub_assembly_items` threw), `PUT` persisted correctly, `Bin` byte-identical before/after
+(including its `modified` timestamp), zero Work Order/Material Request/Purchase Order/Stock Ledger
+Entry/GL Entry created, cleanup confirmed via a `404` re-fetch. Additionally, live-tested two edge
+cases this entry hadn't exercised:
+- `get_sub_assembly_items` with `skip_available_sub_assembly_item` checked and no
+  `sub_assembly_warehouse` set — produced a real ERPNext `ValidationError`
+  ("Please select the Sub Assembly Warehouse"), correctly surfaced as a clean message (not a stack
+  trace) via `erpnext.ts`'s `extractErpNextMessage`. **Surfaced a real finding this entry's
+  write-up got wrong**: this ERPNext instance's `Production Plan` DocType defaults
+  `skip_available_sub_assembly_item` **and** `ignore_existing_ordered_qty` to `1` (checked) at the
+  schema level — since neither PP-2's create flow nor this package sets them explicitly, every
+  Draft this app creates starts with both already checked, making the sub-assembly warehouse gate
+  active by default, not merely conditional. This entry's own live test (above) had actually
+  exercised this checked-by-default state without realizing it — corrected in
+  `production-plan.md`'s §I/§L.
+- `get_items_for_material_requests` called directly with no `for_warehouse` — **ERPNext's backend
+  applies zero validation**, returns `200` with real computed rows (each item falls back to its
+  own default warehouse). This entry's claim that "Desk itself throws if unset" is true only of
+  Desk's own client-side JS guard, not backend enforcement — `getMaterialRequirementsPreview`'s
+  own explicit check plus the panel's disabled-button guard are doing all the real defensive work,
+  correctly. Corrected in `production-plan.md`'s §J.
+- **Bonus finding, tested safely against the real Cancelled `MFG-PP-2026-00004`** (both calls
+  confirmed non-persisting either way): calling `get_sub_assembly_items` against a Cancelled doc is
+  blocked by Frappe's own framework ("Cannot edit cancelled document") before the method body even
+  runs — but `get_items_for_material_requests` against the same Cancelled doc **succeeds fully**
+  with zero backend restriction, since it never instantiates a `Document` at all. This confirms
+  `loadDraftOrThrow`'s fresh `docstatus === 0` re-check in `productionPlanPlanning.ts` is the
+  **only** thing preventing the material-requirements action from running against a
+  Submitted/Cancelled plan if the client-side gate were ever bypassed — validates that design
+  choice as load-bearing, not redundant boilerplate.
+- Also confirmed the `isDraft` conditional in `[name]/page.tsx` gates both the panel *and* the
+  extra `getStockDefaults` fetch (not just UI visibility) — verified by code read plus the real
+  Cancelled `MFG-PP-2026-00004` on the instance.
+- **Not independently testable** (same disclosed, recurring gap as PP-1 through PP-3): no
+  authenticated browser click-path; no real multi-level BOM on this instance to exercise
+  "sub-assembly rows actually populate and save."

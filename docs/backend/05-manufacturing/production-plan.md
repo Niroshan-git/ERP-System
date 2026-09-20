@@ -862,7 +862,7 @@ Investigated (source, §"Sub-assemblies" above) vs. exposed by this package:
 
 | Field | Classification | Reasoning |
 |---|---|---|
-| `sub_assembly_warehouse` | **REQUIRED FOR PP-4** | Drives `fg_warehouse` assignment on every non-group-warehouse sub-assembly row; required by the server itself when `skip_available_sub_assembly_item` is checked (`_validate_sub_assembly_row` throws otherwise) |
+| `sub_assembly_warehouse` | **REQUIRED FOR PP-4** | Drives `fg_warehouse` assignment on every non-group-warehouse sub-assembly row; required by the server itself when `skip_available_sub_assembly_item` is checked (`_validate_sub_assembly_row` throws otherwise) — **live-confirmed (qa-tester, PP-4 in-session QA) this is effectively required, not just conditionally**: `skip_available_sub_assembly_item` defaults to `1` (checked) at the `Production Plan` DocType level on this instance, and neither PP-2's create flow nor this package's own save actions set it explicitly, so every Draft this app creates starts with the sub-assembly warehouse gate already active |
 | `skip_available_sub_assembly_item` ("Consider Projected Qty in Calculation") | **OPTIONAL BUT USEFUL** | The one behavior-changing toggle worth exposing — skips a sub-assembly row when the warehouse already has enough projected qty |
 | `combine_sub_items` | **OPTIONAL BUT USEFUL** | Simple boolean, native consolidation-by-key behavior already documented above |
 | `include_exploded_items` (per `po_items` row) | **NOT APPLICABLE — already exists** | PP-2's own `po_items` field, not new to PP-4 |
@@ -871,7 +871,7 @@ Investigated (source, §"Sub-assemblies" above) vs. exposed by this package:
 
 | Field | Classification | Reasoning |
 |---|---|---|
-| `for_warehouse` | **REQUIRED FOR PP-4** | The whole calculation needs a target; Desk itself throws (`get_items_for_mr`) if unset before calling |
+| `for_warehouse` | **REQUIRED FOR PP-4** | The whole calculation needs a target; Desk's own client-side `get_items_for_mr` handler throws if unset before calling — **live-confirmed (qa-tester, PP-4 in-session QA) this is a Desk-JS-only guard, not backend enforcement**: calling the real `get_items_for_material_requests` endpoint directly with no `for_warehouse` returns `200` with real computed rows (each raw material falls back to its own default warehouse), so this app's own `getMaterialRequirementsPreview` check (`if (!options.for_warehouse) throw ...`) plus the panel's disabled-button guard are doing all of the real enforcement, not ERPNext |
 | `ignore_existing_ordered_qty` ("Consider Projected Qty (RM)") | **REQUIRED FOR PP-4** | Decides whether the shortage nets against existing Bin stock at all — the single most consequential toggle for whether the result is useful SME planning output or a maximal worst-case number |
 | `include_non_stock_items` | **OPTIONAL BUT USEFUL** | Simple boolean, widens which rows appear |
 | `consider_minimum_order_qty` | **OPTIONAL BUT USEFUL** | Simple boolean, rounds purchase qty up to a real MOQ |
@@ -913,10 +913,22 @@ cleanup step below):
    BOM's own per-unit component quantities against `planned_qty: 30`, `material_request_type:
    "Purchase"` on every row (no sub-assemblies to route through "Manufacture"/subcontract types),
    `actual_qty: 0` everywhere (this instance has no on-hand stock for these raw materials, so the
-   full BOM-required quantity became the shortage — correct given `ignore_existing_ordered_qty`
-   was left unset/`0` for this test, matching its documented "treat every row as zero-available"
-   default behavior). Re-fetching the saved Draft again confirmed `mr_items: []` still — zero
-   persistence from this call either, confirming §H's "not even in-memory" claim.
+   full BOM-required quantity became the shortage regardless of `ignore_existing_ordered_qty` —
+   **correction (qa-tester, PP-4 in-session QA): the original wording here claimed this field
+   "was left unset/0 for this test", which was not checked against the real schema default.**
+   `ignore_existing_ordered_qty` in fact defaults to `1` (checked) at the `Production Plan`
+   DocType level on this instance, same as `skip_available_sub_assembly_item` above — so the
+   Draft used for this test actually carried `ignore_existing_ordered_qty: 1` already (ERPNext
+   applies the schema default on `createDoc`, and neither PP-2's create flow nor this package sets
+   it explicitly). The `0` shortage-vs-full-requirement result was identical either way here only
+   because the real `Bin.projected_qty` for these items also happened to be `0` on this instance —
+   this test did not actually exercise the "some stock, partial shortage" branch of the formula.
+   qa-tester's own separate live test (against a different item with real stock at a different
+   warehouse) did exercise that branch and confirmed it: same warehouse's Bin with real stock
+   correctly reduced the computed `quantity` to `0`, and an empty/zero-stock warehouse correctly
+   returned the full BOM-required quantity — see `QA_LOG.md`'s PP-4 entry.). Re-fetching the saved
+   Draft again confirmed `mr_items: []` still — zero persistence from this call either, confirming
+   §H's "not even in-memory" claim.
 4. **`PUT /api/resource/Production Plan/MFG-PP-2026-00005`** with `{ sub_assembly_warehouse,
    sub_assembly_items: [], for_warehouse, mr_items: <the 3 rows above> }` — the exact mechanism
    `saveSubAssemblyItemsAction`/`saveMaterialRequirementsAction` use — returned `200`,
