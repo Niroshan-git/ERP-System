@@ -10,7 +10,7 @@ A Smart Factory concept system built on top of **ERPNext/Frappe** (open-source, 
 
 This file is the **master entry point** for the repo's control system. Everything binding lives in `docs/controls/`; every other doc (`PLAN.md`, `PROGRESS.md`, `QA_LOG.md`, `README.md`) is a tracking or reference doc, not a rulebook. If in doubt about process, start here.
 
-**Long-term product/business vision:** [`docs/ceylon-stack-master-plan.md`](docs/ceylon-stack-master-plan.md) (SME Business Operating System north star, staged roadmap CRM→...→Mobile→Automation) and its current-state audit [`docs/ceylon-stack-master-backlog.md`](docs/ceylon-stack-master-backlog.md) (CURRENT RELEASE/NEXT/LATER/RESEARCH). Neither is binding — `docs/controls/` and the Current Mission lock below still govern day-to-day sequencing — but the backlog doc flags open sequencing decisions (Finance's and CRM's place in the priority lock, Master Data implementation timing) that need Niroshan's call.
+**Long-term product/business vision:** a north-star plan (`docs/ceylon-stack-master-plan.md`) and its current-state audit (`docs/ceylon-stack-master-backlog.md`) exist as drafts in the working tree but are not yet committed to this repo, so they are not linked here. A future package that formally commits and takes ownership of those documents should restore the links in this paragraph. Neither doc is binding — `docs/controls/` and the Current Mission lock below still govern day-to-day sequencing.
 
 ## Binding Control Documents (Read First)
 

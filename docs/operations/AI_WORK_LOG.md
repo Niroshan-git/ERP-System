@@ -2855,3 +2855,80 @@ indistinguishable from self-authorized escalation regardless of actual intent, a
 demonstrated. Governance/protocol changes should land in their own commit with an explicit,
 checkable record of user authorization at the time they're introduced, not bundled into a
 "feat:" commit.
+
+## Package: PP-2 post-acceptance housekeeping (CX-MFG-PP2-001/002/003)
+
+**PACKAGE:** PP-2 post-acceptance housekeeping
+**ROLE:** IMPLEMENTER
+**AGENT:** this session
+**IMPLEMENTER:** this session
+**REVIEWER:** not yet assigned (recommend independent housekeeping verification before PP-3
+planning begins)
+**BASE COMMIT:** `36672c8` (Production Plan PP-2 — `ACCEPTED`, unchanged by this package)
+**TARGET:** close three items an independent review raised after PP-2 acceptance. This is not
+PP-3 and does not reopen PP-2 acceptance.
+
+### CX-MFG-PP2-001 — dangling CLAUDE.md references (RESOLVED)
+
+`839110a` added a `CLAUDE.md` paragraph linking `docs/ceylon-stack-master-plan.md` and
+`docs/ceylon-stack-master-backlog.md`, but both files are untracked in git — the committed links
+point at paths that don't exist in a fresh clone. Those two planning docs are unrelated to PP-2
+and were left exactly as found (still untracked, not staged, not modified) — see Package
+Isolation below. Fixed by rewriting the `CLAUDE.md` paragraph to describe the docs as drafts in
+the working tree without linking them, and to note that a future package formally committing and
+taking ownership of those documents should restore the links. Additive correction, no history
+rewrite.
+
+### CX-MFG-PP2-002 — Sales Order traceability link (RESOLVED)
+
+`ProductionPlanCreateForm.tsx`'s demand-selection table now links each Sales Order row (when
+`get_items_from === "Sales Order"`) to `/sales/orders/${encodeURIComponent(r.key)}` using the
+existing app convention (Next.js `Link`, same pattern as `WorkOrderForm.tsx`'s "View BOM" link),
+opened with `target="_blank"` + `rel="noopener noreferrer"` so the planner can inspect the source
+Sales Order without losing the in-progress wizard state. Material Request rows were left plain
+text — the app has no canonical Material Request detail route today (checked: no
+`/buying/material-requests/[name]` or equivalent page exists), so adding one would be new
+unrelated behavior, not a use of an existing convention. No eligibility, quantity, Customer,
+selection, curation, consolidation, "Get Finished Goods", or save behavior was touched.
+
+### CX-MFG-PP2-003 — dual-Claude audit identity (RESOLVED / prospective convention established)
+
+`TEMP_DUAL_CLAUDE_MODE.md` gained a new §18 ("Durable Audit Identity Convention") requiring, from
+this package onward, every assignment to record IMPLEMENTER/REVIEWER as an account/role label
+plus a durable session identifier where the environment exposes one (or an explicit "no durable
+session identifier available" note otherwise), alongside PACKAGE/ASSIGNED BY/ASSIGNMENT
+TIMESTAMP. This is additive: it does not replace the existing `CLAUDE-A`/`CLAUDE-B` account-role
+labels, and does not reclassify the historical PP-1/PP-2 Session Log rows. A short ambiguity note
+was added directly below that log table flagging that `CLAUDE-A`/`CLAUDE-B` there identify the
+account, not a specific session, and that `CLAUDE-A` was also used informally elsewhere in
+conversation for the PP-2-reviewing session — the rows themselves are preserved unedited.
+
+### Package isolation
+
+Before editing: confirmed via `git status`/`git diff`/`git log` that `docs/architecture/decisions/README.md`
+(Master Data ADR-007, pre-existing modification) and the three untracked planning docs
+(`docs/ceylon-stack-master-backlog.md`, `docs/ceylon-stack-master-plan.md`,
+`docs/master-data-architecture.md`) were unrelated in-progress work. None of the four were staged,
+edited, or reverted by this package — only `CLAUDE.md`, `apps/frontend/src/components/ProductionPlanCreateForm.tsx`,
+and `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` were changed, each committed separately (code vs.
+governance).
+
+### Tests
+
+`npx tsc --noEmit` (frontend) — clean. `npm run lint` — clean. `npm run build` — succeeds,
+`/sales/orders/[name]` resolves as an existing dynamic route. `git diff --check` — no whitespace
+errors (CRLF/LF line-ending notices only, pre-existing repo setting). Manually confirmed:
+`encodeURIComponent(r.key)` used, `target="_blank"` + `rel="noopener noreferrer"` present, no
+PP-3 action (Submit/Get Sub Assembly Items/Make Work Order/Make Material Request/reservation)
+introduced, no other Production Plan business logic changed.
+
+### State
+
+PP-2 remains `ACCEPTED` — not reopened, not modified except the CX-MFG-PP2-002 link.
+`MFG-UNV-012` unchanged: submit/cancel/reservation/sub-assembly explosion/Work Order
+generation/Material Request generation/remaining lifecycle behavior are still
+`NEEDS_VERIFICATION`; nothing here provided new evidence on any of them. PP-3 was **not**
+started — no lifecycle actions, workflow, or new Production Plan behavior were added.
+
+**Recommended next action:** independent housekeeping verification of this package, then PP-3
+planning.

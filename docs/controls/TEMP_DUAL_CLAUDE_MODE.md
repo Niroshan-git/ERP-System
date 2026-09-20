@@ -138,6 +138,38 @@ automatically rewrite previously accepted packages — audit first.
 Build with one account. Review with the other. Trust the repository, not the conversation. Commit
 knowledge, not just code. Never self-accept. Do not sacrifice package isolation for speed.
 
+## 18. Durable Audit Identity Convention (prospective, added 2026-09-20 housekeeping — CX-MFG-PP2-003)
+
+The `CLAUDE-A` / `CLAUDE-B` labels used through PP-2 identify which of the two independent Claude
+accounts held a role, but not which specific session of that account did the work — and the same
+two labels have also been used informally in conversation as shorthand for "Account A" / "Account
+B" across sessions. That is ambiguous for audit purposes.
+
+**Prospectively — from this housekeeping package onward — every package assignment must record:**
+
+```
+IMPLEMENTER:
+  Account/role label (e.g. CLAUDE-A) + a durable session identifier, if the environment exposes
+  one. If it doesn't, record "no durable session identifier available" rather than inventing one.
+
+REVIEWER:
+  Same format as IMPLEMENTER, for the reviewing account/session.
+
+PACKAGE:
+  Package ID (e.g. PP-3).
+
+ASSIGNED BY:
+  Niroshan.
+
+ASSIGNMENT TIMESTAMP:
+  Date/time the assignment was made.
+```
+
+This adds a session identifier alongside the existing `CLAUDE-A`/`CLAUDE-B` account-role labels —
+it does not replace them, and it does not reclassify or rewrite the historical Session Log below.
+Where no durable session identifier exists, the commit hash and timestamp remain the disambiguating
+evidence.
+
 ## Session Log
 
 Record each session's account assignment and package here so a fresh session/account can
@@ -147,3 +179,9 @@ reconstruct state without re-pasting this protocol.
 |---|---|---|---|---|---|
 | 2026-09-20 | CLAUDE-B | REVIEWER | Production Plan PP-1 | `2e9f8da` | ACCEPTED, 2 non-blocking findings (`PP1-B-01`, `PP1-B-02`) — see `AI_WORK_LOG.md` |
 | 2026-09-20 | CLAUDE-B | IMPLEMENTER | Production Plan PP-2 | `2e9f8da` | `CLAUDE_HANDOFF` — awaiting CLAUDE-A/Codex review, not self-accepted — see `AI_WORK_LOG.md` |
+
+**Ambiguity note (added 2026-09-20 housekeeping, CX-MFG-PP2-003):** the rows above label roles by
+account (`CLAUDE-A`/`CLAUDE-B`) only — they do not carry a durable session identifier, and `CLAUDE-A`
+was also used informally in conversation for the session that reviewed and accepted PP-2. This note
+does not reinterpret or rewrite the rows; it flags the ambiguity and points to §18 for the fix
+applied to future assignments.
