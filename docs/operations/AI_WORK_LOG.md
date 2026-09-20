@@ -3356,3 +3356,102 @@ remediation to an already-Live feature, not a new shipped feature.
 **Recommended next action:** independent review of this remediation (verify the dedup fix and the
 new PO link, confirm no PP-5/PP-6 regression, confirm no PP-7 scope crept in), then PP-7 scoping may
 proceed when requested — implementation still requires a separate, explicit unlock.
+
+## Package: Production Plan PP-5R — independent review (temporary dual-Claude mode, 2026-09-20)
+
+**PACKAGE:** Production Plan PP-5R (Subcontract Purchase Order Traceability Remediation)
+**ROLE:** REVIEWER
+**AGENT:** an independent Claude reviewing session under `TEMP_DUAL_CLAUDE_MODE.md`, no durable
+session identifier available (this environment exposes none — recorded honestly per §18 rather
+than invented). The reviewer reconstructed the package boundary from repository evidence rather
+than trusting the `CLAUDE_HANDOFF` write-up as proof, per §6, and reported no memory of having
+implemented `5cd076e`. Cross-account identity cannot be cryptographically proven in this
+environment — a known limitation of this protocol (already present in the PP-5 review row's own
+"no durable session identifier available" phrasing), not something new introduced by this review.
+**IMPLEMENTER:** prior session, no durable session identifier available (recorded above)
+**REVIEWER:** this session, no durable session identifier available
+**BASE COMMIT:** `7bd2f6c`
+**IMPLEMENTATION COMMIT:** `5cd076e`
+
+### Verdict: **ACCEPTED** — no HIGH findings
+
+Independently confirmed against the actual diff (7 files, 185(+)/7(−)), not the handoff write-up:
+
+1. **Original defect verified at source** — pre-fix, `listSubcontractPurchaseOrderNames`
+   (`apps/frontend/src/lib/actions/productionPlanWorkOrder.ts`) filtered `Purchase Order` via the
+   nested child-table shape `[["Purchase Order Item", "production_plan", "=", name]]` with no
+   dedup — identical unfixed shape to PP-6's `listMaterialRequestNames` before its own fix.
+2. **Root cause** — correct: the child-table join returns one parent row per matching child row,
+   same live-confirmed mechanism as PP-6's Material Request case. Applying PP-6's already-accepted
+   fix to the structurally identical query is the right root-cause match.
+3. **Deduplication implementation** — `[...new Set(rows.map((r) => r.name))]` on
+   `Purchase Order.name`, matching PP-6's pattern exactly. Verified the before/after diff in
+   `makeWorkOrderAction` (lines 125-147) applies this dedup consistently on both the pre-call and
+   post-call queries, so `afterPO.filter((n) => !beforePOSet.has(n))` operates on two consistently
+   deduped sets — no asymmetry bug. `listWorkOrderNames` (parent-level filter, no child-table join)
+   correctly left un-deduped, since it never had this defect.
+4. **Canonical Purchase Order route** — confirmed `apps/frontend/src/app/(app)/buying/purchase-orders/[name]`
+   already exists and `Link` from `next/link` is correctly imported; the route was not invented.
+5. **Read-only/security boundary** — confirmed no ERPNext writes in the changed query functions;
+   the only caller input (`name`) is passed into a fixed filter array position, not
+   string-interpolated — same established pattern as the surrounding code, no new injection surface.
+6. **PP-5 regression** — none. `make_work_order`, `loadSubmittedOrThrow`, and the before/after
+   diffing structure are unchanged in the diff; the Draft-duplicate-Work-Order caveat is
+   documentation-only and untouched.
+7. **PP-6 regression** — none. `listMaterialRequestNames`/`makeMaterialRequestAction`/
+   `ProductionPlanMakeMaterialRequestAction.tsx` do not appear in the diff at all.
+8. **Documentation accuracy** — `production-plan.md`, `unverified-behaviours.md` (`MFG-UNV-012`),
+   `QA_LOG.md`, and `PROGRESS.md` all cross-checked against the actual diff (route existence, dedup
+   pattern, scope boundaries) — no discrepancies found.
+9. **Package isolation** — diff touches only PP-5R's declared scope; the pre-existing unrelated
+   working-tree changes (`docs/architecture/decisions/README.md`,
+   `docs/ceylon-stack-master-backlog.md`, `docs/ceylon-stack-master-plan.md`,
+   `docs/master-data-architecture.md`) are untouched by the implementation commit and were
+   confirmed unchanged by this review (`git status --short` identical before/after).
+10. **Runtime evidence classification** — `SOURCE/CODE VERIFIED, NOT RUNTIME VERIFIED`. No
+    subcontract Purchase Order exists on this instance to reproduce the duplicate-row case live;
+    confirmed no test data was fabricated to manufacture false runtime evidence.
+
+**Reviewer test-execution coverage (recorded honestly):** this reviewer did **not** independently
+execute `npx tsc --noEmit`, `npm run lint`, or `npm run build` — no build/dev environment was
+invoked during this review. The implementer's own report that those checks ran clean is relied
+upon, consistent with §6 (independently review the diff, not the write-up's narrative), but test
+execution itself was not reproduced by the reviewer. This is recorded as a gap in this review's own
+coverage, not a defect in the implementation.
+
+**One non-blocking finding — `PP5R-R-01`:**
+
+- **Severity:** LOW — non-blocking limitation
+- **Area:** Traceability query pagination/exhaustiveness
+- **Evidence:** `listSubcontractPurchaseOrderNames` applies `limit: 500` to the child-table-joined
+  `Purchase Order` query *before* the frontend `Set`-based deduplication runs. 500 raw
+  `Purchase Order Item` matches therefore does not necessarily equal 500 unique `Purchase Order`
+  parents.
+- **Impact:** under unusually high line volume for a single Production Plan's subcontract POs,
+  valid Purchase Orders beyond the API result cap could theoretically be omitted from the
+  traceability result and the before/after diff — silent under-reporting, not corrupted names.
+- **Why non-blocking:** PP-5R did not introduce this limit and does not worsen it (inherited
+  verbatim from the already-`ACCEPTED` PP-6 pattern); it was disclosed by the implementer, not
+  hidden (`QA_LOG.md` point 4); realistic per-plan subcontract PO volume is expected to be far below
+  the cap; the identical architectural pattern already exists, unremediated, in accepted PP-6;
+  PP-5R's actual purpose — duplicate-parent normalization — is correctly fixed regardless.
+- **Required action:** track a shared pagination/exhaustiveness remediation covering both
+  `listSubcontractPurchaseOrderNames` and `listMaterialRequestNames` together, as a future package —
+  not fixed during this review or this closure.
+- **Status:** non-blocking, does not gate PP-5R acceptance.
+
+### State
+
+Production Plan PP-5R is now **ACCEPTED**. PP-5R gate: **CLOSED**. `MFG-UNV-012` state unchanged
+from the implementer's own fix (dedup applied, still `SOURCE VERIFIED / NOT RUNTIME VERIFIED`) —
+review found no new evidence changing it, only the `PP5R-R-01` non-blocking pagination observation
+above. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` §16, this acceptance is subject to Codex's
+reconciliation audit on return (2026-09-26), like every other package accepted under this temporary
+mode.
+
+**PP-7 is unlocked for planning only, not implementation.**
+
+**Recommended next action:** `PP5R-R-01` tracked as non-blocking backlog (shared pagination
+remediation for `listSubcontractPurchaseOrderNames`/`listMaterialRequestNames`, not urgent); PP-7
+scoping/planning may proceed when requested, but no PP-7 implementation until a separate, explicit
+unlock.
