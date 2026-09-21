@@ -1976,15 +1976,115 @@ was ever needed.
 **No application code was changed.** This package is evidence/documentation only —
 `git diff --check` and the working-tree diff for this commit touch only `docs/`.
 
+## Cancel (PP-8, 2026-09-21)
+
+Implements the last standard Frappe lifecycle transition Production Plan was missing: Submitted →
+Cancelled (`docstatus` 1→2), via the same generic `cancelDoc()` mechanism every other cancellable
+doctype in this app already uses — no bespoke cancellation logic, no new whitelisted method.
+Resolves the two `NEEDS_VERIFICATION` items PP-6's own discovery had left open (Submitted Work
+Order's blocking behavior; a linked Draft Material Request's fate on cancel).
+
+**New**: `cancelProductionPlanAction(name)` (`manufacturing/production-plans/actions.ts`) —
+re-fetches the document and independently re-checks `docstatus === 1` before doing anything, then
+re-derives `getConnections("Production Plan", name)` itself (never trusts a client-supplied "no
+blockers" claim) to build a named blocking-document error, mirroring
+`cancelPurchaseOrderAction`'s exact shape. A new `"Production Plan"` entry was added to
+`lib/connections.ts`'s `CONNECTION_CONFIG` (Work Order, Material Request, and subcontract Purchase
+Order) — Work Order's back-reference is a **direct field on Work Order itself**, not a child
+table, but Frappe's own filter syntax treats a 4-tuple `[doctype, field, op, value]` identically to
+a plain 3-tuple filter when `doctype` equals the doctype being listed (the standard example in
+Frappe's own `get_list` docs), so the existing `getConnections()` function needed no code change
+to support it — Material Request and Purchase Order reuse the exact same child-row-back-reference/
+dedupe shape PP-6/PP-5R already established. No new query architecture was created. UI: a Cancel
+button (`DocActionBar`, `variant="danger"`) in the detail page's header, visible whenever
+`docstatus === 1` (not gated by `status`, since `on_cancel()` itself carries no such check) — either
+rendered directly, or replaced with a plain blocking-message line when `cancelBlocking.length > 0`,
+matching Purchase Order's own detail-page convention exactly.
+
+**Live-verified, 2026-09-21**, against the real Hetzner instance, replicating exactly the REST call
+sequence the shipped server action performs (create/submit Production Plan → optionally generate a
+Work Order/Material Request → attempt cancel → observe → clean up), using a small dedicated test
+Sales Order (`SAL-ORD-2026-00040`, qty 5 of the existing `FG-STEEL-BRACKET-ASSY` item — the
+project's one real Sales Order with spare eligible quantity, `SAL-ORD-2026-00007`, already had its
+full 30-unit quantity consumed by an unrelated pre-existing Submitted Work Order
+`MFG-WO-2026-00006` with no `production_plan` back-reference, confirmed via live schema query — not
+a Production-Plan-generated document, left untouched):
+
+- **Safe cancel** (no downstream documents): `MFG-PP-2026-00006` submitted with zero blocking
+  documents → cancel succeeded, `docstatus` 1→2. `LIVE VERIFIED`.
+- **Draft Work Order**: `MFG-PP-2026-00007` → Make Work Order created a Draft Work Order → cancel
+  succeeded → the Draft Work Order was confirmed **auto-deleted** (`delete_draft_work_order()`),
+  re-confirming PP-5's own finding independently. `LIVE VERIFIED`.
+- **Submitted Work Order** (previously `NEEDS_VERIFICATION`): `MFG-PP-2026-00010` → Make Work Order
+  → the generated Work Order was submitted (after setting `wip_warehouse`, which ERPNext requires
+  before Work Order submit and which `make_work_order` does not default when no company default WIP
+  warehouse is configured — confirmed live, a genuine prerequisite gap unrelated to Cancel itself,
+  noted here for whoever next builds Work Order Create's own warehouse defaulting) → cancelling the
+  Production Plan was **blocked** with `frappe.exceptions.LinkExistsError` naming the Work Order —
+  the same generic mechanism that already blocks on a Submitted Material Request. This app's own
+  proactive guard (the `getConnections`-based check inside `cancelProductionPlanAction`) correctly
+  identified the Submitted Work Order as blocking *before* the raw ERPNext call was attempted, so
+  the shipped UI never surfaces the raw `LinkExistsError` text. **Resolved: `LIVE VERIFIED`.**
+- **Draft Material Request** (previously `NEEDS_VERIFICATION`): `MFG-PP-2026-00014` → Get Items for
+  Purchase Only against a deliberately zero-stock warehouse (`Work In Progress - CS`, to force a
+  real non-zero shortage — the project's one stocked raw-material warehouse, `Stores - CS`, already
+  holds far more than this test's demand, so the first attempt produced a correct-but-useless
+  zero-quantity row) → Make Material Request (kept Draft) created `MAT-MR-2026-00006` → cancelling
+  the Production Plan **succeeded** (a Draft Material Request does **not** block cancel, confirming
+  `check_if_doc_is_linked`'s Submitted-only semantics extends to Material Request the same way it
+  already does for every other doctype) → the Draft Material Request was independently re-fetched
+  afterward and confirmed **not auto-deleted, not auto-cancelled** — it is left exactly as-is,
+  silently orphaned, still carrying its now-Cancelled Production Plan's back-reference. This is a
+  genuine, newly-confirmed asymmetry with Work Order's own auto-delete-Draft cascade. **Resolved:
+  `LIVE VERIFIED`.** Per this package's own conservative-scope instruction, no orphan-cleanup logic
+  was implemented — resolving/deleting an orphaned Draft Material Request left over from a
+  cancelled plan is a separate business decision, out of PP-8's boundary; the orphan created by this
+  test was deleted manually as test cleanup, not by any shipped app feature.
+- **Submitted Material Request**: `MFG-PP-2026-00015` → same Get Items for Purchase Only/zero-stock
+  setup → Make Material Request with immediate submit → cancelling the Production Plan was
+  **blocked** with `LinkExistsError` naming the Material Request, re-confirming PP-6's own finding
+  independently, with the proactive guard again catching it first. `LIVE VERIFIED` (re-confirmed).
+- **Invalid-state guard**: a raw `docstatus: 2` PUT against an existing Draft Production Plan
+  (`MFG-PP-2026-00001`, pre-existing, untouched) was rejected by ERPNext itself
+  (`DocstatusTransitionError`); the same call against an already-Cancelled plan
+  (`MFG-PP-2026-00006`) was rejected with `"Cannot edit cancelled document"`. Confirms the premise
+  behind `cancelProductionPlanAction`'s own explicit `docstatus === 1` pre-check — the shipped
+  action never reaches ERPNext for either invalid case, returning a plain, friendly message instead.
+- **Side effects**: a positive-absence sweep of `GL Entry`/`Stock Ledger Entry` created during the
+  entire test window returned zero rows for both — no unintended financial/stock impact from any
+  Cancel scenario above, matching source (`on_cancel()` posts nothing itself).
+
+**Cleanup**: every Production Plan created for this test was fully exercised through to Cancelled;
+Frappe retains cancelled documents for audit and does not permit deleting one still linked to
+another cancelled document (same finding PP-3 already recorded) — `SAL-ORD-2026-00040` and the six
+`MFG-PP-2026-00*` test plans above remain on the instance, permanently Cancelled, by design, not as
+an unresolved residual-trace risk. The one Draft artifact this test's own cleanup *could* remove
+(the orphaned Draft Material Request) was deleted; the Submitted Work Order/Material Request
+created for the blocking-scenario tests were cancelled (not deletable once Submitted) as part of
+resolving their own blocking condition before the enclosing plan could be cancelled.
+
+**Explicitly not implemented, per this package's own boundary**: Amend; any cleanup/orphan-handling
+for a Draft Material Request left behind by a cancelled plan; Reserve Stock/Stock Reservation Entry
+un-reservation on cancel (this app's create form never sets `reserve_stock`, so no live plan this
+app can create ever exercises that branch — a Desk-created plan with `reserve_stock=1` remains
+`NEEDS_VERIFICATION`); subcontract Purchase Order's own cancel-blocking behavior (the
+`CONNECTION_CONFIG` entry is wired and structurally identical to the already-verified Material
+Request case, but no subcontract Purchase Order test data exists on this instance to exercise it
+live — same recurring gap PP-5/PP-5R/PP-7R already disclosed, `SOURCE VERIFIED / NOT RUNTIME
+VERIFIED` only).
+
 ## NEEDS_VERIFICATION
 
 See `docs/backend/99-unverified/unverified-behaviours.md` → `MFG-UNV-012` for the consolidated
 list. As of PP-7R (2026-09-21), multi-level subassembly explosion, multi-level material-requirement
 flattening (zero-stock case), subassembly Work Order generation, subassembly Work Order
-backreference asymmetry, and the `fg_warehouse` precedence question are `LIVE VERIFIED`. Still
+backreference asymmetry, and the `fg_warehouse` precedence question are `LIVE VERIFIED`. As of PP-8
+(2026-09-21), Cancel's behavior against a Submitted Work Order, a Draft Material Request, and a
+Submitted Material Request are all now `LIVE VERIFIED` too (see "Cancel (PP-8...)" above). Still
 `NEEDS_VERIFICATION`/`SOURCE VERIFIED, RUNTIME DEFERRED`: `skip_available_sub_assembly_item`'s
 stock-sufficiency/exhaustion branch against non-zero stock, subassembly duplicate-generation on a
-second `make_work_order` call, subcontract-typed subassembly rows, and any concurrency/high-volume
-behavior. Note: this item was originally misassigned `MFG-UNV-010` — a number already in use by an
-unrelated BOM verification item — and was renumbered to `MFG-UNV-012` per Codex review finding
-`CX-MFG-PP-004`.
+second `make_work_order` call, subcontract-typed subassembly rows (including their own
+cancel-blocking behavior), Reserve Stock/Stock Reservation Entry's cancel/un-reservation behavior,
+and any concurrency/high-volume behavior. Note: this item was originally misassigned `MFG-UNV-010`
+— a number already in use by an unrelated BOM verification item — and was renumbered to
+`MFG-UNV-012` per Codex review finding `CX-MFG-PP-004`.

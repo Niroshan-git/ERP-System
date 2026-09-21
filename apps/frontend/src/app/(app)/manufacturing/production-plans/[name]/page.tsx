@@ -9,10 +9,11 @@ import { ProductionPlanMakeWorkOrderAction } from "@/components/ProductionPlanMa
 import { ProductionPlanMaterialRequirementPanel } from "@/components/ProductionPlanMaterialRequirementPanel";
 import { ProductionPlanSubAssemblyPanel } from "@/components/ProductionPlanSubAssemblyPanel";
 import { StatusPill } from "@/components/StatusPill";
+import { getConnections } from "@/lib/connections";
 import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
 import { productionPlanStatus } from "@/lib/erpStatus";
 import { getStockDefaults } from "@/lib/stockDefaults";
-import { submitProductionPlanAction } from "../actions";
+import { cancelProductionPlanAction, submitProductionPlanAction } from "../actions";
 
 /**
  * Field shapes below are read off `docs/backend/05-manufacturing/production-plan.md` (the
@@ -225,6 +226,15 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
   const isDraft = doc.docstatus === 0;
   const stockDefaults = isDraft ? await getStockDefaults(doc.company) : null;
 
+  // Cancel dependency guard (PP-8) — only meaningful once Submitted; re-derived server-side
+  // again inside `cancelProductionPlanAction` itself before it actually cancels anything, so this
+  // is a UI-only preview, not the enforcement point. See `lib/connections.ts`'s new "Production
+  // Plan" entry for the query shape (Work Order via its own direct field; Material Request and
+  // subcontract Purchase Order via their child-row back-reference, both already-established
+  // dedup patterns from PP-6/PP-5R).
+  const connections = doc.docstatus === 1 ? await getConnections("Production Plan", doc.name) : [];
+  const cancelBlocking = connections.flatMap((c) => c.submittedDocs ?? []);
+
   const status = productionPlanStatus(doc);
   const poItems = doc.po_items ?? [];
   const salesOrders = doc.sales_orders ?? [];
@@ -305,8 +315,13 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
         this plan is Submitted (see the buttons above) and each delegates entirely to
         ERPNext&apos;s own native generation, independently of one another — see the Generated
         Work Orders tab and the Traceability tab&apos;s Material Request Traceability section for
-        each result. Get Sales Orders/Material Request and Get Finished Goods remain unavailable
-        here — see this record&apos;s current backend-recorded state above.
+        each result. A Submitted plan can also be Cancelled (see the button above) — blocked with
+        a named message while any Work Order, Material Request, or subcontract Purchase Order it
+        generated is still Submitted; a still-Draft Work Order is auto-deleted by ERPNext&apos;s
+        own cancel handling instead. Amend, Reserve Stock, and multi-location &quot;Get Items for
+        Purchase / Transfer&quot; remain unbuilt. Get Sales Orders/Material Request and Get
+        Finished Goods remain unavailable here — see this record&apos;s current backend-recorded
+        state above.
       </p>
     </div>
   );
@@ -760,11 +775,27 @@ export default async function ProductionPlanDetailPage({ params }: { params: Pro
             pendingLabel="Submitting…"
           />
         )}
-        {doc.docstatus === 1 && !["Completed", "Closed"].includes(doc.status) && (
-          <div className="flex items-start gap-2">
-            <ProductionPlanMakeWorkOrderAction name={doc.name} />
-            {mrItems.length > 0 && !["Material Requested", "Closed"].includes(doc.status) && (
-              <ProductionPlanMakeMaterialRequestAction name={doc.name} />
+        {doc.docstatus === 1 && (
+          <div className="flex flex-col items-end gap-2">
+            {cancelBlocking.length > 0 ? (
+              <p className="text-sm text-alert">
+                Cannot cancel — linked with {cancelBlocking.join(", ")}. Cancel those first.
+              </p>
+            ) : (
+              <DocActionBar
+                action={cancelProductionPlanAction.bind(null, doc.name)}
+                label="Cancel"
+                pendingLabel="Cancelling…"
+                variant="danger"
+              />
+            )}
+            {!["Completed", "Closed"].includes(doc.status) && (
+              <div className="flex items-start gap-2">
+                <ProductionPlanMakeWorkOrderAction name={doc.name} />
+                {mrItems.length > 0 && !["Material Requested", "Closed"].includes(doc.status) && (
+                  <ProductionPlanMakeMaterialRequestAction name={doc.name} />
+                )}
+              </div>
             )}
           </div>
         )}

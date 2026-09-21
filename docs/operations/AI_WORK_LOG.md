@@ -3797,3 +3797,55 @@ mode.
 sync (PP-7 overall just closed); `PP7R-R-01` tracked as non-blocking backlog (doc-precision fix to
 CX-MFG-PP7-DISC-002); PP-8 discovery/scoping may proceed when requested, but no PP-8 implementation
 until a separate, explicit unlock.
+
+## 2026-09-21 — PP-8 — Cancel (discovery, then explicit implementation authorization)
+
+**PACKAGE:** Production Plan PP-8 — Cancel
+**IMPLEMENTER:** this session, no durable session identifier available
+**REVIEWER:** the other Claude account under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not yet
+assigned to a specific session)
+**BASE COMMIT:** `6da0255` (PP-7R governance closure)
+**ASSIGNED BY:** Niroshan (discovery/scoping request, then a separate explicit implementation
+authorization in the same conversation)
+**ASSIGNMENT TIMESTAMP:** 2026-09-21
+
+A discovery/scoping pass (reconstructing PP-1 through PP-7R from Git/`PROGRESS.md`/backend docs,
+proposing PP-8's boundary) preceded implementation in the same conversation; Niroshan then
+explicitly authorized PP-8 implementation, scoped to Cancel only, with two named
+`NEEDS_VERIFICATION` items required to be live-tested rather than assumed (Submitted Work Order's
+cancel-block behavior; a linked Draft Material Request's fate on cancel).
+
+**Implementation summary**: `cancelProductionPlanAction` (new), a new `"Production Plan"` entry in
+`lib/connections.ts`'s `CONNECTION_CONFIG` (zero changes to `getConnections()` itself), and a Cancel
+`DocActionBar` in the detail page header — full technical detail in `PROGRESS.md`'s and
+`QA_LOG.md`'s matching 2026-09-21 entries, and `docs/backend/05-manufacturing/production-plan.md`'s
+new "Cancel (PP-8...)" section.
+
+**Both previously-open `NEEDS_VERIFICATION` items were live-tested and resolved**, against the real
+Hetzner instance (not inferred from source): a Submitted Work Order blocks Production Plan cancel
+via `LinkExistsError`, exactly like Submitted Material Request already did; a Draft Material Request
+does **not** block cancel and is left orphaned (not auto-deleted, unlike Work Order's own
+auto-delete-Draft cascade) — a genuine, newly-confirmed asymmetry. Six lifecycle test scenarios,
+zero unintended `GL Entry`/`Stock Ledger Entry` activity (independently verified, not assumed), full
+detail in `QA_LOG.md`.
+
+**Package isolation**: only `lib/connections.ts`, `manufacturing/production-plans/actions.ts`,
+`manufacturing/production-plans/[name]/page.tsx`, `docs/backend/05-manufacturing/production-plan.md`,
+`docs/backend/99-unverified/unverified-behaviours.md`, `PROGRESS.md`, `QA_LOG.md`, and this file were
+touched. Pre-existing unrelated working-tree changes (`docs/architecture/decisions/README.md`,
+`docs/ceylon-stack-documentation.html`'s own small diff, three untracked master-plan/backlog docs)
+were inspected and left exactly as found — not staged, not touched.
+
+**Out-of-scope finding, reported not fixed**: `MFG-PP-2026-00001` still exists as a Draft on the
+instance despite PP-2's own PROGRESS.md entry claiming it was deleted as cleanup — a pre-existing
+documentation-vs-reality gap, discovered incidentally, unrelated to Cancel, left for a future session
+to reconcile. Also unrelated: `docs/ceylon-stack-documentation.html` line ~358 still says "BOM
+Management — Planned, not started" despite BOM 4A/4B having shipped under Master Data 2026-09-19 —
+flagged during the discovery pass, explicitly not corrected here per the authorization brief's own
+instruction to keep package isolation.
+
+**Recommended next action:** independent review of this package under
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not self-accepted). Once accepted, `release-tracker` for
+`docs/ceylon-stack-documentation.html` + Notion sync. Neither of the two out-of-scope findings above
+should be folded into that review's remediation — they are pre-existing, unrelated gaps, not
+introduced by PP-8.

@@ -3,7 +3,8 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createDoc, ErpNextError, submitDoc } from "@/lib/erpnext";
+import { cancelDoc, createDoc, ErpNextError, getDoc, submitDoc } from "@/lib/erpnext";
+import { getConnections } from "@/lib/connections";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 import {
   parseProductionPlanItemRows,
@@ -113,6 +114,53 @@ export async function createProductionPlanAction(_prevState: FormState, formData
 export async function submitProductionPlanAction(name: string): Promise<FormState> {
   try {
     await submitDoc("Production Plan", name);
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+
+  revalidatePath("/manufacturing/production-plans");
+  revalidatePath(`/manufacturing/production-plans/${encodeURIComponent(name)}`);
+  redirect(`/manufacturing/production-plans/${encodeURIComponent(name)}`);
+}
+
+/**
+ * docstatus 1→2 via ERPNext's own native cancel (`cancelDoc`, the same generic mechanism already
+ * used by `cancelPurchaseOrderAction`/`cancelSalesOrderAction`/every other cancellable doctype in
+ * this app) — no bespoke cancellation logic. PP-8's own investigation (see
+ * `docs/backend/05-manufacturing/production-plan.md`'s "Cancel (PP-8)" section) found
+ * `on_cancel()` auto-deletes any still-Draft Work Order the plan generated
+ * (`delete_draft_work_order()`, live-confirmed PP-5) but has no equivalent step for Material
+ * Request or subcontract Purchase Order, and a *Submitted* Work Order/Material Request/Purchase
+ * Order blocks cancellation via Frappe's generic `LinkExistsError` (the same
+ * `check_if_doc_is_linked` mechanism `lib/connections.ts`'s own doc comment already documents).
+ *
+ * Re-fetches the document and independently re-checks `docstatus === 1` fresh, rather than
+ * trusting the page that rendered the button — same defense-in-depth precedent as every other
+ * Production Plan action in this file/`lib/actions/`. The downstream check re-derives
+ * `getConnections("Production Plan", name)` itself (not a value passed in from the caller), for
+ * the same reason: a client-supplied "no blockers" claim is not evidence.
+ *
+ * Mirrors `cancelPurchaseOrderAction`'s exact shape (`buying/purchase-orders/actions.ts`): name
+ * every blocking submitted document instead of surfacing ERPNext's raw `LinkExistsError` text.
+ * Never attempts to cancel/delete the blocking documents itself — resolving them is a separate
+ * business operation, not something this action performs on the user's behalf.
+ */
+export async function cancelProductionPlanAction(name: string): Promise<FormState> {
+  const doc = await getDoc<{ name: string; docstatus: 0 | 1 | 2 }>("Production Plan", name);
+  if (doc.docstatus !== 1) {
+    return { error: "Only a Submitted production plan can be cancelled." };
+  }
+
+  const connections = await getConnections("Production Plan", name);
+  const blocking = connections.flatMap((c) => c.submittedDocs ?? []);
+  if (blocking.length > 0) {
+    return {
+      error: `Cannot cancel — linked with ${blocking.join(", ")}. Cancel those first.`,
+    };
+  }
+
+  try {
+    await cancelDoc("Production Plan", name);
   } catch (e) {
     return { error: humanizeError(e) };
   }

@@ -1433,3 +1433,62 @@ implementing session's own in-session verification only, not the required cross-
 - **Sign-off**: implementing session's own in-session work only. Per
   `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this is `CLAUDE_HANDOFF` — not self-accepted; PP-7
   overall requires independent review to close, and PP-8 stays locked until then.
+
+## 2026-09-21 — Production Plan PP-8 — Cancel
+
+- **Scope**: Submitted → Cancelled lifecycle action, via existing `cancelDoc()`; proactive
+  Submitted-downstream-document guard reusing/extending `lib/connections.ts`.
+- **Type/build**: `npx tsc --noEmit` — PASSED (clean). `npm run lint` — PASSED (clean).
+  `npm run build` — PASSED, exit 0, `/manufacturing/production-plans`,
+  `/manufacturing/production-plans/[name]`, `/manufacturing/production-plans/new` all registered;
+  no new warnings/errors beyond the same pre-existing `erpnextFetch network error` static-generation
+  diagnostics every prior Production Plan package produced.
+- **Live lifecycle tests**, against the real Hetzner instance (`62.238.22.161`), replicating exactly
+  the REST call sequence `cancelProductionPlanAction` performs:
+  1. **Safe cancel** (`MFG-PP-2026-00006`, no downstream docs) — **PASSED**. Submitted → Cancelled
+     cleanly, guard reported zero blocking documents.
+  2. **Draft Work Order** (`MFG-PP-2026-00007` → `MFG-WO-2026-00011`) — **PASSED**. Cancel
+     succeeded; Draft Work Order independently re-queried and confirmed deleted
+     (`delete_draft_work_order()`), re-confirming PP-5.
+  3. **Submitted Work Order** (`MFG-PP-2026-00010` → `MFG-WO-2026-00011`, submitted) — **PASSED**.
+     Cancel blocked with `LinkExistsError`; the app's own proactive guard (`getConnections`)
+     independently identified the Work Order as blocking before the call was attempted. Cleanup:
+     Work Order cancelled, then plan cancelled, both independently re-verified `docstatus: 2`.
+  4. **Draft Material Request** (`MFG-PP-2026-00014` → `MAT-MR-2026-00006`, kept Draft) —
+     **PASSED, with a new finding**. Cancel succeeded; the Draft Material Request was independently
+     re-fetched afterward and found **not** auto-deleted/cancelled — orphaned, still referencing the
+     Cancelled plan. Not a bug (native ERPNext behavior, no cleanup step exists in `on_cancel()`),
+     but a real asymmetry with Work Order's own cascade, now documented rather than assumed.
+  5. **Submitted Material Request** (`MFG-PP-2026-00015` → `MAT-MR-2026-00006`, submitted) —
+     **PASSED**. Cancel blocked with `LinkExistsError`, guard caught it first, re-confirming PP-6.
+     Cleanup: Material Request cancelled, then plan cancelled, both independently re-verified.
+  6. **Invalid state** — a raw `docstatus: 2` PUT against a pre-existing Draft plan
+     (`MFG-PP-2026-00001`, untouched otherwise) returned `DocstatusTransitionError`; the same call
+     against an already-Cancelled plan (`MFG-PP-2026-00006`) returned `"Cannot edit cancelled
+     document."` **PASSED** — confirms the premise behind the shipped action's own independent
+     `docstatus === 1` pre-check (which never reaches ERPNext for either case).
+  7. **Regression** — Production Plan list/detail/create/Submit/Make Work Order/Make Material
+     Request routes and server actions were not modified by this package (only `actions.ts` gained
+     one new export, and `page.tsx`'s header JSX was restructured additively); build's route table
+     confirms all three routes still register. Submit, Make Work Order, and Make Material Request
+     were each exercised as part of building the test scenarios above and behaved exactly as
+     previously documented — no regression observed.
+- **Side-effect verification**: `GL Entry` and `Stock Ledger Entry` created during the full test
+  window (both directly queried, not inferred) — **zero rows for either**, confirming no
+  unintended financial/stock impact from any scenario above.
+- **Cleanup verification**: every test Production Plan now sits `Cancelled` (permanent — Frappe
+  retains cancelled documents for audit and blocks deleting one still linked to another cancelled
+  document, matching PP-3's own established finding); the test Sales Order (`SAL-ORD-2026-00040`)
+  is likewise `Cancelled`, not deleted, for the same reason. The one document this test's cleanup
+  could remove outright (the orphaned Draft Material Request) was independently re-verified deleted.
+  Pre-existing, unrelated documents already on the instance (`MFG-PP-2026-00001`/`-00002`,
+  `MFG-WO-2026-00005`/`-00006`) were inspected but left completely untouched.
+- **Result**: **PASS** — no blocking findings. Two previously-open `NEEDS_VERIFICATION` items
+  (Submitted Work Order cancel-block; Draft Material Request cancel behavior) resolved to
+  `LIVE VERIFIED`. Not independently tested: subcontract Purchase Order's own cancel-blocking
+  behavior (no live subcontract PO data exists on this instance) and Reserve Stock/Stock Reservation
+  Entry's un-reservation-on-cancel behavior (moot for any plan this app's create form can produce) —
+  both remain `NEEDS_VERIFICATION`/`SOURCE VERIFIED`, honestly disclosed, not overclaimed.
+- **Sign-off**: implementing session's own in-session work only. Per
+  `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this is `CLAUDE_HANDOFF` — not self-accepted; requires
+  independent review from the other Claude account before acceptance.

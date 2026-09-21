@@ -3258,3 +3258,102 @@ independent review" entry.
 **PP-7 (discovery + runtime qualification, overall) is now CLOSED / ACCEPTED.** PP-8 is unlocked for
 planning only, not implementation — a separate, explicit unlock is still required before any PP-8
 build work begins.
+
+## 2026-09-21 — Production Plan PP-8 — Cancel (implementation)
+
+Explicitly authorized for implementation (separate from the earlier planning-only unlock) — see
+`docs/operations/AI_WORK_LOG.md`'s "PP-8 — Cancel" entry. Baseline confirmed before starting: HEAD
+`6da0255` (PP-7R governance closure), PP-1 through PP-7R all `ACCEPTED`, PP-8 unlocked. Pre-existing
+uncommitted working-tree state (`docs/architecture/decisions/README.md`,
+`docs/ceylon-stack-documentation.html`'s own small unrelated diff, three untracked
+`docs/ceylon-stack-master-*`/`docs/master-data-architecture.md` files) inspected and left untouched.
+
+**Objective**: ship the last standard Frappe lifecycle transition Production Plan was missing —
+Submitted → Cancelled — reusing the existing `cancelDoc()` mechanism, not a bespoke one.
+
+**Built**:
+- `apps/frontend/src/lib/connections.ts` — new `"Production Plan"` entry in `CONNECTION_CONFIG`
+  (Work Order, Material Request, subcontract Purchase Order). Work Order's back-reference is a
+  direct field, not a child table, but Frappe's own 4-tuple filter syntax treats
+  `[doctype, field, op, value]` identically to a plain field filter when `doctype` equals the
+  doctype being listed, so the existing `getConnections()` function needed zero code changes.
+- `apps/frontend/src/app/(app)/manufacturing/production-plans/actions.ts` — new
+  `cancelProductionPlanAction(name)`: re-fetches the document, re-checks `docstatus === 1`,
+  re-derives `getConnections("Production Plan", name)` itself, returns a named blocking-document
+  error if any Work Order/Material Request/Purchase Order is still Submitted, otherwise calls
+  `cancelDoc("Production Plan", name)`. Exact shape of `cancelPurchaseOrderAction`.
+- `apps/frontend/src/app/(app)/manufacturing/production-plans/[name]/page.tsx` — a Cancel
+  `DocActionBar` (danger variant) in the header, visible whenever `docstatus === 1` (independent of
+  the `status` gate that only applies to Make Work Order/Make Material Request), replaced by a
+  plain blocking-message line when a Submitted downstream document exists — matching Purchase
+  Order's own detail-page convention exactly. Overview tab's scope-disclosure paragraph updated.
+
+**Investigation before implementation**: confirmed `cancelDoc()` (generic `docstatus: 2` PUT) is
+already used by 12 other doctypes in this app and needed no extension; confirmed `getConnections()`
+already implements the exact dedupe-by-parent-name pattern PP-6/PP-5R established, and its
+docstring already documents `check_if_doc_is_linked`'s Submitted-only cancel-block semantics
+(`frappe/model/delete_doc.py`) — the same mechanism this package's live tests independently
+reproduced for Work Order.
+
+**Live verification**, 2026-09-21, against the real Hetzner instance, replicating exactly the REST
+sequence the shipped server action performs. `SAL-ORD-2026-00007` (this project's usual recurring
+test Sales Order) was found to already have its full 30-unit quantity consumed by an unrelated,
+pre-existing Submitted Work Order (`MFG-WO-2026-00006`, no `production_plan` back-reference — not
+Production-Plan-generated, left untouched) — a small dedicated test Sales Order
+(`SAL-ORD-2026-00040`, qty 5, same item) was created instead, matching PP-7R's own precedent of
+building a minimal fixture when existing data can't cleanly support a scenario.
+
+- Safe cancel (no downstream docs): `MFG-PP-2026-00006` — cancelled cleanly. `LIVE VERIFIED`.
+- Draft Work Order: `MFG-PP-2026-00007` — cancel succeeded, Draft Work Order auto-deleted
+  (re-confirms PP-5). `LIVE VERIFIED`.
+- **Submitted Work Order** (previously `NEEDS_VERIFICATION`): `MFG-PP-2026-00010` — cancel blocked
+  via `LinkExistsError`, this app's proactive guard caught it first. **Resolved: `LIVE VERIFIED`.**
+- **Draft Material Request** (previously `NEEDS_VERIFICATION`): `MFG-PP-2026-00014` — cancel
+  **succeeded**; the Draft Material Request was **not** auto-deleted or auto-cancelled — left
+  orphaned, still referencing the now-Cancelled plan. A genuine, newly-confirmed asymmetry with
+  Work Order's own auto-delete cascade. **Resolved: `LIVE VERIFIED`.** No cleanup logic was built
+  for this — out of PP-8's scope per the authorization brief; the orphan created by this test was
+  deleted manually as test cleanup only.
+- Submitted Material Request: `MFG-PP-2026-00015` — cancel blocked via `LinkExistsError`, guard
+  caught it first (re-confirms PP-6). `LIVE VERIFIED`.
+- Invalid-state guard: a raw cancel attempt against a Draft plan and an already-Cancelled plan were
+  both rejected natively by ERPNext (`DocstatusTransitionError`, "Cannot edit cancelled document"),
+  confirming the premise behind the action's own explicit pre-check.
+- Side effects: a positive-absence sweep of `GL Entry`/`Stock Ledger Entry` across the full test
+  window returned zero rows for both doctypes — no unintended financial/stock impact.
+
+Full narrative, exact quantities, and evidence in `docs/backend/05-manufacturing/production-plan.md`'s
+new "Cancel (PP-8...)" section; `unverified-behaviours.md`'s `MFG-UNV-012` updated to close the two
+previously-open items.
+
+**Checks run**: `npx tsc --noEmit` — clean. `npm run lint` — clean. `npm run build` — succeeded,
+exit 0, all three Production Plan routes still registered, no new errors/warnings beyond the same
+pre-existing `erpnextFetch network error` static-generation diagnostics every prior package hit.
+
+**Explicitly out of scope, per the authorization brief**: Amend; any cleanup/orphan-handling for a
+Draft Material Request left behind by a cancelled plan; Reserve Stock/Stock Reservation Entry
+un-reservation on cancel (moot for any plan this app's own create form produces); subcontract
+Purchase Order's own cancel-blocking behavior (wired, structurally identical to the verified
+Material Request case, but `SOURCE VERIFIED / NOT RUNTIME VERIFIED` — no live subcontract PO data
+exists on this instance); Job Cards, Workstations, OEE; CRM.
+
+**Cleanup**: every Production Plan/Sales Order created for this test now sits permanently Cancelled
+on the instance (Frappe retains cancelled documents for audit and refuses to delete one still linked
+to another cancelled document — the same finding PP-3 already recorded), not an unresolved residual
+trace. The one artifact this test's cleanup could actually remove (the orphaned Draft Material
+Request) was deleted; the Submitted Work Order/Material Request created for the blocking-scenario
+tests were cancelled as part of resolving their own block. Pre-existing, unrelated leftover
+documents already on the instance before this session (`MFG-PP-2026-00001`/`-00002` Draft,
+`MFG-WO-2026-00005`/`-00006`) were inspected but not modified — flagged below as an out-of-scope
+finding, not fixed here.
+
+**Out-of-scope finding, not fixed here (per the authorization brief's own instruction to report
+rather than expand scope)**: `MFG-PP-2026-00001` still exists as a Draft on the instance, even
+though PP-2's own PROGRESS.md entry (2026-09-20) claimed it was "deleted as cleanup." This is a
+pre-existing documentation-vs-reality gap unrelated to Cancel, discovered incidentally while
+selecting a Draft plan for this package's invalid-state test — recorded here for a future session to
+reconcile, not corrected as part of this package.
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
+account before acceptance, not self-review.

@@ -109,6 +109,26 @@ phantom item is exploded through (never appearing as its own stock movement) as 
 resulting Work Order/Material Request generation and any sub-assembly BOM explosion it triggers.
 
 ### MFG-UNV-012 — Production Plan runtime behavior (no live document exists)
+**2026-09-21 update (PP-8 — Cancel, live test, resolving the two items PP-6 had left open):**
+`cancelProductionPlanAction` shipped (`docstatus` 1→2 via the existing generic `cancelDoc()`).
+Live-verified against the real Hetzner instance: (a) a **Submitted Work Order** blocks Production
+Plan cancel via `LinkExistsError`, the same generic mechanism already confirmed for Submitted
+Material Request — this app's own proactive guard (`getConnections("Production Plan", name)`,
+via a new `CONNECTION_CONFIG` entry in `lib/connections.ts`) detects it first and returns a named
+message instead of the raw error; (b) a **Draft Material Request** does *not* block cancel (unlike
+Work Order's Draft-auto-delete cascade, it is left completely as-is — not deleted, not cancelled,
+silently orphaned with a dangling reference to the now-Cancelled plan), a genuine asymmetry now
+confirmed rather than assumed from source; (c) re-confirmed, independently, that a Draft Work Order
+is auto-deleted and a Submitted Material Request blocks cancel (both previously established by
+PP-5/PP-6). No cleanup/orphan-handling for the Draft Material Request case was implemented — out of
+PP-8's scope by design, recorded here as a real, live-confirmed native behavior for a future package
+to account for if it's ever judged worth fixing. Subcontract Purchase Order's own cancel-blocking
+behavior remains `SOURCE VERIFIED / NOT RUNTIME VERIFIED` (the `CONNECTION_CONFIG` entry is wired,
+structurally identical to the verified Material Request case, but no live subcontract PO data exists
+on this instance). Reserve Stock/Stock Reservation Entry's un-reservation-on-cancel behavior remains
+`NEEDS_VERIFICATION` (moot for any plan this app's own create form can produce, since it never sets
+`reserve_stock`). Full detail, including exact test-plan names and side-effect verification (zero
+`GL Entry`/`Stock Ledger Entry` created), in `production-plan.md`'s new "Cancel (PP-8...)" section.
 **Status:** `NEEDS_VERIFICATION`, **partially resolved 2026-09-20 (PP-2, then further narrowed and
 live-verified by PP-3, PP-4, PP-5, and PP-6, all same day)** — demand sourcing and Draft creation
 are live-confirmed (PP-2, see below); submit lifecycle is now `LIVE VERIFIED` and implemented

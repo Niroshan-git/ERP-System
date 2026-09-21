@@ -166,6 +166,41 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
     },
   ],
   "Purchase Invoice": [],
+  // Production Plan (PP-8, Cancel): the three doctypes `make_work_order`/`make_material_request`
+  // can generate, per docs/backend/05-manufacturing/production-plan.md. Work Order carries
+  // `production_plan` as a direct field on itself (not a child table) — Frappe's own filter
+  // syntax treats a 4-tuple `[doctype, field, op, value]` identically to a plain 3-tuple filter
+  // when `doctype` equals the doctype being listed (the standard example in Frappe's own
+  // `get_list` docs is exactly this shape), so `childDoctype: "Work Order"` here queries Work
+  // Order's own field directly, not a join — same `getConnections()` code path as every
+  // child-table entry above, no new query logic needed. Material Request and (subcontract)
+  // Purchase Order both carry the back-reference on their child row instead
+  // (`Material Request Item.production_plan`, `Purchase Order Item.production_plan`), matching
+  // the already-accepted PP-5/PP-6/PP-5R dedup precedent this same `getConnections()` function
+  // already implements.
+  "Production Plan": [
+    {
+      label: "Work Order",
+      parentDoctype: "Work Order",
+      childDoctype: "Work Order",
+      filterField: "production_plan",
+      hrefBase: "/manufacturing/work-orders",
+    },
+    {
+      label: "Material Request",
+      parentDoctype: "Material Request",
+      childDoctype: "Material Request Item",
+      filterField: "production_plan",
+      hrefBase: "/buying/material-requests",
+    },
+    {
+      label: "Purchase Order",
+      parentDoctype: "Purchase Order",
+      childDoctype: "Purchase Order Item",
+      filterField: "production_plan",
+      hrefBase: "/buying/purchase-orders",
+    },
+  ],
 };
 
 export async function getConnections(doctype: string, name: string): Promise<Connection[]> {
