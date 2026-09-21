@@ -2585,9 +2585,25 @@ instance this session — `get_open_sales_orders` (returned 12 real eligible Sal
 `combine_so_items` (correctly resolved `po_items` with real `item_code`/`bom_no`/`planned_qty`/
 `warehouse`/`sales_order` back-reference) → a plain `createDoc` POST created a real Draft
 `MFG-PP-2026-00001` (docstatus 0, `total_planned_qty` correctly computed as 30 by ERPNext
-itself) → deleted as cleanup (Draft Production Plan has zero GL/stock impact — confirmed in
-`production-plan.md`'s "Accounting / stock impact" section, `update_bin_qty()` only fires on
-submit/cancel/close). This surfaced and fixed a real requirement not obvious from source alone:
+itself) → **reported at the time as** deleted as cleanup (Draft Production Plan has zero GL/stock
+impact — confirmed in `production-plan.md`'s "Accounting / stock impact" section,
+`update_bin_qty()` only fires on submit/cancel/close).
+
+**Historical claim correction, added post-PP-8 reconciliation (2026-09-21):** `MFG-PP-2026-00001`
+is independently confirmed still present on the live instance, `docstatus: 0` (Draft) — the
+deletion claimed above did not hold. This gap was first noticed and flagged, but not
+investigated, during PP-8 (see that package's own "Out-of-scope finding" note); this entry
+records the reconciliation attempt. No application code, PP-2's own implementation, or the
+Frappe delete-document mechanism as used elsewhere in this project (Draft Production Plans are
+freely deletable — the same operation succeeded in PP-6's and PP-7R's own later test cleanups)
+gives a basis to assume a specific cause. **The historical deletion claim could not be
+reconciled with the current live state** — whether the original `deleteDoc` call actually failed
+silently, was never issued despite being reported, or the document was independently
+re-created/restored by some later, unrecorded action is not established by any evidence
+available to this session. Treated as unresolved pre-existing documentation/governance debt, not
+as a defect in PP-2's shipped code (no code from PP-2 remains capable of re-creating a Production
+Plan outside an explicit user action) and not as a blocker for any later Production Plan package,
+including PP-8. This surfaced and fixed a real requirement not obvious from source alone:
 `run_doc_method`'s `docs` payload needs an explicit placeholder `name` plus `__islocal: 1`/
 `__unsaved: 1`, or this installed instance 404s with `DoesNotExistError` ("Production Plan None
 not found") instead of treating it as a fresh unsaved document. See `production-plan.md`'s

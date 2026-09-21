@@ -1454,7 +1454,7 @@ implementing session's own in-session verification only, not the required cross-
      Cancel blocked with `LinkExistsError`; the app's own proactive guard (`getConnections`)
      independently identified the Work Order as blocking before the call was attempted. Cleanup:
      Work Order cancelled, then plan cancelled, both independently re-verified `docstatus: 2`.
-  4. **Draft Material Request** (`MFG-PP-2026-00014` → `MAT-MR-2026-00006`, kept Draft) —
+  4. **Draft Material Request** (`MFG-PP-2026-00014` → `MAT-MR-2026-00005`, kept Draft) —
      **PASSED, with a new finding**. Cancel succeeded; the Draft Material Request was independently
      re-fetched afterward and found **not** auto-deleted/cancelled — orphaned, still referencing the
      Cancelled plan. Not a bug (native ERPNext behavior, no cleanup step exists in `on_cancel()`),
@@ -1483,6 +1483,13 @@ implementing session's own in-session verification only, not the required cross-
   could remove outright (the orphaned Draft Material Request) was independently re-verified deleted.
   Pre-existing, unrelated documents already on the instance (`MFG-PP-2026-00001`/`-00002`,
   `MFG-WO-2026-00005`/`-00006`) were inspected but left completely untouched.
+- **Post-acceptance correction (`CX-MFG-PP-8-001`, LOW, evidence reconciliation)**: step 4 above
+  originally cited `MAT-MR-2026-00006` for the Draft/`MFG-PP-2026-00014` scenario; independent
+  review found that document actually belongs to step 5's Submitted/`MFG-PP-2026-00015` scenario
+  (confirmed via its live `production_plan` field), and the Draft artifact deleted in step 4's own
+  cleanup was the separate, now-missing `MAT-MR-2026-00005`. Corrected above. Citation fix only —
+  both steps' `PASS`/`LIVE VERIFIED` results are unchanged; see `production-plan.md`'s matching
+  correction note and `docs/operations/AI_WORK_LOG.md`'s "PP-8 — Cancel — independent review" entry.
 - **Result**: **PASS** — no blocking findings. Two previously-open `NEEDS_VERIFICATION` items
   (Submitted Work Order cancel-block; Draft Material Request cancel behavior) resolved to
   `LIVE VERIFIED`. Not independently tested: subcontract Purchase Order's own cancel-blocking

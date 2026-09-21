@@ -2029,7 +2029,7 @@ a Production-Plan-generated document, left untouched):
   Purchase Only against a deliberately zero-stock warehouse (`Work In Progress - CS`, to force a
   real non-zero shortage — the project's one stocked raw-material warehouse, `Stores - CS`, already
   holds far more than this test's demand, so the first attempt produced a correct-but-useless
-  zero-quantity row) → Make Material Request (kept Draft) created `MAT-MR-2026-00006` → cancelling
+  zero-quantity row) → Make Material Request (kept Draft) created `MAT-MR-2026-00005` → cancelling
   the Production Plan **succeeded** (a Draft Material Request does **not** block cancel, confirming
   `check_if_doc_is_linked`'s Submitted-only semantics extends to Material Request the same way it
   already does for every other doctype) → the Draft Material Request was independently re-fetched
@@ -2041,9 +2041,25 @@ a Production-Plan-generated document, left untouched):
   cancelled plan is a separate business decision, out of PP-8's boundary; the orphan created by this
   test was deleted manually as test cleanup, not by any shipped app feature.
 - **Submitted Material Request**: `MFG-PP-2026-00015` → same Get Items for Purchase Only/zero-stock
-  setup → Make Material Request with immediate submit → cancelling the Production Plan was
-  **blocked** with `LinkExistsError` naming the Material Request, re-confirming PP-6's own finding
-  independently, with the proactive guard again catching it first. `LIVE VERIFIED` (re-confirmed).
+  setup → Make Material Request with immediate submit → created `MAT-MR-2026-00006` → cancelling the
+  Production Plan was **blocked** with `LinkExistsError` naming the Material Request, re-confirming
+  PP-6's own finding independently, with the proactive guard again catching it first. `LIVE VERIFIED`
+  (re-confirmed).
+
+**Documentation correction (`CX-MFG-PP-8-001`, LOW, evidence reconciliation, applied post-acceptance
+— see `docs/operations/AI_WORK_LOG.md`'s "PP-8 — Cancel — independent review" entry):** the two
+bullets above originally both cited `MAT-MR-2026-00006`. Independent re-verification against the live
+instance (`Material Request Item.production_plan` on the one surviving document from this test date)
+confirmed `MAT-MR-2026-00006` belongs only to the **Submitted**/`MFG-PP-2026-00015` scenario; the
+**Draft**/`MFG-PP-2026-00014` artifact — genuinely created and genuinely deleted during this
+package's own cleanup, per the "orphan... was deleted manually" note above — was the separate,
+now-missing `MAT-MR-2026-00005` (the naming-series gap between the pre-existing `MAT-MR-2026-00004`
+and the surviving `-00006`). Corrected here to `MAT-MR-2026-00005` accordingly. This is a citation
+fix only; neither `LIVE VERIFIED` conclusion above changed as a result — both were independently
+re-confirmed by other means (docstatus/`production_plan` field state on the live instance) during the
+same review. See also §GG's own prior note, from PP-6, that this instance's naming series has
+exhibited number-reuse-after-delete behavior before — an established, plausible precedent for this
+kind of transcription mix-up, not a new or surprising quirk.
 - **Invalid-state guard**: a raw `docstatus: 2` PUT against an existing Draft Production Plan
   (`MFG-PP-2026-00001`, pre-existing, untouched) was rejected by ERPNext itself
   (`DocstatusTransitionError`); the same call against an already-Cancelled plan
