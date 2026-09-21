@@ -1725,3 +1725,55 @@ implementing session's own in-session verification only, not the required cross-
   in this file's prior Flow Map entry, is exactly what caught this — worth continuing to flag
   that gap explicitly on any UI-only package rather than letting a clean `build` stand in for
   actual visual/runtime verification.
+
+## 2026-09-22 — Buying Flow + Inventory Flow maps
+
+- **Scope**: Niroshan asked for the Buying/Inventory equivalent of the already-shipped Sales/
+  Manufacturing Flow maps. Pure frontend UI addition — no server actions, no ERPNext writes, no
+  core-flow business logic touched. New: `lib/buyingFlowMap.ts`, `lib/stockFlowMap.ts`,
+  `components/BuyingFlowMap.tsx`, `components/StockFlowMap.tsx`. Edited:
+  `buying/page.tsx`/`stock/page.tsx` (both were stale pre-launch placeholder pages, now a real
+  Overview + Flow-tab workspace home, same shape as `manufacturing/page.tsx`).
+- **RSC boundary — the exact bug class that broke the Manufacturing Flow map's first pass**:
+  built the wrapper components directly in the already-fixed shape from day one this time
+  (`BuyingFlowMap.tsx`/`StockFlowMap.tsx` import their own module's data internally, inside their
+  own `"use client"` module; `buying/page.tsx`/`stock/page.tsx` render `<BuyingFlowMap />`/
+  `<StockFlowMap />` with no props) rather than repeating the prior pass's mistake of a Server
+  Component page importing `_FLOW_RECORDS` (with its `LucideIcon` references) and passing it as a
+  prop into a client component. Per this file's prior "runtime fix" entry, that exact class of
+  error fails `next build` (not just a dev-time warning) — `npx tsc --noEmit`, `npm run lint`,
+  and `npm run build` all ran clean here, which is meaningful evidence against this bug class
+  recurring, not just type-level cleanliness.
+- **Code review** (`code-reviewer` subagent, in-session): **PASS, no blocking findings.**
+  Confirmed `FlowMap.tsx`/`FlowNodeDialog.tsx`/`lib/flowMap.ts` untouched (`git status` shows no
+  `M` against any of the three) — genuine reuse, not a fork. Spot-checked every `href` in both
+  data files against the real route tree (all exist) and every "live-confirmed 2026-09-16" claim
+  against `PROGRESS.md`'s "Buying core cycle" and "Inventory (Stock) module" entries (all trace
+  correctly, no overclaiming). Confirmed both page files have no `"use client"` directive and
+  never import the raw `_FLOW_RECORDS` data directly. One non-blocking hygiene note: the working
+  tree also carries unrelated pre-existing uncommitted docs changes (an ADR-007 addition and
+  three new master-data-planning drafts) — flagged only so the commit for this package stages
+  just its own 6 files plus this file and `PROGRESS.md`, not `git add -A`.
+- **Content differences from the Sales/Manufacturing precedent** (both deliberate, not scope
+  creep): Buying ships as one scene, not two — its real branching (skip Material
+  Request/RFQ/Supplier Quotation and create a Purchase Order directly; skip Purchase Receipt and
+  invoice directly from the Purchase Order) is already fully expressed via the `optional` flag on
+  four nodes in a single scene, so a second scene would only relabel the same nodes. Inventory has
+  no linear document chain at all — Material Issue/Receipt/Transfer are three independent Stock
+  Entry purposes, not a required sequence — so its single scene's hint text says so explicitly and
+  the "movement" nodes are connected by a reading-order chain, not a causal one.
+- **Visual rendering — not independently verified this session**, same caveat as the original
+  Manufacturing Flow map entry: no browser/screenshot tool is available in this environment, and
+  the app's session-cookie login requires real ERPNext credentials this session doesn't have and
+  won't attempt to obtain or bypass. Node/edge coordinates for both new scenes reuse only plain
+  horizontal/vertical segments already proven correct in the shipped Sales "standard" and
+  Manufacturing "planned"/"direct" scenes (no freehand diagonal geometry invented), which is the
+  same mitigation the Manufacturing Flow map used — but pixel-level layout (label overlap, text
+  truncation) still hasn't been eyeballed against a running instance. Niroshan should open
+  `/buying`'s "Buying Flow" tab and `/stock`'s "Inventory Flow" tab in a browser to confirm before
+  this is considered fully closed.
+- **Sign-off**: implementer (this session, no durable session identifier available) produces a
+  `CLAUDE_HANDOFF` — not self-accepted. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, acceptance
+  requires independent review from the other Claude account. QA (`qa-tester`) not invoked —
+  presentation/navigation-only package touching no core transactional flow, same call the
+  Manufacturing Flow map package made.

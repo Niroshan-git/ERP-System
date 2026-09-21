@@ -4090,3 +4090,87 @@ knowledge per `BACKEND_KNOWLEDGE_POLICY.md`).
 independently confirm no visual/layout regression once a browser is available to it, since neither
 this session nor its code-reviewer subagent could render the SVG. Once accepted, `release-tracker`
 for `docs/ceylon-stack-documentation.html` + Notion sync, deferred until then per PP-8's precedent.
+
+## 2026-09-22 — Buying Flow + Inventory Flow maps
+
+**PACKAGE:** Buying Flow + Inventory Flow maps
+**IMPLEMENTER:** this session, no durable session identifier available
+**REVIEWER:** the other Claude account under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not yet
+assigned to a specific session)
+**BASE COMMIT:** `689d515` (Flow Map RSC serialization crash fix)
+**ASSIGNED BY:** Niroshan, direct request: "Like the sales & manufacturing flow. Build the flow
+for the buying & inventory."
+**ASSIGNMENT TIMESTAMP:** 2026-09-22
+
+**Implementation summary**: added a "Buying Flow" tab to `/buying` and an "Inventory Flow" tab to
+`/stock`, reusing the existing shared, generic `FlowMap`/`FlowNodeDialog` components exactly as
+Sales/Manufacturing already do. New: `lib/buyingFlowMap.ts`, `lib/stockFlowMap.ts`,
+`components/BuyingFlowMap.tsx`, `components/StockFlowMap.tsx` — all four built directly as thin
+data/wrapper additions, zero changes to `FlowMap.tsx`/`FlowNodeDialog.tsx`/`lib/flowMap.ts`
+themselves. `buying/page.tsx` and `stock/page.tsx` were both still their original pre-launch
+placeholder pages ("coming soon" / "no warehouse data yet") from before their respective modules
+shipped on 2026-09-16 — both replaced with a real Overview + Flow-tab workspace home, same shape
+as `manufacturing/page.tsx`. A live-KPI workspace matching `sales/page.tsx`'s number cards/chart
+is explicitly out of scope, same deferral `manufacturing/page.tsx`'s own Overview tab carries.
+
+**Deliberately did not repeat the Manufacturing Flow map's two known mistakes**: (1) built
+`BuyingFlowMap.tsx`/`StockFlowMap.tsx` directly in the already-fixed RSC-safe shape from the start
+— each wrapper imports its own module's data internally, inside its own `"use client"` module,
+and the Server Component pages render `<BuyingFlowMap />`/`<StockFlowMap />` with no props — never
+reproducing the "Server Component imports `_FLOW_RECORDS` and passes it as a client-component prop"
+crash documented in this file's prior "Manufacturing/Sales Flow map: runtime fix" entry (`QA_LOG.md`,
+2026-09-21). (2) did not fork Sales/Manufacturing's rendering code even as a first draft — went
+straight to data-file-plus-thin-wrapper, the already-proven-correct shape, rather than
+fork-then-remediate.
+
+**Content differences from the Sales/Manufacturing precedent, both deliberate, not scope creep**:
+Buying ships as a single scene, not two — its real branching (skip Material Request/RFQ/Supplier
+Quotation and create a Purchase Order directly; skip Purchase Receipt and invoice directly from the
+Purchase Order) is already fully expressed via the `optional` flag on four nodes in one scene, so a
+second scene would only relabel the same nodes, unlike Manufacturing's genuinely distinct
+planned/direct routes. Inventory has no linear document chain at all — Material Issue/Receipt/
+Transfer are three independent Stock Entry purposes, not a required sequence, and Batch/Serial No
+are per-item tracking dimensions rather than stages — the single scene's hint text says so
+explicitly, and its "movement" nodes are connected by a reading-order chain, not a causal one.
+Every `effects`/`note` claim citing "live-confirmed 2026-09-16" traces to `PROGRESS.md`'s existing
+"Buying core cycle: full live E2E QA pass" and "apps/frontend build: Inventory (Stock) module"
+entries — no new claims invented for this package.
+
+**Code review** (`code-reviewer` subagent, in-session): **PASS, no blocking findings.**
+Independently confirmed `FlowMap.tsx`/`FlowNodeDialog.tsx`/`lib/flowMap.ts` carry no `M` in `git
+status` (genuine reuse, not a fork). Spot-checked every `href` in both new data files against the
+real route tree — all exist, including the negative claims (RFQ/Supplier Quotation have no
+standalone `new/`, Purchase Order does). Spot-checked every "live-confirmed 2026-09-16" claim
+against the cited `PROGRESS.md` lines — all trace correctly, no overclaiming found. Confirmed both
+page files have no `"use client"` directive and never import the raw `_FLOW_RECORDS` data directly.
+One non-blocking hygiene note: the working tree also carries unrelated pre-existing uncommitted
+docs changes (an ADR-007 addition, three new master-data-planning drafts) — flagged only so this
+package's commit stages just its own files, not `git add -A`.
+
+**Known gap, disclosed not hidden**: same as the Manufacturing Flow map — no browser/screenshot
+tool is available in this environment, and this session does not have (and will not attempt to
+obtain or bypass) real ERPNext login credentials needed to load the app past its session-cookie
+auth middleware, so the SVG's actual visual rendering could not be confirmed end-to-end. Mitigated
+the same way: both new scenes' node/edge geometry reuse only plain horizontal/vertical segments
+already proven correct in the shipped Sales "standard" and Manufacturing "planned"/"direct" scenes
+— no freehand diagonal paths invented. Per the prior "runtime fix" entry, the RSC-serialization
+crash class specifically does fail `next build` (not just a dev-time warning), so this session's
+clean `npx tsc --noEmit`/`npm run lint`/`npm run build` is meaningful evidence against that specific
+bug class recurring — but pixel-level layout (label overlap, text truncation) still hasn't been
+eyeballed against a running instance. Niroshan should open both new Flow tabs in a browser before
+this is considered fully closed — recorded in `QA_LOG.md`.
+
+**Package isolation**: touched `lib/buyingFlowMap.ts` (new), `lib/stockFlowMap.ts` (new),
+`components/BuyingFlowMap.tsx` (new), `components/StockFlowMap.tsx` (new), `buying/page.tsx`,
+`stock/page.tsx`, `PROGRESS.md`, `QA_LOG.md`, `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, and this
+file. No `docs/backend/` entry owed — same precedent as the Manufacturing Flow map (a navigation
+aid over already-documented/already-shipped stages, not new field/entity/business-rule knowledge
+per `BACKEND_KNOWLEDGE_POLICY.md`); both wrapper components' own doc comments say so explicitly and
+note that Buying/Stock predate that policy entirely.
+
+**Recommended next action:** independent review of this package under
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not self-accepted) — the reviewing session should also
+independently confirm no visual/layout regression once a browser (or real login credentials) is
+available to it, since neither this session nor its code-reviewer subagent could render the SVG.
+Once accepted, `release-tracker` for `docs/ceylon-stack-documentation.html` + Notion sync,
+deferred until then per PP-8's precedent.

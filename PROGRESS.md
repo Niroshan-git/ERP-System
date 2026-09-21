@@ -3463,3 +3463,52 @@ tabs in a browser before considering this fully closed.
 Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
 account before acceptance.
+
+## Buying Flow + Inventory Flow maps (2026-09-22)
+
+Niroshan asked for the Buying and Inventory equivalent of the already-shipped Sales/Manufacturing
+Flow maps. Added a "Buying Flow" tab to `/buying` and an "Inventory Flow" tab to `/stock`, using
+the existing shared, generic `FlowMap`/`FlowNodeDialog` components (`lib/flowMap.ts`) exactly as
+Sales/Manufacturing already do — new per-module data files (`lib/buyingFlowMap.ts`,
+`lib/stockFlowMap.ts`) and thin "use client" wrapper components (`BuyingFlowMap.tsx`,
+`StockFlowMap.tsx`), with zero changes to the shared `FlowMap.tsx`/`FlowNodeDialog.tsx`/
+`lib/flowMap.ts` files themselves — the fork-then-remediate mistake from the Manufacturing Flow
+map's first pass was deliberately not repeated this time.
+
+`buying/page.tsx` and `stock/page.tsx` were both still their original stale placeholder pages
+("coming soon" / "no warehouse data yet") from before their respective modules shipped — both
+replaced with a real workspace home (static Overview tab + Flow tab), same shape as
+`manufacturing/page.tsx`. A live-KPI workspace matching `sales/page.tsx`'s number cards/chart is
+explicitly out of scope for this package, same deferral `manufacturing/page.tsx`'s own Overview
+tab already carries.
+
+Content differences from the Sales/Manufacturing precedent, both deliberate:
+- **Buying is one scene, not two.** Manufacturing's planned/direct scenes are genuinely different
+  routes; Buying's real branching (skip Material Request/RFQ/Supplier Quotation and create a
+  Purchase Order directly; skip Purchase Receipt and invoice directly from the Purchase Order) is
+  already fully expressed via the `optional` flag on those four nodes in a single scene — a second
+  scene would only relabel the same nodes.
+- **Inventory has no linear document chain at all.** Material Issue/Receipt/Transfer are three
+  independent Stock Entry purposes, not a required sequence, and Batch/Serial No are per-item
+  tracking dimensions rather than stages — the single scene says so explicitly in its hint text,
+  and the "movement" nodes are connected by a reading-order chain, not a causal one.
+- Every `effects`/`note` claim citing "live-confirmed 2026-09-16" traces to this file's own
+  "Buying core cycle: full live E2E QA pass" and "apps/frontend build: Inventory (Stock) module"
+  entries above — no new claims invented for this package.
+
+Edge/node coordinates reuse Sales' and Manufacturing's own already-proven geometry (straight
+horizontal/vertical segments only) rather than freehand new layout math, for the same
+no-browser-tool-to-visually-verify reason flagged on the Manufacturing Flow map. `npx tsc --noEmit`
+and `npm run build` both pass clean, including no RSC serialization crash (the exact class of bug
+the Manufacturing Flow map's first pass hit) — but the actual visual rendering is still not
+independently verified in this environment; same "eyeball it before fully closing" flag as
+Manufacturing.
+
+Code review (`code-reviewer` subagent, in-session): **PASS, no blocking findings** — confirmed
+`FlowMap.tsx`/`FlowNodeDialog.tsx`/`lib/flowMap.ts` untouched, every `href` and "live-confirmed
+2026-09-16" claim checked against the real route tree and this file's own entries, RSC boundary
+correct. Full account in `QA_LOG.md`.
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
+account before acceptance.
