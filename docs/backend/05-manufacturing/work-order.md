@@ -3,7 +3,7 @@
 **Frappe DocType:** `Work Order` (module: Manufacturing)
 **Canonical entity:** `work_order`
 **Frontend routes:** `/manufacturing/work-orders` (list), `/manufacturing/work-orders/[name]`
-(detail, read-only), `/manufacturing/work-orders/new` (create)
+(detail — read-only plus Submit, `MFG-WF-004`), `/manufacturing/work-orders/new` (create)
 **Verification:** `Documentation: VERIFIED` · `Source Code: PARTIALLY_VERIFIED` (fields
 confirmed live; controller logic confirmed only for the paths exercised below) · `Runtime Test:
 VERIFIED` for `MFG-TEST-001`–`005` (see Test Scenarios) · `Runtime Test: PARTIAL` for the
@@ -13,7 +13,10 @@ on this instance; lint/type-check/build clean; no live Work Order create was per
 session (see the Regression coverage note under Test scenarios) · **Independent review:
 `CX-MFG-001`/`CX-MFG-002` `CLOSED`** (Codex final re-review, 2026-09-18, commit `a2b5cb8`) — this
 covers the reviewed field-mapping correction, not the remaining `MFG-UNV-007` runtime scenarios
-below, which stay `NEEDS_VERIFICATION` and non-blocking
+below, which stay `NEEDS_VERIFICATION` and non-blocking · `Runtime Test: VERIFIED` for
+`MFG-TEST-006`–`007` (Submit, 2026-09-21, `MFG-WF-004`) · **Independent review: `CLAUDE_HANDOFF`,
+not yet accepted** under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` — see `AI_WORK_LOG.md`'s
+2026-09-21 "Work Order — Submit" entry
 
 ## Field mapping
 
@@ -145,9 +148,29 @@ non-blocking `NEEDS_VERIFICATION`.
   on any row whose `item_code` still matches the BOM — but never resets `item_code` itself, so a
   raw item substitution on a Draft row does persist. Known edge case: nothing merges duplicate
   `item_code` rows if a substitution creates one.
-- **`MFG-WF-001`** — This frontend only ever calls `createDoc`, never `submitDoc`/`cancelDoc`, on
-  Work Order itself. Every Work Order created here stays at `docstatus 0` (Draft) indefinitely
-  from this app's perspective — Submit/Cancel is a distinct future scoped package.
+- **`MFG-WF-001`** — **Superseded 2026-09-21 (Submit only — see `MFG-WF-004` below).** This frontend
+  previously only ever called `createDoc`, never `submitDoc`/`cancelDoc`, on Work Order itself, so
+  every Work Order created here stayed at `docstatus 0` (Draft) indefinitely from this app's
+  perspective. Submit is now built (`MFG-WF-004`); Cancel remains a distinct, still-unscoped future
+  package — this rule's "Cancel" half still holds.
+- **`MFG-WF-004`** (2026-09-21) — Work Order Submit. `submitWorkOrderAction`
+  (`manufacturing/work-orders/actions.ts`) calls the same generic `submitDoc("Work Order", name)`
+  mechanism already used for Sales Order/Purchase Order/Production Plan (`lib/erpnext.ts`) —
+  `docstatus 0 → 1` via a plain REST update, letting ERPNext's own `validate()`/`on_submit()` run
+  server-side; nothing here re-implements or pre-validates that logic client-side. A `DocActionBar`
+  Submit button renders in the detail page header whenever `doc.docstatus === 0`. **Live-confirmed
+  submit-time validation (2026-09-21 QA):** ERPNext's native `Work Order.on_submit() →
+  validate_warehouse()` requires `wip_warehouse` to be set and rejects submit with `"Work-in-Progress
+  Warehouse is required before Submit"` (HTTP 417) otherwise — reproduced live against
+  `MFG-WO-2026-00014` (created without a WIP warehouse), surfaces cleanly through
+  `humanizeSubmitError`/`DocActionBar` as readable text, not a crash. Confirmed clean rollback: the
+  document's `docstatus`/`status`/child rows were unchanged after the rejected attempt. Happy path
+  independently confirmed against a second Draft Work Order that already had `wip_warehouse` set
+  (`MFG-WO-2026-00008`): submit succeeded (`docstatus 1`, `status` "Not Started"), and
+  `canTransferMaterials()` (`erpStatus.ts`) correctly flipped to `allowed: true` immediately after,
+  closing the loop this doc's own "Stock impact" section previously only described in the abstract.
+  Full remaining submit-time validation surface (beyond the WIP-warehouse check) is
+  `NEEDS_VERIFICATION` — not exhaustively probed this session.
 - **`MFG-WF-003`** (PP-5, 2026-09-20) — Work Order can now also be created via **Production Plan →
   Make Work Order** (`ProductionPlanMakeWorkOrderAction.tsx` / `lib/actions/productionPlanWorkOrder.ts`
   → ERPNext's native `WorkOrderCreationService.make_work_order`), a second creation path alongside
@@ -176,7 +199,7 @@ non-blocking `NEEDS_VERIFICATION`.
 |---|---|---|
 | Create | **Yes — two paths** | (1) Direct: `createDoc("Work Order", {...})` → `docstatus 0`. ERPNext's `validate()` auto-populates `required_items`; `operations` is now sent explicitly by this app (see `MFG-UNV-004a`, fixed 2026-09-17, field set corrected 2026-09-18). (2) Via Production Plan → Make Work Order (PP-5, 2026-09-20): native `make_work_order`, also `docstatus 0`, but with Production Plan back-references and `ignore_mandatory`/`ignore_validate` flags — see `MFG-WF-003`. |
 | Save (Draft edit) | No | Not exposed; see `MFG-VAL-003` for what would happen if it were. |
-| Submit | No | Future package. Submitting is what actually makes `canTransferMaterials()` return true, and is a prerequisite Desk-side action this app assumes already happened for a Work Order it displays. |
+| Submit | **Yes (2026-09-21, `MFG-WF-004`)** | `submitDoc("Work Order", name)` via a header `DocActionBar` button, shown when `docstatus === 0`. Runs ERPNext's own `validate()`/`on_submit()` server-side, including the live-confirmed WIP-warehouse-required check. Submitting is what makes `canTransferMaterials()` return true — live-confirmed, not just assumed. |
 | Cancel | No | Future package. |
 | Amend | No | Not investigated. |
 
@@ -230,6 +253,20 @@ no orphan document created.
 
 **`MFG-TEST-005`** (Package 4 investigation) — Submitted-stage `required_qty` edit via plain doc
 update → `UpdateAfterSubmitError`, confirms `MFG-VAL-002`.
+
+**`MFG-TEST-006`** (2026-09-21, Submit package QA) — Submit attempted against `MFG-WO-2026-00014`
+(Draft, no `wip_warehouse` set) → clean `417` rejection, `"Work-in-Progress Warehouse is required
+before Submit"`, surfaced via `humanizeSubmitError`. Document unchanged after the failed attempt
+(`docstatus 0`/`Draft`, no partial state). Confirms `MFG-WF-004`'s WIP-warehouse business rule.
+
+**`MFG-TEST-007`** (2026-09-21, Submit package QA) — Submit against `MFG-WO-2026-00008` (Draft,
+`wip_warehouse` already set) → `200`, `docstatus 1`, `status` "Not Started". Submit button correctly
+disappears; Transfer Materials correctly appears (`canTransferMaterials()` now `allowed: true`).
+**Note:** this document was submitted live during this QA session as a substitute for
+`MFG-WO-2026-00014` (which could not reach Submitted per `MFG-TEST-006`) and is now permanently
+`docstatus 1` — Cancel is out of scope for this package, so this state is not reversible from this
+frontend. See `QA_LOG.md`'s 2026-09-21 Submit entry and `AI_WORK_LOG.md` for the full account of how
+this substitution happened (it was not pre-authorized for this specific document).
 
 **Regression coverage note (2026-09-18, `CX-MFG-002` remediation, all three passes):** this
 repository has no automated test runner configured (`apps/frontend/package.json` has no `test`

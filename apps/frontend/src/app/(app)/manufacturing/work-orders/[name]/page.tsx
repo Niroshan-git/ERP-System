@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { ActivityTimeline } from "@/components/ActivityTimeline";
+import { DocActionBar } from "@/components/DocActionBar";
 import { DocField } from "@/components/DocField";
 import { StatusPill } from "@/components/StatusPill";
 import { Breadcrumb } from "@/components/Breadcrumb";
@@ -13,6 +14,7 @@ import { canTransferMaterials, workOrderStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { submitWorkOrderAction } from "../actions";
 
 type WorkOrderItemRow = {
   item_code: string;
@@ -562,6 +564,13 @@ export default async function WorkOrderDetailPage({
             <StatusPill label={status.label} tone={status.tone} />
           </div>
         </div>
+        {doc.docstatus === 0 && (
+          <DocActionBar
+            action={submitWorkOrderAction.bind(null, doc.name)}
+            label="Submit"
+            pendingLabel="Submitting…"
+          />
+        )}
         {transferEligibility.allowed && (
           <Link
             href={`/manufacturing/work-orders/${encodeURIComponent(doc.name)}/transfer-materials`}

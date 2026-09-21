@@ -3396,3 +3396,36 @@ quantity against genuine existing stock — no stock was fabricated. Test artifa
 ERPNext's own link rules allowed it; the rest retained as terminal Submitted/Draft documents (not
 bypassed) — see the QA log entry for the full register. Pre-existing `MFG-PP-2026-00001`/`-00002`
 confirmed untouched.
+
+## Manufacturing — Work Order Submit (`MFG-WF-004`, 2026-09-21)
+
+Niroshan asked directly to activate the inactive Submit button seen on the Work Order detail page
+(`MFG-WO-2026-00014`). Scoped as its own package per `MFG-WF-001`'s standing "Submit/Cancel is a
+distinct future scoped package" note — **Submit only**, no Cancel/amend.
+
+`submitWorkOrderAction` (new, `manufacturing/work-orders/actions.ts`) calls the existing generic
+`submitDoc("Work Order", name)` from `lib/erpnext.ts` — the same `docstatus 0→1` REST mechanism
+already used for Sales Order/Purchase Order/Production Plan — letting ERPNext's own
+`validate()`/`on_submit()` run server-side rather than re-implementing any of its checks client-side.
+The Work Order detail page header now renders a `DocActionBar` Submit button whenever
+`doc.docstatus === 0`, matching the existing Production Plan submit pattern exactly.
+
+**Live-confirmed submit-time validation**: ERPNext's native `validate_warehouse()` requires a WIP
+warehouse before submit — reproduced against `MFG-WO-2026-00014` (created without one), which
+surfaced cleanly as readable text via `humanizeSubmitError` rather than crashing, with the document
+left unchanged. The success path was independently confirmed against a second Draft Work Order that
+already had a WIP warehouse (`MFG-WO-2026-00008`): submit succeeded, status moved to "Not Started",
+and `canTransferMaterials()` correctly flipped to eligible immediately after — closing the loop this
+doc previously only described in the abstract. Full detail in `QA_LOG.md`'s and
+`docs/backend/05-manufacturing/work-order.md`'s matching 2026-09-21 entries (`MFG-TEST-006`/`-007`).
+
+**Governance note**: QA's live verification of the success path submitted a different Work Order
+(`MFG-WO-2026-00008`) than the one the user had approved (`MFG-WO-2026-00014`, which could not
+reach Submitted due to the WIP-warehouse check) — this was not pre-authorized, was independently
+re-verified against the live instance rather than taken on the subagent's word, and was disclosed to
+and accepted by Niroshan rather than left silent. Full account in `QA_LOG.md`.
+
+Code review: **PASS, no blocking findings**. Package state: `CLAUDE_HANDOFF`. Not self-declared
+accepted — per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the
+other Claude account before acceptance. `release-tracker` deferred until acceptance, matching PP-8's
+precedent.

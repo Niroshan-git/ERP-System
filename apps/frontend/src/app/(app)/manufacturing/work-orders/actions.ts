@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createDoc, ErpNextError } from "@/lib/erpnext";
+import { createDoc, ErpNextError, submitDoc } from "@/lib/erpnext";
 import { getBomDetails } from "@/lib/actions/bomLookup";
 
 export type FormState = { error?: string } | undefined;
@@ -12,6 +12,14 @@ function humanizeError(e: unknown): string {
     if (e.status === 403) return "Not allowed to create this work order.";
     if (e.status === 409) return "A work order with that name already exists.";
     return e.erpnextMessage ?? "ERPNext rejected this work order — check the required fields.";
+  }
+  return "Something went wrong. Try again.";
+}
+
+function humanizeSubmitError(e: unknown): string {
+  if (e instanceof ErpNextError) {
+    if (e.status === 403) return "Not allowed to submit this work order.";
+    return e.erpnextMessage ?? "ERPNext rejected this submission — check the required fields.";
   }
   return "Something went wrong. Try again.";
 }
@@ -195,5 +203,28 @@ export async function createWorkOrderAction(_prevState: FormState, formData: For
   }
 
   revalidatePath("/manufacturing/work-orders");
+  redirect(`/manufacturing/work-orders/${encodeURIComponent(name)}`);
+}
+
+/**
+ * docstatus 0→1 via ERPNext's own native submit (`submitDoc`, the same generic mechanism
+ * already used for Sales Order/Purchase Order/Production Plan/etc. in `lib/erpnext.ts`), which
+ * runs Work Order's own `validate()`/`on_submit()` server-side — nothing here re-implements or
+ * second-guesses that logic. This closes `MFG-WF-001`'s "create-only" boundary
+ * (`docs/backend/05-manufacturing/work-order.md`): submitting is what makes
+ * `canTransferMaterials()` return true, previously only assumed to have happened via Desk.
+ *
+ * Bound to `(name)`; useActionState calls the bound function with (state, formData) which are
+ * unused here — same shape as `submitProductionPlanAction`.
+ */
+export async function submitWorkOrderAction(name: string): Promise<FormState> {
+  try {
+    await submitDoc("Work Order", name);
+  } catch (e) {
+    return { error: humanizeSubmitError(e) };
+  }
+
+  revalidatePath("/manufacturing/work-orders");
+  revalidatePath(`/manufacturing/work-orders/${encodeURIComponent(name)}`);
   redirect(`/manufacturing/work-orders/${encodeURIComponent(name)}`);
 }
