@@ -1499,3 +1499,73 @@ implementing session's own in-session verification only, not the required cross-
 - **Sign-off**: implementing session's own in-session work only. Per
   `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this is `CLAUDE_HANDOFF` — not self-accepted; requires
   independent review from the other Claude account before acceptance.
+
+## 2026-09-21 — Manufacturing end-to-end flow validation (current shipped flow, no new package)
+
+- **Scope**: not a feature package — validation of the CURRENT accepted Manufacturing flow as one
+  continuous business transaction: Sales Order → Production Plan (Submit, Make Work Order, Make
+  Material Request) → Work Order → Material Transfer for Manufacture → Stock Entry, plus a
+  cancellation regression check. Live-tested via direct REST calls against the real Hetzner
+  instance, mirroring each `actions.ts`/`lib/erpnext.ts` payload shape exactly (same methodology as
+  every prior live QA pass — Next.js Server Functions can't be driven from plain curl).
+- **Test chain (new artifacts)**: `Customer` `TEST E2E MFG Customer` → `SAL-ORD-2026-00041` (1500 ×
+  `FG-STEEL-BRACKET-ASSY`, Submitted) → `MFG-PP-2026-00016` (Submitted) → `MFG-WO-2026-00012` (Draft,
+  qty 1500) → `MAT-MR-2026-00007` (Purchase, Submitted, 2 lines) → `MAT-STE-2026-00019` (Draft,
+  stuck — see findings). A second, smaller standalone Work Order (`MFG-WO-2026-00013`, qty 20,
+  Submitted directly via REST — Work Order Submit is not yet an app feature, `MFG-WF-001`) was
+  created to actually exercise Material Transfer, since the main chain's Work Order could not be
+  submitted (see `CX-MFG-E2E-002` below). Two Material Transfer Stock Entries against it
+  (`MAT-STE-2026-00020` partial, `MAT-STE-2026-00021` failed/deleted) demonstrated partial transfer,
+  Bin/`required_items.transferred_qty` write-back, and Draft-vs-Submit stock impact correctly.
+- **Result**: **PASS with 3 non-blocking findings** — the shipped flow (Production Plan create/
+  Submit/Make Work Order/Make Material Request, Work Order generation, Material Transfer) worked
+  exactly as documented end-to-end; every discrepancy found traces to native ERPNext behavior
+  (capacity planning, a link-existence cascade, an unexplained second-transfer validation), not a
+  Ceylon Stack code defect. No application code was changed.
+- **New findings** (see `docs/backend/05-manufacturing/production-plan.md`'s "E2E Validation
+  (2026-09-21)" section and the full report for detail):
+  1. `CX-MFG-E2E-001` (LOW/DOCUMENTATION) — `Production Plan.on_submit()`'s `update_bin_qty()` writes
+     to `Bin.reserved_qty_for_production_plan` specifically (not the generic `reserved_qty` the
+     existing doc's wording could be read to imply) — live-confirmed exact value (1761.0, matching
+     the `mr_items` shortage qty). Only observable when `mr_items` is actually populated, which no
+     prior live Production Plan submit test had exercised.
+  2. `CX-MFG-E2E-002` (MEDIUM, environment/product) — a Work Order generated at a large finished-
+     goods quantity (1500, inherited from a correspondingly large Sales Order) cannot be submitted:
+     ERPNext's native `CapacityError` ("Unable to find the time slot in the next 30 days") blocks it
+     given this instance's `Manufacturing Settings.capacity_planning_for_days = 30` and the
+     workstations' committed capacity. Not fixed here (would require editing shared Manufacturing
+     Settings, out of scope for a test session — the sandbox's own permission classifier declined
+     that action, correctly). Pre-existing product/UX gap: nothing in the Production Plan → Make
+     Work Order flow warns the user this can happen before they try to submit the resulting Work
+     Order in Desk.
+  3. `CX-MFG-E2E-003` (LOW) — a Stock Entry submit that fails on a linked Work Order's `CapacityError`
+     still leaves the Stock Entry at Draft but with residual `is_cancelled: 1` Stock Ledger Entry
+     rows attached (net stock impact zero, but the rows exist) — this then blocks deleting that Draft
+     Stock Entry (`LinkExistsError` against its own SLEs), which blocks `delete_draft_work_order()`
+     from removing the Draft Work Order, which blocks Production Plan cancellation. Native ERPNext
+     transaction/repost behavior, not a Ceylon Stack defect — but a real, reproducible edge case.
+- **Test workarounds used** (full register in the final response to the user this session; not
+  reproduced here): explicit test WIP warehouse on Work Order create (`TW-001`, matches the
+  already-known pre-existing UX gap — no company `default_wip_warehouse`); Work Order Submit via
+  direct REST for the supplementary small Work Order only (app doesn't expose it yet, `MFG-WF-001`).
+  No stock was fabricated — the raw-material shortage exercised (`RM-BOLT-M6X20` 1761 short,
+  `RM-STEEL-SHEET-2MM` 357 short) came from a deliberately large, realistic order quantity against
+  genuine existing stock levels.
+- **Side-effect verification**: `GL Entry` — zero rows across the entire chain (Production Plan
+  submit, Work Order create, Material Request create/submit, both Material Transfers). `Stock Ledger
+  Entry` — zero for the Production Plan/Work Order/Material Request documents (as expected, planning
+  documents only); 4 rows for the successful partial Material Transfer (2 items × 2 warehouses),
+  correctly reversed to 0 net after that transfer was cancelled during cleanup.
+- **Cleanup**: `MAT-STE-2026-00021` (Draft, no SLEs) deleted. `MAT-STE-2026-00020` (Submitted)
+  cancelled — Bin `actual_qty` independently re-verified back at the pre-test baseline (936 Kg steel,
+  4680 Nos bolts). `MFG-WO-2026-00013` cancelled cleanly after its transfer was reversed. The main
+  chain (`SAL-ORD-2026-00041`, `MFG-PP-2026-00016`, `MFG-WO-2026-00012`, `MAT-MR-2026-00007`,
+  `MAT-STE-2026-00019`) could not be cancelled/deleted — each cancel attempt correctly returned a
+  real `LinkExistsError` (Sales Order blocked by Production Plan; Production Plan blocked by the
+  undeletable Draft Work Order per `CX-MFG-E2E-003`) — retained as terminal Submitted/Draft
+  artifacts, not bypassed. Pre-existing `MFG-PP-2026-00001`/`-00002` independently re-queried and
+  confirmed untouched (unchanged `modified` timestamps).
+- **Sign-off**: implementing session's own in-session work only — validation, not a feature package;
+  no `code-reviewer`/`qa-tester` subagent invoked (nothing to review, no application code changed).
+  Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, findings above are `CLAUDE_HANDOFF`-equivalent
+  observations, not self-accepted as closed.

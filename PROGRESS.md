@@ -3373,3 +3373,26 @@ reconcile, not corrected as part of this package.
 Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
 account before acceptance, not self-review.
+
+## Manufacturing end-to-end flow validation (2026-09-21) — not a new package
+
+Ran the current shipped Manufacturing flow as one real business transaction end-to-end: Sales Order
+→ Production Plan (create/Submit/Make Work Order/Make Material Request) → Work Order → Material
+Transfer for Manufacture → Stock Entry, plus a cancellation regression check. PP-8 remains accepted
+and was not reopened; no new Manufacturing package was started (no PP-9, no Job Card/Workstation/OEE
+work); no application code was changed. Full detail, the Test Artifact Register, and the Test
+Workaround Register are in `QA_LOG.md`'s "2026-09-21 — Manufacturing end-to-end flow validation"
+entry and `docs/backend/05-manufacturing/production-plan.md`'s new "E2E Validation (2026-09-21)"
+section.
+
+**Result**: PASS with 3 non-blocking findings, all traced to native ERPNext behavior rather than a
+Ceylon Stack defect — a previously-undocumented `Bin.reserved_qty_for_production_plan` field write
+on submit (`CX-MFG-E2E-001`), a `CapacityError` blocking Work Order submission at large planned
+quantities given this instance's 30-day capacity planning window (`CX-MFG-E2E-002`), and a
+Stock-Entry-submit-failure edge case that leaves a Draft Work Order permanently undeletable and
+therefore blocks Production Plan cancellation (`CX-MFG-E2E-003`). The real raw-material shortage
+used to exercise Material Request generation came from a deliberately large, realistic order
+quantity against genuine existing stock — no stock was fabricated. Test artifacts cleaned up where
+ERPNext's own link rules allowed it; the rest retained as terminal Submitted/Draft documents (not
+bypassed) — see the QA log entry for the full register. Pre-existing `MFG-PP-2026-00001`/`-00002`
+confirmed untouched.

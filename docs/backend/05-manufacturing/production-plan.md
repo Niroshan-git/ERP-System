@@ -2089,6 +2089,80 @@ Request case, but no subcontract Purchase Order test data exists on this instanc
 live — same recurring gap PP-5/PP-5R/PP-7R already disclosed, `SOURCE VERIFIED / NOT RUNTIME
 VERIFIED` only).
 
+## E2E Validation (2026-09-21) — current shipped flow, real business transaction
+
+Not a new package — a controlled end-to-end validation of the already-accepted flow (Sales Order →
+Production Plan → Work Order → Material Transfer), run as one continuous chain against real stock
+levels rather than isolated per-button tests. Full register/report in `QA_LOG.md`'s matching entry.
+Chain: `SAL-ORD-2026-00041` (1500 × `FG-STEEL-BRACKET-ASSY`, Submitted, new `Customer` `TEST E2E MFG
+Customer`) → `MFG-PP-2026-00016` (Submitted) → `MFG-WO-2026-00012` (Draft, qty 1500) →
+`MAT-MR-2026-00007` (Purchase, Submitted). Deliberately over-ordered relative to real Stores stock
+(no stock fabricated) to make `get_items_for_material_requests` compute a genuine shortage:
+`RM-BOLT-M6X20` required 6000, shortage 1761; `RM-STEEL-SHEET-2MM` required 1200, shortage 357;
+`RM-COATING-CPD` required 75, shortage 0 (correctly excluded from the generated Material Request —
+confirms "a row with nothing left to request is skipped" already documented above).
+
+**New finding — `CX-MFG-E2E-001` (Bin field precision correction).** The existing "Accounting /
+stock impact" section above states `update_bin_qty()` writes "`Bin` reserved-quantity fields"
+without naming the exact field. Live-confirmed this pass (previously untestable — every prior
+Submit test, including PP-3's own, had empty `mr_items`, making `update_bin_qty()` a guaranteed
+no-op): the write lands on a dedicated `Bin.reserved_qty_for_production_plan` field, not the
+generic `reserved_qty` (Sales Order reservation) or `reserved_qty_for_production` (Work Order
+reservation) fields — confirmed by reading the full `Bin` document before/after submit
+(`RM-BOLT-M6X20` @ `Stores - CS`: `reserved_qty_for_production_plan` `0.0` → `1761.0`, exact match
+to the `mr_items` shortage qty; `reserved_qty`/`reserved_qty_for_production` both unchanged). This
+in turn reduces `Bin.projected_qty` by the same amount (a derived/computed field, not itself
+written directly). `GL Entry`/`Stock Ledger Entry` counts for the Production Plan: 0/0, confirming
+the existing "reservation, not posting" claim.
+
+**New finding — `CX-MFG-E2E-002` (MEDIUM, environment/product, not a Ceylon Stack code defect).**
+`MFG-WO-2026-00012` (Draft, qty 1500, created via Make Work Order) could not be submitted: ERPNext's
+native Work Order `on_submit()` capacity-planning check raised `CapacityError` — "Unable to find the
+time slot in the next 30 days for the operation Assembly" — against this instance's
+`Manufacturing Settings.capacity_planning_for_days = 30` and `Workstation` "Assembly Line 1"'s
+9h/day working-hours window, given the operation's own scaled `time_in_mins` at this quantity plus
+whatever capacity other existing Work Orders' Job Cards had already committed on that workstation.
+Not corrected here — expanding `capacity_planning_for_days` is a shared, global Manufacturing
+Settings change, correctly out of scope for an isolated test session (the sandbox's own permission
+classifier declined that specific action when attempted). **Product/UX gap**: nothing in this app's
+Production Plan → Make Work Order flow warns the user a large-quantity Work Order may be
+unsubmittable in Desk until this setting or the underlying capacity is addressed — a candidate for a
+future Work Order submit package (still itself out of scope, `MFG-WF-001`) to surface proactively.
+A second, smaller standalone Work Order (`MFG-WO-2026-00013`, qty 20, same BOM, submitted directly
+via REST since this app doesn't yet expose Work Order Submit) was created to still exercise Material
+Transfer live — see `material-transfer.md`'s own note on this pass, if added, or `QA_LOG.md` for the
+full partial-transfer evidence (`MAT-STE-2026-00020`: 8 Kg steel + 40 Nos bolts transferred,
+`required_items.transferred_qty` write-back and `Bin.actual_qty` movement both confirmed, then
+cleanly cancelled during test cleanup with stock restored to baseline).
+
+**New finding — `CX-MFG-E2E-003` (LOW, native ERPNext edge case).** Before discovering the capacity
+constraint above, a Material Transfer Stock Entry (`MAT-STE-2026-00019`) was attempted against the
+still-Draft `MFG-WO-2026-00012` and correctly rejected — ERPNext's own `Stock Entry` submit
+validation requires `Work Order must be submitted` for a Material-Transfer-for-Manufacture purpose
+entry (a real, previously-unexercised native guard: every prior Material Transfer test in this
+codebase's history used an already-submitted Work Order without the guard itself ever being
+triggered). The Stock Entry correctly stayed at Draft after the failed submit — but a follow-up
+inspection found it had **residual `Stock Ledger Entry` rows with `is_cancelled: 1`** attached to it
+(net stock effect zero, 2 items × 2 offsetting rows each), left behind by ERPNext's own partial
+submit-then-rollback sequence. Those residual SLE rows then blocked **deleting** that Draft Stock
+Entry (`LinkExistsError` against its own SLEs), which in turn would block
+`delete_draft_work_order()` from ever cleaning up the Draft Work Order on a future Production Plan
+cancel attempt — confirmed live: attempting to cancel `MFG-PP-2026-00016` returned `LinkExistsError`
+naming `MFG-WO-2026-00012` linked to `MAT-STE-2026-00019`, not the expected "Submitted Material
+Request blocks cancel" path (which the plan's real `MAT-MR-2026-00007` would otherwise have hit).
+Both are legitimate, ERPNext-native `LinkExistsError` blocks — correctly refused, not bypassed — but
+this specific cascade (a failed Stock Entry submit → undeletable Draft → blocked Production Plan
+cancel) was not previously documented. All three artifacts (`MFG-PP-2026-00016`, `MFG-WO-2026-00012`,
+`MAT-STE-2026-00019`) remain on the instance as terminal Submitted/Draft/Draft documents — the
+correct outcome per this project's cleanup policy (never bypass a real `LinkExistsError`), not an
+unresolved defect requiring a fix in Ceylon Stack code.
+
+**Cancellation regression (light, per PP-8's own request not to repeat exhaustively)**: the
+Submitted-Material-Request-blocks-cancel and Draft-Work-Order-auto-delete-on-cancel classifications
+from PP-8 were not independently re-exercised this pass (superseded in observation order by
+`CX-MFG-E2E-003` above) — treat PP-8's own live evidence for those two cases as still the
+authoritative `LIVE VERIFIED` record, not re-confirmed or contradicted here.
+
 ## NEEDS_VERIFICATION
 
 See `docs/backend/99-unverified/unverified-behaviours.md` → `MFG-UNV-012` for the consolidated
