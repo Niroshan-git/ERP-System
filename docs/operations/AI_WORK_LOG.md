@@ -3849,3 +3849,102 @@ instruction to keep package isolation.
 `docs/ceylon-stack-documentation.html` + Notion sync. Neither of the two out-of-scope findings above
 should be folded into that review's remediation — they are pre-existing, unrelated gaps, not
 introduced by PP-8.
+
+## 2026-09-21 — PP-8 — Cancel — independent review
+
+**PACKAGE:** Production Plan PP-8 — Cancel
+**REVIEWER:** a later session (post-`/clear`), no durable session identifier available, under
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`
+**IMPLEMENTATION COMMIT REVIEWED:** `3dbe565`
+**PARENT:** `6da0255`
+
+Independent re-verification, not a re-run of the implementer's own claims. Git boundary confirmed
+exact via `git show --stat 3dbe565`/`git diff 6da0255..3dbe565`: only the nine declared files
+changed, no hidden implementation, no scope creep outside Cancel. `npx tsc --noEmit`, `npx eslint`
+scoped to the changed files, and re-derivation of the build/lint pass claims — all clean,
+independently re-run, not merely trusted from `QA_LOG.md`.
+
+**Server action (`cancelProductionPlanAction`)**: confirmed it re-fetches the document via `getDoc`
+and independently re-checks `docstatus === 1` server-side (client state cannot bypass this); confirmed
+`getConnections("Production Plan", name)` is re-derived server-side, not accepted from a caller
+argument. The proactive guard is UX-only, not authoritative — `cancelDoc()` ultimately PUTs
+`docstatus: 2` through ERPNext's own REST path, which independently re-enforces
+`check_if_doc_is_linked`/`LinkExistsError` at the framework level regardless of what the guard found;
+a TOCTOU race (a Submitted document appearing between the guard check and the `cancelDoc()` call)
+degrades to a caught, humanized error, not a silent bad cancel. ERPNext remains final authority, as
+required. `redirect()` is correctly called outside the `try/catch` (avoids the standard Next.js
+gotcha where `NEXT_REDIRECT` gets swallowed by a catch-all).
+
+**Connection config**: `Production Plan` → Work Order (direct field, correctly reusing the
+child-table filter-tuple mechanism per Frappe's own 4-tuple/3-tuple equivalence when
+`childDoctype === parentDoctype`), Material Request (child-row back-reference), Purchase Order
+(child-row back-reference). Independently confirmed via this project's own prior PP-5/PP-6 source
+reading (`production-plan.md` line ~1151: "Purchase Order insert (subcontracted sub-assembly rows
+only)") that `Purchase Order Item.production_plan` is populated **exclusively** by the subcontract
+sub-assembly path — the config's plain `Purchase Order` filter is therefore not a false-positive
+risk against unrelated/non-subcontract Purchase Orders; the "subcontract Purchase Order" label is
+accurate by construction, not by an explicit `is_subcontracted` filter. Correctly left
+`SOURCE VERIFIED / NOT RUNTIME VERIFIED` (not upgraded) — no subcontract PO test data exists on the
+instance to exercise it live; verified this directly via `mcp__ceylon-stack__list_documents` — no
+false claim to correct.
+
+**Live cross-verification against the real Hetzner instance** (independent of the implementer's own
+report), via the `ceylon-stack` MCP data connection:
+- All 5 named test Production Plans (`MFG-PP-2026-00006/-00007/-00010/-00014/-00015`) confirmed
+  `docstatus: 2` (Cancelled), matching the claimed outcomes.
+- `MFG-WO-2026-00011` (the one Work Order created 2026-09-21) confirmed `docstatus: 2`,
+  `production_plan: MFG-PP-2026-00010` — matches the Submitted-Work-Order-blocks-cancel scenario.
+- Zero `GL Entry`/`Stock Ledger Entry` rows created on 2026-09-21 — independently confirmed, not
+  inferred.
+- `MFG-PP-2026-00001` independently confirmed still `docstatus: 0` (Draft) — out-of-scope Finding A
+  is real, not speculative.
+- `docs/ceylon-stack-documentation.html` line 358 independently confirmed still labels "BOM
+  Management" `Planned`; cross-checked against `PROGRESS.md`'s BOM 4A/4B entries (`/master-data/boms`
+  list/create/detail/edit routes, `updateBomAction`, real mutation contract) — out-of-scope Finding B
+  is also real, a genuine `release-tracker` gap, not a false alarm.
+
+**Finding `CX-MFG-PP-8-001` (LOW, non-blocking, documentation precision)**: `production-plan.md`'s
+"Cancel (PP-8...)" section and `QA_LOG.md`'s matching entry both cite **`MAT-MR-2026-00006`** as the
+artifact for *both* the kept-Draft/`MFG-PP-2026-00014` scenario *and* the submitted/`MFG-PP-2026-00015`
+scenario. Only one Material Request exists on the instance from 2026-09-21 (`MAT-MR-2026-00006`);
+independently queried, its `Material Request Item.production_plan` is `MFG-PP-2026-00015`, not
+`MFG-PP-2026-00014` — i.e. `MAT-MR-2026-00006` is actually the *submitted-then-cancelled* artifact.
+The naming-series gap at `MAT-MR-2026-00005` (present in `MAT-MR-2026-00001/-02/-03/-04/-06`, with
+`-05` missing) is exactly the signature of a separately-created, later-deleted document — consistent
+with the Draft/`MFG-PP-2026-00014` artifact having actually been `MAT-MR-2026-00005`, genuinely
+created and genuinely deleted as claimed, just mislabeled in both docs as `-00006`. This does **not**
+undermine the underlying `LIVE VERIFIED` conclusions (both independently re-confirmed above by other
+means: the Draft-doesn't-block/orphan-then-delete behavior and the Submitted-blocks/cancel-to-resolve
+behavior both hold) — it is a citation error, not a fabricated test. Required remediation (advisory,
+non-blocking): correct the artifact ID in both docs to `MAT-MR-2026-00005` for the
+`MFG-PP-2026-00014` scenario, or otherwise clarify that two distinct Material Requests were involved.
+
+**Advisory (non-blocking)**: the code comment claiming `cancelProductionPlanAction` "mirrors
+`cancelPurchaseOrderAction`'s exact shape" is slightly imprecise — PP-8's action adds an independent
+`getDoc`/`docstatus` re-check that `cancelPurchaseOrderAction` does not have (that one relies on
+`getConnections` + `cancelDoc` alone). This makes PP-8 strictly more defensive, not less; not a
+defect, just a documentation-precision nit worth a future look at whether `cancelPurchaseOrderAction`
+should gain the same re-check for consistency.
+
+**Out-of-scope findings**: both confirmed real (see live cross-verification above). Per the review
+brief, **not folded into this package's acceptance** — pre-existing, unrelated to Cancel, already
+disclosed by the implementer's own `AI_WORK_LOG.md` entry rather than discovered independently for
+the first time here.
+
+**Regression check**: PP-1 through PP-7R functionality (create/edit, submit, Make Work Order, Make
+Material Request, connections visibility, docstatus handling) not regressed — `page.tsx`'s header JSX
+was restructured additively (outer `docstatus === 1` gate unchanged in effect for the two existing
+action buttons, now nested one level under an unrelated Cancel-button branch); `actions.ts` gained one
+new export with no changes to existing exports; `connections.ts` gained one new `CONNECTION_CONFIG`
+key with zero changes to `getConnections()` itself.
+
+**FINAL REVIEW STATE: ACCEPTED.** No CRITICAL/HIGH findings. `CX-MFG-PP-8-001` (LOW) and the
+`cancelPurchaseOrderAction` comment-precision note are recorded as non-blocking advisory items.
+`SOURCE VERIFIED / NOT RUNTIME VERIFIED` (subcontract Purchase Order) and `NEEDS_VERIFICATION`
+(Stock Reservation Entry un-reservation) are preserved exactly as the implementer left them — neither
+upgraded nor downgraded, since no new evidence for either surfaced during this review. PP-8 is
+CLOSED/ACCEPTED. Recommended next action: `release-tracker` to sync
+`docs/ceylon-stack-documentation.html`/Notion for PP-8 itself; the two out-of-scope findings (stale
+`MFG-PP-2026-00001` Draft claim, stale "BOM Management — Planned" label) remain open as separate,
+pre-existing governance/documentation debt for a future, explicitly-scoped session — not part of
+PP-8's own closure.
