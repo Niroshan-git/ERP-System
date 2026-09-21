@@ -12,6 +12,17 @@ import type { LucideIcon } from "lucide-react";
  *
  * `K` is the module's own node-key union (e.g. Sales' `FlowNodeKey`, Manufacturing's
  * `MfgFlowNodeKey`); `S` is its scene-id union.
+ *
+ * **Why `SalesFlowMap.tsx`/`ManufacturingFlowMap.tsx` still exist as thin per-module
+ * wrappers** (not a regression back to forking): `FlowRecord.icon` is a `LucideIcon` component
+ * reference, not plain serializable data. A Server Component page (e.g. `sales/page.tsx`)
+ * cannot pass `FLOW_RECORDS`/`MFG_FLOW_RECORDS` as a prop straight into the client `FlowMap` —
+ * React Server Components only allow plain objects across that boundary and throws at runtime
+ * otherwise ("Only plain objects can be passed to Client Components from Server Components...").
+ * Each wrapper is a `"use client"` module that imports its own module's data locally (so the
+ * icons never need to serialize) and renders `<FlowMap records={...} .../>` — it duplicates
+ * nothing beyond that data-wiring; all SVG rendering/interaction logic still lives only in
+ * `FlowMap`/`FlowNodeDialog`.
  */
 
 export type FlowRecord<K extends string> = {

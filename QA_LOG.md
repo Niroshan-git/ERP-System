@@ -1693,3 +1693,35 @@ implementing session's own in-session verification only, not the required cross-
   not refreshed with today's changes. A future session with the actual `graphify` CLI available
   (not just its underlying Python package) should retry the update, or fall back to a full
   `/graphify` rebuild if the root-mismatch recurs.
+
+## 2026-09-21 — Manufacturing/Sales Flow map: runtime fix (RSC serialization crash)
+
+- **Reported by Niroshan**: on actually loading the page (the "please eyeball it in a browser"
+  follow-up from the prior entry), the Manufacturing Flow tab crashed the whole page with
+  "Only plain objects can be passed to Client Components from Server Components" — proving the
+  QA_LOG concern about unverified visual rendering was well-founded; this was a real, blocking
+  runtime error, not a cosmetic layout issue.
+- **Root cause**: the prior generalization pass had `sales/page.tsx`/`manufacturing/page.tsx`
+  (Server Components) import `FLOW_RECORDS`/`MFG_FLOW_RECORDS` and pass them as props directly
+  into the client `FlowMap` component. Those records embed `LucideIcon` component references
+  (functions), which React Server Components cannot serialize across the server→client prop
+  boundary — only plain data survives that boundary. The previous (pre-generalization)
+  `SalesFlowMap.tsx` never hit this because it imported its own data *inside* its own
+  `"use client"` module, so the icons never needed to cross the RSC boundary at all; that
+  distinction was lost during the generalization refactor.
+- **Fix**: reintroduced `SalesFlowMap.tsx`/`ManufacturingFlowMap.tsx` as thin `"use client"`
+  wrappers, each importing its own module's data locally and rendering `<FlowMap records={...}
+  .../>` internally — not a regression back to the original fork (`FlowMap`/`FlowNodeDialog`
+  still hold 100% of the shared rendering/interaction logic; the wrapper only does data-wiring,
+  a few lines). `sales/page.tsx`/`manufacturing/page.tsx` now render `<SalesFlowMap />`/
+  `<ManufacturingFlowMap />` with no props, exactly as the original pre-refactor Sales page did.
+  Documented the RSC constraint directly in `lib/flowMap.ts`'s doc comment so a future review
+  doesn't mistake the wrappers for re-forking.
+- **Verification**: `npx tsc --noEmit`, `npm run lint`, `npm run build` all clean — this class of
+  RSC serialization error fails the build (not just a dev-time warning), so a clean build is
+  meaningful evidence here, not just a formality. Not re-verified in an actual browser this
+  session (still no browser/screenshot tool available); Niroshan should refresh and confirm.
+- **Process note**: the previous "please eyeball it, I can't render pixels here" caveat, logged
+  in this file's prior Flow Map entry, is exactly what caught this — worth continuing to flag
+  that gap explicitly on any UI-only package rather than letting a clean `build` stand in for
+  actual visual/runtime verification.

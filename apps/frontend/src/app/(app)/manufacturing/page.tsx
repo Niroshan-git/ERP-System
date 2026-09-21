@@ -1,25 +1,7 @@
 import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocTabs } from "@/components/DocTabs";
-import { FlowMap } from "@/components/FlowMap";
-import { MFG_FLOW_RECORDS, MFG_FLOW_SCENES, MFG_FLOW_SCENE_ORDER } from "@/lib/manufacturingFlowMap";
-
-/** "Process notes & references" content for the Manufacturing Flow map. */
-const MANUFACTURING_FLOW_NOTES = (
-  <>
-    <p>
-      This is a Ceylon Stack workflow-navigation map of this app&apos;s own Manufacturing module, not a live
-      ERPNext Desk screen. It shows two real, currently-supported routes — production driven by a Production
-      Plan, and a Work Order created directly against a BOM. Job Card and the final Manufacture Stock Entry are
-      shown for completeness even though this frontend doesn&apos;t yet expose dedicated pages for them.
-    </p>
-    <p>
-      Field-level detail for every stage (required fields, submit-time validation, stock/accounting impact) is
-      documented in <code>docs/backend/05-manufacturing/</code> — this map is a navigation aid, not a
-      replacement for that canonical reference.
-    </p>
-  </>
-);
+import { ManufacturingFlowMap } from "@/components/ManufacturingFlowMap";
 
 /**
  * Manufacturing module home page — same precedent as buying/page.tsx and stock/page.tsx
@@ -34,15 +16,18 @@ const MANUFACTURING_FLOW_NOTES = (
  * foundation (/manufacturing/production-plans) — see
  * docs/backend/05-manufacturing/production-plan.md's "Frontend footprint" section.
  *
- * Manufacturing Flow tab added 2026-09-21, mirroring `sales/page.tsx`'s "Sales Flow" tab —
- * rendered by the shared `FlowMap` component (`components/FlowMap.tsx`) against this module's
- * own data (`lib/manufacturingFlowMap.ts`), the same pattern `sales/page.tsx` uses. Originally
- * built as a forked `ManufacturingFlowMap`/`ManufacturingFlowNodeDialog` pair; generalized the
- * same day per `FRONTEND_GUIDE.md` §7's "keep extending, don't fork" rule (`SalesFlowMap`/
- * `SalesFlowNodeDialog` were explicitly listed there as reusable) — see `lib/flowMap.ts`'s doc
- * comment. Work Order Submit (`MFG-WF-004`) shipped the same day, so this copy no longer says
- * Work Order create-only. Job Cards, Workstations, and OEE remain their own future scoped
- * packages.
+ * Manufacturing Flow tab added 2026-09-21, mirroring `sales/page.tsx`'s "Sales Flow" tab.
+ * `ManufacturingFlowMap`/`SalesFlowMap` are thin "use client" wrappers around the shared,
+ * generic `FlowMap`/`FlowNodeDialog` components (`lib/flowMap.ts`'s doc comment) — NOT a fork
+ * of the rendering logic, which stays fully shared. The wrapper exists only because a Server
+ * Component page cannot pass `MFG_FLOW_RECORDS`/`FLOW_RECORDS` as props to a Client Component:
+ * those records embed `LucideIcon` component references, which aren't plain serializable data
+ * and crash React Server Components ("Only plain objects can be passed to Client Components
+ * from Server Components...") if passed as a prop across that boundary — a real runtime error
+ * hit and fixed same day, not a hypothetical. Importing the data inside each wrapper's own
+ * "use client" module avoids crossing that boundary. Work Order Submit (`MFG-WF-004`) shipped
+ * the same day, so this copy no longer says Work Order create-only. Job Cards, Workstations,
+ * and OEE remain their own future scoped packages.
  */
 export default function ManufacturingHomePage() {
   const overviewTab = (
@@ -73,22 +58,7 @@ export default function ManufacturingHomePage() {
       <DocTabs
         tabs={[
           { id: "overview", label: "Overview", content: overviewTab },
-          {
-            id: "manufacturing-flow",
-            label: "Manufacturing Flow",
-            content: (
-              <FlowMap
-                records={MFG_FLOW_RECORDS}
-                scenes={MFG_FLOW_SCENES}
-                sceneOrder={MFG_FLOW_SCENE_ORDER}
-                defaultScene="planned"
-                idPrefix="mfg-flow"
-                downloadFilePrefix="ceylonstack-manufacturing-flow"
-                tablistLabel="Manufacturing process variants"
-                notes={MANUFACTURING_FLOW_NOTES}
-              />
-            ),
-          },
+          { id: "manufacturing-flow", label: "Manufacturing Flow", content: <ManufacturingFlowMap /> },
         ]}
       />
     </div>

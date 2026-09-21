@@ -2,52 +2,11 @@ import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { LineChart } from "@/components/LineChart";
 import { DocTabs } from "@/components/DocTabs";
-import { FlowMap } from "@/components/FlowMap";
+import { SalesFlowMap } from "@/components/SalesFlowMap";
 import { runReport } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
-import { FLOW_RECORDS, FLOW_SCENES, SALES_FLOW_SCENE_ORDER } from "@/lib/salesFlowMap";
 import { getSellingNumberCards } from "@/lib/sellingDashboard";
 import { SELLING_WORKSPACE_CARDS } from "@/lib/sellingWorkspace";
-
-/** "Process notes & references" content for the Sales Flow map — moved here from the
- * now-retired `SalesFlowMap.tsx` wrapper when it was generalized into the shared `FlowMap`
- * component (2026-09-21, alongside the Manufacturing Flow map addition). */
-const SALES_FLOW_NOTES = (
-  <>
-    <p>
-      This is a Ceylon Stack workflow-navigation map inspired by SAP Business One&apos;s sales-document flow, not a
-      live SAP screen or a connection to any SAP system. The standard route illustrates an inventory sale;
-      quotation, opportunity, pick-and-pack and a separate delivery are not universally required. Multiple
-      deliveries, consolidated invoices and partial receipts may exist.
-    </p>
-    <p>
-      Accounting descriptions are high-level and assume applicable stock items. Account determination,
-      down-payment handling, tax handling and eligible base documents depend on configuration — the reserve and
-      advance-payment views are alternative process patterns, not the only ones.
-    </p>
-    <p>
-      References:{" "}
-      <a
-        className="text-signal"
-        href="https://learning.sap.com/courses/discovering-sap-business-one-web-client-logistics/managing-the-sales-process-in-sap-business-one-web-client_dc752693-979b-474f-8e9f-781cc4e65fc3"
-        target="_blank"
-        rel="noopener"
-      >
-        SAP Business One sales process
-      </a>{" "}
-      ·{" "}
-      <a
-        className="text-signal"
-        href="https://learning.sap.com/courses/managing-logistics-in-sap-business-one/solving-issues-in-sales"
-        target="_blank"
-        rel="noopener"
-      >
-        SAP returns, return requests and credit memos
-      </a>
-      .
-    </p>
-  </>
-);
 
 /**
  * Landing page for the Selling module — replicates ERPNext's real "Selling" Workspace
@@ -146,22 +105,7 @@ export default async function SalesHomePage() {
       <DocTabs
         tabs={[
           { id: "overview", label: "Overview", content: overviewTab },
-          {
-            id: "sales-flow",
-            label: "Sales Flow",
-            content: (
-              <FlowMap
-                records={FLOW_RECORDS}
-                scenes={FLOW_SCENES}
-                sceneOrder={SALES_FLOW_SCENE_ORDER}
-                defaultScene="standard"
-                idPrefix="sales-flow"
-                downloadFilePrefix="ceylonstack-sales-flow"
-                tablistLabel="Sales process variants"
-                notes={SALES_FLOW_NOTES}
-              />
-            ),
-          },
+          { id: "sales-flow", label: "Sales Flow", content: <SalesFlowMap /> },
         ]}
       />
     </div>
