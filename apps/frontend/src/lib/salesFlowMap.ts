@@ -16,8 +16,8 @@ import {
   Truck,
   Users,
   Wallet,
-  type LucideIcon,
 } from "lucide-react";
+import type { FlowRecord, FlowScene } from "@/lib/flowMap";
 
 /**
  * SAP B1-style sales process map — ported from the user-supplied concept file, kept
@@ -56,49 +56,11 @@ export type FlowNodeKey =
   | "credit"
   | "refund";
 
-export type FlowRecord = {
-  key: FlowNodeKey;
-  title: string;
-  subtitle: string;
-  icon: LucideIcon;
-  kind: string;
-  area: string;
-  href: string | null;
-  purpose: string;
-  effects: string[];
-  note: string;
-};
-
-export type FlowEdge = {
-  from: string;
-  to: string;
-  path: string;
-  label?: string;
-  lx?: number;
-  ly?: number;
-  optional?: boolean;
-};
-
-export type FlowNodePlacement = { key: FlowNodeKey; x: number; y: number; order: string; optional?: boolean; titleSize?: number };
-
-export type FlowShortcut = { area: string; label: string; scene: FlowSceneId };
-
 export type FlowSceneId = "standard" | "advances" | "reserve" | "returns";
 
-export type FlowScene = {
-  id: FlowSceneId;
-  name: string;
-  title: string;
-  hint: string;
-  height: number;
-  lanes: { label: string; x: number; y: number }[];
-  nodes: FlowNodePlacement[];
-  edges: FlowEdge[];
-  shortcuts: FlowShortcut[];
-  note: string;
-};
+export const SALES_FLOW_SCENE_ORDER: FlowSceneId[] = ["standard", "advances", "reserve", "returns"];
 
-export const FLOW_RECORDS: Record<FlowNodeKey, FlowRecord> = {
+export const FLOW_RECORDS: Record<FlowNodeKey, FlowRecord<FlowNodeKey>> = {
   customer: {
     key: "customer",
     title: "Customer",
@@ -343,7 +305,7 @@ export const FLOW_RECORDS: Record<FlowNodeKey, FlowRecord> = {
 
 const LONG_TITLE_SIZE = 13;
 
-export const FLOW_SCENES: Record<FlowSceneId, FlowScene> = {
+export const FLOW_SCENES: Record<FlowSceneId, FlowScene<FlowNodeKey, FlowSceneId>> = {
   standard: {
     id: "standard",
     name: "Standard sales",

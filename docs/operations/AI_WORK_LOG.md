@@ -4014,3 +4014,79 @@ reportable QA result, not something to route around by picking a different docum
 `docs/ceylon-stack-documentation.html` + Notion sync — deferred until then, per PP-8's precedent.
 Separately, `MFG-WO-2026-00014` needs a `wip_warehouse` assigned (a real master-data edit) before it
 can actually be submitted through this feature — a data-only follow-up, not a code defect.
+
+## 2026-09-21 — Manufacturing Flow map (+ Sales/Manufacturing Flow component generalization)
+
+**PACKAGE:** Manufacturing Flow map
+**IMPLEMENTER:** this session, no durable session identifier available
+**REVIEWER:** the other Claude account under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not yet
+assigned to a specific session)
+**BASE COMMIT:** `d5386bc` (Work Order Submit, `MFG-WF-004`)
+**ASSIGNED BY:** Niroshan, direct request: "I need a flow for the manufacturing part... since it
+will be easy to understand," referencing the already-shipped Sales Flow map as the model.
+**ASSIGNMENT TIMESTAMP:** 2026-09-21
+
+**Implementation summary**: added a "Manufacturing Flow" tab to `/manufacturing`, mirroring
+`/sales`'s "Sales Flow" tab — two scenes (Production Plan-driven route, direct Work Order route),
+each stage clickable for purpose/effects/process-rule detail with a link to the real page or
+"Coming soon" for Job Card/Manufacture Stock Entry (neither has a dedicated page yet).
+
+**Self-caught and remediated architecture violation, in-session**: the first implementation forked
+the Sales Flow's components wholesale (`ManufacturingFlowMap.tsx`/`ManufacturingFlowNodeDialog.tsx`/
+`manufacturingFlowMap.ts` copying `SalesFlowMap.tsx`/`SalesFlowNodeDialog.tsx`/`salesFlowMap.ts`
+near-line-for-line). An in-session `code-reviewer` pass correctly flagged this as **BLOCKING**:
+`docs/controls/FRONTEND_GUIDE.md` §7 explicitly lists `SalesFlowMap`/`SalesFlowNodeDialog` under
+"Dashboard" in the "reusable components — keep extending, don't fork" registry, in the same bucket
+as `LineChart` (a component genuinely shared and prop-driven across report pages, not forked per
+page). The implementing session verified this citation directly (grepped the real file) before
+acting on it, rather than trusting the subagent's claim at face value.
+
+**Remediation**: generalized `SalesFlowMap`/`SalesFlowNodeDialog` into shared, type-parameterized
+components — new `lib/flowMap.ts` (`FlowRecord<K>`, `FlowEdge`, `FlowNodePlacement<K>`,
+`FlowShortcut<S>`, `FlowScene<K,S>`), new `components/FlowMap.tsx`/`FlowNodeDialog.tsx` (generic
+`<K,S>`), consumed directly by `sales/page.tsx` and `manufacturing/page.tsx` with their own
+per-module data (`lib/salesFlowMap.ts`, `lib/manufacturingFlowMap.ts`) — matching this app's
+existing `LineChart` pattern (one generic component, called directly by pages, no per-module
+wrapper) rather than a `SalesFlowMap`/`ManufacturingFlowMap`-per-module fork. Deleted
+`SalesFlowMap.tsx`/`SalesFlowNodeDialog.tsx` and the short-lived Manufacturing forks.
+`docs/controls/FRONTEND_GUIDE.md` §7's component registry updated (`SalesFlowMap`/
+`SalesFlowNodeDialog` → `FlowMap`/`FlowNodeDialog`) with a provenance note for future modules.
+
+**Code review, second pass** (`code-reviewer` subagent, in-session): **PASS — confirmed the
+original blocking finding is RESOLVED**, with the highest-risk check being regression to the
+already-shipped, already-accepted Sales Flow (untouched functionally, but its underlying component
+files were deleted and replaced). Independently re-ran `tsc --noEmit`/`lint`/`build` (all clean, not
+trusted from the implementer's claim). Diffed the deleted `SalesFlowMap.tsx`/`SalesFlowNodeDialog.tsx`
+(via `git show HEAD:...`) line-by-line against the new generic components — scene switching, edge
+highlighting, node click/keyboard handling, native-`<dialog>` focus-trap, related-stage lookup, and
+SVG download all reproduced exactly, just parameterized via props instead of hardcoded module
+imports. `FLOW_RECORDS`/`FLOW_SCENES` in `salesFlowMap.ts` confirmed byte-for-byte unchanged (only
+type annotations differ). `SALES_FLOW_NOTES` (the SAP B1 reference prose, moved out of the deleted
+file into `sales/page.tsx`) confirmed byte-for-byte identical, including both external hrefs.
+Repo-wide grep confirmed zero remaining imports of any deleted component name. One non-blocking
+observation: the SVG arrow-marker DOM id changed from the hardcoded `cs-flow-arrow` to the
+parameterized `cs-${idPrefix}-arrow` (`cs-sales-flow-arrow` for Sales) — deliberate and
+self-consistent (both the `<marker>` definition and its `markerEnd` reference were updated
+together), and grepped for zero external dependents on the old literal id.
+
+**Known gap, disclosed not hidden**: this app's environment (both the implementing session and its
+subagents) has no browser/screenshot tool, so the SVG's actual visual rendering (node/label overlap,
+text fit) could not be confirmed end-to-end beyond static code review and the coordinate-reuse
+argument (both scenes' geometry copied verbatim from the Sales Flow's own already-proven "standard"/
+"reserve" scenes, only labels/keys changed, rather than freehand new layout math). Niroshan should
+open both Flow tabs in a browser against the running dev server before this is considered fully
+closed — recorded in `QA_LOG.md`.
+
+**Package isolation**: touched `lib/flowMap.ts` (new), `lib/salesFlowMap.ts`,
+`lib/manufacturingFlowMap.ts` (new), `components/FlowMap.tsx` (new), `components/FlowNodeDialog.tsx`
+(new), deleted `components/SalesFlowMap.tsx`/`SalesFlowNodeDialog.tsx`, `sales/page.tsx`,
+`manufacturing/page.tsx`, `docs/controls/FRONTEND_GUIDE.md`, `PROGRESS.md`, `QA_LOG.md`, and this
+file. No `docs/backend/` entry owed — consistent with precedent (the original Sales Flow map also
+has none; this is a navigation aid over already-documented stages, not new field/entity/business-rule
+knowledge per `BACKEND_KNOWLEDGE_POLICY.md`).
+
+**Recommended next action:** independent review of this package under
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not self-accepted) — the reviewing session should also
+independently confirm no visual/layout regression once a browser is available to it, since neither
+this session nor its code-reviewer subagent could render the SVG. Once accepted, `release-tracker`
+for `docs/ceylon-stack-documentation.html` + Notion sync, deferred until then per PP-8's precedent.

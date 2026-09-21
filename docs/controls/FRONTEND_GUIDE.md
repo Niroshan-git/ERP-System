@@ -221,7 +221,13 @@ Frontend must not allow illegal transitions.
 - Shell: `Sidebar`, `FullscreenToggle`, `Breadcrumb`
 - Form shells: `QuotationForm`, `SalesOrderForm`, `SalesInvoiceForm`, `DeliveryNoteForm`, `CustomerForm`, `ItemForm`, `MasterForm`
 - Activity: `ActivityTimeline`, `RelationshipMap`
-- Dashboard: `SalesFlowMap`, `SalesFlowNodeDialog`, `LineChart`
+- Dashboard: `FlowMap`, `FlowNodeDialog`, `LineChart` — **renamed 2026-09-21** from
+  `SalesFlowMap`/`SalesFlowNodeDialog` when the Manufacturing Flow map was added: these were
+  generalized into type-parameterized generic components (`lib/flowMap.ts`'s shared types),
+  called directly by each module's page with its own data (`lib/salesFlowMap.ts`,
+  `lib/manufacturingFlowMap.ts`) — same pattern as `LineChart` — rather than forking a second
+  `ManufacturingFlowMap`/`ManufacturingFlowNodeDialog` copy of the rendering code. Any future
+  module's own process-flow map should call `FlowMap` directly with its own data, not fork again.
 - Reports: `ReportFilterBar`, `ReportTable`, `ReportsList`
 
 ### Rules

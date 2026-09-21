@@ -1625,3 +1625,71 @@ implementing session's own in-session verification only, not the required cross-
   `CLAUDE_HANDOFF` — not self-accepted. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, acceptance
   requires independent review from the other Claude account; see `AI_WORK_LOG.md`'s 2026-09-21
   "Work Order — Submit" entry.
+
+## 2026-09-21 — Manufacturing Flow map + Sales/Manufacturing Flow generalization
+
+- **Scope**: Niroshan asked for a Manufacturing equivalent of the already-shipped Sales Flow
+  interactive process map ("since it will be easy to understand"). Pure frontend UI addition —
+  no server actions, no ERPNext writes, no core-flow business logic touched.
+- **First pass (rejected on review)**: built as a straight fork — `ManufacturingFlowMap.tsx`/
+  `ManufacturingFlowNodeDialog.tsx`/`manufacturingFlowMap.ts`, near-line-for-line copies of
+  `SalesFlowMap.tsx`/`SalesFlowNodeDialog.tsx`/`salesFlowMap.ts`. `code-reviewer` correctly
+  flagged this as **BLOCKING**: `docs/controls/FRONTEND_GUIDE.md` §7 explicitly lists
+  `SalesFlowMap`/`SalesFlowNodeDialog` under "Dashboard" in the "reusable components — keep
+  extending, don't fork" registry, same bucket as `LineChart` (a genuinely shared, prop-driven
+  component). Verified the citation directly (`grep` against the real file) before acting on it.
+- **Remediation**: generalized into shared, type-parameterized components — `lib/flowMap.ts`
+  (generic `FlowRecord<K>`/`FlowScene<K,S>`/etc. types), `components/FlowMap.tsx`/
+  `FlowNodeDialog.tsx` (generic renderer/dialog, `<K,S>`), consumed directly by `sales/page.tsx`
+  and `manufacturing/page.tsx` with their own data modules (`lib/salesFlowMap.ts`,
+  `lib/manufacturingFlowMap.ts`) — same pattern this app's own `LineChart` already uses (one
+  generic component, called directly by pages, no per-module wrapper). Deleted
+  `SalesFlowMap.tsx`/`SalesFlowNodeDialog.tsx` and the short-lived Manufacturing forks.
+  `docs/controls/FRONTEND_GUIDE.md` §7's registry updated (`SalesFlowMap`/`SalesFlowNodeDialog`
+  → `FlowMap`/`FlowNodeDialog`) with a provenance note for future modules.
+- **Code review** (`code-reviewer` subagent, second pass, in-session): **PASS — original
+  blocking finding confirmed RESOLVED.** Independently re-ran `tsc`/`lint`/`build` (all clean).
+  Diffed the deleted Sales files against the new generic components line-by-line: rendering/
+  interaction logic (scene switching, edge highlighting, node click/keyboard handling, dialog
+  focus-trap, SVG download) reproduced exactly, just parameterized via props. `FLOW_RECORDS`/
+  `FLOW_SCENES` data in `salesFlowMap.ts` confirmed byte-for-byte unchanged (only type
+  annotations differ). `SALES_FLOW_NOTES` (moved out of the deleted `SalesFlowMap.tsx` into
+  `sales/page.tsx`) confirmed byte-for-byte identical prose/links. No dangling imports anywhere
+  in the repo to the deleted component names. One non-blocking observation: the SVG arrow-marker
+  DOM id changed from `cs-flow-arrow` to `cs-${idPrefix}-arrow` (i.e. `cs-sales-flow-arrow`) —
+  deliberate, self-consistent (both the `<marker>` def and its reference updated together), and
+  grepped for zero external dependents on the old literal id.
+- **Manufacturing Flow content**: two scenes — "Production Plan route" (default: BOM → Sales
+  Order → Production Plan → Work Order → Material Transfer → Job Card → Manufacture →
+  Completed) and "Direct Work Order" (skips the Production Plan). Job Card and the Manufacture
+  Stock Entry stage are marked "Coming soon" (`href: null`) since neither has a dedicated page
+  in this app yet — same honest-labeling convention the Sales Flow already uses. SVG node/edge
+  coordinates for both scenes were copied verbatim from the Sales Flow's already-proven
+  "standard"/"reserve" scene geometry (only labels/keys changed) rather than freehand, since no
+  browser/screenshot tool exists in this environment to visually verify new layout math.
+- **Visual rendering — not independently verified this session**: no browser/screenshot tool is
+  available to either the implementing session or its subagents in this environment, so the
+  SVG's actual visual layout (node/label overlap, text truncation) could not be confirmed
+  end-to-end here beyond the coordinate-reuse argument above and static code review. Niroshan
+  should open `/manufacturing`'s "Manufacturing Flow" tab and `/sales`'s "Sales Flow" tab in a
+  browser against the running dev server to confirm both render correctly before this is
+  considered fully closed.
+- **Sign-off**: implementer (this session, no durable session identifier available) produces a
+  `CLAUDE_HANDOFF` — not self-accepted. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, acceptance
+  requires independent review from the other Claude account; see `AI_WORK_LOG.md`'s 2026-09-21
+  "Manufacturing Flow map" entry.
+- **Graphify refresh — attempted, not completed, no data lost.** Per `CLAUDE.md`'s graphify rules,
+  ran `--update` after this package. Semantic extraction (23 changed files: 14 code, 9 docs) and
+  AST extraction completed cleanly, but the incremental `build_merge` step produced a 2,320-node
+  result against the existing 2,810-node `graphify-out/graph.json` — a 490-node drop most likely
+  from a root-path basis mismatch in this session's manual step-by-step invocation of the
+  underlying Python (the `graphify` CLI binary isn't on PATH in this environment, so each pipeline
+  step was run by hand rather than via the skill's own `graphify` commands). graphify's own
+  shrink-guard (`export.to_json`'s "#479" check) correctly refused to overwrite `graph.json` with
+  the smaller result rather than silently losing ~490 nodes. Independently confirmed
+  `graph.json` on disk is still the original, untouched 2,810-node graph — not forced past the
+  guard. All intermediate `.graphify_*` temp files cleaned up; `manifest.json` was updated during
+  the attempt (494 repo-relative entries, looks internally consistent) but the graph itself was
+  not refreshed with today's changes. A future session with the actual `graphify` CLI available
+  (not just its underlying Python package) should retry the update, or fall back to a full
+  `/graphify` rebuild if the root-mismatch recurs.

@@ -3,33 +3,40 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { ArrowUpRight, X } from "lucide-react";
-import { FLOW_RECORDS, type FlowNodePlacement, type FlowRecord, type FlowScene } from "@/lib/salesFlowMap";
+import type { FlowNodePlacement, FlowRecord, FlowScene } from "@/lib/flowMap";
 
-export type SelectedFlowNode = { record: FlowRecord; placement: FlowNodePlacement };
+export type SelectedFlowNode<K extends string> = { record: FlowRecord<K>; placement: FlowNodePlacement<K> };
 
-function relatedNodes(scene: FlowScene, placement: FlowNodePlacement): FlowNodePlacement[] {
-  const ids = [placement.order, placement.key];
+function relatedNodes<K extends string, S extends string>(
+  scene: FlowScene<K, S>,
+  placement: FlowNodePlacement<K>,
+): FlowNodePlacement<K>[] {
+  const ids: string[] = [placement.order, placement.key];
   return scene.edges
     .filter((e) => ids.includes(e.from) || ids.includes(e.to))
     .map((e) => {
       const otherId = ids.includes(e.from) ? e.to : e.from;
       return scene.nodes.find((n) => n.order === otherId || n.key === otherId);
     })
-    .filter((n): n is FlowNodePlacement => Boolean(n) && n !== placement);
+    .filter((n): n is FlowNodePlacement<K> => Boolean(n) && n !== placement);
 }
 
-/** Detail modal for a selected stage — native <dialog> (matches the source concept's own
- * approach: free focus-trapping and Esc-to-close from the browser, no extra dependency). */
-export function SalesFlowNodeDialog({
+/** Detail modal for a selected Flow Map stage — native <dialog> (free focus-trapping and
+ * Esc-to-close from the browser, no extra dependency). Generic over a module's own node-key/
+ * scene-id unions so `SalesFlowMap`/`ManufacturingFlowMap`'s data can share this one rendering
+ * implementation instead of each forking their own copy — see `lib/flowMap.ts`'s doc comment. */
+export function FlowNodeDialog<K extends string, S extends string>({
   scene,
+  records,
   selected,
   onClose,
   onSelect,
 }: {
-  scene: FlowScene;
-  selected: SelectedFlowNode | null;
+  scene: FlowScene<K, S>;
+  records: Record<K, FlowRecord<K>>;
+  selected: SelectedFlowNode<K> | null;
   onClose: () => void;
-  onSelect: (placement: FlowNodePlacement) => void;
+  onSelect: (placement: FlowNodePlacement<K>) => void;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
 
@@ -104,7 +111,7 @@ export function SalesFlowNodeDialog({
                       onClick={() => onSelect(n)}
                       className="rounded-md border border-border bg-canvas px-2.5 py-1.5 text-xs font-medium text-graphite-900 hover:border-signal"
                     >
-                      {FLOW_RECORDS[n.key].title}
+                      {records[n.key].title}
                     </button>
                   ))}
                 </div>

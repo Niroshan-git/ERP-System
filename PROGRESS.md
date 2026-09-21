@@ -3429,3 +3429,37 @@ Code review: **PASS, no blocking findings**. Package state: `CLAUDE_HANDOFF`. No
 accepted — per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the
 other Claude account before acceptance. `release-tracker` deferred until acceptance, matching PP-8's
 precedent.
+
+## Manufacturing Flow map + Sales/Manufacturing Flow component generalization (2026-09-21)
+
+Niroshan asked for a Manufacturing equivalent of the already-shipped Sales Flow interactive
+process map — a "flow for the manufacturing part... since it will be easy to understand". Added a
+"Manufacturing Flow" tab to `/manufacturing`, mirroring `/sales`'s "Sales Flow" tab: two scenes
+(Production Plan-driven route, and a direct-Work-Order route that skips planning), each stage
+clickable for its purpose/stock-accounting effect/process rule and a link to the real page (or
+"Coming soon" for Job Card and the Manufacture Stock Entry, neither of which has a dedicated page
+yet).
+
+First built as a straight fork of the Sales Flow's components (`ManufacturingFlowMap.tsx`/
+`ManufacturingFlowNodeDialog.tsx`/`manufacturingFlowMap.ts`, copying `SalesFlowMap.tsx`/
+`SalesFlowNodeDialog.tsx`/`salesFlowMap.ts` almost line-for-line). `code-reviewer` correctly caught
+this as a binding-rule violation: `docs/controls/FRONTEND_GUIDE.md` §7 lists `SalesFlowMap`/
+`SalesFlowNodeDialog` as reusable components to extend, not fork (same bucket as `LineChart`).
+Remediated by generalizing into shared, type-parameterized `FlowMap`/`FlowNodeDialog` components
+(`lib/flowMap.ts`'s generic types), now called directly by both `sales/page.tsx` and
+`manufacturing/page.tsx` with their own per-module data — the same pattern this app's `LineChart`
+already uses. The old `SalesFlowMap.tsx`/`SalesFlowNodeDialog.tsx` files are deleted; a second
+`code-reviewer` pass confirmed zero behavior regression for the already-shipped Sales Flow (data,
+rendering logic, and the "Process notes & references" content all diffed byte-for-byte unchanged
+against the pre-refactor version) and confirmed the original blocking finding is resolved.
+`FRONTEND_GUIDE.md`'s component registry updated to name the new shared components.
+
+Manufacturing Flow's SVG node/edge coordinates were copied verbatim from the Sales Flow's own
+already-proven scene geometry (only labels/keys changed) rather than freehand, since no
+browser/screenshot tool exists in this environment to visually verify new layout math — flagged in
+`QA_LOG.md` as not independently visually verified this session; Niroshan should eyeball both flow
+tabs in a browser before considering this fully closed.
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
+account before acceptance.
