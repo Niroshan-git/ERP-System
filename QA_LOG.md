@@ -1777,3 +1777,50 @@ implementing session's own in-session verification only, not the required cross-
   requires independent review from the other Claude account. QA (`qa-tester`) not invoked —
   presentation/navigation-only package touching no core transactional flow, same call the
   Manufacturing Flow map package made.
+
+## 2026-09-22 — Company Workflow flow map + missing Inventory module card
+
+- **Scope**: Niroshan asked the root "/" module-picker page to get a workflow "combining all
+  these details" across the four already-shipped per-module Flow maps. Pure frontend UI addition
+  — no server actions, no ERPNext writes, no core-flow business logic touched. New:
+  `lib/companyFlowMap.ts`, `components/CompanyFlowMap.tsx`. Edited: `page.tsx` (module grid moved
+  into a `DocTabs` "Modules" tab, content unchanged, plus a new "Company Workflow" tab; also
+  added a missing `stock` `ModuleCard` entry while already in this file — see below).
+- **Design choice**: one scene, 8 higher-level nodes (Supplier → Purchase Order → Purchase
+  Receipt → Work Order → Manufacture → Sales Order → Delivery Note → Sales Invoice), not a
+  re-detailing of all four flows' full node sets. Every node's `note` points at the per-module
+  Flow tab with the real stage-by-stage detail — this is a bird's-eye index, not a duplicate.
+- **RSC boundary**: built directly in the RSC-safe wrapper shape from the start (same as the
+  Buying/Inventory package) — `page.tsx` imports only `CompanyFlowMap`, never
+  `COMPANY_FLOW_RECORDS` directly.
+- **Geometry — new combination, reused segments**: unlike the Buying/Inventory package (whose
+  scenes were verbatim copies of one existing template), this scene's specific node ordering is
+  new, but every individual edge segment is byte-identical to one already shipped in Sales'
+  "standard" or Manufacturing's "planned" scene (same box size, same 82px inter-column gap, same
+  12px arrow stand-off, same `workOrder`→next-stage vertical-drop coordinates and label position).
+  `code-reviewer` independently re-derived the box-edge arithmetic for all seven edges rather than
+  trusting the claim, and confirmed the one edge label ("Transfer & produce") sits in the vertical
+  channel between column-aligned boxes, not an 82px horizontal gap it would have overflowed.
+- **Code review** (`code-reviewer` subagent, in-session): **PASS, no blocking findings.**
+  Confirmed `FlowMap.tsx`/`FlowNodeDialog.tsx` untouched (genuine reuse). Confirmed all seven
+  non-null hrefs exist on disk and the `manufacture` node's `href: null` claim is consistent with
+  `manufacturingFlowMap.ts`'s own `manufactureEntry` record (same "not yet built" fact, not a new
+  claim). One non-blocking content nit caught and fixed: the `supplier` node's note read like
+  leftover text implying the map "starts at the Purchase Order" while Supplier was itself drawn as
+  node 1 — reworded.
+- **Scope judgment call, explicitly reviewed**: the `stock` module card was missing from
+  `MODULE_CARDS` since Inventory shipped 2026-09-16 (`Sidebar.tsx` already treats it as a full 4th
+  module) — a genuine pre-existing gap, not something asked for this turn. `code-reviewer`'s
+  explicit read: a same-file, one-line, additive, non-behavioral fix riding alongside the primary
+  change is reasonable to land together, not scope creep — on the condition it's named explicitly
+  in the commit message rather than silently bundled. Done.
+- **Visual rendering — not independently verified this session**, same standing caveat as every
+  other Flow map package in this environment: no browser/screenshot tool, and no real ERPNext
+  login credentials this session has or will attempt to obtain/bypass. `npx tsc --noEmit`,
+  `npm run lint`, `npm run build` all clean; `/` compiles as a dynamic route with no RSC
+  serialization crash. Niroshan should open `/`'s "Company Workflow" tab in a browser to confirm
+  before this is considered fully closed.
+- **Sign-off**: implementer (this session, no durable session identifier available) produces a
+  `CLAUDE_HANDOFF` — not self-accepted. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, acceptance
+  requires independent review from the other Claude account. QA (`qa-tester`) not invoked —
+  presentation/navigation-only package touching no core transactional flow.

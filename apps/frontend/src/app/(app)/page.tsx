@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { ShoppingCart, ShoppingBag, Factory } from "lucide-react";
+import { Boxes, ShoppingCart, ShoppingBag, Factory } from "lucide-react";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { DocTabs } from "@/components/DocTabs";
+import { CompanyFlowMap } from "@/components/CompanyFlowMap";
 
 /**
  * Root landing page — a neutral module picker, not any one module's dashboard.
@@ -9,6 +11,15 @@ import { Breadcrumb } from "@/components/Breadcrumb";
  * workspace home page (moved verbatim to app/(app)/sales/page.tsx). Now it's a
  * lightweight, server-rendered switcher: each card links to a module's own home
  * page. No ERPNext data is fetched here — that lives in each module's own page.
+ *
+ * "Company Workflow" tab added 2026-09-22, once all four modules (Sales, Buying,
+ * Manufacturing, Inventory) had their own per-module Flow map — a bird's-eye
+ * procure-to-cash pass combining them, via `CompanyFlowMap` (`lib/companyFlowMap.ts`),
+ * the same shared, generic `FlowMap`/`FlowNodeDialog` components every other Flow tab
+ * uses (`lib/flowMap.ts`'s doc comment) — NOT a fork. Also fixed a pre-existing gap
+ * this same review surfaced: `MODULE_CARDS` never had an Inventory card even though
+ * `/stock` has shipped and had its own workspace home page since 2026-09-16 — Sidebar.tsx
+ * already lists it as a full module (id "stock", label "Inventory").
  */
 
 type ModuleCard = {
@@ -36,20 +47,24 @@ const MODULE_CARDS: ModuleCard[] = [
     icon: ShoppingBag,
   },
   {
+    id: "stock",
+    label: "Inventory",
+    description: "Stock Entries, Stock Balance, Warehouses, Batches, Serial Nos.",
+    href: "/stock",
+    icon: Boxes,
+  },
+  {
     id: "manufacturing",
     label: "Manufacturing",
-    description: "Work Orders live; Job Cards, BOM, downtime, live OEE next.",
+    description: "Work Orders and Production Plans live; Job Cards, Workstations, OEE next.",
     href: "/manufacturing",
     icon: Factory,
   },
 ];
 
 export default function HomePage() {
-  return (
+  const modulesTab = (
     <div>
-      <Breadcrumb items={[{ label: "Home" }]} />
-
-      <h1 className="mb-1 text-lg font-semibold text-graphite-900">Ceylon Stack</h1>
       <p className="mb-6 text-sm text-graphite-500">Choose a module to get started.</p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -89,6 +104,21 @@ export default function HomePage() {
           );
         })}
       </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <Breadcrumb items={[{ label: "Home" }]} />
+
+      <h1 className="mb-1 text-lg font-semibold text-graphite-900">Ceylon Stack</h1>
+
+      <DocTabs
+        tabs={[
+          { id: "modules", label: "Modules", content: modulesTab },
+          { id: "company-flow", label: "Company Workflow", content: <CompanyFlowMap /> },
+        ]}
+      />
     </div>
   );
 }

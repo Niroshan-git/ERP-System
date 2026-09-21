@@ -4174,3 +4174,86 @@ independently confirm no visual/layout regression once a browser (or real login 
 available to it, since neither this session nor its code-reviewer subagent could render the SVG.
 Once accepted, `release-tracker` for `docs/ceylon-stack-documentation.html` + Notion sync,
 deferred until then per PP-8's precedent.
+
+## 2026-09-22 — Company Workflow flow map + missing Inventory module card
+
+**PACKAGE:** Company Workflow flow map + Inventory module card fix
+**IMPLEMENTER:** this session, no durable session identifier available
+**REVIEWER:** the other Claude account under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not yet
+assigned to a specific session)
+**BASE COMMIT:** `7bbdc69` (Buying Flow + Inventory Flow maps)
+**ASSIGNED BY:** Niroshan, direct request: "Now in the main company page add the workflow combine
+all these details. In the apps page" — interpreted as the root "/" module-picker page getting a
+company-wide view combining the four already-shipped per-module Flow maps.
+**ASSIGNMENT TIMESTAMP:** 2026-09-22
+
+**Implementation summary**: added a "Company Workflow" tab to `/` (the root module-picker page,
+now wrapped in `DocTabs` with the original module grid as an unchanged "Modules" tab), using the
+same shared, generic `FlowMap`/`FlowNodeDialog` components as the four per-module Flow maps — new
+`lib/companyFlowMap.ts` + `components/CompanyFlowMap.tsx`, same thin-wrapper pattern, zero changes
+to the shared components. One scene, 8 higher-level nodes stitching Buying → Inventory →
+Manufacturing → Sales into a single "procure to cash" pass (Supplier, Purchase Order, Purchase
+Receipt, Work Order, Manufacture, Sales Order, Delivery Note, Sales Invoice) — deliberately not a
+re-detailing of all four flows' full node sets, which would be unreadable at this zoom level.
+Every node's `note` field points at the per-module Flow tab with the real stage-by-stage detail.
+
+**Built directly in the RSC-safe shape from the start**, same discipline as the prior Buying/
+Inventory package: `CompanyFlowMap.tsx` imports its own data internally inside its own
+`"use client"` module; `page.tsx` renders `<CompanyFlowMap />` with no props.
+
+**Geometry — a new combination of already-proven segments, not freehand**: unlike the Buying/
+Inventory package (verbatim scene copies), this scene's node ordering is new, but every individual
+H/V edge segment is byte-identical to one already shipped elsewhere (Sales "standard"'s
+same-row-box spacing/stand-off convention; Manufacturing "planned"'s exact
+`workOrder`-to-next-stage vertical-drop coordinates and label position, reused unchanged for this
+scene's `workOrder`→`manufacture` edge). `manufacture`'s `href: null` reuses the exact "not yet
+built" fact `manufacturingFlowMap.ts`'s own `manufactureEntry` record already states — no new
+claim invented for this package.
+
+**Also fixed, same file, explicitly named rather than silently bundled**: `MODULE_CARDS` on the
+root page never had a Inventory/`stock` card, even though `Sidebar.tsx` has treated `stock` as a
+full 4th module (its own home page since 2026-09-16) the whole time — a genuine pre-existing gap,
+not something Niroshan asked for this turn. Added the missing card while already editing this file
+for the Company Workflow tab.
+
+**Code review** (`code-reviewer` subagent, in-session): **PASS, no blocking findings.**
+Independently re-derived the box-edge arithmetic for all seven edges against the 218×132 box size
+and 82px inter-column gap convention (confirmed the 12px arrow-stand-off holds everywhere) rather
+than trusting the implementer's claim, and confirmed the scene's one edge label ("Transfer &
+produce") sits in the vertical channel between column-aligned boxes — not the 82px horizontal gap
+that would have overflowed it, which is why the other candidate labels had been dropped during
+drafting. Confirmed all seven non-null hrefs exist on disk and the `manufacture` node's `href:
+null` claim traces correctly. Confirmed `FlowMap.tsx`/`FlowNodeDialog.tsx` untouched (genuine
+reuse, not a fork) and `page.tsx` never imports `COMPANY_FLOW_RECORDS` directly (RSC boundary
+correct). One non-blocking content nit caught and fixed: the `supplier` node's note read like
+leftover text from an earlier draft that hadn't included Supplier as a node ("this map starts at
+the Purchase Order" while Supplier was itself drawn as node 1) — reworded to "skips straight to
+the Purchase Order below". Separately asked to judge the Inventory-card piggyback on its own
+merits: explicit verdict was that a same-file, one-line, additive, non-behavioral fix riding
+alongside the primary change is reasonable to land together (not scope creep), conditioned on
+naming it explicitly rather than silently bundling it — done, in this entry, `PROGRESS.md`,
+`QA_LOG.md`, and the commit message.
+
+**Known gap, disclosed not hidden**: same as every prior Flow map package — no browser/screenshot
+tool available in this environment, and this session does not have (and will not attempt to obtain
+or bypass) real ERPNext login credentials needed to load the app past its session-cookie auth
+middleware, so the SVG's actual visual rendering could not be confirmed end-to-end. `npx tsc
+--noEmit`, `npm run lint`, `npm run build` all clean; `/` compiles as a dynamic route with no RSC
+serialization crash (the specific bug class this shape is designed to avoid). Niroshan should open
+`/`'s "Company Workflow" tab in a browser before this is considered fully closed — recorded in
+`QA_LOG.md`.
+
+**Package isolation**: touched `lib/companyFlowMap.ts` (new), `components/CompanyFlowMap.tsx`
+(new), `app/(app)/page.tsx`, `PROGRESS.md`, `QA_LOG.md`, `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`,
+and this file. No `docs/backend/` entry owed — same precedent as every prior Flow map package (a
+navigation aid over already-documented/already-shipped stages across four modules, not new field/
+entity/business-rule knowledge per `BACKEND_KNOWLEDGE_POLICY.md`).
+
+**Recommended next action:** independent review of this package under
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not self-accepted) — the reviewing session should also
+independently confirm no visual/layout regression once a browser (or real login credentials) is
+available to it. Once accepted, `release-tracker` for `docs/ceylon-stack-documentation.html` +
+Notion sync, deferred until then per PP-8's precedent. Niroshan may also want to review whether
+this package's earlier sibling (Buying Flow + Inventory Flow maps, `7bbdc69`) and this one should
+be accepted together in one review pass, since this package builds directly on top of it and both
+are still awaiting the same independent cross-review.

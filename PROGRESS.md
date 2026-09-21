@@ -3512,3 +3512,52 @@ correct. Full account in `QA_LOG.md`.
 Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
 account before acceptance.
+
+## Company Workflow flow map + missing Inventory module card (2026-09-22)
+
+Niroshan asked for the root "/" page (a neutral module-picker page, doc-commented as such since
+the Buying + multi-module nav plan) to get "the workflow, combine all these details" — a
+company-wide view stitching the four now-shipped per-module Flow maps (Sales, Manufacturing,
+Buying, Inventory) into one picture. Added a "Company Workflow" tab alongside the existing module
+grid (now wrapped in `DocTabs` as a "Modules" tab, content unchanged), using the same shared,
+generic `FlowMap`/`FlowNodeDialog` components as a fifth data module: new `lib/companyFlowMap.ts`
++ `components/CompanyFlowMap.tsx`, same thin-wrapper pattern as the other four, zero changes to
+the shared components themselves.
+
+Deliberately not a re-detailing of all four flows' full node sets (unreadable at this zoom level).
+One scene, 8 higher-level nodes — Supplier, Purchase Order, Purchase Receipt, Work Order,
+Manufacture, Sales Order, Delivery Note, Sales Invoice — each summarized at "why this stage
+matters in the full chain" level, with every node's `note` pointing at the per-module Flow tab
+that has the real stage-by-stage detail. The `manufacture` node keeps the same `href: null` +
+"not yet built" claim `manufacturingFlowMap.ts`'s own `manufactureEntry` record already makes — no
+new claim invented. Node/edge geometry is fully reused from the existing proven templates (every
+individual H/V segment is byte-identical to an edge already shipped in Sales' "standard" or
+Manufacturing's "planned" scene, just recombined into this scene's own node ordering) — arithmetic
+independently re-verified by `code-reviewer` box-edge-by-box-edge, not just asserted.
+
+While in `page.tsx` for the Company Workflow tab, also added the module card `MODULE_CARDS` had
+been missing since Inventory shipped 2026-09-16: `Sidebar.tsx` has treated `stock` as a full 4th
+module (id `stock`, label "Inventory", its own home page) since that date, but the root page's
+card grid only ever had Sales/Buying/Manufacturing. A genuine pre-existing gap, not something
+Niroshan asked for this turn — `code-reviewer` explicitly judged this a reasonable same-file
+piggyback (one-line, additive, no new logic) rather than scope creep, on the condition it's named
+explicitly rather than silently bundled — noted here and in the commit message.
+
+Code review (`code-reviewer` subagent, in-session): **PASS, no blocking findings.** Independently
+re-verified every H/V edge's coordinates against the box-size/gap arithmetic (confirmed the
+12px arrow-stand-off convention holds on all seven edges) and confirmed the one edge label
+("Transfer & produce") sits inside the vertical channel between two column-aligned boxes, not an
+82px horizontal gap that would have overflowed — matching the exact geometry and label already
+shipped on `manufacturingFlowMap.ts`'s equivalent edge. One non-blocking content nit caught and
+fixed: the `supplier` node's note read like leftover text from an earlier draft that hadn't
+included Supplier as a node ("this map starts at the Purchase Order" while Supplier was itself
+drawn as node 1) — reworded to "skips straight to the Purchase Order below".
+
+`npx tsc --noEmit`, `npm run lint`, `npm run build` all clean, `/` compiles as a dynamic route
+with no RSC serialization crash. Visual rendering not independently verified — same standing
+caveat as every other Flow map package in this environment (no browser tool, no test login
+credentials).
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
+account before acceptance.
