@@ -4257,3 +4257,58 @@ Notion sync, deferred until then per PP-8's precedent. Niroshan may also want to
 this package's earlier sibling (Buying Flow + Inventory Flow maps, `7bbdc69`) and this one should
 be accepted together in one review pass, since this package builds directly on top of it and both
 are still awaiting the same independent cross-review.
+
+## 2026-09-22 — Sale to Cash scene added to the Company Workflow tab
+
+**PACKAGE:** Sale to Cash scene (Company Workflow tab)
+**IMPLEMENTER:** this session, no durable session identifier available
+**REVIEWER:** the other Claude account under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not yet
+assigned to a specific session)
+**BASE COMMIT:** `efd0998` (Company Workflow flow map + Inventory module card fix)
+**ASSIGNED BY:** Niroshan, direct request: "Can you make the sale to cash flow also."
+**ASSIGNMENT TIMESTAMP:** 2026-09-22
+
+**Implementation summary**: added a second scene, `saleToCash`, to the same
+`lib/companyFlowMap.ts`/`components/CompanyFlowMap.tsx` pair created for the previous package —
+not a new component or file pair, using the exact multi-scene mechanism `salesFlowMap.ts` (4
+scenes) and `manufacturingFlowMap.ts` (2 scenes) already established. Five nodes: Customer →
+Sales Order → Delivery Note → Sales Invoice → Customer Payment — the customer-facing half of the
+full cycle standalone, ending at the actual cash-in-hand event (the existing `procureToCash`
+scene ends at billing, one stage short of that). Two new node records (`customer`, `payment`);
+`salesOrder`/`delivery`/`invoice` are the exact same keys/records already defined for
+`procureToCash`, reused with a shorter node list rather than duplicated — same precedent
+`manufacturingFlowMap.ts`'s "planned"/"direct" scenes set for reusing `bom`/`workOrder`. Added a
+`shortcuts` entry on each scene linking to the other, the first use of that mechanism in this
+file (the prior single-scene version had nothing to shortcut to).
+
+**Code review** (`code-reviewer` subagent, in-session): **PASS, no blocking findings.**
+Independently recomputed the new scene's geometry rather than trusting the implementer's claim —
+confirmed the `invoice`→`payment` vertical-drop edge is arithmetically identical in shape to the
+already-proven `workOrder`→`manufacture` edge from the sibling scene, since both node pairs sit
+at the same relative (942,74)/(942,314) positions (box bottom 74+132=206, target top 314−12=302,
+center-x 942+109=1051 — no off-by-one). Verified `/master-data/customers` exists on disk and the
+new `payment` node's `href: null` claim cross-checks against `salesFlowMap.ts`'s own
+already-documented Customer Payment gap — no new unverified claim introduced. Traced
+`FlowMap.tsx`'s `changeScene()` handler line-by-line (sets `sceneId`, clears the open node
+dialog) to confirm the new cross-scene shortcuts actually work — a first for this specific data
+file, so this couldn't be assumed from the prior single-scene review alone. Confirmed
+`CompanyFlowNodeKey`/`CompanyFlowSceneId`'s extended unions type-check with no casts, and that
+`FlowMap.tsx`/`FlowNodeDialog.tsx`/`lib/flowMap.ts`/root `page.tsx` remain untouched. One
+non-blocking content nit caught and fixed: the reused `invoice` record's `purpose` text ("bill
+the customer for what was sourced, produced, and delivered") read oddly reused inside
+`saleToCash`'s own scene note, which explicitly says a sale doesn't require sourcing/production
+to have happened first — reworded to hedge the same way the reused `delivery` record already does
+("or resold as-is").
+
+**Verification**: `npx tsc --noEmit`, `npm run lint`, `npm run build` all clean. Visual rendering
+not independently verified — same standing caveat as every prior Flow map package in this
+environment (no browser tool, no test login credentials).
+
+**Package isolation**: touched only `lib/companyFlowMap.ts`, `components/CompanyFlowMap.tsx`,
+`PROGRESS.md`, `QA_LOG.md`, `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, and this file. No
+`docs/backend/` entry owed — same precedent as every prior Flow map package.
+
+**Recommended next action:** independent review of this package under
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not self-accepted) — likely most efficient to review
+together with its two immediate predecessors (`7bbdc69`, `efd0998`) in one pass, since all three
+are still awaiting the same independent cross-review and this one builds directly on the last.

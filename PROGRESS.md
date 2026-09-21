@@ -3561,3 +3561,42 @@ credentials).
 Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
 account before acceptance.
+
+## Sale to Cash scene added to the Company Workflow tab (2026-09-22)
+
+Niroshan asked to "make the sale to cash flow also" — a second scene alongside the existing
+"Procure to cash" one, not a new component. Added `saleToCash` to the same
+`lib/companyFlowMap.ts`/`components/CompanyFlowMap.tsx` pair, using the multi-scene mechanism
+`salesFlowMap.ts` (4 scenes) and `manufacturingFlowMap.ts` (2 scenes) already established: one
+`FlowMap` instance, a second entry in `COMPANY_FLOW_SCENES`/`COMPANY_FLOW_SCENE_ORDER`, switched
+via the existing scene tablist.
+
+Five nodes — Customer -> Sales Order -> Delivery Note -> Sales Invoice -> Customer Payment — the
+customer-facing half of the full cycle on its own, ending at the actual cash-in-hand event (unlike
+the first scene, which ends at billing). Two new node records (`customer`, `payment`); the other
+three (`salesOrder`, `delivery`, `invoice`) are the exact same keys/records from the
+`procureToCash` scene, reused with a shorter node list rather than duplicated — same precedent
+`manufacturingFlowMap.ts`'s "planned"/"direct" scenes already set for reusing `bom`/`workOrder`.
+Added a `shortcuts` entry on each scene linking to the other, using the same in-diagram
+scene-switch mechanism `salesFlowMap.ts`'s "standard" scene already uses for its own 4 scenes —
+new to this file, since the prior single-scene version had nothing to shortcut to.
+
+Code review (`code-reviewer` subagent, in-session): **PASS, no blocking findings.** Independently
+recomputed the new scene's geometry (confirmed the vertical `invoice`->`payment` drop is
+arithmetically identical in shape to the already-proven `workOrder`->`manufacture` edge, since
+both node pairs sit at the same relative (942,74)/(942,314) positions), verified `/master-data/
+customers` exists and the `payment` node's `href: null` claim cross-checks against
+`salesFlowMap.ts`'s own already-documented Customer Payment gap, and traced `FlowMap.tsx`'s
+`changeScene()` handler to confirm the new shortcuts actually switch scenes correctly (generic,
+no per-scene special-casing needed). One non-blocking content nit caught and fixed: the reused
+`invoice` node's `purpose` text ("bill the customer for what was sourced, produced, and
+delivered") read oddly reused inside `saleToCash`'s own scene note, which explicitly says a sale
+doesn't require sourcing/production first — reworded to hedge the same way the reused `delivery`
+record already did ("or resold as-is").
+
+`npx tsc --noEmit`, `npm run lint`, `npm run build` all clean. Visual rendering not independently
+verified — same standing caveat as every other Flow map package in this environment.
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
+account before acceptance.

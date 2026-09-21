@@ -13,15 +13,17 @@ const COMPANY_FLOW_NOTES = (
   <>
     <p>
       This is the company-wide, bird&apos;s-eye version of the four per-module Flow maps
-      (Buying, Inventory, Manufacturing, Sales) — one procure-to-cash pass through the
-      business, not a re-detailing of every stage. Each node&apos;s note links to the module
-      Flow tab that has the full stage-by-stage detail, business rules, and live-confirmed
-      effects for that part of the chain.
+      (Buying, Inventory, Manufacturing, Sales) — two high-level passes through the business,
+      not a re-detailing of every stage. &quot;Procure to cash&quot; is the fullest chain,
+      supply-side through to billing; &quot;Sale to cash&quot; is the customer-facing half on
+      its own, ending at the actual cash-in-hand event. Each node&apos;s note links to the
+      module Flow tab that has the full stage-by-stage detail, business rules, and
+      live-confirmed effects for that part of the chain.
     </p>
     <p>
-      Not the only path through the business: a Sales Order can be raised at any point, not
-      only after production finishes, and purchased goods can be resold directly without a
-      Work Order at all — see this scene&apos;s own note for the caveat.
+      Neither scene is the only path through the business: a Sales Order can be raised at any
+      point, not only after production finishes, and purchased goods can be resold directly
+      without a Work Order at all — see each scene&apos;s own note for its caveat.
     </p>
   </>
 );
