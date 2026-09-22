@@ -14,19 +14,23 @@ exists in the current build"):
   Stock Entry flow triggered from Work Order Detail). Fields, business rules, stock impact.
 - [`job-card.md`](job-card.md) — read-only fields only (surfaced on the Work Order detail page's
   Job Cards tab). Job Card's own lifecycle is out of scope until it gets its own frontend package.
-- [`bom.md`](bom.md) — 2026-09-19 investigation baseline (BOM/BOM Item/BOM Operation schema,
-  lifecycle, costing, multi-level, Production Plan relationship, Operation/Routing/Workstation
-  classification). **Investigated only, not implemented** — the Manufacturing Masters (BOM)
-  package concluded Gate B (no usable BOM frontend exists to canonicalize); see `PROGRESS.md`
-  and `docs/operations/AI_WORK_LOG.md` for the full handoff.
-- [`production-plan.md`](production-plan.md) — 2026-09-19 discovery/canonicalization baseline
-  (header/child-table schema, Sales Order sourcing rules, multi-BOM resolution, sub-assembly
-  explosion, material requirement formula, Work Order/Material Request generation, accounting/
-  stock impact). **Investigated only, not implemented** — zero frontend footprint, zero live
-  Production Plan documents exist to test against; source-derived behavior is flagged
-  `MFG-UNV-012` (renumbered 2026-09-19 from a colliding `MFG-UNV-010`, see
-  `unverified-behaviours.md`'s ID note — `CX-MFG-PP-004`). See `PROGRESS.md` for the recommended
-  next package (PP-1: canonical read-only List/Detail).
+- [`bom.md`](bom.md) — started as a 2026-09-19 investigation baseline (BOM/BOM Item/BOM Operation
+  schema, lifecycle, costing, multi-level, Production Plan relationship, Operation/Routing/
+  Workstation classification), then **implemented**: `/master-data/boms` now has read-only
+  list/detail, create, Draft-only edit, Submit (`MFG-CLOSE-0c`, 2026-09-22), and submitted-BOM
+  Active/Inactive/Default availability actions — see `bom.md`'s "Frontend capability"/"Mutation
+  contract"/"Submit contract"/"Submitted-BOM availability contract". Cancel/Amend remain unbuilt.
+- [`production-plan.md`](production-plan.md) — started as a 2026-09-19 discovery/canonicalization
+  baseline (header/child-table schema, Sales Order sourcing rules, multi-BOM resolution,
+  sub-assembly explosion, material requirement formula, Work Order/Material Request generation,
+  accounting/stock impact), then **implemented**: `/manufacturing/production-plans` now has
+  create, submit, Get Sub Assembly Items, Make Work Order, Make Material Request, and cancel with
+  real cascade rules (Production Plan Packages PP-1 through PP-8, 2026-09-20/21). Amend and
+  multi-location "Get Items for Purchase/Transfer" remain unbuilt. `MFG-UNV-012` (source-derived
+  behavior flagged during the original discovery pass, renumbered from a colliding `MFG-UNV-010`,
+  see `unverified-behaviours.md`'s ID note — `CX-MFG-PP-004`) has since been substantially
+  narrowed by live testing across those packages — see `unverified-behaviours.md` for current
+  status, not this line.
 
 ## What's explicitly NOT covered
 
@@ -34,21 +38,21 @@ Per the Current Mission priority lock in `CLAUDE.md` ("Manufacturing frontend un
 2026-09-17... create/submit/cancel actions [now partially built — see note below], Job Card
 list/detail, BOM, Workstations, and OEE are each their own future scoped package"):
 
-- **BOM as its own entity/page** — no create/edit/versioning UI; only read via `getDoc("BOM", ...)`
-  for the Work Order create preview. Domain investigated (schema, lifecycle, costing, multi-level,
-  Production Plan relationship) 2026-09-19 without building any frontend — see [`bom.md`](bom.md).
+- **BOM Cancel/Amend** — BOM itself now has create/Draft-edit/Submit/submitted-availability
+  actions (`/master-data/boms`, see [`bom.md`](bom.md)'s "Mutation contract"/"Submit contract"/
+  "Submitted-BOM availability contract"), but Cancel and Amend remain unbuilt.
 - **Job Card list/detail pages** — no dedicated route exists; fields are read only via the Work
   Order detail page.
 - **Workstations** — not touched by the frontend at all yet.
 - **OEE** — not touched by the frontend; belongs to `apps/mes-service` eventually, not
   `apps/frontend`.
-- **Work Order Submit/Cancel** — Work Order Create exists (see `work-order.md`), but every
-  created Work Order stays at `docstatus 0` (Draft); there is no Submit or Cancel action in the
-  frontend for Work Order itself.
-- **Production Plan (planning workspace)** — no route, action, or component anywhere. Domain
-  investigated (schema, Sales Order sourcing, multi-BOM resolution, sub-assembly explosion, MRP
-  formula, Work Order/Material Request generation) 2026-09-19 without building any frontend — see
-  [`production-plan.md`](production-plan.md).
+- **Work Order Cancel** — Work Order Create and Submit both exist (see `work-order.md`,
+  `MFG-WF-004`); there is still no Cancel action in the frontend for Work Order itself.
+- **Production Plan (planning workspace)** — superseded: this is now a fully built, live-verified
+  planning workspace (`/manufacturing/production-plans` — create, submit, Get Sub Assembly Items,
+  Make Work Order, Make Material Request, cancel with real cascade rules; see
+  [`production-plan.md`](production-plan.md)). Amend and multi-location "Get Items for Purchase/
+  Transfer" remain unbuilt.
 
 > **Note on drift with `CLAUDE.md`'s Current Mission text**: as of this baseline, Work Order
 > Create (Package 3) and Material Transfer for Manufacture (Package 5) have actually been built,

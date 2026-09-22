@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createDoc, ErpNextError, getDoc, updateDoc } from "@/lib/erpnext";
+import { createDoc, ErpNextError, getDoc, submitDoc, updateDoc } from "@/lib/erpnext";
 import { parseBomComponentRows, parseBomOperationRows } from "@/lib/bomRows";
 
 export type FormState = { error?: string } | undefined;
@@ -12,6 +12,14 @@ function humanizeError(e: unknown): string {
     if (e.status === 403) return "Not allowed to save this BOM.";
     if (e.status === 409) return "A BOM with that name already exists.";
     return e.erpnextMessage ?? "ERPNext rejected this BOM — check the required fields.";
+  }
+  return "Something went wrong. Try again.";
+}
+
+function humanizeSubmitError(e: unknown): string {
+  if (e instanceof ErpNextError) {
+    if (e.status === 403) return "Not allowed to submit this BOM.";
+    return e.erpnextMessage ?? "ERPNext rejected this submission — check the required fields.";
   }
   return "Something went wrong. Try again.";
 }
@@ -134,6 +142,55 @@ export async function updateBomAction(name: string, _prevState: FormState, formD
     await updateDoc("BOM", name, fields);
   } catch (e) {
     return { error: humanizeError(e) };
+  }
+
+  revalidatePath("/master-data/boms");
+  revalidatePath(`/master-data/boms/${encodeURIComponent(name)}`);
+  redirect(`/master-data/boms/${encodeURIComponent(name)}?saved=1`);
+}
+
+/**
+ * docstatus 0→1 via ERPNext's own native submit (`submitDoc`, the same generic mechanism
+ * already used for Sales Order/Purchase Order/Work Order/Production Plan — `lib/erpnext.ts`),
+ * which runs `BOM.validate()`/`BOM.on_submit()` server-side; nothing here re-implements or
+ * pre-validates that logic client-side (`MFG-CLOSE-0c`'s governing architecture rule: ERPNext
+ * owns BOM lifecycle, this app only orchestrates it).
+ *
+ * Re-fetches the BOM and re-checks `docstatus === 0` itself before calling `submitDoc` — unlike
+ * `submitWorkOrderAction`/`submitProductionPlanAction`, which submit directly and let ERPNext's
+ * own docstatus-transition guard reject an already-submitted document. This action adds that
+ * extra server-side check deliberately (this package's own explicit stale-state requirement,
+ * matching `updateBomAction`'s existing re-fetch-before-write precedent in this same file): the
+ * page that renders the Submit button cannot be trusted as proof the BOM is still Draft if
+ * another session submitted it in the meantime, and a named "Only a Draft BOM can be submitted"
+ * message is friendlier than ERPNext's raw transition-error text either way.
+ *
+ * **Live-confirmed native side effect worth knowing, not something this action controls or
+ * should try to prevent** (`bom.py`'s `on_submit()` → `manage_default_bom()`, MFG-CLOSE-0c
+ * investigation): if this is the *first* Submitted+Active BOM for its item, ERPNext
+ * automatically sets `is_default = 1` and `Item.default_bom` to this BOM — even though
+ * `BomForm`'s "Is Default" checkbox defaults unchecked and nothing here requests it. This is
+ * ERPNext's own native `manage_default_bom()` behavior on every submit, not a Ceylon Stack
+ * design choice, and is not suppressed or special-cased here, consistent with this package's
+ * "don't recreate BOM lifecycle rules" boundary. A second/third BOM for the same item does not
+ * get this treatment (it only fires when no other submitted default already exists for the
+ * item) — `setDefaultBomAction` remains the explicit way to change the default afterward.
+ */
+export async function submitBomAction(name: string): Promise<FormState> {
+  let current: { docstatus: number };
+  try {
+    current = await getDoc<{ docstatus: number }>("BOM", name);
+  } catch {
+    return { error: "Could not load this BOM." };
+  }
+  if (current.docstatus !== 0) {
+    return { error: "Only a Draft BOM can be submitted." };
+  }
+
+  try {
+    await submitDoc("BOM", name);
+  } catch (e) {
+    return { error: humanizeSubmitError(e) };
   }
 
   revalidatePath("/master-data/boms");

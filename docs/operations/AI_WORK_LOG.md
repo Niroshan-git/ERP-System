@@ -4904,3 +4904,84 @@ should backfill both this entry and `MFG-CLOSE-0c`'s once that foreign edit is c
 **Recommended next action:** independent review, alongside the rest of MFG-CLOSE-0a
 (`MFG-WF-004`/this fix) — not self-accepted. `MFG-CLOSE-0c` begins next as its own isolated package,
 per the assigning brief.
+
+## 2026-09-22 — MFG-CLOSE-0c: BOM Submit
+
+**PACKAGE:** MFG-CLOSE-0c — BOM Submit
+**IMPLEMENTER:** this session, no durable session identifier available
+**REVIEWER:** the other Claude account under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not yet
+assigned to a specific session) — same governance-independence caveat disclosed throughout this
+session's other entries applies here too
+**BASE COMMIT:** `de99b55` (Flow Map remediation, Stage 1 of this same two-stage mission)
+**ASSIGNED BY:** Niroshan, Stage 2 of the explicit two-stage MFG-CLOSE-0a/0c mission
+**ASSIGNMENT TIMESTAMP:** 2026-09-22
+
+**Objective:** close the confirmed Manufacturing V1 blocker from this session's own MFG-CLOSE-0a/0b
+investigation above — direct Work Order creation hard-requires a Submitted BOM
+(`validate_bom_no()`), and this app's BOM frontend had no Submit action, so any BOM created here
+stayed permanently unusable for that path.
+
+**Architecture:** no BOM validation logic reimplemented client-side. `submitBomAction` (new,
+`master-data/boms/actions.ts`) calls the same generic `submitDoc("BOM", name)` mechanism already
+used for Sales Order/Purchase Order/Work Order/Production Plan — ERPNext's own `validate()`/
+`on_submit()` is the sole authority. Re-fetches the BOM and checks `docstatus === 0` server-side
+before submitting (this package's own explicit stale-state requirement, matching
+`updateBomAction`/`setBomAvailability`'s existing re-fetch pattern already in this file). No
+client-supplied docstatus/item/quantity/costing/child-row data is ever trusted — the create/submit
+payloads are exactly what `buildBomFields()` already constructs server-side, unchanged by this
+package.
+
+**ERPNext methods used:** `submitDoc`/`updateDoc` → generic `PUT /api/resource/BOM/{name}` with
+`{docstatus: 1}`, the same REST mechanism this app already uses for every other submittable
+doctype. No bespoke or undocumented endpoint introduced.
+
+**BOM lifecycle investigation (SSH source read, `bom.py` on the live instance, erpnext 16.34.2):**
+`BOM.on_submit()` calls exactly `manage_default_bom()` + `update_bom_creator_status()` — no other
+side effect. `manage_default_bom()`'s exact branching (documented in full in `bom.md`'s new "Submit
+contract" section): if this is the only Active+Submitted BOM for its item, it is automatically made
+`is_default` and `Item.default_bom` is set to it, with **zero explicit user action beyond Submit**
+— native ERPNext behavior, not something this action requests, controls, or suppresses. A second
+BOM submitted for the same item does not receive this treatment. `is_active`/`is_default` remain
+the only `allow_on_submit` fields; every structural field stays immutable after submit, consistent
+with the existing Mutation/Availability contracts.
+
+**Live E2E acceptance test** (disposable Item+BOM fixture, one non-committed transaction,
+independently re-confirmed absent afterward — full detail in `QA_LOG.md`'s matching entry):
+1. Draft BOM created (`is_default: 0`, matching `BomForm`'s real default state).
+2. Submitted via the exact mechanism `submitBomAction` uses → `docstatus: 1`.
+3. **`Item.default_bom` auto-set live-confirmed** (`null` → this BOM), matching the source-derived
+   prediction exactly.
+4. **Direct Work Order creation succeeded with zero bypass flags** — the actual acceptance
+   criterion. (Earlier in the same overall investigation, the identical payload against a Draft BOM
+   was confirmed rejected — see MFG-CLOSE-0a/0b's entry above.)
+5. Production Plan → Make Work Order regression checked against the same submitted BOM: succeeded
+   (expected, since that path bypasses the check regardless of docstatus, per the earlier
+   investigation — this step confirms no unexpected interaction with the new auto-default state,
+   not that the bypass changed).
+6. Full cleanup, independently re-verified via a separate console session (zero residual Item/BOM/
+   Work Order records).
+
+**Security:** hardcoded `"BOM"` doctype throughout (no generic/parameterizable submit endpoint
+introduced); server-side re-fetch and docstatus check before every mutation; no client-controlled
+docstatus/costing/child-row data path exists; no ERPNext core file touched; no direct database
+write (REST/Document API only); no credential read/printed. F-BOM-02 status unchanged (still not
+independently verifiable — see MFG-CLOSE-0a/0b's entry; not re-attempted here, out of this
+package's scope).
+
+**Documentation:** `docs/backend/05-manufacturing/bom.md` — new "Submit contract" section, domain
+status line and stale "no Submit" claims corrected. `docs/backend/05-manufacturing/README.md` —
+corrected two stale "investigated only, not implemented" claims for BOM and Production Plan (both
+already overtaken by earlier packages before this session started, independently confirmed stale
+during MFG-CLOSE-0a/0b's investigation, fixed here since both files were clean/safe to touch).
+`docs/backend/99-unverified/unverified-behaviours.md` and `PROGRESS.md` deliberately **not**
+touched — both remain foreign, in-progress, uncommitted `MD-UNV-003` work.
+
+**Package isolation:** `apps/frontend/src/app/(app)/master-data/boms/actions.ts`,
+`apps/frontend/src/app/(app)/master-data/boms/[name]/page.tsx`, `docs/backend/05-manufacturing/
+bom.md`, `docs/backend/05-manufacturing/README.md`, `QA_LOG.md`, and this file. No BOM Cancel,
+Manufacture Stock Entry, Work Order Cancel, Job Card, Workstation, Quality, OEE, MES, CRM, Finance,
+workflow, mobile, or reporting work performed — `MFG-CLOSE-1` remains locked. Kept as its own commit,
+separate from the Flow Map remediation above.
+
+**Final state:** `CLAUDE_HANDOFF` — not self-declared `ACCEPTED`. Independent review requested for
+both this package and the preceding Flow Map remediation before `MFG-CLOSE-1` may begin.

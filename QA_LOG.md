@@ -1889,3 +1889,67 @@ touched.
   `CLAUDE_HANDOFF` — not self-accepted. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, acceptance
   requires independent review from the other Claude account. QA (`qa-tester`) not invoked —
   presentation/navigation-only package touching no core transactional flow.
+
+## 2026-09-22 — MFG-CLOSE-0c: BOM Submit
+
+**Scope**: closes the confirmed Manufacturing V1 blocker from this same session's MFG-CLOSE-0a/0b
+investigation (`docs/operations/AI_WORK_LOG.md`'s matching entry) — a BOM created through this
+app's own frontend could never be used to create a Work Order directly, because it stayed
+permanently at Draft with no way to submit it here. New: `submitBomAction` in
+`master-data/boms/actions.ts` (`submitDoc("BOM", name)`, re-fetch-and-check-`docstatus`-first, same
+shape as `updateBomAction`/`setBomAvailability` already in this file); a "Submit BOM" `DocActionBar`
+button on `/master-data/boms/[name]` when `docstatus === 0`; a corrected read-only note on the same
+page (previously claimed "submit... not performed by this app", now false). No new route, no change
+to `bomStatus()`, no Cancel/Amend.
+
+**Static verification**: `npx tsc --noEmit` — clean. `npx eslint` scoped to the two changed files
+(`master-data/boms/actions.ts`, `master-data/boms/[name]/page.tsx`) — clean. `npm run build` — clean,
+all routes compiled.
+
+**Live E2E acceptance test** (this session, direct `bench console` access to the real Hetzner
+instance — no browser/login credentials available, so the exact `createDoc`/`submitDoc` REST
+payload shapes `buildBomFields()`/`submitBomAction` construct were reproduced directly against
+ERPNext's Document API, the same fidelity level this project's prior Production Plan packages
+(PP-4/PP-5/PP-7R) established as sufficient live evidence). One disposable Item + BOM fixture,
+created/tested/cleaned up inside a single non-committed database transaction, independently
+re-confirmed absent afterward via a separate console session:
+
+1. Created a Draft BOM (`docstatus: 0`, `is_default: 0`, `is_active: 1` — matching `BomForm`'s real
+   default checkbox state) for a disposable test Item with no pre-existing `default_bom`.
+2. Submitted it via the exact mechanism `submitBomAction` uses (`submitDoc`/`.submit()`) →
+   `docstatus: 1`.
+3. **Confirmed live, not just source-derived**: ERPNext's own `manage_default_bom()` (called from
+   `BOM.on_submit()`) automatically flipped `is_default` to `1` and set `Item.default_bom` to this
+   BOM — with no "Is Default" checkbox ever set by this test. This is native ERPNext behavior for
+   the *first* submitted BOM of an item, not something `submitBomAction` requests or should try to
+   suppress (see `bom.md`'s new "Submit contract" section for the full explanation and the
+   documented exception for a second BOM on the same item).
+4. **Direct Work Order creation against the newly-submitted BOM succeeded**, with zero
+   `ignore_validate`/`ignore_mandatory` bypass flags anywhere in the test — the actual business
+   acceptance criterion for this package. A control run earlier in the same investigation (recorded
+   in MFG-CLOSE-0a/0b's own entry) already confirmed the identical payload against a *Draft* BOM is
+   rejected; this test confirms the *submitted* case now succeeds through this app's real Submit
+   action.
+5. **Production Plan regression checked**: the same submitted BOM also worked correctly through
+   `ProductionPlan.create_work_order()` (the real native "Make Work Order" mechanism) — expected,
+   since that path bypasses the BOM check regardless of docstatus (confirmed by the earlier
+   investigation), but checked to rule out any unexpected interaction with the newly-submitted BOM's
+   auto-default state.
+6. Cleanup: BOM cancelled then deleted, Work Orders deleted, Item deleted, all inside the same
+   transaction plus an explicit follow-up pass; independently re-verified absent via a fresh
+   `frappe.db.exists` check in a separate console session before this entry was written.
+
+**Documentation**: `docs/backend/05-manufacturing/bom.md` — new "Submit contract" section, domain
+status line updated, "Document lifecycle"/Mutation contract's stale "no Submit action" claims
+corrected. `docs/backend/05-manufacturing/README.md` — corrected two now-stale claims (BOM and
+Production Plan both previously described there as "investigated only, not implemented", which
+had already been overtaken by earlier packages before this session even started). Deliberately did
+**not** touch `docs/backend/99-unverified/unverified-behaviours.md` or `PROGRESS.md` — both remain
+foreign, in-progress, uncommitted `MD-UNV-003` work this session must not modify; a future package
+should fold this entry's findings in once that foreign edit is committed or cleared.
+
+**Sign-off**: this session, no durable session identifier available, produces a `CLAUDE_HANDOFF` —
+not self-accepted. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, acceptance requires independent
+review. `qa-tester` subagent not separately invoked — the live E2E evidence above was gathered
+directly by the implementing session against the real instance, matching this project's established
+practice for packages where no browser/login credentials exist in this environment.

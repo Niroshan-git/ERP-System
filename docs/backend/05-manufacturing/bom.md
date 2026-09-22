@@ -1,23 +1,24 @@
 # BOM (Bill of Materials) — Backend Knowledge Baseline
 
-Domain status: `INVESTIGATED, READ-ONLY + DRAFT-MUTABLE + SUBMITTED-AVAILABILITY-MUTABLE FRONTEND
-IMPLEMENTED` — see `docs/backend/15-migration/migration-status.md`. Written during the Master Data
-Manufacturing Masters (BOM) investigation package, 2026-09-19, which concluded **Gate B — no usable
-BOM frontend existed at that time to canonicalize** (see `PROGRESS.md`/`docs/operations/
+Domain status: `INVESTIGATED, READ-ONLY + DRAFT-MUTABLE + SUBMIT + SUBMITTED-AVAILABILITY-MUTABLE
+FRONTEND IMPLEMENTED` — see `docs/backend/15-migration/migration-status.md`. Written during the
+Master Data Manufacturing Masters (BOM) investigation package, 2026-09-19, which concluded **Gate B
+— no usable BOM frontend existed at that time to canonicalize** (see `PROGRESS.md`/`docs/operations/
 AI_WORK_LOG.md` for the full handoff). The Manufacturing Masters — BOM Package 4A (also 2026-09-19,
 immediately following Codex's acceptance of this investigation) then built the first canonical,
 **read-only** BOM entity frontend: `/master-data/boms` (list) and `/master-data/boms/[name]`
 (detail). Package 4B (also 2026-09-19) added **BOM create and Draft-only edit** on top of that; a
 same-day remediation (`CX-MFG-BOM-4B-001`/`002`) then added a narrow **submitted-BOM
 Active/Inactive + Default availability action**, on top of Draft structural edit, and made the
-Draft edit form opt-in behind an explicit "Edit BOM" action instead of automatic — see "Frontend
-capability", "Mutation contract", and "Submitted-BOM availability contract" below for what changed.
+Draft edit form opt-in behind an explicit "Edit BOM" action instead of automatic. `MFG-CLOSE-0c`
+(2026-09-22) then added **BOM Submit** — see "Frontend capability", "Mutation contract",
+"Submitted-BOM availability contract", and the new "Submit contract" below for what changed.
 This document's field/schema/lifecycle/costing knowledge is otherwise unchanged by these packages;
-no Submit/Cancel/Amend/cost-recompute action exists anywhere, and none of `MFG-UNV-009`'s open
+no Cancel/Amend/cost-recompute action exists anywhere, and none of `MFG-UNV-009`'s open
 behavioral questions (multi-level explosion, costing recompute trigger, phantom/semi-finished
 transaction behavior, Production Plan runtime relationship) were resolved — this frontend only
-covers Draft-stage create/edit plus submitted-stage availability/default, not the full submitted-
-document lifecycle.
+covers Draft-stage create/edit, Submit, plus submitted-stage availability/default, not the full
+submitted-document lifecycle (Cancel/Amend remain unbuilt).
 
 ## Source of truth for this baseline
 
@@ -81,9 +82,10 @@ naming customization rather than hard-code the standard format.
 ## Document lifecycle
 
 **BOM is a submittable doctype** (has `amended_from: Link → BOM`, the standard Frappe
-amend-pattern field). The one real BOM is `docstatus: 1` (submitted). Structural Draft → Submit →
-Cancel → Amend transitions were not exercised through live writes in this review. The verified
-exception is that ERPNext permits the availability fields described below to change after submit.
+amend-pattern field). The one real BOM is `docstatus: 1` (submitted). Draft → Submit is now built
+and live-verified (`MFG-CLOSE-0c`, 2026-09-22, see "Submit contract" below); Cancel → Amend remain
+unbuilt and were not exercised through live writes. The verified exception is that ERPNext permits
+the availability fields described below to change after submit.
 
 ### Verified lifecycle and availability rules (2026-09-19 Codex review)
 
@@ -334,9 +336,10 @@ detail page when `docstatus === 0`) — see `apps/frontend/src/app/(app)/master-
   refuses to call `updateDoc` at all unless it's `0` (Draft) — a frontend-side safety check, not a
   substitute for ERPNext's own server-side enforcement, which was **not independently live-tested
   this session** (see `NEEDS_VERIFICATION` below).
-- **Not implemented, and deliberately so:** Submit, Cancel, Amend, "Update Cost". A submitted or
-  cancelled BOM (`docstatus` 1 or 2) falls straight through to Package 4A's existing read-only view
-  — this app has no path back into edit mode for it at all right now, by design.
+- **Not implemented, and deliberately so:** Cancel, Amend, "Update Cost". Submit is now built (see
+  "Submit contract" below). A submitted or cancelled BOM (`docstatus` 1 or 2) falls straight through
+  to Package 4A's existing read-only view — this app has no path back into edit mode for it at all
+  right now, by design.
 - **`NEEDS_VERIFICATION` — no live write-testing was possible this session** (no working ERPNext
   frontend login credentials existed; MCP tools are read-only). Specifically unconfirmed against
   the real server:
@@ -403,3 +406,50 @@ rules" above) confirms is not fully immutable — `is_active`/`is_default` are `
   is_active = 1`, source-confirmed, but nothing was observed for an *already-referencing* Work
   Order). See `docs/backend/99-unverified/unverified-behaviours.md`'s `MFG-UNV-009`/`MFG-UNV-011`
   for the canonical tracking entries.
+
+## Submit contract (`MFG-CLOSE-0c`, 2026-09-22)
+
+Closes the direct-Work-Order production-readiness gap identified by this same package's own
+BOM-eligibility investigation (see `docs/operations/AI_WORK_LOG.md`'s 2026-09-22 "MFG-CLOSE-0a/0b"
+entry): a Draft BOM created through this app could previously never be used to create a Work Order
+directly (`WorkOrder.validate()` → `validate_bom_no()` hard-rejects a non-Submitted BOM), and this
+app had no way to submit one without ERPNext Desk.
+
+- **Route/action:** `/master-data/boms/[name]`'s header now shows a "Submit BOM" button
+  (`DocActionBar`, `submitBomAction` in `master-data/boms/actions.ts`) alongside "Edit BOM" whenever
+  `docstatus === 0`. No new route.
+- **Mechanism:** `submitDoc("BOM", name)` — the same generic `docstatus 0 → 1` REST mechanism already
+  used for Sales Order/Purchase Order/Work Order/Production Plan (`lib/erpnext.ts`). Runs `BOM.validate()`/
+  `BOM.on_submit()` server-side; nothing here re-implements or pre-validates that logic.
+- **Server-side guard:** re-fetches the BOM and rejects with "Only a Draft BOM can be submitted."
+  unless `docstatus === 0`, before calling `submitDoc` — the same re-fetch-before-write pattern
+  `updateBomAction`/`setBomAvailability` already established in this file, added here specifically to
+  handle a BOM submitted by another session between page render and this action running (this
+  package's own explicit stale-state requirement).
+- **Live-verified end to end** (`MFG-CLOSE-0c`, disposable Item/BOM fixture, created/tested/cleaned
+  up in one non-committed transaction, independently re-confirmed absent afterward — no `ignore_validate`
+  or other bypass flag used anywhere in this test):
+  1. BOM created Draft (`docstatus: 0`, `is_default: 0`, matching `BomForm`'s real default checkbox
+     state) via the exact `buildBomFields()` payload shape.
+  2. Submitted via the same `submitDoc`/`.submit()` mechanism `submitBomAction` uses →
+     `docstatus: 1`.
+  3. **Native side effect confirmed live, not just source-derived:** `manage_default_bom()` (called
+     from `BOM.on_submit()`) automatically set `is_default: 1` on this BOM and
+     `Item.default_bom` from `null` to this BOM's name — with no "Is Default" checkbox ever set by
+     this test. This is ERPNext's own native first-submitted-BOM-for-an-item behavior
+     (`bom.py`'s `manage_default_bom()`: if no other submitted default already exists for the item,
+     the newly-submitted one becomes it), not something this action requests, controls, or should
+     try to suppress — a second BOM submitted for the same item does not get this treatment (source-
+     confirmed, not separately re-tested).
+  4. **Direct Work Order creation against the newly-submitted BOM succeeded** with zero bypass
+     flags (`WorkOrder.validate()` → `validate_bom_no()` passed normally) — the actual business
+     acceptance criterion this package exists to satisfy.
+  5. **Production Plan regression confirmed**: the same submitted BOM also worked correctly through
+     `ProductionPlan.create_work_order()` (the real native "Make Work Order" mechanism, which — per
+     this same investigation's earlier finding — always bypasses `validate_bom_no()` via
+     `ignore_validate` regardless of BOM docstatus; this step confirms the submitted-BOM path
+     specifically still behaves as expected, not that the bypass was removed or should be).
+- **Not implemented by this package, and deliberately so:** Cancel, Amend, any structural change to
+  a submitted BOM (unchanged from the Mutation/Availability contracts above). No change to
+  `bomStatus()` — Draft/Submitted/Cancelled were already generic docstatus-derived labels, unaffected
+  by adding a new transition between two already-modeled states.

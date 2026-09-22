@@ -12,7 +12,7 @@ import { formatAmount } from "@/lib/format";
 import { bomStatus } from "@/lib/erpStatus";
 import { listItemOptions } from "@/lib/actions/itemLookup";
 import { fetchLinkOptions } from "@/lib/linkOptions";
-import { activateBomAction, deactivateBomAction, setDefaultBomAction, updateBomAction } from "../actions";
+import { activateBomAction, deactivateBomAction, setDefaultBomAction, submitBomAction, updateBomAction } from "../actions";
 
 /**
  * Full canonical BOM component/operation row shapes read off `getDoc` — deliberately
@@ -146,18 +146,21 @@ export default async function BomDetailPage({
    * Draft-only structural "Edit BOM" action — CX-MFG-BOM-4B-001/002 remediation. A submitted
    * BOM (docstatus 1) can have its `is_active`/`is_default` changed without cancel/amend
    * (ERPNext marks both `allow_on_submit`), so those actions only ever appear at docstatus 1;
-   * a cancelled BOM (docstatus 2) gets no actions at all, and a Draft only gets "Edit BOM".
-   * "Set as Default" itself only appears once the BOM is Active and not already Default —
-   * `setDefaultBomAction` still re-validates both server-side regardless (see actions.ts).
+   * a cancelled BOM (docstatus 2) gets no actions at all, and a Draft gets "Edit BOM" plus
+   * Submit (`MFG-CLOSE-0c`) — this app has no Cancel action for BOM, so once submitted the
+   * only remaining lifecycle actions are Activate/Deactivate/Set as Default below.
    */
   const headerActions =
     doc.docstatus === 0 ? (
-      <Link
-        href={`/master-data/boms/${encodeURIComponent(doc.name)}?edit=1`}
-        className="rounded-md bg-signal px-4 py-2 text-sm font-medium text-white hover:bg-signal/90"
-      >
-        Edit BOM
-      </Link>
+      <div className="flex flex-wrap items-center gap-3">
+        <Link
+          href={`/master-data/boms/${encodeURIComponent(doc.name)}?edit=1`}
+          className="rounded-md bg-signal px-4 py-2 text-sm font-medium text-white hover:bg-signal/90"
+        >
+          Edit BOM
+        </Link>
+        <DocActionBar action={submitBomAction.bind(null, doc.name)} label="Submit BOM" pendingLabel="Submitting…" />
+      </div>
     ) : doc.docstatus === 1 ? (
       <div className="flex flex-wrap items-center gap-3">
         {doc.is_active ? (
@@ -334,9 +337,9 @@ export default async function BomDetailPage({
         </dl>
       </div>
       <p className="text-xs text-graphite-500">
-        Read-only view of ERPNext&apos;s own BOM record. Lifecycle transitions (submit, cancel, amend)
-        and cost recompute are not performed by this app — see this record&apos;s status above for
-        its current backend-recorded state.
+        Read-only view of ERPNext&apos;s own BOM record. Submit is available above while this BOM is
+        a Draft; cancel, amend, and cost recompute are not performed by this app — see this
+        record&apos;s status above for its current backend-recorded state.
       </p>
     </div>
   );
