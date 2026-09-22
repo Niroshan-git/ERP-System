@@ -4312,3 +4312,106 @@ environment (no browser tool, no test login credentials).
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not self-accepted) — likely most efficient to review
 together with its two immediate predecessors (`7bbdc69`, `efd0998`) in one pass, since all three
 are still awaiting the same independent cross-review and this one builds directly on the last.
+
+## 2026-09-22 — Architecture/master-data baseline adoption + MD-R2 backend-knowledge capture
+(retroactive ledger backfill, added during MD-R2 closure pass)
+
+**This entry is a retroactive backfill, not a contemporaneous handoff.** Two packages shipped and
+were committed (`caf1a46`, then `5d291db`) with no `AI_WORK_LOG.md` entry, no `PROGRESS.md` line, no
+`QA_LOG.md` line, and no `TEMP_DUAL_CLAUDE_MODE.md` Session Log row recorded at the time — a real
+process-closure gap, independently flagged as Finding F1 by the MD-R2 independent review (see
+below) rather than self-reported here first. This entry reconstructs what Git evidence supports and
+explicitly marks what it does not, per this closure pass's own instruction not to fabricate
+historical facts.
+
+**PACKAGE 1 — Architecture/master-data baseline adoption**
+**IMPLEMENTATION:** `caf1a46` — "docs(architecture): establish Ceylon Stack product and master-data
+baseline." Adopted `docs/ceylon-stack-master-plan.md`/`docs/ceylon-stack-master-backlog.md`
+(previously untracked planning docs), corrected ADR-007 and `docs/master-data-architecture.md`
+(both originally written 2026-09-17 describing Master Data as an unstarted proposal, stale even at
+commit time — three Master Data domain packages had already shipped and been independently accepted
+2026-09-18/19 before either document was ever committed). Documentation-only; no application code,
+route, or `Sidebar.tsx` change (commit message's own claim, independently confirmed by the MD-R2
+review's `git show --stat` inspection — only the 4 doc files listed were touched).
+**IMPLEMENTER:** unknown / reconstructed. No session identifier, no `AI_WORK_LOG.md` assignment
+record, and no `TEMP_DUAL_CLAUDE_MODE.md` Session Log row exists for this commit. Identified only by
+Git commit authorship (Niroshan Lakmal, the repo's standard human committer for every commit in this
+history — not itself evidence of which Claude account/session assisted) and the `Co-Authored-By:
+Claude Sonnet 5` trailer. Per this closure pass's mandate, no `CLAUDE-A`/`CLAUDE-B` label is assigned
+here since neither can be evidenced.
+**REVIEWER:** not independently reviewed as its own package — it was later inspected as read-only
+baseline context by the MD-R2 independent review (below), not reviewed/accepted in its own right.
+**BASE COMMIT:** `0e27f80` (immediately preceding commit per `git log`).
+**ASSIGNED BY:** Niroshan (presumed — sole human operator/committer in this repo; no direct
+request quote captured for this specific package in any surviving record, unlike other entries in
+this log which quote the originating request verbatim).
+**ASSIGNMENT TIMESTAMP:** not recorded; only the commit timestamp is known (`caf1a46`, 2026-09-22
+16:19:19 +0530, per `git log`).
+
+**PACKAGE 2 — MD-R2 (Master Data Backend Knowledge Capture)**
+**IMPLEMENTATION:** `5d291db` — "docs(backend): capture Master Data canonical knowledge (MD-R2)."
+Populated `docs/backend/01-master-data/{README,item,customer-supplier,secondary-masters,warehouse,
+bom}.md` for the 9 priority Master Data doctypes (Item, Item Group, UOM, Warehouse, Customer,
+Supplier, Contact, Address, Territory), live-schema- and live-sample-verified against the real
+Hetzner ERPNext instance (`get_doctype_fields`/`list_documents`), plus cross-referenced BOM to its
+existing `05-manufacturing/bom.md` doc rather than duplicating it. Extended
+`docs/backend/11-relationships/master-erd.md` with a Master Data ERD, updated
+`docs/backend/15-migration/migration-status.md`'s Master Data row to `DOCUMENTED`, and logged
+`MD-UNV-001` through `MD-UNV-005` in `docs/backend/99-unverified/unverified-behaviours.md` — most
+significantly `MD-UNV-003`: the real ERPNext Customer/Supplier ↔ Contact/Address `Dynamic Link`
+relationship is not wired up anywhere in this frontend. Documentation-only; no application code,
+route, or `Sidebar.tsx` change (commit message's own claim, independently confirmed by the review
+below).
+**IMPLEMENTER:** unknown / reconstructed — same evidentiary gap as Package 1 above. No session
+identifier, no assignment record, no Session Log row. Identified only by Git commit authorship
+(Niroshan Lakmal) and the `Co-Authored-By: Claude Sonnet 5` trailer.
+**REVIEWER:** this session (the same conversation that performed the "CEYLON STACK — MD-R2
+INDEPENDENT REVIEW" and is now performing this closure pass) — no durable session identifier
+available, but continuity within one conversation is directly verifiable, unlike the implementer
+question above.
+**BASE COMMIT:** `caf1a46`.
+**ASSIGNED BY:** Niroshan (presumed — same basis as Package 1; the review itself was directly
+requested by Niroshan with an explicit "CEYLON STACK — MD-R2 INDEPENDENT REVIEW" brief naming both
+commits, which is the first point in this package's lifecycle with a directly-evidenced request).
+**ASSIGNMENT TIMESTAMP:** implementation commit timestamp `5d291db`, 2026-09-22 17:24:44 +0530 (per
+`git log`); the review request itself is timestamped only by this conversation's own turn order, not
+a separately recorded clock time.
+
+**INDEPENDENT REVIEW RESULT:** `ACCEPTED`. No CRITICAL or HIGH findings. Full 16-section report
+produced this session covering DocType verification, frontend-mapping cross-checks (independently
+re-grepped, not trusted from the document — e.g. zero repo-wide matches for `link_doctype`,
+`primary_contact`, `primary_address`, confirming `MD-UNV-003`), ERD/migration-status/lifecycle
+review, and a dedicated `MD-UNV-003` deep-review concluding **Verdict A — confirmed frontend
+functional gap** (not documentation uncertainty, not intentional scope, not an incorrect finding).
+Five findings recorded, all MEDIUM/LOW/INFO:
+- **F1** (MEDIUM) — the process-closure gap this backfill entry now addresses.
+- **F2** (MEDIUM) — `docs/master-data-architecture.md`, `docs/architecture/decisions/README.md`, and
+  `docs/ceylon-stack-master-backlog.md` still claimed `docs/backend/01-master-data/` doesn't exist —
+  corrected in this same closure pass (see below).
+- **F3** (LOW) — none found; all sampled claims independently reproduced against live source.
+- **F4** (LOW) — confusing wording in `migration-status.md`'s Master Data row — corrected in this
+  same closure pass.
+- **F5** (INFO) — `MD-UNV-003`'s status-tag wording — clarified in this same closure pass.
+
+**Closure pass (this entry), 2026-09-22, DOCUMENTATION/GOVERNANCE ONLY:** remediated F1 (this
+entry + `PROGRESS.md` + `TEMP_DUAL_CLAUDE_MODE.md` Session Log backfill), F2 (stale "does not
+exist" claims corrected in `docs/master-data-architecture.md` §1/§8/§9's table,
+`docs/architecture/decisions/README.md`, and `docs/ceylon-stack-master-backlog.md` §4/§5/§6 and its
+Stage-01 module table), F4 (`migration-status.md`'s Master Data row reworded for clarity, no meaning
+change), and F5 (`MD-UNV-003` reworded to separate CONFIRMED GAP from NEEDS PRODUCT DECISION,
+`STATUS` tag left as `NEEDS_VERIFICATION` per the register's own taxonomy — no other status value is
+defined in `BACKEND_KNOWLEDGE_POLICY.md` §6). **Did not**: touch application code, frontend routes,
+or `Sidebar.tsx`; resolve `MD-UNV-003` itself (still an open product/scope decision, explicitly not
+implemented); begin `MD-R1` (BOM independent review); begin CRM or Finance; start any new Master
+Data feature package. No `/crm/*` routes introduced, no Business Partner unification introduced —
+both explicitly out of scope per the closure brief's architecture guardrail.
+
+**Package isolation**: touched `docs/master-data-architecture.md`, `docs/architecture/decisions/
+README.md`, `docs/ceylon-stack-master-backlog.md`, `docs/backend/15-migration/migration-status.md`,
+`docs/backend/99-unverified/unverified-behaviours.md`, `PROGRESS.md`, `docs/controls/
+TEMP_DUAL_CLAUDE_MODE.md`, and this file. No application code, route, or component touched.
+
+**Recommended next action:** this closure pass is not self-declared as independently reviewed —
+consistent with the dual-Claude model, a future session may independently verify these governance
+and documentation edits if warranted, though none of them touch application behavior. `MD-R1` (BOM
+independent review) remains the next actionable Master Data package whenever separately authorized.

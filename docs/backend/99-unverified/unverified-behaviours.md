@@ -611,20 +611,36 @@ directly, so this conclusion is tagged `DOCUMENTATION-INFERRED`, not `VERIFIED`,
 attempt a live `submitDoc` call against a test record and confirm the expected rejection.
 
 ### MD-UNV-003 — Customer/Supplier ↔ Contact/Address relationship not wired up in this frontend
-**Status:** `NEEDS_VERIFICATION` — but more precisely, a confirmed real gap, not just an unknown
-**What's uncertain:** Nothing about ERPNext's own behavior is uncertain here — the `Dynamic Link`
-mechanism (Contact/Address's `links` child table, `link_doctype`/`link_name`) is live-schema
-`VERIFIED`. What's flagged is a **frontend functional gap**: `createContactAction` and
-`createAddressAction` never write to `links`, and the Customer/Supplier Master Data screens never
-expose `customer_primary_contact`/`customer_primary_address` (or the Supplier equivalents) or any
-linked-record list. Contact and Address list pages are global and unfiltered. A Contact or Address
-created through `/master-data/contacts` or `/master-data/addresses` today has no relationship to
-any Customer/Supplier from this frontend's own perspective, even though `AddressContactFields.tsx`
-on Sales transactional documents can still select any existing Contact/Address by name.
+**Status:** `NEEDS_VERIFICATION` (register-taxonomy tag per `BACKEND_KNOWLEDGE_POLICY.md` §6, no
+other status value exists in this document — do not read the tag as implying ERPNext's own behavior
+is unknown; see the two-part breakdown below)
+**Independent review, 2026-09-22 (MD-R2 closure pass):** independently re-derived, not merely
+re-asserted from the MD-R2 filing — a repo-wide `grep` for `link_doctype`, `primary_contact`, and
+`primary_address` across `apps/frontend/src/` returned zero matches anywhere, and
+`contacts/actions.ts`/`addresses/actions.ts` were read in full and confirmed to never reference
+`links`. This finding separates into two genuinely different things that were previously blended
+under one status line:
+1. **CONFIRMED GAP (fact, not uncertain — settled, not open for further verification):**
+   `createContactAction`/`createAddressAction` never write to the `links` child table; the
+   Customer/Supplier Master Data screens never expose `customer_primary_contact`/
+   `customer_primary_address` (or the Supplier equivalents) or any linked-record list; Contact and
+   Address list pages are global and unfiltered. A Contact or Address created through
+   `/master-data/contacts` or `/master-data/addresses` today has no relationship to any
+   Customer/Supplier from this frontend's own perspective, even though `AddressContactFields.tsx`
+   on Sales transactional documents can still select any existing Contact/Address by name.
+   ERPNext's own `Dynamic Link` mechanism itself (Contact/Address's `links` child table,
+   `link_doctype`/`link_name`) is separately live-schema `VERIFIED` and not in question either.
+2. **NEEDS PRODUCT DECISION (genuinely open, not resolved by this entry or this closure pass):**
+   whether/how a future Master Data or CRM package should wire this up — out of scope for MD-R2 and
+   for this closure pass, and **not implemented or fixed here.**
 **How to verify / resolve:** Not a documentation task — this is a product/scope decision for a
 future Master Data or CRM package (see `docs/master-data-architecture.md` §12's CRM dependency map,
 which assumes this linkage works). Confirm whether linking is out of v1 scope intentionally, or
-schedule it as its own package once prioritized.
+schedule it as its own package once prioritized. Canonical ownership of Customer/Supplier/
+Contact/Address stays under Master Data regardless of when/how this is resolved — a future CRM
+package consumes these canonical entities, it does not fork competing `/crm/customers`,
+`/crm/contacts`, or `/crm/addresses` routes or introduce Business Partner unification as a side
+effect of closing this gap.
 
 ### MD-UNV-004 — Item/Customer/Supplier rename-safety generalizes beyond Item
 **Status:** `NEEDS_VERIFICATION`

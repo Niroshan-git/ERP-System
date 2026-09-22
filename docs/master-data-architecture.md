@@ -73,12 +73,12 @@ master (Company, Cost Center, Project, UOM, Brand exposure on Item).
 all doctype-parameterized) remains the single API layer; every domain package above moved a route,
 it did not fork a new implementation.
 
-**A real, currently-open gap this document's original version also claimed to close but didn't:**
-`docs/backend/01-master-data/` **does not exist.** `docs/backend/15-migration/migration-status.md`
-still lists Master Data at `FRAPPE_REFERENCE` with "no dedicated `docs/backend/01-master-data/`
-docs written yet" (line 14). Four domain packages have shipped and been independently accepted
-without the `BACKEND_KNOWLEDGE_POLICY.md`-required canonical documentation ever being written. This
-is real accumulated debt, not a proposal — see §8.
+**A gap this document's original version claimed to close but didn't — now closed, 2026-09-22
+(MD-R2):** `docs/backend/01-master-data/` **now exists.** The original version of this document
+(committed `caf1a46`) claimed it would be created "in this pass" but wasn't; that debt was closed
+the same day by a separate package, `5d291db` (MD-R2), independently reviewed and **ACCEPTED**
+2026-09-22. `docs/backend/15-migration/migration-status.md` now lists Master Data at `DOCUMENTED`.
+See §8 for the current state.
 
 ---
 
@@ -244,30 +244,33 @@ nothing found during this reconciliation pass contradicts them:
 
 ---
 
-## 8. Backend Knowledge Deliverable — OUTSTANDING, NOT DONE
+## 8. Backend Knowledge Deliverable — DONE (2026-09-22, MD-R2)
 
 The original version of this document claimed `docs/backend/01-master-data/` would be created "in
-this pass." **It was not.** Verified 2026-09-22: the directory does not exist, and
-`docs/backend/15-migration/migration-status.md` line 14 still reads "no dedicated
-`docs/backend/01-master-data/` docs written yet." Four independently-accepted domain packages
-(Item, Business Partner, Inventory Structure, plus the unreviewed BOM package) shipped without the
-`BACKEND_KNOWLEDGE_POLICY.md`-required canonical documentation ever being written for them. This is
-real debt against a currently-binding control document, not a future proposal:
+this pass." It was not — that gap was tracked as open debt in this section for the rest of
+2026-09-22 until package **MD-R2** (`5d291db`) closed it the same day, independently reviewed and
+**ACCEPTED**. `docs/backend/15-migration/migration-status.md`'s Master Data row now reads
+`DOCUMENTED`. The folder covers all 9 priority doctypes plus a BOM cross-reference, exactly as
+originally scoped:
 
 - `docs/backend/01-master-data/README.md` — domain overview
-- `docs/backend/01-master-data/item.md`
-- `docs/backend/01-master-data/customer-supplier.md`
-- `docs/backend/01-master-data/warehouse.md`
-- `docs/backend/01-master-data/secondary-masters.md` — Item Group, Customer Group, Territory,
-  Contact, Address, Price List
-- `docs/backend/01-master-data/bom.md` — note: `docs/backend/99-unverified/unverified-behaviours.md`
-  already has BOM-related unresolved-behavior entries from the Manufacturing track
-  (`MFG-UNV-008`, `CX-MD-BOM-001`/`002` history) — reconcile against those rather than duplicating
-- `docs/backend/11-relationships/master-erd.md` — extend with Master Data entities
-- `docs/backend/15-migration/migration-status.md` — update the Master Data row once the above exist
+- `docs/backend/01-master-data/item.md` — Item, Item Group, UOM
+- `docs/backend/01-master-data/customer-supplier.md` — Customer, Supplier
+- `docs/backend/01-master-data/warehouse.md` — Warehouse
+- `docs/backend/01-master-data/secondary-masters.md` — Contact, Address, Territory
+- `docs/backend/01-master-data/bom.md` — cross-reference only; BOM's canonical documentation stays
+  at `docs/backend/05-manufacturing/bom.md` (reconciled against the existing `MFG-UNV-008`,
+  `CX-MD-BOM-001`/`002` history rather than duplicated, per `BACKEND_KNOWLEDGE_POLICY.md` §5)
+- `docs/backend/11-relationships/master-erd.md` — extended with a Master Data ERD
+- `docs/backend/15-migration/migration-status.md` — Master Data row updated to `DOCUMENTED`
 
-This is the single most concrete, ready-to-start documentation package this baseline identifies —
-see §9, MD-10.
+One real finding surfaced by this baseline and independently confirmed during its review: the
+Customer/Supplier ↔ Contact/Address relationship ERPNext natively supports (`Dynamic Link`) is not
+wired up anywhere in this frontend — `MD-UNV-003` in
+`docs/backend/99-unverified/unverified-behaviours.md`. This is a **confirmed frontend functional
+gap**, not documented-but-unresolved uncertainty about ERPNext's own behavior, and it is a product/
+scope decision for a future package, not something this baseline or its review closed. Item 2 in §9
+below, which pointed at this as the next actionable package, is resolved as a result.
 
 ---
 
@@ -279,14 +282,16 @@ see §9, MD-10.
 - BOM: shipped, in-session reviewed, but never independently reviewed — `CLAUDE_HANDOFF`.
 - `FRONTEND_GUIDE.md` already documents this accurately (§9/§10/§10a) — no control-document
   update needed as a result of this correction pass.
-- `docs/backend/01-master-data/` does not exist — real, currently-open debt.
+- `docs/backend/01-master-data/` **exists** (since 2026-09-22, package MD-R2, `5d291db`,
+  independently reviewed and ACCEPTED) — see §8. No longer open debt.
 
 ### GAPS (what's actually left)
 1. **BOM independent review.** BOM Package 4A and 4B need an actual independent (Codex or
    cross-account) review before they can move from "Building" to "Live." This is the most
    immediately actionable item — the code already exists, review is what's missing, not
-   implementation.
-2. **Backend knowledge capture (§8).** Concrete, scoped, no design decisions required.
+   implementation. **Still not started** — MD-R1 remains open (see the table below); this closure
+   pass is documentation/governance only and does not begin it.
+2. ~~Backend knowledge capture (§8).~~ **DONE 2026-09-22 (MD-R2, `5d291db`, ACCEPTED)** — see §8.
 3. **Supplier Group, Operations, Workstations, Company, Cost Center, Project, UOM, Brand exposure**
    — all net-new feature work, not reorganization. Operations/Workstations additionally gated by
    the Manufacturing Current Mission lock — do not build ahead of that regardless of Master Data
@@ -298,8 +303,8 @@ see §9, MD-10.
 
 | # | Package | Status | Scope | Risk | Depends on |
 |---|---|---|---|---|---|
-| MD-R1 | BOM independent review | **Ready to start now** | Independent review of already-shipped Package 4A/4B code (`ad8ad92`…`305ccd7`); no new code expected unless findings require it | Low (review only) | None |
-| MD-R2 | Backend knowledge — Master Data domain | **Ready to start now** | Write `docs/backend/01-master-data/*` per §8, for all four already-shipped domain packages | None (docs only) | None |
+| MD-R1 | BOM independent review | **Ready to start — not yet started** | Independent review of already-shipped Package 4A/4B code (`ad8ad92`…`305ccd7`); no new code expected unless findings require it | Low (review only) | None |
+| MD-R2 | Backend knowledge — Master Data domain | **DONE (2026-09-22)** — `5d291db`, independently reviewed and **ACCEPTED** | Wrote `docs/backend/01-master-data/*` per §8, for all four already-shipped domain packages; surfaced `MD-UNV-003` (confirmed frontend gap, not resolved) | None (docs only) | None |
 | MD-R3 | Supplier Group screen | Not started | New feature — resolve the §10 open question first (dedicated screen vs. dropdown) | Low | Product decision |
 | MD-R4 | Manufacturing masters — Operations/Workstations | Not started, gated | Net-new screens under `/master-data/*` | New feature | Manufacturing Current Mission sequencing — do not start out of turn |
 | MD-R5 | Financial/organizational masters | Not started, low urgency | First-ever screens for Company, Cost Center, Project, UOM | New feature | Product prioritization |

@@ -3600,3 +3600,67 @@ verified — same standing caveat as every other Flow map package in this enviro
 Package state: `CLAUDE_HANDOFF`. Not self-declared accepted — per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent review from the other Claude
 account before acceptance.
+
+## Architecture/master-data baseline adoption + MD-R2 backend-knowledge capture (2026-09-22, backfilled retroactively during MD-R2 closure pass)
+
+**Backfill disclosure:** neither package below got a `PROGRESS.md` line, `QA_LOG.md` line, or
+`AI_WORK_LOG.md`/`TEMP_DUAL_CLAUDE_MODE.md` Session Log entry when actually committed — a real
+process gap, flagged as Finding F1 of the MD-R2 independent review (below) and closed here, not
+discovered by this entry. See `docs/operations/AI_WORK_LOG.md`'s matching entry for the full
+evidentiary basis (what's known from Git vs. what's explicitly marked unknown/reconstructed).
+
+**Package 1 — `caf1a46`, "establish Ceylon Stack product and master-data baseline."** Adopted the
+previously-untracked `docs/ceylon-stack-master-plan.md`/`docs/ceylon-stack-master-backlog.md`, and
+corrected ADR-007 + `docs/master-data-architecture.md` (both dated 2026-09-17, describing Master
+Data as an unstarted proposal — already stale at commit time, since Item/Business Partner/Warehouse
+domain packages had shipped and been independently accepted 2026-09-18/19 before either document
+was ever committed). Documentation-only; no application code, route, or `Sidebar.tsx` change.
+
+**Package 2 — `5d291db`, MD-R2, "capture Master Data canonical knowledge."** Populated
+`docs/backend/01-master-data/{README,item,customer-supplier,secondary-masters,warehouse,bom}.md`
+for the 9 priority Master Data doctypes (Item, Item Group, UOM, Warehouse, Customer, Supplier,
+Contact, Address, Territory), each live-schema-verified (`get_doctype_fields`) and, for naming
+behavior, live-sample-verified (`list_documents`) against the real Hetzner ERPNext instance — not
+assumed from general Frappe knowledge. BOM cross-referenced to its existing, already-thorough doc
+at `docs/backend/05-manufacturing/bom.md` rather than duplicated. Extended
+`docs/backend/11-relationships/master-erd.md` with a Master Data ERD, promoted
+`docs/backend/15-migration/migration-status.md`'s Master Data row to `DOCUMENTED`, and logged
+`MD-UNV-001`–`005`. Key finding: the real ERPNext Customer/Supplier ↔ Contact/Address relationship
+(`Dynamic Link`) is not wired up anywhere in this frontend (`MD-UNV-003`) — confirmed, not merely
+suspected. Documentation-only; no application code, route, or `Sidebar.tsx` change.
+
+**Independent review (this session, same conversation, 2026-09-22): `ACCEPTED`.** No CRITICAL/HIGH
+findings. Independently re-derived `MD-UNV-003` rather than trusting the document — a repo-wide
+grep for `link_doctype`, `primary_contact`, and `primary_address` across the whole frontend (not
+just Master Data) returned zero matches, and `contacts/actions.ts`/`addresses/actions.ts` were read
+in full and confirmed to never write `links` — Verdict **A: confirmed frontend functional gap**.
+Five findings, all non-blocking: F1 (MEDIUM, missing traceability — this entry's own reason for
+existing), F2 (MEDIUM, three architecture docs still claiming `docs/backend/01-master-data/`
+doesn't exist), F3 (LOW, none found), F4 (LOW, confusing migration-status.md wording), F5 (INFO,
+`MD-UNV-003` status-tag clarity).
+
+**Closure pass (this entry), 2026-09-22, documentation/governance only:**
+- F1: this `PROGRESS.md` entry + `docs/operations/AI_WORK_LOG.md` entry +
+  `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` Session Log backfill (4 new rows, explicitly marked
+  "unknown/reconstructed" where Git evidence doesn't support a firmer claim — no fabricated
+  timestamps or account labels).
+- F2: corrected the stale "`docs/backend/01-master-data/` does not exist" claim in
+  `docs/master-data-architecture.md` (§1, §8, §9's table), `docs/architecture/decisions/README.md`,
+  and `docs/ceylon-stack-master-backlog.md` (§4, §5 item 3, §6 item 5, and the Stage-01 module
+  table) — current-state text now matches reality, history preserved.
+- F4: reworded `docs/backend/15-migration/migration-status.md`'s Master Data row so it doesn't read
+  as "4 packages accepted" while naming only 3 and excluding BOM — no meaning change, BOM still
+  correctly described as unreviewed, not accepted.
+- F5: reworded `MD-UNV-003` in `docs/backend/99-unverified/unverified-behaviours.md` to separate
+  **CONFIRMED GAP** (settled fact) from **NEEDS PRODUCT DECISION** (genuinely open) — `STATUS` tag
+  left as `NEEDS_VERIFICATION` per the register's own taxonomy (no other status value is defined in
+  `BACKEND_KNOWLEDGE_POLICY.md` §6).
+
+**Explicitly did not do:** touch application code, frontend routes, or `Sidebar.tsx`; resolve
+`MD-UNV-003` (still open, not implemented); start `MD-R1` (BOM independent review); start CRM or
+Finance; start any new Master Data feature package; introduce `/crm/customers`, `/crm/contacts`,
+`/crm/addresses`, or Business Partner unification.
+
+Package state: closure edits not self-declared independently reviewed — none touch application
+behavior, so this is disclosed rather than escalated for review, consistent with the closure
+brief's own scope.

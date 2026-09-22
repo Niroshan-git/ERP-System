@@ -53,7 +53,7 @@ Manufacturing, Finance, Master Data.** Mapped against what actually exists in
 | **Manufacturing** | **UPDATED 2026-09-22 — no longer blocked.** The `CX-MFG-001`/`CX-MFG-002` block described below in §3 was resolved after this audit's original 2026-09-18 pass; Production Plan PP-1 through PP-8 (planning, Draft create, Submit, Sub-Assembly/Material Requirements, Work Order Generation + PP-5R remediation, Material Request Generation, Multi-Level BOM runtime qualification PP-7/PP-7R, Cancel) are all independently **ACCEPTED (SHIPPED)** per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`'s session log, with no unresolved HIGH/CRITICAL findings. Work Order — Submit (`MFG-WF-004`) is implemented and QA-passed but **PARTIAL** — still `CLAUDE_HANDOFF`, awaiting independent review. BOM (`/master-data/boms`, see Master Data row below) is also **PARTIAL** on the same basis. Job Card list/detail, Workstations, and OEE are **PLANNED** — native ERPNext capability exists for all three, but no Ceylon Stack frontend has been built for any of them. | Stage 01 — **substantially shipped**; PP track ACCEPTED, two items awaiting independent review (Work Order Submit, BOM). §3 below is historical, not current — see its correction note. |
 | **Finance** | No dedicated Finance/Accounting module or routes exist in `apps/frontend`. The only verified accounting behavior is incidental: installing the whitelabeled HR app and running payroll produced a real, balanced Journal Entry against ERPNext's GL (`PROGRESS.md`, 2026-09-13) — this proves ERPNext's own GL works, not that Ceylon Stack has a Finance module. `docs/controls/DEVELOPMENT_SYSTEM_RULES.md` §3 lists "Light Accounting + Dashboards" as sequencing priority 5, but the **Current Mission priority lock in `CLAUDE.md` does not include Finance at all** — it stops at Manufacturing. | Stage 01 — **not started, and not currently in the priority lock.** See §5, open decision #1. |
 | **CRM** | No CRM routes or module exist in `apps/frontend`. "CRM" appears in the repo only as a *future whitelabel product* candidate (Frappe's separate CRM app, alongside Helpdesk/Insights — a product-portfolio idea, not Ceylon Stack's own Lead→Opportunity→Quotation pipeline). The master plan's CRM section (Leads, Opportunities, Pipeline, lead conversion) has **no corresponding entry anywhere in the Current Mission priority lock.** | Stage 01 — **not started, and not currently in the priority lock.** See §5, open decision #2. |
-| **Master Data** | **UPDATED 2026-09-22 — SHIPPED, not a pending proposal.** This audit's original 2026-09-18 entry (below, struck through in spirit not in text) described Master Data as "investigated, not yet implemented" based on `docs/master-data-architecture.md`'s original 2026-09-17 draft. That draft was stale even at the time of this backlog's original writing: a separate session had already shipped the Item domain, Business Partner domain, and Inventory Structure (Warehouse) domain to canonical `/master-data/*` routes on 2026-09-18/19, each independently reviewed and **ACCEPTED**, plus BOM (Package 4A/4B, **PARTIAL** — shipped but `CLAUDE_HANDOFF`, unreviewed). Supplier Group, Operations, Workstations, and Financial/Organizational masters (Company, Cost Center, Project, UOM) remain **PLANNED** — no dedicated screens exist. `docs/backend/01-master-data/` — required by `BACKEND_KNOWLEDGE_POLICY.md` for the four shipped domains — does not exist; this is real documentation debt, tracked as the next actionable Master Data package (see `docs/master-data-architecture.md` §9, MD-R2). | Stage 01 — **substantially shipped** (Item/Business Partner/Warehouse domains ACCEPTED); BOM independent review and backend-knowledge capture are the two concrete remaining gaps, not a new architecture decision. |
+| **Master Data** | **UPDATED 2026-09-22 — SHIPPED, not a pending proposal.** This audit's original 2026-09-18 entry (below, struck through in spirit not in text) described Master Data as "investigated, not yet implemented" based on `docs/master-data-architecture.md`'s original 2026-09-17 draft. That draft was stale even at the time of this backlog's original writing: a separate session had already shipped the Item domain, Business Partner domain, and Inventory Structure (Warehouse) domain to canonical `/master-data/*` routes on 2026-09-18/19, each independently reviewed and **ACCEPTED**, plus BOM (Package 4A/4B, **PARTIAL** — shipped but `CLAUDE_HANDOFF`, unreviewed). Supplier Group, Operations, Workstations, and Financial/Organizational masters (Company, Cost Center, Project, UOM) remain **PLANNED** — no dedicated screens exist. `docs/backend/01-master-data/` — required by `BACKEND_KNOWLEDGE_POLICY.md` for the four shipped domains — **now exists** (package MD-R2, `5d291db`, 2026-09-22, independently reviewed and ACCEPTED; see `docs/master-data-architecture.md` §8/§9); it surfaced one confirmed frontend gap, not resolved by that package (Customer/Supplier ↔ Contact/Address linkage, `MD-UNV-003`). | Stage 01 — **substantially shipped** (Item/Business Partner/Warehouse domains ACCEPTED, backend-knowledge baseline ACCEPTED); BOM independent review (MD-R1) is the one concrete remaining gap, not a new architecture decision. |
 
 **Bottom line (corrected 2026-09-22):** five of the master plan's seven Stage-01 modules (Sales,
 Inventory, Buying-core, Manufacturing, Master Data) are real, shipped, working code, each with at
@@ -106,12 +106,14 @@ this historical block — see §6's NEXT section.
 
 `docs/backend/README.md` states plainly: *"Sales, Inventory, Buying, Purchasing, Accounting, and
 Tax are all real, shipped functionality in the frontend already... but have no backend
-documentation yet."* Only Manufacturing (Work Order + Material Transfer) has reached
-`DOCUMENTED` status in `docs/backend/15-migration/migration-status.md`; everything else is still
-`FRAPPE_REFERENCE`. **Master Data belongs on this list too (added 2026-09-22):** despite four
-domain packages shipping and three being independently ACCEPTED, `docs/backend/01-master-data/`
-was never created — `migration-status.md` line 14 still confirms this. See
-`docs/master-data-architecture.md` §8/§9 (MD-R2) for the scoped remediation package.
+documentation yet."* Manufacturing (Work Order + Material Transfer) and, **as of 2026-09-22, Master
+Data** (package MD-R2, `5d291db`, independently reviewed and ACCEPTED) have reached `DOCUMENTED`
+status in `docs/backend/15-migration/migration-status.md`; everything else is still
+`FRAPPE_REFERENCE`. Master Data's baseline covers all 9 priority doctypes (Item, Item Group, UOM,
+Warehouse, Customer, Supplier, Contact, Address, Territory) plus a BOM cross-reference, and
+surfaced one confirmed frontend gap — the Customer/Supplier ↔ Contact/Address `Dynamic Link`
+relationship is not wired up anywhere in this frontend (`MD-UNV-003`, not resolved by this
+package). See `docs/master-data-architecture.md` §8/§9 for detail.
 
 This matters because `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` is one of the five binding
 control documents, and its Package Closure Rule (`CLAUDE.md` item 5) requires backend
@@ -143,12 +145,13 @@ Founder/product owner"), these are flagged, not resolved:
 3. **Master Data implementation timing — RESOLVED, moot.** This item asked whether to fold the
    architecture doc's first package into the release window. **Overtaken by events:** the Item,
    Business Partner, and Warehouse domain packages shipped and were independently ACCEPTED
-   2026-09-18/19, before this decision was ever made. What remains open is narrower and does not
-   need a sequencing decision: BOM independent review and Master Data backend-knowledge capture
-   (`docs/master-data-architecture.md` §9, MD-R1/MD-R2) are both low-risk, no-new-scope packages
-   that can proceed without further sign-off. Net-new Master Data screens (Supplier Group,
-   Operations/Workstations, Financial/Organizational masters) remain genuinely gated on product
-   prioritization — that part of the original question is still open.
+   2026-09-18/19, before this decision was ever made. Master Data backend-knowledge capture
+   (`docs/master-data-architecture.md` §9, MD-R2) is **done** — `5d291db`, independently reviewed
+   and ACCEPTED 2026-09-22. What remains open, narrower still: BOM independent review (MD-R1) is a
+   low-risk, no-new-scope package that can proceed without further sign-off but **has not started**.
+   Net-new Master Data screens (Supplier Group, Operations/Workstations, Financial/Organizational
+   masters) remain genuinely gated on product prioritization — that part of the original question
+   is still open.
 4. **Full Purchasing chain.** Confirm the PO→Receipt→Invoice-only cut is intentional and durable
    for v1, or whether Purchase Request/RFQ/Supplier Quotation should be scoped once Buying's core
    is exercised more in practice.
@@ -174,11 +177,15 @@ to be built as a single session).
    conversation + a short ADR/CLAUDE.md update, not code.
 4. **Backend-knowledge baseline for Sales** (highest-traffic shipped module) — one scoped
    documentation package under `BACKEND_KNOWLEDGE_POLICY.md`.
-5. **Backend-knowledge baseline for Master Data** (added 2026-09-22) — `docs/backend/01-master-data/`
-   does not exist despite three ACCEPTED domain packages already shipped; see §4 and
-   `docs/master-data-architecture.md` §9 MD-R2. Equally low-risk, equally overdue.
+5. **RESOLVED, closed 2026-09-22 — was "Backend-knowledge baseline for Master Data."**
+   `docs/backend/01-master-data/` now exists (package MD-R2, `5d291db`), independently reviewed and
+   **ACCEPTED** 2026-09-22; see §4 and `docs/master-data-architecture.md` §8/§9. No action remains
+   here. One confirmed frontend gap surfaced, not resolved by this package: Customer/Supplier ↔
+   Contact/Address linkage (`MD-UNV-003`) — a future product/scope decision, tracked in
+   `docs/backend/99-unverified/unverified-behaviours.md`, not a CURRENT RELEASE blocker.
 6. **BOM independent review** (added 2026-09-22) — Package 4A/4B shipped, in-session reviewed, but
-   never independently reviewed; see `docs/master-data-architecture.md` §9 MD-R1.
+   never independently reviewed; see `docs/master-data-architecture.md` §9 MD-R1. **Still not
+   started.**
 
 ### NEXT (once CURRENT RELEASE clears; still Stage 01/02 per master plan)
 

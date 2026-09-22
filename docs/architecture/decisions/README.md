@@ -85,8 +85,12 @@ independently reviewed and ACCEPTED. BOM has a shipped list/detail/create/Draft-
 were deliberately kept under `/stock/*` (hybrid masters, confirmed twice). Supplier Group,
 Operations, Workstations, and the Financial/Organizational masters (Company, Cost Center, Project,
 UOM) have no dedicated screens yet. `docs/backend/01-master-data/` — required by
-`BACKEND_KNOWLEDGE_POLICY.md` for the domains already shipped — does not exist; this is real,
-currently-open documentation debt, not a future proposal.
+`BACKEND_KNOWLEDGE_POLICY.md` for the domains already shipped — **now exists** (package MD-R2,
+`5d291db`, 2026-09-22, independently reviewed and ACCEPTED), closing what was previously open
+documentation debt. It surfaced one confirmed frontend gap, not resolved by that package: the
+Customer/Supplier ↔ Contact/Address `Dynamic Link` relationship ERPNext supports natively is not
+wired up anywhere in this frontend (`MD-UNV-003`) — a product/scope decision for a future package,
+not a documentation defect.
 
 `lib/erpnext.ts` remains doctype-parameterized; no master entity has been duplicated by any of the
 domain packages that shipped this ADR's ownership model.
