@@ -1953,3 +1953,82 @@ not self-accepted. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, acceptance requ
 review. `qa-tester` subagent not separately invoked — the live E2E evidence above was gathered
 directly by the implementing session against the real instance, matching this project's established
 practice for packages where no browser/login credentials exist in this environment.
+
+## 2026-09-22/23 — MFG-CLOSE-1: Complete Production / Manufacture Stock Entry
+
+**Package:** MFG-CLOSE-1 (Production Completion / Manufacture Stock Entry)
+**Scope tested:** `/manufacturing/work-orders/[name]/complete-production` — the new frontend flow
+calling ERPNext's native `make_stock_entry(purpose="Manufacture")`. Base commits `2454d74`
+(implementation) + `428ac4a` (per-row warehouse guard follow-up).
+
+**Static verification**: `npx tsc --noEmit` — clean. `npx eslint` scoped to every new/changed file
+— clean. `npm run build` — clean, all routes compiled including the new
+`/manufacturing/work-orders/[name]/complete-production` route (only pre-existing
+`erpnextFetch network error` build-time logs on unrelated static-generation attempts, same
+long-standing pattern as sibling dynamic routes).
+
+**In-session code review** (`code-reviewer` subagent, no independent Codex/second-account review
+available — see `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`): approved the trust-boundary design
+(session re-verification, fresh Work Order re-fetch, fresh eligibility re-check, zero
+client-editable item rows, verified by grep that `actions.ts` never reads an `items` field from
+`formData`), found no React/TypeScript/regression issues on the existing Work Order detail page's
+Transfer Materials button/table. One real, low-severity finding: the batch/serial guard used
+optional chaining that silently treated an Item-lookup failure the same as "no batch/serial
+required" (fail-*open* on a lookup error, contradicting its own documented fail-closed intent) —
+fixed in the same pass in both `page.tsx` and `actions.ts` (an unverifiable item now blocks with
+its own distinct message, checked before the batch/serial check).
+
+**Live E2E acceptance test** (`devops` subagent, `bench execute` against the real Hetzner
+instance — a `docker cp`'d throwaway script run inside the container then deleted, chosen over
+piping into `bench console` per this project's known fragility note for that method). Fully
+disposable Item/BOM/Work Order fixture, created/tested/cleaned up, independently re-confirmed
+absent afterward. The 4 real Work Orders (`MFG-WO-2026-00003/00004/00006/00008`) and their BOM
+were never touched — read-verified unchanged.
+
+1. **Scenario A (full production)**: qty-10 Work Order, single Manufacture entry
+   (`MAT-STE-2026-00023`) built with the frontend's exact field set and submitted → `produced_qty:
+   10.0`, `status: "Completed"`. Stock Ledger Entries confirmed (RM `-20.0` at WIP, FG `+10.0` at
+   Finished Goods). GL: none for this specific zero-operations/equal-cost fixture — investigated
+   and confirmed a genuine accounting no-op (see `manufacture-completion.md`'s "Accounting impact"),
+   cross-checked against a real costed document (`MAT-STE-2026-00002`) which *did* post GL entries
+   correctly (debit Stock In Hand 96,000 / credit Stock Adjustment 96,000).
+2. **Scenario B (partial production)**: qty-10 Work Order, two Manufacture entries (qty 4 then the
+   remaining 6, the second via the server-derived default with no qty override) → `produced_qty:
+   4.0`/`"Not Started"` then `produced_qty: 10.0`/`"Completed"`. The intermediate "Not Started"
+   status after real partial production is confirmed correct ERPNext behavior (`MFG-STK-009`), not
+   a bug — `canCompleteProduction()` confirmed unaffected by it.
+3. **Scenario C (over-production rejection)**: `qty=15` against a qty-10 Work Order → preview
+   succeeded (confirms no ceiling check in `make_stock_entry` itself) but `.insert()`/`.validate()`
+   correctly rejected: `"For quantity 15.0 should not be greater than allowed quantity 10.0"`. This
+   live result corrected an earlier, source-reading-only claim about *where* this check runs (see
+   `MFG-STK-005` in `manufacture-completion.md` and the corrected doc comment in
+   `workOrderManufacture.ts`).
+4. **Scenario D (Draft Work Order)**: `make_stock_entry` called directly against a never-submitted
+   Work Order returned a full valid preview with no rejection — confirms `canCompleteProduction()`'s
+   `docstatus` gate is this app's own load-bearing safeguard, not redundant with anything ERPNext
+   itself enforces at the preview step.
+5. **Cleanup**: all 11 disposable Stock Entries, 4 disposable Work Orders, the BOM, and both Items
+   deleted and independently re-confirmed absent via fresh queries in a separate check; the 4 real
+   Work Orders re-confirmed unchanged.
+
+**Not tested this session**: Scenarios E (partial+continued transfer/production interleaving beyond
+Scenario B's shape) and F (insufficient-stock rejection) from the assigning brief were not
+separately exercised — Scenario A/B's fixtures had sufficient stock throughout, and no
+insufficient-stock case was deliberately constructed. Whether an actual Stock Entry insert built
+from a Draft-Work-Order preview (Scenario D) would be rejected elsewhere in `Work Order.validate()`
+was also not tested (this app's own gate makes it unreachable through the built UI regardless).
+Batch/serial handling remains built-but-unexercised (no batch/serial item exists in any BOM on this
+instance, real or disposable, to test against).
+
+**Documentation**: `docs/backend/05-manufacturing/manufacture-completion.md` (new, then updated
+with real QA results and one correction to the original source-only over-production claim),
+`work-order.md`, `README.md`, `docs/backend/15-migration/migration-status.md` — all updated.
+`docs/backend/99-unverified/unverified-behaviours.md` and `PROGRESS.md` deliberately **not**
+touched — both remain foreign, in-progress, uncommitted `MD-UNV-003` work this session must not
+modify.
+
+**Sign-off**: this session, no durable session identifier available, produces a `CLAUDE_HANDOFF` —
+not self-accepted. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, no genuinely separate Claude
+account/session was available in this environment for independent review (same disclosed gap as
+every prior package in this session — flagged for Codex's eventual §16 reconciliation audit);
+independent review is still requested and required before this package can be considered accepted.

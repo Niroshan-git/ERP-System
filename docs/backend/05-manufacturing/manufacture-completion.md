@@ -9,12 +9,14 @@
 active `Stock Entry.get_items()` branch, live `Manufacturing Settings` values, and Work Order
 side-effect chain all read directly from the installed ERPNext v16.34.2 source on the Hetzner
 instance (`/home/frappe/frappe-bench/apps/erpnext/erpnext/`, site `frontend`) via SSH by the
-`devops` subagent during this package's investigation — not guessed, not carried over from
-general ERPNext knowledge · `Runtime Test: NOT RUN` — see "Live QA" below; this session had no
-SSH, browser, or write-capable tool access after the read-only source investigation completed
-(sandbox denied direct SSH from the main session; only read-only MCP tools and the `devops`
-subagent's one investigation pass were available), so no Stock Entry was actually created,
-submitted, or inspected this session. Lint/type-check/build only — see "Tests" in the handoff.
+`devops` subagent · `Runtime Test: VERIFIED` — a second `devops` subagent pass live-executed the
+exact payload shape `buildManufactureStockEntryFields()`/`getManufacturePreview()` construct
+against a disposable Item/BOM/Work Order fixture (created, tested, fully cleaned up, independently
+re-confirmed absent afterward) covering full production, partial production, over-production
+rejection, and a Draft-Work-Order attempt — see "Live QA" below for the full results, including one
+correction this pass made to the source investigation's original claim about where over-production
+is enforced. The main session itself has no SSH/browser access (sandbox denies direct SSH from the
+main session); all live verification in this document was performed by the `devops` subagent.
 
 ## Native mechanism — not reimplemented
 
@@ -127,27 +129,49 @@ no legitimate reason for this screen to accept arbitrary client item rows at all
   Work Order created without one (via this app's own create form, which allows `fg_warehouse` to
   be blank) would hit this block with no in-app remedy. `NEEDS_VERIFICATION`/follow-up candidate,
   not fixed in this package (out of MFG-CLOSE-1's scope per its own boundary).
-- **`MFG-STK-005`** — Over-production guard is enforced only at Stock Entry submit time, not at
-  preview time. `FRAPPE_CURRENT_BEHAVIOR`, source-confirmed: `make_stock_entry()` and
-  `Stock Entry.get_items()` perform no qty-ceiling validation at all. The actual enforcement is
-  `Stock Entry.on_submit()` → `update_work_order()` → `Work Order.update_work_order_qty()`
-  (`work_order.py`, line 798), which recomputes `produced_qty` fresh from all submitted Manufacture
-  entries and compares `produced_qty + process_loss_qty` against `work_order.qty × (1 +
-  overproduction_percentage_for_work_order / 100)` — throws `StockOverProductionError` if exceeded.
-  This instance's `overproduction_percentage_for_work_order = 0.0` (live-confirmed), i.e. **zero
-  allowance** — any submit that would push production even slightly past `qty` is rejected. This
+- **`MFG-STK-005`** — Over-production guard, corrected after live reproduction. `FRAPPE_CURRENT_BEHAVIOR`,
+  **`Runtime Test: VERIFIED`** (Scenario C below — this entry supersedes an earlier, source-reading-
+  only draft of this rule that mis-attributed the mechanism). `make_stock_entry()` itself performs
+  no qty-ceiling validation — a preview for an absurd qty (e.g. 15 against a qty-10 Work Order)
+  still returns successfully. The actual rejection happens inside **`Stock Entry.validate()`**
+  (`stock_entry.py`, reads `Manufacturing Settings.overproduction_percentage_for_work_order`
+  directly and throws `ValidationError`, live-reproduced verbatim: `"For quantity 15.0 should not
+  be greater than allowed quantity 10.0"`) — **not** via `Work Order.update_work_order_qty()` and
+  **not** specifically at submit time as originally documented. Frappe's controller lifecycle runs
+  `validate()` on every save, so this fires as early as a plain Draft `insert()` —
+  `saveProductionDraftAction` (create-only, no submit) is already rejected at `createDoc()` time for
+  an over-quantity attempt, before Submit is ever reached. This instance's
+  `overproduction_percentage_for_work_order = 0.0` (live-confirmed), i.e. **zero allowance**. This
   app pre-validates `fg_completed_qty ≤ remaining` server-side in `actions.ts` before ever calling
-  `make_stock_entry`, purely so a user gets an earlier, clearer message — ERPNext's own submit-time
-  check remains the actual enforcement point of record and is never bypassed or duplicated in
-  meaning.
+  `make_stock_entry`, purely so a user gets an earlier, clearer message — ERPNext's own `validate()`
+  check remains the actual enforcement point of record and fires even earlier than this app's own
+  pre-check in the create-only (Draft) path.
 - **`MFG-STK-006`** — Concurrent-production race is closed the same way Material Transfer already
   closes its equivalent race (`MFG-SEC-001`'s eligibility re-check pattern): `actions.ts` re-fetches
   the Work Order fresh and re-runs `canCompleteProduction()` inside the Server Function itself,
   immediately before building any Stock Entry field — a Work Order that was eligible when the page
   rendered but was completed/stopped, or had its remaining qty reduced by someone else's concurrent
   Manufacture entry, by the time this action runs, is caught here rather than trusting the page's
-  earlier render. The final backstop is still `MFG-STK-005` at ERPNext's own submit time, in case
-  two submissions race between this app's re-check and the actual ERPNext write.
+  earlier render. The final backstop is still `MFG-STK-005`'s `Stock Entry.validate()` check, in
+  case two submissions race between this app's re-check and the actual ERPNext write.
+- **`MFG-STK-009`** — Work Order `status` does not track `produced_qty` linearly.
+  `FRAPPE_CURRENT_BEHAVIOR`, **`Runtime Test: VERIFIED`** (Scenario B below): `Work Order.get_status()`
+  only promotes status to `"In Process"` when `material_transferred_for_manufacturing > 0` (or a
+  pick-list/material-request-sourced transfer is detected) — not merely from `produced_qty > 0`.
+  Live-reproduced: a Work Order taken straight to a Manufacture entry (this app's flow has no
+  required prior Material Transfer step when `backflush_raw_materials_based_on = "BOM"`, per
+  `MFG-STK-007`) stayed `status: "Not Started"` after a partial Manufacture entry brought
+  `produced_qty` to 4 of 10 — counter-intuitive but correct, not a bug — then flipped straight to
+  `"Completed"` once a second entry brought `produced_qty` to 10 of 10 (`get_status()`'s own
+  qty-completeness check). Confirmed this does not break `canCompleteProduction()`
+  (`erpStatus.ts`) — its gate only blocks `{Closed, Completed, Stopped}`, not `"Not Started"`, so a
+  second partial/final Manufacture entry against a `"Not Started"`-but-partially-produced Work
+  Order proceeds correctly. Worth a frontend UX note (not built in this package): a status badge
+  reading "Not Started" after real production has already happened could look wrong to a floor
+  user — a future package could consider deriving a friendlier in-app label from `produced_qty`
+  directly rather than showing ERPNext's raw `status` value verbatim, but `workOrderStatus()`
+  (`erpStatus.ts`) is left unchanged here since this rule was discovered during QA, not assigned
+  as an implementation change in this package's scope.
 - **`MFG-STK-007`** — Raw material consumption source, this instance. `FRAPPE_CURRENT_BEHAVIOR`,
   source + live-config-confirmed: with `backflush_raw_materials_based_on = "BOM"` and
   `material_consumption = 0`, and no real Work Order on this instance having `from_wip_warehouse`
@@ -219,6 +243,15 @@ Deliberately conservative, **not** a mirrored Desk button-visibility rule (no De
 skips the transfer step still needs a Manufacture entry to actually produce; `skip_transfer` only
 changes where raw materials are sourced from (`MFG-STK-007`), not whether Manufacture is allowed.
 
+**`Runtime Test: VERIFIED` this gate is load-bearing, not redundant with ERPNext's own backend**
+(Scenario D below): `make_stock_entry(purpose="Manufacture")` returns a full, valid-looking preview
+against a Draft (`docstatus: 0`, never-submitted) Work Order — live-reproduced, no `docstatus`
+check exists anywhere in that native method. `canCompleteProduction()`'s `docstatus !== 1` check
+(enforced both at page render and, independently, inside `buildManufactureStockEntryFields` via a
+fresh `getDoc` + re-check before any preview is even requested) is the **only** thing preventing a
+Draft-Work-Order production entry through this app — ERPNext's backend would not stop it on its
+own if this app's own gate were ever bypassed or removed.
+
 ## Stock impact
 
 Source warehouse (per BOM item's own `source_warehouse`, or uniformly the WIP warehouse if
@@ -229,12 +262,28 @@ Transfer already established (Draft never moves stock for any Stock Entry purpos
 
 ## Accounting impact
 
-`NEEDS_VERIFICATION` — not inspected this session (no live Stock Entry was created to inspect
-resulting GL Entries; the source investigation covered stock/Work-Order mechanics, not the
-accounting posting chain). ERPNext's Manufacture Stock Entry is well known to post GL entries for
-raw material consumption and finished-goods receipt when perpetual inventory accounting is
-enabled, but this instance's actual accounting configuration and the resulting entries were not
-verified this session — flagged here rather than asserted.
+`Runtime Test: VERIFIED` (live QA, both the disposable fixture and a read-only cross-check
+against a real document). This Company (`Ceylon Stack`) has `enable_perpetual_inventory: 1`.
+
+**Real-data confirmation** (read-only, `MAT-STE-2026-00002` against `MFG-WO-2026-00004`'s real
+`FG-STEEL-BRACKET-ASSY` BOM, which has operations/costing): GL Entries were created correctly —
+debit `Stock In Hand - CS` 96,000 / credit `Stock Adjustment - CS` 96,000, matching the RM-to-FG
+valuation delta exactly (raw materials $65,440 vs. finished good $161,440, the difference being
+operating/labor cost absorbed from the BOM's operations).
+
+**Disposable-fixture finding, worth recording rather than treating as a bug:** a zero-operations,
+equal-cost disposable BOM (`with_operations: 0`, RM cost == FG cost exactly) produced **no GL
+Entries at all** for its Manufacture Stock Entry. Root cause, source-traced
+(`stock_controller.py`'s `get_inventory_account_map()`): this instance has **no distinct
+per-warehouse stock GL accounts configured** — every warehouse (including both `Work In Progress -
+CS` and `Finished Goods - CS`) falls back to the same single default, `Stock In Hand - CS`, and
+both item rows' `expense_account` also defaults to the same `Stock Adjustment - CS`. With RM cost
+== FG cost, recategorizing identical value within the same stock account is a real accounting
+no-op — genuinely correct double-entry behavior, not a defect in this app or in ERPNext. This is a
+Chart-of-Accounts configuration gap on this instance (no separate WIP/FG stock accounts), not
+something this frontend package should or does change — flagged here as a finding for whoever
+owns Chart of Accounts setup, and as context for why a *low-cost/no-operations* test BOM might
+show zero GL impact while a real, costed BOM (like the one above) shows the expected entries.
 
 ## API behavior
 
@@ -249,13 +298,57 @@ verified this session — flagged here rather than asserted.
 
 ## Live QA
 
-**Not run this session.** The `devops` subagent's read-only SSH investigation (source tracing,
-live `Manufacturing Settings` values, and a read-only list of real Work Orders) is the only live
-verification performed for this package — no Stock Entry was created, submitted, or cancelled,
-and no Work Order's `produced_qty`/`consumed_qty`/`status` was observed to change. The main
-session itself has no SSH access (denied by the sandbox's credential-exploration classifier on a
-direct attempt) and no browser tool in this environment, so it could not independently drive the
-built UI end-to-end either. See the package handoff for the full disclosure and the concrete
-scenarios (`MFG-WO-2026-00003`, `-00006`, `-00008` — all `docstatus=1`, `wip_warehouse`/
-`fg_warehouse` set, `produced_qty=0`, against `BOM-FG-STEEL-BRACKET-ASSY-001`) that are ready for
-a live QA pass by a session with write/SSH/browser access.
+Executed by a second `devops` subagent pass (this session, 2026-09-22/23), reproducing the exact
+payload shapes `buildManufactureStockEntryFields()`/`getManufacturePreview()` construct, against a
+fully disposable Item/BOM/Work Order fixture — never touching the 4 real Work Orders
+(`MFG-WO-2026-00003/00004/00006/00008`) or their BOM, independently re-confirmed unchanged
+afterward. The main session itself still has no SSH/browser access; all live execution below was
+performed by the subagent via `bench execute` (a `docker cp`'d throwaway script on the container's
+own filesystem, run, then deleted — chosen over piping a multi-line script into `bench console`,
+a known fragility on this project per prior packages' notes — never touching the host repo or git).
+
+**Setup**: disposable raw-material Item + finished-good Item, a disposable BOM (1 component, qty 2
+per FG unit, `with_operations: 0`), submitted the same way `MFG-CLOSE-0c` (BOM Submit) established.
+Real, pre-existing warehouses used (`Work In Progress - CS`, `Finished Goods - CS`, `Stores - CS`),
+Company `Ceylon Stack` (`enable_perpetual_inventory: 1`). Confirmed live:
+`backflush_raw_materials_based_on: "BOM"`, `material_consumption: 0`,
+`overproduction_percentage_for_work_order: 0.0` — matching this document's assumptions exactly.
+
+**Scenario A — full production**: Work Order qty 10, submitted, stocked. `make_stock_entry`
+(no qty override) proposed the exact expected `items`/`from_warehouse`/`to_warehouse`/
+`fg_completed_qty: 10.0`/`process_loss_qty: 0.0`. Built and submitted the Stock Entry using the
+frontend's exact field set (rate/valuation omitted, `process_loss_qty` correctly excluded since
+falsy) → `MAT-STE-2026-00023`. **Result**: `produced_qty: 10.0`, `status: "Completed"`. Stock
+Ledger Entries confirmed: RM `-20.0` at WIP, FG `+10.0` at Finished Goods. GL Entries: none for
+this specific fixture — explained under "Accounting impact" above (a genuine zero-delta no-op, not
+a defect), cross-checked against a real costed document which *did* post GL entries correctly.
+
+**Scenario B — partial production**: fresh Work Order qty 10. Step 1: explicit `qty=4` → submitted
+`MAT-STE-2026-00026` → `produced_qty: 4.0`, `status: "Not Started"` (see `MFG-STK-009` — this is
+correct ERPNext behavior, not a bug, but worth a future UX note). Step 2: no qty override →
+preview correctly proposed the remaining `6.0` → submitted `MAT-STE-2026-00027` →
+`produced_qty: 10.0`, `status: "Completed"`.
+
+**Scenario C — over-production rejection**: fresh Work Order qty 10, requested `qty=15`. Preview
+call itself succeeded (confirms `make_stock_entry` does no ceiling check). Rejected at
+`.insert()`/`.validate()` time: `ValidationError: "For quantity 15.0 should not be greater than
+allowed quantity 10.0"` — see the corrected `MFG-STK-005` above for the exact mechanism (this
+live result is what corrected the original source-only draft of that rule).
+
+**Scenario D — Draft Work Order**: `.insert()`-only Work Order (never submitted), `make_stock_entry`
+called directly. No rejection — ERPNext returned a full valid-looking preview, confirming
+`canCompleteProduction()`'s `docstatus` gate is this app's own, load-bearing safeguard (see
+"Eligibility gate" above), not redundant with anything ERPNext itself enforces at this step. Not
+separately tested: whether an actual Stock Entry *insert* built from that Draft-WO preview would be
+rejected elsewhere in `Work Order.validate()`'s own status checks — untested edge, out of this
+scenario's stated scope, `NEEDS_VERIFICATION` if ever relevant (this app's own gate makes it
+unreachable through the built UI regardless).
+
+**Cleanup**: all 11 disposable Stock Entries, 4 disposable Work Orders, the BOM, and both Items
+deleted (cancelled first where `docstatus: 1`) inside the test script's own `finally` block (an
+earlier script bug mid-Scenario-A still ran cleanup via `finally` before re-raising, independently
+re-verified absent before rerunning). Final independent re-verification pass (fresh queries, after
+all cleanup): zero matching `Item`/`BOM`/`Stock Entry`/`Work Order` records remain; the 4 real
+Work Orders confirmed unchanged (control query against `MFG-WO-2026-00003` correctly still
+returned that document, confirming the query mechanism itself works). Temp script files removed
+from both the container and the server's `/root`; no container restart needed.

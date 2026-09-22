@@ -61,12 +61,20 @@ export type ManufacturePreviewResult =
  *   process_loss_qty`, `t_warehouse = work_order.fg_warehouse`. `process_loss_qty` (a Stock Entry
  *   header field) is computed here too when the BOM has `process_loss_percentage` set — passed
  *   through, never recomputed client-side.
- * - `make_stock_entry` itself performs no over-production validation — that only happens
- *   server-side at Stock Entry submit time via `Work Order.update_work_order_qty()` (this
- *   instance's `Manufacturing Settings.overproduction_percentage_for_work_order = 0.0`, i.e. no
- *   allowance). This app pre-validates the requested qty against remaining qty before calling
- *   this function (see `complete-production/actions.ts`) purely so the user gets a clear message
- *   sooner — ERPNext's own check remains the actual enforcement point.
+ * - `make_stock_entry` itself performs no over-production validation — the preview call always
+ *   succeeds even for an absurd qty. The actual rejection is live-confirmed (MFG-CLOSE-1 QA) to
+ *   happen inside `Stock Entry.validate()` (`stock_entry.py`, reads `Manufacturing
+ *   Settings.overproduction_percentage_for_work_order` directly and throws `ValidationError` —
+ *   e.g. `"For quantity 15.0 should not be greater than allowed quantity 10.0"`), which Frappe's
+ *   controller lifecycle runs on **every save, including a plain Draft `insert()`** — not
+ *   specifically at Submit, and not via `Work Order.update_work_order_qty()` (an earlier,
+ *   source-reading-only pass over this method incorrectly attributed the check to that function
+ *   and to submit-time specifically; corrected after live-reproducing the actual rejection point).
+ *   This instance's `overproduction_percentage_for_work_order = 0.0`, i.e. no allowance. This app
+ *   pre-validates the requested qty against remaining qty before calling this function (see
+ *   `complete-production/actions.ts`) purely so the user gets a clear message sooner — ERPNext's
+ *   own check remains the actual enforcement point, and in practice fires even earlier (at
+ *   `createDoc`/Draft time) than this comment previously implied.
  */
 export async function getManufacturePreview(
   workOrderName: string,

@@ -4985,3 +4985,119 @@ separate from the Flow Map remediation above.
 
 **Final state:** `CLAUDE_HANDOFF` — not self-declared `ACCEPTED`. Independent review requested for
 both this package and the preceding Flow Map remediation before `MFG-CLOSE-1` may begin.
+
+## 2026-09-22/23 — MFG-CLOSE-1: Complete Production / Manufacture Stock Entry
+
+**PACKAGE:** MFG-CLOSE-1 — Production Completion / Manufacture Stock Entry
+**IMPLEMENTER:** this session, no durable session identifier available
+**REVIEWER:** the other Claude account under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (not yet
+assigned to a specific session) — same governance-independence caveat disclosed throughout every
+prior entry in this file applies here too; no genuinely separate account/session exists in this
+environment
+**BASE COMMIT:** `ca3cd5e` (`MFG-CLOSE-0c` — BOM Submit, previously accepted-as-unlocking per the
+assigning brief's own authorization record)
+**ASSIGNED BY:** Niroshan, via an explicit MFG-CLOSE-1 authorization brief naming this package,
+its boundary, and its required governance/investigation/trust-boundary/QA sections in full
+**ASSIGNMENT TIMESTAMP:** 2026-09-22
+
+**Objective:** the largest remaining Manufacturing V1 gap — let a user go from Submitted Work
+Order → Material Transfer → **Complete Production** → updated Work Order quantities/status,
+without ERPNext Desk, using ERPNext's own native Manufacture-purpose Stock Entry mechanism.
+
+**Governance-first sequencing (per the brief's own §3):** read all five `docs/controls/` binding
+documents, `AGENTS.md`, `AI_DUAL_AGENT_OPERATING_MODEL.md`, `AI_AGENT_HANDOFF_POLICY.md`,
+`TEMP_DUAL_CLAUDE_MODE.md` (confirmed still in its effective window, 2026-09-20–25), this file's
+own recent history, and the existing `material-transfer.md`/`work-order.md` canonical docs before
+any implementation. `git status --short` confirmed the working tree's foreign, in-progress,
+uncommitted `MD-UNV-003` files (`PROGRESS.md`, `docs/backend/99-unverified/unverified-behaviours.md`,
+`docs/master-data-architecture.md`, `docs/backend/11-relationships/party-contact-address-architecture.md`)
+— none touched, staged, or committed by this package.
+
+**Source investigation (read-only SSH, `devops` subagent, ERPNext v16.34.2):** the exact body of
+`erpnext.manufacturing.doctype.work_order.work_order.make_stock_entry` for `purpose="Manufacture"`,
+`Stock Entry.get_items()`'s active branch (`backflush_raw_materials_based_on: "BOM"`,
+`material_consumption: 0` — live-confirmed, not assumed), the finished-goods/process-loss row
+construction (`load_items_from_bom`/`set_process_loss_qty`), and the Work Order side-effect chain
+(`produced_qty`/`consumed_qty`/`process_loss_qty`/`status` recomputation on submit) — all read
+directly from the installed source, not carried over from general ERPNext knowledge. Full detail
+in `docs/backend/05-manufacturing/manufacture-completion.md`.
+
+**Architecture:** reuses the Material Transfer for Manufacture trust-boundary pattern (session
+re-verification inside the Server Function, fresh Work Order re-fetch, fresh eligibility re-check,
+never trusting a client round-trip of ERPNext-computed values) with one deliberate, stricter
+difference: **zero client-editable item rows** — every raw-material/finished-good/scrap row is
+taken verbatim from a fresh `make_stock_entry` preview, since ERPNext's Manufacture purpose has no
+"additional item" mechanism the way Material Transfer's `add_additional_items` does
+(source-confirmed). Only `fg_completed_qty` (production quantity), `posting_date`, and `remarks`
+are real client input. New route `/manufacturing/work-orders/[name]/complete-production`; a
+`?qty=` GET re-preview (full page navigation, no client-side recompute of ERPNext's BOM/UOM/
+process-loss math) drives partial production. `canCompleteProduction()` (`erpStatus.ts`) is a
+deliberately conservative eligibility gate, not a mirrored Desk button rule.
+
+**Files:** new — `lib/actions/workOrderManufacture.ts`, `manufacturing/work-orders/[name]/
+complete-production/{page.tsx,actions.ts}`, `components/CompleteProductionForm.tsx`,
+`docs/backend/05-manufacturing/manufacture-completion.md`. Changed — `erpStatus.ts`
+(`canCompleteProduction`), `manufacturing/work-orders/[name]/page.tsx` (Complete Production action
+button, Production Entries traceability table, `produced` success-banner param), `manufacturingFlowMap.ts`
+(`manufactureEntry` node now built, href/note updated), `work-order.md`/`README.md`/
+`migration-status.md` (doc updates).
+
+**In-session code review** (`code-reviewer` subagent — no independent second-account review
+available): approved the trust boundary and zero-client-item-row design (independently grep-verified
+no `items` field is ever read from client `formData`); found and this session fixed one real,
+low-severity gap — the batch/serial guard fail-opened on an Item-lookup error via optional chaining,
+contradicting its own documented fail-closed intent. Fixed in both `page.tsx` and `actions.ts`
+(separate `2454d74` fix folded into the same commit; a further defensive per-row warehouse guard
+added afterward in follow-up commit `428ac4a`).
+
+**Live E2E acceptance test** (`devops` subagent, `bench execute` via a `docker cp`'d throwaway
+script — chosen over piping into `bench console`, a known fragility this project has previously
+flagged — disposable Item/BOM/Work Order fixture only, the 4 real Work Orders never touched, full
+detail and exact numbers in `QA_LOG.md`'s matching entry and `manufacture-completion.md`'s "Live
+QA" section):
+
+1. Full production (qty 10 in one entry) → `produced_qty: 10.0`/`"Completed"`; Stock Ledger Entries
+   confirmed both sides; GL Entries correctly absent for this zero-operations/equal-cost fixture
+   (genuine no-op, cross-checked against a real costed document which did post GL entries).
+2. Partial production (4 then 6) → correct cumulative `produced_qty`/status, including the
+   live-discovered, counter-intuitive-but-correct `"Not Started"` status after real partial
+   production (`MFG-STK-009`, new finding) — confirmed not to break `canCompleteProduction()`.
+3. Over-production (`qty=15` vs. remaining 10) → rejected, but **at `Stock Entry.validate()`/
+   insert time, not specifically at submit via `Work Order.update_work_order_qty()`** as the
+   original source-reading-only pass had claimed — this live result corrected that doc comment and
+   `manufacture-completion.md`'s `MFG-STK-005`.
+4. Draft Work Order → `make_stock_entry` itself does not reject it; confirms `canCompleteProduction()`'s
+   `docstatus` gate is this app's own load-bearing safeguard, not redundant with ERPNext's backend.
+5. Full cleanup, independently re-verified absent via fresh queries in a separate check; the 4 real
+   Work Orders re-confirmed unchanged throughout.
+
+**Security:** no ERPNext core file touched; every ERPNext call through `lib/erpnext.ts`; session
+re-verified inside the mutating Server Function; no client-controlled item/warehouse/rate/
+valuation data path exists (100% server-derived from a fresh preview); no credential read or
+printed by either subagent; no destructive action taken against real data.
+
+**Tests:** `npx tsc --noEmit` / `npx eslint` (scoped) / `npm run build` — all clean, both before and
+after the code-review fix and the follow-up warehouse-guard commit.
+
+**Documentation:** `docs/backend/05-manufacturing/manufacture-completion.md` (new canonical doc,
+covering field mapping, business rules `MFG-STK-004`–`009`/`MFG-VAL-007`, Work Order side-effects,
+eligibility gate, stock/accounting impact, API behavior, and full Live QA results),
+`work-order.md`/`README.md`/`docs/backend/15-migration/migration-status.md` updated.
+`docs/backend/99-unverified/unverified-behaviours.md`/`PROGRESS.md` deliberately **not** touched
+(foreign `MD-UNV-003` work) — a future package should fold this entry's findings in once that
+foreign edit is committed or cleared, same standing note as `MFG-CLOSE-0c`'s entry above.
+
+**Package isolation:** exactly the files listed above, `QA_LOG.md`, and this file. No Work Order
+Cancel, BOM Cancel/Amend, Production Plan Amend, Job Card lifecycle, Operation/Workstation master,
+Quality Inspection, OEE, MES, CRM, Finance, mobile, workflow engine, or report builder work
+performed — `MFG-CLOSE-2` (and everything beyond it) remains locked per the assigning brief's own
+explicit instruction. Kept as two commits (`2454d74` implementation + review fix, `428ac4a`
+follow-up warehouse guard); this documentation pass is a third, separate commit.
+
+**Commit hashes:** `2454d74`, `428ac4a` (code); documentation/QA-log commit follows separately.
+
+**Final state:** `CLAUDE_HANDOFF` — not self-declared `ACCEPTED`, not self-declared
+independently reviewed. Independent review explicitly requested. Per the assigning brief's own
+final control gate: `SAFE FOR INDEPENDENT REVIEW: YES`. This session does **not** declare
+`SAFE TO START MFG-CLOSE-2` — that remains locked until MFG-CLOSE-1 receives independent
+acceptance, exactly as the assigning brief specifies.
