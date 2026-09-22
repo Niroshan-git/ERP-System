@@ -93,6 +93,18 @@ async function buildManufactureStockEntryFields(
   if (preview.items.length === 0) {
     return { error: "ERPNext did not return any items for this production entry. Try again." };
   }
+  // Defensive per-row warehouse check — a raw material whose BOM row has no configured
+  // `source_warehouse` (a master-data gap, not something this app can fix) would otherwise reach
+  // ERPNext as a Stock Entry Detail row with a blank source warehouse and fail at submit with a
+  // raw ERPNext error. Caught here with a clear message instead, same philosophy as the
+  // `to_warehouse` check above.
+  const rowsMissingWarehouse = preview.items.filter((r) =>
+    r.is_finished_item ? !r.t_warehouse : !r.s_warehouse,
+  );
+  if (rowsMissingWarehouse.length > 0) {
+    const names = [...new Set(rowsMissingWarehouse.map((r) => r.item_code))].join(", ");
+    return { error: `${names}: no warehouse configured on the BOM for this item — cannot complete production.` };
+  }
 
   // Fail-closed batch/serial guard (§18 of the assigning brief): this screen has no batch/serial
   // picker UI, same limitation Material Transfer already discloses. Checked against every row
