@@ -580,6 +580,75 @@ the live server, and whether `manage_default_bom()`'s default-reassignment behav
 suggests (clearing the previous default, updating `Item.default_bom`) — not exercised, no live
 write credentials this session either.
 
+## MD — Master Data
+
+Logged during the MD-R2 backend-knowledge baseline (2026-09-22), covering Item, Item Group, UOM,
+Warehouse, Customer, Supplier, Contact, Address, Territory. BOM's own unverified items remain under
+`MFG-UNV-009`/`010`/`011` above — not duplicated here, see `docs/backend/01-master-data/bom.md`.
+
+### MD-UNV-001 — Doctype-level `autoname` property not directly queryable this session
+**Status:** `NEEDS_VERIFICATION` (low priority — largely mitigated below)
+**What's uncertain:** `mcp__ceylon-stack__get_doctype_fields` returns a doctype's declared field
+list only, not framework-level metadata (`autoname`, `is_submittable`, `is_tree`). The literal
+`autoname` string was never read for any of the 9 doctypes in this baseline. This was substantially
+mitigated by live sample data (`list_documents`) confirming the *actual resulting* `name` pattern
+for 7 of 9: Item (`name == item_code`), Item Group (`== item_group_name`), UOM (`== uom_name`),
+Customer (`== customer_name`), Supplier (`== supplier_name`), Territory (`== territory_name`),
+Warehouse (`== "{warehouse_name} - {company abbr}"`). Contact and Address remain open — see
+`MD-UNV-005`.
+**How to verify:** Read each DocType's JSON definition directly (SSH or Desk) for the exact
+`autoname` string, or query doctype metadata through a tool that exposes it, if one becomes
+available.
+
+### MD-UNV-002 — Submittable status inferred from field-list absence, not read directly
+**Status:** `NEEDS_VERIFICATION` (low priority — standard ERPNext behavior for all 9)
+**What's uncertain:** None of Item, Item Group, UOM, Warehouse, Customer, Supplier, Contact,
+Address, or Territory returned a `docstatus` field from `get_doctype_fields`, which is consistent
+with "not submittable" but is an indirect proxy — the tool does not expose `is_submittable`
+directly, so this conclusion is tagged `DOCUMENTATION-INFERRED`, not `VERIFIED`, throughout
+`docs/backend/01-master-data/`.
+**How to verify:** Read each DocType's JSON definition's `is_submittable` field directly, or
+attempt a live `submitDoc` call against a test record and confirm the expected rejection.
+
+### MD-UNV-003 — Customer/Supplier ↔ Contact/Address relationship not wired up in this frontend
+**Status:** `NEEDS_VERIFICATION` — but more precisely, a confirmed real gap, not just an unknown
+**What's uncertain:** Nothing about ERPNext's own behavior is uncertain here — the `Dynamic Link`
+mechanism (Contact/Address's `links` child table, `link_doctype`/`link_name`) is live-schema
+`VERIFIED`. What's flagged is a **frontend functional gap**: `createContactAction` and
+`createAddressAction` never write to `links`, and the Customer/Supplier Master Data screens never
+expose `customer_primary_contact`/`customer_primary_address` (or the Supplier equivalents) or any
+linked-record list. Contact and Address list pages are global and unfiltered. A Contact or Address
+created through `/master-data/contacts` or `/master-data/addresses` today has no relationship to
+any Customer/Supplier from this frontend's own perspective, even though `AddressContactFields.tsx`
+on Sales transactional documents can still select any existing Contact/Address by name.
+**How to verify / resolve:** Not a documentation task — this is a product/scope decision for a
+future Master Data or CRM package (see `docs/master-data-architecture.md` §12's CRM dependency map,
+which assumes this linkage works). Confirm whether linking is out of v1 scope intentionally, or
+schedule it as its own package once prioritized.
+
+### MD-UNV-004 — Item/Customer/Supplier rename-safety generalizes beyond Item
+**Status:** `NEEDS_VERIFICATION`
+**What's uncertain:** `docs/master-data-architecture.md` §10 item 2 already flags whether changing
+`Item.item_code` safely cascades to existing transaction references. Live data confirmed this
+session that Customer and Supplier are *also* name-field-autonamed (`name == customer_name` /
+`name == supplier_name`), so the identical rename-safety question applies to them — not previously
+stated explicitly. Not tested this session for any of the three.
+**How to verify:** Attempt a live rename (`frappe.rename_doc` or the Desk rename action) on a
+disposable test Item/Customer/Supplier with at least one existing transaction reference, and
+confirm whether the reference updates, breaks, or is blocked.
+
+### MD-UNV-005 — Address (and Contact collision-suffix) naming pattern not sample-verified
+**Status:** `NEEDS_VERIFICATION`
+**What's uncertain:** `list_documents("Address", ...)` returned zero records on this instance —
+Address's naming pattern could not be empirically confirmed at all this session (schema-only,
+`DOCUMENTATION-INFERRED`). Separately, Contact's naming base pattern (`name` derived from
+`first_name`) was confirmed from 2 live records, but neither exercised a name collision, so the
+exact suffix format on collision is unconfirmed for Contact.
+**How to verify:** Once real Address records exist on this instance (or a disposable test record is
+created), sample via `list_documents`/`get_doctype_fields`-adjacent tooling to confirm the pattern.
+For Contact, create two records with identical `first_name`/`last_name` and observe the resulting
+`name` values.
+
 ## General
 
 Add new entries here as they're discovered during other domain baselines (Sales, Inventory,

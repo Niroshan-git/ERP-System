@@ -14,11 +14,22 @@ Per §4 of the policy, domain subfolders (`01-master-data/`, `02-sales/`, `03-pu
 
 - `00-architecture/README.md` — the canonical-model layer stack and the two-backends framing (Frappe as reference, Ceylon Stack canonical model as the product architecture). Read this first for orientation.
 - `05-manufacturing/` — first domain baseline: Work Order (list/detail/create) and Material Transfer for Manufacture, documented against the real current frontend build. Job Card documented as read-only fields only (no dedicated page yet). See `05-manufacturing/README.md`.
-- `11-relationships/master-erd.md` — Mermaid ERD, currently covering only the Manufacturing entities above.
-- `15-migration/migration-status.md` — per-domain status; Manufacturing (Work Order + Material Transfer) is the first domain to reach `DOCUMENTED`, everything else is still `FRAPPE_REFERENCE`.
-- `99-unverified/unverified-behaviours.md` — 6 `NEEDS_VERIFICATION` items logged from the Manufacturing baseline (Desk indicator colors, Item Alternative, headroom >0%, Job Card/BOM lifecycle, GL impact, a client-side pre-check gap).
 
-Sales, Inventory, Buying, Purchasing, Accounting, and Tax are all real, shipped functionality in the frontend already (see `PROGRESS.md`) but have **no backend documentation yet** — they are the next candidates for a baseline pass, in that rough order (per the Current Mission priority lock), not because Manufacturing is commercially ahead of them.
+**Added 2026-09-22 (package MD-R2):**
+
+- `01-master-data/` — Item, Item Group, UOM, Warehouse, Customer, Supplier, Contact, Address,
+  Territory, each live-schema- and live-sample-verified against the real ERPNext instance. BOM is
+  cross-referenced from here to its existing canonical doc in `05-manufacturing/bom.md` rather than
+  duplicated. See `01-master-data/README.md` for the full ownership matrix and key findings —
+  including a real, disclosed gap: the Customer/Supplier ↔ Contact/Address relationship ERPNext
+  supports natively is not wired up anywhere in this frontend (`MD-UNV-003`).
+- `11-relationships/master-erd.md` — extended with a Master Data ERD alongside the existing
+  Manufacturing one.
+- `15-migration/migration-status.md` — Master Data row updated to `DOCUMENTED`.
+- `99-unverified/unverified-behaviours.md` — 5 more `NEEDS_VERIFICATION` items logged
+  (`MD-UNV-001` through `MD-UNV-005`).
+
+Sales, Buying, Inventory, Purchasing, Accounting, and Tax are all real, shipped functionality in the frontend already (see `PROGRESS.md`) but still have **no backend documentation** — they remain the next candidates for a baseline pass, in that rough order (per the Current Mission priority lock and `docs/ceylon-stack-master-backlog.md` §4/§6), not because Manufacturing or Master Data are commercially ahead of them.
 
 ## Full structure reference
 

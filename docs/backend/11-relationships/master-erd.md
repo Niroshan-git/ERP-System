@@ -2,9 +2,11 @@
 
 Per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` §4/§5. Grows with real implementation — only
 entities/relationships currently known from built (or investigated) functionality appear here.
-As of 2026-09-17 this covers only the **Manufacturing** entities documented in
-`docs/backend/05-manufacturing/`. Sales/Inventory/Buying entities are real and shipped in the
-frontend but not yet modeled here — add them when their domain gets its own baseline pass.
+As of 2026-09-17 this covered only the **Manufacturing** entities documented in
+`docs/backend/05-manufacturing/`. **Extended 2026-09-22 (MD-R2)** with the **Master Data** entities
+documented in `docs/backend/01-master-data/` — see the second diagram below. Sales/Buying/Inventory
+transactional entities (Sales Order, Purchase Order, Stock Entry as their own domain, etc.) are
+real and shipped but not yet modeled here — add them when their domain gets its own baseline pass.
 
 ```mermaid
 erDiagram
@@ -112,3 +114,67 @@ erDiagram
 - **Warehouse appears in three independent FK roles on Work Order** (`source_warehouse`,
   `wip_warehouse`, `fg_warehouse`) — each optional, each a plain Link to the same `Warehouse`
   doctype, not three different entities.
+
+---
+
+## Master Data ERD (added 2026-09-22, MD-R2)
+
+Covers Item, Item Group, UOM, Warehouse, Customer, Supplier, Contact, Address, Territory — see
+`docs/backend/01-master-data/` for full per-entity documentation, field-level detail, and
+`VERIFIED`/`CODE-INFERRED`/`NEEDS_VERIFICATION` tiering. BOM's relationships are already modeled in
+the Manufacturing ERD above (BOM/BOM_ITEM/BOM_OPERATION) — not repeated here.
+
+```mermaid
+erDiagram
+    ITEM }o--|| ITEM_GROUP : "N:1 (item.item_group)"
+    ITEM }o--o| UOM : "N:1 (item.stock_uom)"
+    ITEM_GROUP }o--o| ITEM_GROUP : "N:1 optional self-referential tree (parent_item_group)"
+    WAREHOUSE }o--o| WAREHOUSE : "N:1 optional self-referential tree (parent_warehouse)"
+    WAREHOUSE }o--|| COMPANY : "N:1 (warehouse.company) — naming-scope boundary, see notes"
+    CUSTOMER }o--o| CUSTOMER_GROUP : "N:1 optional (customer.customer_group)"
+    CUSTOMER }o--o| TERRITORY : "N:1 optional (customer.territory)"
+    CUSTOMER }o--o| ADDRESS : "N:1 optional, single-pointer only (customer.customer_primary_address)"
+    CUSTOMER }o--o| CONTACT : "N:1 optional, single-pointer only (customer.customer_primary_contact)"
+    SUPPLIER }o--o| SUPPLIER_GROUP : "N:1 optional (supplier.supplier_group) — no frontend screen yet"
+    SUPPLIER }o--o| ADDRESS : "N:1 optional, single-pointer only (supplier.supplier_primary_address)"
+    SUPPLIER }o--o| CONTACT : "N:1 optional, single-pointer only (supplier.supplier_primary_contact)"
+    TERRITORY }o--o| TERRITORY : "N:1 optional self-referential tree (parent_territory)"
+    CONTACT ||--o{ DYNAMIC_LINK : "links (1:N) — real many-to-many attachment mechanism"
+    ADDRESS ||--o{ DYNAMIC_LINK : "links (1:N) — real many-to-many attachment mechanism"
+    DYNAMIC_LINK }o--|| CUSTOMER : "N:1 polymorphic, when link_doctype = Customer"
+    DYNAMIC_LINK }o--|| SUPPLIER : "N:1 polymorphic, when link_doctype = Supplier"
+    CONTACT }o--o| ADDRESS : "N:1 optional, single-value (contact.address) — distinct from Dynamic Link"
+    CONTACT ||--o{ CONTACT_EMAIL : "email_ids (1:N)"
+    CONTACT ||--o{ CONTACT_PHONE : "phone_nos (1:N)"
+```
+
+### Notes
+
+- **The Dynamic Link relationship is the real Customer/Supplier ↔ Contact/Address mechanism** in
+  ERPNext (`link_doctype`/`link_name`, polymorphic — resolves to whichever doctype `link_doctype`
+  names, not limited to Customer/Supplier). `customer_primary_address`/`customer_primary_contact`
+  and their Supplier equivalents are separate, single-value convenience pointers layered on top,
+  not the underlying relationship itself — both are modeled above because both are real, live-schema
+  `VERIFIED` fields, but they answer different questions ("what is this party's one primary contact"
+  vs. "what are all the contacts/addresses attached to this party").
+- **This frontend does not populate the Dynamic Link relationship at all** — `MD-UNV-003`. The
+  diagram above models ERPNext's real capability, not what the Ceylon Stack UI currently exercises.
+  Do not assume a Contact/Address created through `/master-data/contacts` or `/master-data/addresses`
+  is actually attached to anything.
+- **Warehouse's naming is scoped by Company** (`{warehouse_name} - {company abbreviation}`,
+  live-confirmed) — modeled here as a real FK, not previously in this ERD. This is the reason two
+  Companies on this instance can each have their own "All Warehouses" without a name collision.
+- **Supplier Group has no dedicated frontend screen** — modeled as a real Link field on Supplier
+  (`VERIFIED` live schema) because the relationship exists in ERPNext regardless of frontend
+  coverage; per `docs/master-data-architecture.md` §10 item 5, whether it needs its own screen
+  remains an open product decision.
+- **Item Group and Warehouse are both Frappe Tree doctypes** (self-referential `parent_*` field
+  plus `lft`/`rgt`/`old_parent` nested-set columns, `VERIFIED` live schema for both) — same pattern
+  already noted above for the Manufacturing entities; the frontend deliberately renders both as flat
+  lists, not tree/indent UIs (`docs/backend/01-master-data/item.md`, `warehouse.md`).
+- **Item's other Link fields** (`brand`, `asset_category`, `variant_of`, `weight_uom`,
+  `country_of_origin`, `customs_tariff_number`, `quality_inspection_template`, `default_bom`) are
+  real live-schema relationships not modeled in the diagram above — they exist in ERPNext but are
+  not exposed anywhere in this frontend's `ItemForm.tsx`, so modeling them here would overstate what
+  this frontend actually does. See `docs/backend/01-master-data/item.md`'s field table for the full
+  live-schema list.
