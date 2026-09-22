@@ -57,3 +57,46 @@ on Frappe the longest in the migration order (ADR-004) precisely because their c
 highest-stakes and least forgiving of a native-backend bug. Several GL/accounting impacts are
 still `NEEDS_VERIFICATION` even for domains otherwise documented (e.g. `MFG-UNV-005`) — that gap
 must close before any accounting-adjacent domain moves past `DOCUMENTED`.
+
+## ADR-007 — Master Data is a first-class shared domain, not owned by any transactional module
+
+**Status:** Accepted, active, **largely implemented**. Originally recorded 2026-09-17 as
+architecture/documentation only, with frontend implementation "not yet started." That framing is
+now stale and was corrected 2026-09-22: a separate session shipped most of the proposed route/IA
+change on 2026-09-18/19 — before this ADR was ever committed — under ad hoc package names, not the
+architecture doc's own MD-1–MD-10 numbering. See `docs/master-data-architecture.md` (corrected in
+the same pass) for the reconciled current state, remaining gaps, and package sequence.
+
+Shared business entities (Item, Customer, Supplier, Warehouse, UOM, Price List, Item Group,
+Customer Group, Supplier Group, Territory, Contact, Address, Company, Cost Center, Project, BOM)
+have exactly one canonical identity and one canonical route, regardless of which transactional
+module a user reaches them from. Sales, Buying, Stock, Manufacturing, and future modules (Finance,
+CRM, Projects) consume canonical Master Data; they do not own duplicate copies of it. Contextual
+navigation from any transaction resolves to that same canonical record rather than a
+module-specific duplicate screen.
+
+**Current implementation state (verified 2026-09-22, not asserted):** `Sidebar.tsx` has a
+`master-data` module with real routes under `apps/frontend/src/app/(app)/master-data/`. Item, Item
+Group, Price List, Customer, Customer Group, Supplier, Contact, Address, Territory, and Warehouse
+have all moved from `/sales/*`/`/buying/*`/`/stock/*` to canonical `/master-data/*` routes, each
+independently reviewed and ACCEPTED. BOM has a shipped list/detail/create/Draft-edit screen at
+`/master-data/boms`, but it has never received independent review (`CLAUDE_HANDOFF` — this is why
+`docs/ceylon-stack-documentation.html` keeps it at "Building," not "Live"). Batch and Serial No
+were deliberately kept under `/stock/*` (hybrid masters, confirmed twice). Supplier Group,
+Operations, Workstations, and the Financial/Organizational masters (Company, Cost Center, Project,
+UOM) have no dedicated screens yet. `docs/backend/01-master-data/` — required by
+`BACKEND_KNOWLEDGE_POLICY.md` for the domains already shipped — does not exist; this is real,
+currently-open documentation debt, not a future proposal.
+
+`lib/erpnext.ts` remains doctype-parameterized; no master entity has been duplicated by any of the
+domain packages that shipped this ADR's ownership model.
+
+**Does not yet decide:** whether Customer and Supplier are unified into a single canonical
+"Business Partner" concept. The shipped "Business Partner domain" package only grouped Customer and
+Supplier under one Sidebar section and route prefix — it did not unify them at the data or
+component level; `CustomerForm.tsx` and Supplier's bespoke form remain fully separate, matching
+ERPNext's own separate `Customer`/`Supplier` DocTypes (live-confirmed via `get_doctype_fields`, no
+shared Party doctype exists in this ERPNext version). Unifying them would be
+`REQUIRED_CEYLON_BEHAVIOR` for a native backend, not `FRAPPE_CURRENT_BEHAVIOR` today — remains an
+open architecture decision in `docs/master-data-architecture.md` §10, not resolved here or by
+anything shipped since this ADR was first recorded.
