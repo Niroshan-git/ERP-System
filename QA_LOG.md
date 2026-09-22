@@ -1825,6 +1825,38 @@ implementing session's own in-session verification only, not the required cross-
   requires independent review from the other Claude account. QA (`qa-tester`) not invoked —
   presentation/navigation-only package touching no core transactional flow.
 
+## 2026-09-22 — Manufacturing Flow map: `materialTransfer` node href remediation (MFG-CLOSE-0a follow-up)
+
+**Finding remediated**: MFG-CLOSE-0a's independent review of the Manufacturing Flow map
+(`ebd0dec`) found the `materialTransfer` node's `href: "/stock/stock-entries"` misleading —
+`stock/stock-entries/page.tsx` explicitly scopes itself to `["Material Issue", "Material
+Receipt", "Material Transfer"]`, deliberately excluding the Manufacture-purpose Stock Entry this
+node describes, and the real built feature is the Work-Order-nested
+`/manufacturing/work-orders/[name]/transfer-materials` (`MFG-WF-004`). `FlowNodeDialog`'s
+generic "Navigates to the real page" caption was therefore false for this node.
+
+**Fix**: `lib/manufacturingFlowMap.ts` only — `materialTransfer.href` changed to
+`/manufacturing/work-orders` (the real, accurate entry point: open a Submitted Work Order from
+the list, then use its own "Transfer Materials" action). No dynamic per-Work-Order URL was
+constructed — the Flow Map's data is static/module-level with no Work Order identifier
+available at that scope, and inventing one would have been broader than the finding warranted.
+`note` text updated to state plainly there is no standalone Material Transfer page and why
+`/stock/stock-entries` isn't the right link. No change to `FlowNodeDialog.tsx`/`FlowMap.tsx` —
+the generic "real page" caption is now truthful for this node without needing a per-node
+override.
+
+**Verification**: `npx tsc --noEmit` — clean. `npx eslint src/lib/manufacturingFlowMap.ts` —
+clean. `npm run build` — clean, all routes compiled including `/manufacturing`. Diff confirmed
+isolated to the single file/node (`git diff` — one `href` line, one `note` line, nothing else).
+Visual rendering not independently verified — same standing caveat as every Flow map package in
+this environment (no browser tool, no test login credentials).
+
+**Sign-off**: this session, no durable session identifier available, produces a `CLAUDE_HANDOFF`
+for this isolated fix — not self-accepted, awaiting independent review alongside the rest of
+MFG-CLOSE-0a. QA (`qa-tester` subagent) not separately invoked — single-line data-file
+correction to an already-reviewed presentation/navigation package, no core transactional flow
+touched.
+
 ## 2026-09-22 — Sale to Cash scene added to the Company Workflow tab
 
 - **Scope**: Niroshan asked to "make the sale to cash flow also" — a second scene on the

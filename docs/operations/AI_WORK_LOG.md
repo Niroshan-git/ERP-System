@@ -4685,3 +4685,222 @@ hidden. BOM frontend package: `SHIPPED / ACCEPTED`. Canonical ownership: Master 
 route: `/master-data/boms`. Manufacturing remains a consumer, not an owner. `MD-UNV-003` relationship
 architecture/remediation planning is the recommended next Master Data package — not started by this
 closure.
+
+## 2026-09-22 — MFG-CLOSE-0a / 0b — Manufacturing governance closure + BOM production-eligibility verification
+
+**PACKAGE:** MFG-CLOSE-0a (independent review of Work Order Submit + Manufacturing Flow map) and
+MFG-CLOSE-0b (BOM production-eligibility investigation)
+**ROLE:** REVIEWER (0a) / INVESTIGATOR (0b) — review/verification only, no implementation
+**IMPLEMENTER (of the packages under review):** this session, no durable session identifier
+available (both `MFG-WF-004` and the Manufacturing Flow map were built by "this session, no durable
+session identifier available" per their own `AI_WORK_LOG.md`/Session Log entries)
+**REVIEWER (this entry):** this session, no durable session identifier available
+**BASE COMMIT:** `73de4b4` (confirmed matching, `git status --short`/`git rev-parse HEAD` before and
+after)
+**ASSIGNED BY:** Niroshan
+**ASSIGNMENT TIMESTAMP:** 2026-09-22
+
+**Governance disclosure, same caveat as MD-R1's closure entry above:** this review was performed by
+the same environment/session lineage as the packages under review, not a genuinely separate Claude
+account — `TEMP_DUAL_CLAUDE_MODE.md`'s literal "no account may review or accept its own
+implementation package" is not satisfied in the strict cross-account sense (no second account exists
+in this environment). Findings below are evidence-based (git diff inspection, direct source-code
+tracing on the live server, and live-tested throwaway fixtures with independently-verified cleanup),
+not self-reported claims taken at face value — flagged, as before, as a candidate for Codex's future
+§16 reconciliation audit.
+
+### MFG-WF-004 (Work Order Submit) — independent review
+
+Reviewed commit `d5386bc` in full (diff + current code). `submitWorkOrderAction` correctly reuses
+the generic `submitDoc`/`updateDoc` REST mechanism already proven for Sales Order/Purchase
+Order/Production Plan; no client-side re-validation of ERPNext's own business rules; `DocActionBar`
+correctly disables the button while pending. Confirmed the QA-recorded WIP-warehouse rejection and
+success-path behavior are consistent with this instance's real `Work Order.validate_warehouse()`
+logic (independently traced this session, see the BOM investigation below for the same source-access
+method).
+
+**One confirmed, non-blocking observation:** `submitWorkOrderAction` has no `verifySession` call —
+independently checked against `submitProductionPlanAction` (which the original package's doc comment
+cited as "matching precedent"). This is verified accurate: neither `submitProductionPlanAction` nor
+`createWorkOrderAction` calls `verifySession` either, while `createProductionPlanAction` does. This is
+a genuine pre-existing inconsistency across this app's action layer (some create/submit actions
+session-check, some don't) — not a regression introduced by `MFG-WF-004`, and not blocking for this
+package specifically, since it does not lower the bar already accepted for `submitProductionPlanAction`.
+Flagged as a candidate for a future, separately-scoped session-check consistency pass across the
+action layer, not remediated here (out of this review's scope).
+
+No CRITICAL/HIGH findings. **MFG-WF-004: `ACCEPTED`.**
+
+### Manufacturing Flow map — independent review
+
+Reviewed commit `ebd0dec` in full (diff + current `lib/manufacturingFlowMap.ts`/`FlowNodeDialog.tsx`).
+Confirmed accurate: BOM node lives under Master Data (`/master-data/boms`), Job Card is correctly
+`href: null` with a note matching its real read-only-inside-Work-Order-detail implementation,
+Manufacture/FG Receipt (`manufactureEntry`) is correctly `href: null`, Production Plan's node
+description matches its real shipped lifecycle (create/submit/Make Work Order/Make Material
+Request/cancel), and the generalization from the forked first pass into shared `FlowMap`/
+`FlowNodeDialog` components was independently spot-checked against `lib/flowMap.ts` and found sound
+(no Sales Flow regression risk from this review's reading).
+
+**One confirmed defect (MEDIUM, documentation/navigation accuracy):** the `materialTransfer` node
+(used in both the "planned" and "direct" scenes) sets `href: "/stock/stock-entries"`. `FlowNodeDialog`
+renders this as an actionable "Open Material Transfer" button captioned "Navigates to the real page."
+Independently verified this is inaccurate: (1) the actually-built Material Transfer for Manufacture
+feature is a Work-Order-nested action at
+`/manufacturing/work-orders/[name]/transfer-materials` (confirmed via `MFG-WF-004`'s own diff, which
+links to exactly this route from the Work Order detail page); (2)
+`apps/frontend/src/app/(app)/stock/stock-entries/page.tsx` explicitly restricts its own scope to
+`PURPOSE_OPTIONS = ["Material Issue", "Material Receipt", "Material Transfer"]`, with an in-code
+comment stating "Manufacture/Repack/Send to Subcontractor/etc. are Manufacturing-scope, out of bounds
+for this build" — i.e. the generic Stock Entries list/create pages deliberately exclude the
+`"Material Transfer for Manufacture"` purpose the node's own `effects`/`purpose` text describes. A
+user clicking "Open Material Transfer" from the Manufacturing Flow map lands on a page that cannot
+show or perform the capability just described, with no obvious path from there back to the real
+per-Work-Order action. This is exactly the class of defect this mission's brief asked to check for
+("completed-production navigation does not falsely imply an existing frontend route"). Recommended
+fix (not applied — review-only, per this mission's own instruction not to modify code merely to make
+the review pass): either `href: null` with a note directing the user to a specific Work Order's detail
+page, or point at `/manufacturing/work-orders` (the real practical entry point, consistent with how
+`workOrder`'s own node already behaves), not at `/stock/stock-entries`.
+
+**Manufacturing Flow map: `CHANGES REQUIRED`** — one MEDIUM finding, no CRITICAL/HIGH. Everything else
+reviewed is sound; this is a narrow, isolated one-line-`href` fix.
+
+### MFG-CLOSE-0b — BOM production-eligibility investigation
+
+SSH access to the Hetzner instance was available this session (`root@62.238.22.161`,
+`frappe_docker-backend-1`, confirmed `erpnext 16.34.2` / `frappe 16.33.1` via `bench version` —
+matching every existing version citation in this repo). Traced the actual installed source directly
+rather than reasoning from general ERPNext knowledge:
+
+- `WorkOrder.validate()` (`work_order.py`) unconditionally calls `validate_bom_no(self.production_item,
+  self.bom_no)` whenever `bom_no` is set. `validate_bom_no()` (`bom.py`) throws `"BOM {0} must be
+  submitted"` whenever `bom.docstatus != 1` (the only bypass, `frappe.in_test`, never true on a live
+  instance). Because `validate()` runs on every save — Draft insert included, not just submit — this
+  blocks a Draft BOM from being used even to **create** a Work Order directly, not merely to submit
+  one.
+- `ProductionPlan.validate_data()` (`production_plan.py`) contains the identical `validate_bom_no()`
+  call over `po_items` rows — but is **dead code in this installed version**: a repo-wide grep of the
+  entire `erpnext` app found zero callers of `ProductionPlan.validate_data` anywhere (not from
+  `validate()`, not from `on_submit()`, not from any client script). Creating or submitting a
+  Production Plan with a Draft-BOM `po_items` row is therefore **not blocked at all** in this version.
+- `ProductionPlan.create_work_order()` (the method behind the "Make Work Order" button/action) sets
+  `wo.flags.ignore_mandatory = True` and `wo.flags.ignore_validate = True` before `wo.insert()` —
+  explicitly skipping `WorkOrder.validate()` (and therefore `validate_bom_no()`) for any Work Order
+  generated via a Production Plan, regardless of the referenced BOM's docstatus.
+
+**Live-verified** (throwaway fixture: one disposable Item + Draft BOM, created/tested/cleaned up in a
+single non-committed transaction, independently re-checked absent afterward via a second console
+session — no application code, business data, or `.env` touched):
+1. Draft BOM → direct Work Order (`frappe.get_doc({...}).insert()`, no special flags): **BLOCKED** —
+   `ValidationError: BOM BOM-MFGCLOSE-TEST-ITEM-001 must be submitted`.
+2. Submitted BOM → direct Work Order: **SUCCEEDED** (`MFG-WO-2026-00016`, docstatus 0).
+3. Draft BOM → Work Order via the exact `ignore_mandatory`/`ignore_validate` mechanism
+   `create_work_order()` uses: **SUCCEEDED** (`MFG-WO-2026-00015`, docstatus 0, `bom_no` pointing at
+   the still-Draft BOM) — confirming the source-read bypass is real, not just theoretical. A control
+   run against the same Draft BOM without the flags reproduced the same block as (1).
+
+**Final BOM decision: neither of the mission's clean options — this is `Scenario C`, not `B`.**
+Direct Work Order creation (Ceylon Stack's `createWorkOrderAction`, the primary path this app's own
+frontend builds) requires a Submitted BOM, hard-enforced server-side. The Production-Plan-generated
+path (`ProductionPlanMakeWorkOrderAction.tsx` → native `make_work_order`) does **not** enforce this at
+all, natively, in this ERPNext version — an ERPNext-native inconsistency between its own two Work
+Order creation entry points, not a Ceylon Stack defect (Ceylon Stack calls the native method as-is,
+does not reimplement or weaken it).
+
+**V1 impact:** `BOM SUBMIT IS A CONFIRMED MANUFACTURING V1 BLOCKER for the direct Work Order creation
+path specifically.** Since Ceylon Stack's own BOM frontend
+(`apps/frontend/src/app/(app)/master-data/boms/actions.ts`, independently re-read this session) has
+`createBomAction`/`updateBomAction`/`activateBomAction`/`deactivateBomAction`/`setDefaultBomAction`
+but **no `submitBomAction`/`cancelBomAction` of any kind**, any BOM a user creates through this app's
+own UI is permanently stuck at Draft and can never be used to create a Work Order directly through
+this app — the user must fall back to ERPNext Desk to submit it, directly contradicting this
+project's own stated Manufacturing V1 goal ("an SME user can execute the complete manufacturing
+lifecycle without falling back to ERPNext Desk"). A `MFG-CLOSE-0c — BOM Submit` package is necessary
+before `MFG-CLOSE-1`. Scope for that future package (not started here): a narrow `submitBomAction`
+mirroring `submitWorkOrderAction`/`submitProductionPlanAction`'s exact shape (`submitDoc("BOM", name)`,
+re-fetch-and-check-`docstatus`-server-side per this app's own established defense-in-depth pattern,
+`DocActionBar` on `/master-data/boms/[name]` when `docstatus === 0`), plus a `docs/backend/` update
+recording this session's `validate_bom_no`/`ignore_validate` findings (both the direct-create block
+and the Production-Plan bypass) so a future BOM-lifecycle change never assumes the two paths behave
+alike. BOM Cancel is a separate, lower-priority decision — not required to unblock V1's direct-create
+path, can stay deferred.
+
+**Not touched, deliberately:** `docs/backend/99-unverified/unverified-behaviours.md` — this session's
+new finding (the `validate_bom_no`/Production-Plan-bypass discovery) is **not** recorded there this
+turn, because that file is currently foreign, in-progress, uncommitted work (`MD-UNV-003` backfill)
+per this mission's own explicit instruction not to modify foreign dirty files. Recorded here instead;
+a future package should fold this into `unverified-behaviours.md`/`bom.md`/`production-plan.md` once
+that file's own in-progress edit is committed or cleared.
+
+### Security — F-BOM-02 / `CX-MFG-BOM-4B-003`
+
+Attempted to independently verify the operator-confirmed credential rotation. Concluded this cannot
+be done safely this session: the old credential's value was never recorded anywhere in this repository
+(by design, correctly), so there is nothing to test a rejected-login attempt against without first
+retrieving it — which this review deliberately did not do (would reproduce the exact class of exposure
+the finding is about). No metadata-only proxy (e.g. `User.Administrator` version/modification history)
+was inspected either, since that risks incidentally surfacing partial credential material for no firm
+gain in certainty. **F-BOM-02 status unchanged: operator-confirmed, still not independently verified.**
+Left exactly as classified — not assumed fixed, per this mission's own instruction.
+
+### Documentation — `docs/backend/05-manufacturing/README.md`
+
+Independently re-read. Confirmed still stale in two places: it still states "there is no Submit or
+Cancel action in the frontend for Work Order itself" (false since `MFG-WF-004`) and "Production Plan
+(planning workspace) — no route, action, or component anywhere" (false since PP-1 through PP-8). Not
+corrected this turn (review-only mission; this file is not one of the foreign-dirty files, so a future
+small, isolated documentation-only package could safely update it).
+
+### Package isolation
+
+`git status --short` and `git rev-parse HEAD` confirmed identical before and after this review
+(`73de4b4`, same four foreign dirty/untracked files, byte-for-byte untouched). No application code,
+route, or `Sidebar.tsx` file was modified. The only repository writes made by this entry are this
+section and the matching `TEMP_DUAL_CLAUDE_MODE.md` Session Log row. All live-instance writes (two
+throwaway Item/BOM/Work Order fixtures) were made in explicit, disclosed, cleaned-up test transactions
+and independently re-verified absent afterward; no `.env` file was read, modified, or printed on
+either the local machine or the live server.
+
+### Final State
+
+**MFG-WF-004: `ACCEPTED`.** **Manufacturing Flow map: `CHANGES REQUIRED`** (one MEDIUM, isolated
+`href` fix). **BOM eligibility: `Scenario C`, confirmed live — direct Work Order creation requires a
+Submitted BOM; Production-Plan-generated Work Orders natively bypass this check in this ERPNext
+version.** `MFG-CLOSE-0c — BOM Submit` is a necessary next package before `MFG-CLOSE-1`. **SAFE TO
+START MFG-CLOSE-1: NO** until the Manufacturing Flow map's one-line fix lands and `MFG-CLOSE-0c` (BOM
+Submit) is scoped/built, since `MFG-CLOSE-1`'s own Manufacture Stock Entry work will otherwise inherit
+a frontend that can create BOMs it can never use directly.
+
+## 2026-09-22 — Manufacturing Flow map remediation (Stage 1 of MFG-CLOSE-0a/0c mission)
+
+**PACKAGE:** Flow Map `materialTransfer` href remediation (the single MEDIUM finding from this
+same session's MFG-CLOSE-0a review, above)
+**IMPLEMENTER:** this session, no durable session identifier available
+**BASE COMMIT:** `73de4b4` (unchanged — no commit had landed between the review and this fix)
+**ASSIGNED BY:** Niroshan, explicit two-stage mission: remediate this finding in isolation first,
+then (separately) scope/build `MFG-CLOSE-0c`.
+
+Fixed exactly the finding recorded above: `lib/manufacturingFlowMap.ts`'s `materialTransfer.href`
+changed from `/stock/stock-entries` to `/manufacturing/work-orders`, plus a `note` text correction
+explaining there is no standalone Material Transfer page. No dynamic per-Work-Order URL was
+constructed (the Flow Map's data is static, no Work Order identifier is available at that scope,
+and the assigning brief explicitly warned against inventing navigation semantics that can't be
+truthfully constructed). No change to `FlowNodeDialog.tsx`/`FlowMap.tsx` — pointing at a real list
+page keeps the dialog's existing generic "Navigates to the real page" caption truthful without
+needing a per-node override.
+
+**Verification:** `npx tsc --noEmit` clean, `npx eslint src/lib/manufacturingFlowMap.ts` clean,
+`npm run build` clean (all routes compiled). `git diff` confirmed the change is isolated to two
+lines in one file. Full detail in `QA_LOG.md`'s matching 2026-09-22 entry.
+
+**Package isolation:** only `apps/frontend/src/lib/manufacturingFlowMap.ts`, `QA_LOG.md`, and this
+file were touched by this specific commit — deliberately kept separate from `MFG-CLOSE-0c` (BOM
+Submit), which follows as its own, separately-committed package per the assigning brief's explicit
+two-stage structure. `PROGRESS.md` update deferred (same reason as MFG-CLOSE-0a/0b above: it remains
+foreign, in-progress, uncommitted `MD-UNV-003` work this session must not touch) — a future package
+should backfill both this entry and `MFG-CLOSE-0c`'s once that foreign edit is committed or cleared.
+
+**Recommended next action:** independent review, alongside the rest of MFG-CLOSE-0a
+(`MFG-WF-004`/this fix) — not self-accepted. `MFG-CLOSE-0c` begins next as its own isolated package,
+per the assigning brief.

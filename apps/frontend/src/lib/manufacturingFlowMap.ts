@@ -89,13 +89,13 @@ export const MFG_FLOW_RECORDS: Record<MfgFlowNodeKey, FlowRecord<MfgFlowNodeKey>
     icon: Boxes,
     kind: "Stock Entry (Material Transfer for Manufacture)",
     area: "Inventory",
-    href: "/stock/stock-entries",
+    href: "/manufacturing/work-orders",
     purpose: "Move the Work Order's required raw materials from the source warehouse into the WIP warehouse.",
     effects: [
       "Reduces stock in the source warehouse, increases WIP warehouse stock.",
       "Writes transferred_qty back onto the Work Order's required items.",
     ],
-    note: "Only available once the Work Order is Submitted. Partial and multiple transfers against the same Work Order are supported.",
+    note: "Only available once the Work Order is Submitted. Partial and multiple transfers against the same Work Order are supported. There is no standalone Material Transfer page — open a Submitted Work Order from the list and use its own \"Transfer Materials\" action; the generic Stock Entry list under Inventory explicitly excludes this Manufacture-purpose entry, so it isn't the right link here.",
   },
   jobCard: {
     key: "jobCard",
