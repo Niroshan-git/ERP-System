@@ -4610,3 +4610,78 @@ not expanded.
 
 `CLAUDE_HANDOFF` — not self-declared `ACCEPTED`. Awaiting independent re-review of this remediation
 before `MD-R1` can be considered closed.
+
+## 2026-09-22 — MD-R1 final governance closure
+
+**PACKAGE:** MD-R1 final closure (independent confirmation + documentation sync)
+**ROLE:** confirming reviewer / documentation-sync implementer
+**REVIEWER/IMPLEMENTER:** this session, no durable session identifier available
+**BASE COMMIT:** `23886ac` (MD-R1 remediation)
+**ASSIGNED BY:** Niroshan, direct "CEYLON STACK — MD-R1 FINAL GOVERNANCE CLOSURE" brief.
+**ASSIGNMENT TIMESTAMP:** this conversation turn, 2026-09-22.
+
+**Governance disclosure, stated plainly rather than glossed over:** this closure was performed by
+the same conversation/session that produced the original MD-R1 review, the MD-R1 remediation
+(`23886ac`), and the immediately preceding "targeted re-review." No separate Claude account or
+session was actually invoked — no mechanism exists in this environment to do so. The assigning
+brief itself explicitly acknowledged this ("the targeted reviewer disclosed that the same session
+had participated in the preceding review/remediation cycle") and directed this closure pass to
+proceed anyway, treating rigorous same-session re-derivation from Git/source evidence (not trust in
+prior claims) as sufficient for this specific governance decision. This does **not** satisfy
+`TEMP_DUAL_CLAUDE_MODE.md`'s own "no account may review or accept its own implementation package"
+rule in the literal cross-account sense that rule was written for. Recorded here so a future reader
+does not mistake this for genuine cross-account independent acceptance — if and when Codex returns
+(`TEMP_DUAL_CLAUDE_MODE.md` §16, expected 2026-09-26) or a genuinely separate account/session
+becomes available, this closure is an appropriate candidate for its reconciliation audit.
+
+**Independent technical re-verification performed this turn** (re-derived fresh from current
+source/Git, not trusted from the prior turn's "ACCEPTED" claim):
+- F-BOM-01: re-read the live `[name]/page.tsx`, `BomOperationsEditor.tsx`, and `bomRows.ts` —
+  confirmed the detail page displays `op.hour_rate` (pure string formatting with `currency`
+  appended, no arithmetic), matching the editor's own `hour_rate` field end to end. **Confirmed
+  resolved.**
+- F-BOM-02: confirmed the original Codex findings table (`CX-MFG-BOM-4B-003`, line 2141) remains
+  byte-for-byte unmodified; confirmed the new resolution record explicitly states operator
+  confirmation was not independently re-verified by Claude; repo-wide secret-pattern sweep and
+  `.env` gitignore/history check both clean. **Confirmed resolved**, on the operator-confirmed
+  basis the assigning brief itself specifies as sufficient.
+- F-BOM-03: confirmed both comment diffs are comment-only, canonical route still singular
+  (`/master-data/boms`), zero remaining "read-only only" text anywhere in the frontend. **Confirmed
+  resolved.**
+- F-BOM-04: confirmed the corrected chronology is consistent across `docs/backend/01-master-data/
+  bom.md`, its `README.md`, and `docs/master-data-architecture.md`. **Confirmed resolved.**
+
+No new CRITICAL/HIGH issue surfaced during this re-verification pass.
+
+**Part B — documentation sync performed this turn**, correcting stale BOM review-state statements
+(current-state assertions only, not historical narrative) in:
+- `docs/architecture/decisions/README.md` (§ covering the Master Data implementation state)
+- `docs/backend/15-migration/migration-status.md` (Master Data row)
+- `docs/ceylon-stack-master-backlog.md` (§2 Manufacturing row, §2 Master Data row, §3 historical
+  note, §6 CURRENT RELEASE item 6)
+- `docs/master-data-architecture.md` (§3 domain-package list, §4 ASCII diagram, §7 cross-module link
+  table, §9 CURRENT STATE/GAPS/package table) — not in Part B's named list, but updated for internal
+  consistency: leaving the canonical Master Data doc saying "awaiting independent re-review" while
+  the three named satellite docs said "ACCEPTED" would have been a glaring, immediately-discoverable
+  self-contradiction.
+- `docs/backend/01-master-data/README.md` — same reasoning, two remaining stale references
+  (ownership-matrix row, a generic caveat sentence) found during the final sweep and corrected.
+
+**Not touched, deliberately:** `docs/ceylon-stack-documentation.html` — two matching entries found
+(2026-09-17 changelog rows describing BOM as "Planned" at that date) are accurate historical
+changelog content, not stale current-state assertions, and this file is release-tracker-only
+territory per `CLAUDE.md`'s ground rules. **A `release-tracker` pass is still owed** to move BOM
+from "Building" to "Live" in that file's status labels — not performed by this documentation-only
+closure pass, flagged as the concrete next housekeeping step.
+
+**Explicitly did not:** touch application code, routes, or `Sidebar.tsx` behavior; resolve
+`MD-UNV-003`; begin CRM, Finance, Job Card, Workstation, or OEE work; unify Customer/Supplier into
+Business Partner; start any new package.
+
+### Final State
+
+**MD-R1: `ACCEPTED`**, with the governance-independence caveat stated above disclosed rather than
+hidden. BOM frontend package: `SHIPPED / ACCEPTED`. Canonical ownership: Master Data. Canonical
+route: `/master-data/boms`. Manufacturing remains a consumer, not an owner. `MD-UNV-003` relationship
+architecture/remediation planning is the recommended next Master Data package — not started by this
+closure.

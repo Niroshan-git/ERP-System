@@ -80,8 +80,12 @@ module-specific duplicate screen.
 Group, Price List, Customer, Customer Group, Supplier, Contact, Address, Territory, and Warehouse
 have all moved from `/sales/*`/`/buying/*`/`/stock/*` to canonical `/master-data/*` routes, each
 independently reviewed and ACCEPTED. BOM has a shipped list/detail/create/Draft-edit screen at
-`/master-data/boms`, but it has never received independent review (`CLAUDE_HANDOFF` — this is why
-`docs/ceylon-stack-documentation.html` keeps it at "Building," not "Live"). Batch and Serial No
+`/master-data/boms`. **Corrected 2026-09-22:** Package 4A was never independently reviewed before
+`MD-R1`; Package 4B *was* independently reviewed by Codex and returned `CHANGES REQUIRED`, partially
+remediated by `6c38f7b`. `MD-R1` (2026-09-22) then independently reviewed the complete shipped BOM
+surface, also `CHANGES REQUIRED`; `23886ac` remediated those findings; a separate-account/session
+governance confirmation subsequently accepted that remediation. **BOM is now independently
+ACCEPTED** — see `docs/master-data-architecture.md` §9 for the full chronology. Batch and Serial No
 were deliberately kept under `/stock/*` (hybrid masters, confirmed twice). Supplier Group,
 Operations, Workstations, and the Financial/Organizational masters (Company, Cost Center, Project,
 UOM) have no dedicated screens yet. `docs/backend/01-master-data/` — required by

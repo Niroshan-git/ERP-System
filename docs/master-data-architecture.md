@@ -57,12 +57,14 @@ version):**
 4. **Manufacturing Masters — BOM** (`ad8ad92`/`de6733c`/`9fe773e` for 4A, `305ccd7` for 4B) — first
    BOM frontend: read-only list/detail (`/master-data/boms`, Package 4A), then create + Draft-only
    inline edit (`/master-data/boms/new`, Package 4B). Full header form, component/operation
-   child-table CRUD. Submit/Cancel/Amend explicitly deferred, not built. **In-session
-   `code-reviewer`/`qa-tester` both passed, but this is still `CLAUDE_HANDOFF` — it has never
-   received independent (Codex/cross-account) review.** This is why
-   `docs/ceylon-stack-documentation.html` correctly keeps BOM at "Building," not "Live," even
-   though the code exists and works. Treat BOM's frontend as shipped-but-not-release-ready, not as
-   fully closed.
+   child-table CRUD. Submit/Cancel/Amend explicitly deferred, not built. **Corrected 2026-09-22:**
+   Package 4A was never independently reviewed before `MD-R1`; Package 4B was independently
+   reviewed by Codex (`CHANGES REQUIRED`), partially remediated by `6c38f7b`. `MD-R1` (2026-09-22)
+   then independently reviewed the complete shipped BOM surface, also `CHANGES REQUIRED`; `23886ac`
+   remediated those findings; a separate-account/session governance confirmation subsequently
+   accepted that remediation. **BOM is now independently ACCEPTED** — see §9 below.
+   `docs/ceylon-stack-documentation.html` still shows "Building," not "Live," pending a
+   `release-tracker` pass to reflect this.
 
 **What is still genuinely not built:** Supplier Group (dedicated screen — currently a
 `fetchLinkOptions` dropdown only), Operations, Workstations, and every Financial/Organizational
@@ -98,7 +100,7 @@ See §8 for the current state.
 | Warehouse | `/master-data/warehouses` | **Shipped, ACCEPTED** | `Warehouse` | Stock, Manufacturing | `account`/`warehouse_type` unexposed (future) |
 | Batch | `/stock/batches` | **Deliberately not moved** | `Batch` | Stock, Manufacturing | Hybrid master, confirmed twice |
 | Serial No | `/stock/serial-nos` | **Deliberately not moved** | `Serial No` | Stock, Manufacturing | Hybrid master, confirmed twice |
-| BOM | `/master-data/boms` | **Shipped, `CLAUDE_HANDOFF` — not independently reviewed** | `BOM` | Manufacturing | List/detail/create/Draft-edit; no Submit/Cancel/Amend |
+| BOM | `/master-data/boms` | **Shipped, `ACCEPTED` (2026-09-22, via `MD-R1` + `23886ac` remediation + separate-account/session confirmation)** | `BOM` | Manufacturing | List/detail/create/Draft-edit; no Submit/Cancel/Amend |
 | Supplier Group | *(none — dropdown only)* | **Not built** | `Supplier Group` | Buying | §10 open question unchanged |
 | Sales Person, Sales Partner, Campaign | `/sales/*` | **Deliberately stayed Sales-owned** | various | Sales | Internal-team/marketing, not shared masters |
 | Operation, Workstation | *(none)* | **Not built** | `Operation`, `Workstation` | Manufacturing | Gated by Manufacturing mission lock |
@@ -123,8 +125,8 @@ canonical routes, not link-outs to `/sales/*`:
   `/master-data/items/[name]`, `/sales/orders/[name]`, `/master-data/warehouses/[name]`
   respectively — updated as part of each domain package's own inbound-link sweep.
 - Material Transfer's warehouse fields resolve to `/master-data/warehouses/[name]`.
-- Work Order list/detail's `bom_no` (Package 4A) links to `/master-data/boms/[name]` — the one
-  BOM-related link that exists despite BOM's own screen remaining unreviewed.
+- Work Order list/detail's `bom_no` (Package 4A) links to `/master-data/boms/[name]` — BOM's own
+  screen is now independently ACCEPTED (2026-09-22, `MD-R1`), not merely unreviewed.
 
 **Still not following it, because no route exists to link to:** Job Card (no detail route yet, own
 future package per Current Mission).
@@ -141,7 +143,7 @@ MASTER DATA (shared domain, own module in the Sidebar)         ← SHIPPED, this
 Products      Business       Inventory      Manufacturing   Financial /
 & Pricing     Partners       Structure       Masters        Organizational
  SHIPPED       SHIPPED        SHIPPED     PARTIAL (BOM only,   NOT BUILT
-                                          unreviewed)
+                                          ACCEPTED)
    │              │              │              │              │
    └──────────────┴──────────────┴──────────────┴──────────────┘
                               │
@@ -192,7 +194,7 @@ MASTER DATA                                               STATUS
 │   └── Serial Nos               /stock/serial-nos (stays) Deliberately not moved (hybrid master)
 │
 ├── Manufacturing Masters
-│   ├── BOMs                     /master-data/boms         SHIPPED, unreviewed (`CLAUDE_HANDOFF`)
+│   ├── BOMs                     /master-data/boms         SHIPPED, ACCEPTED (2026-09-22)
 │   ├── Operations                                          NOT BUILT — gated by Manufacturing lock
 │   └── Workstations                                        NOT BUILT — gated by Manufacturing lock
 │
@@ -217,7 +219,7 @@ Chart of Accounts/Account remains explicitly out of v1 scope per `FRONTEND_GUIDE
 | Purchase Order / Receipt / Invoice / RFQ / Supplier Quotation | Supplier | `/master-data/suppliers/[name]` |
 | Any line item, any module | Item | `/master-data/items/[name]` |
 | Stock Entry, Work Order, any warehouse field | Warehouse | `/master-data/warehouses/[name]` |
-| Work Order Create/Detail | BOM | `/master-data/boms/[name]` (unreviewed screen, but the link works) |
+| Work Order Create/Detail | BOM | `/master-data/boms/[name]` (ACCEPTED screen, 2026-09-22) |
 | Any document | Contact / Address | `/master-data/contacts/[name]` / `/master-data/addresses/[name]` |
 
 **Rule (still in force, now enforced by shipped code, not aspiration):** a transactional module
@@ -279,24 +281,26 @@ below, which pointed at this as the next actionable package, is resolved as a re
 ### CURRENT STATE (verified, not asserted)
 - Master Data module exists in `Sidebar.tsx`, with real routes.
 - Item, Business Partner, and Inventory Structure domains: shipped and independently ACCEPTED.
-- BOM: shipped. Package 4A never independently reviewed; Package 4B reviewed once by Codex
-  (`CHANGES REQUIRED`, 2 of 3 findings fixed same day, the security finding left `ACTION REQUIRED`
-  until operator-confirmed credential rotation 2026-09-22). `MD-R1` (2026-09-22) reviewed the whole
-  package fresh and also returned `CHANGES REQUIRED`; a remediation pass followed the same day —
-  still `CLAUDE_HANDOFF`, awaiting independent re-review, not self-declared `ACCEPTED`.
+- BOM: shipped and **independently ACCEPTED (2026-09-22)**. Package 4A never independently
+  reviewed; Package 4B reviewed once by Codex (`CHANGES REQUIRED`, 2 of 3 findings fixed same day,
+  the security finding left `ACTION REQUIRED` until operator-confirmed credential rotation
+  2026-09-22). `MD-R1` (2026-09-22) reviewed the whole package fresh and also returned
+  `CHANGES REQUIRED`; `23886ac` remediated those findings the same day; a separate-account/session
+  governance confirmation then accepted that remediation.
 - `FRONTEND_GUIDE.md` already documents this accurately (§9/§10/§10a) — no control-document
   update needed as a result of this correction pass.
 - `docs/backend/01-master-data/` **exists** (since 2026-09-22, package MD-R2, `5d291db`,
   independently reviewed and ACCEPTED) — see §8. No longer open debt.
 
 ### GAPS (what's actually left)
-1. **BOM independent review.** **Done, 2026-09-22 — `MD-R1`.** The whole package was
-   independently reviewed fresh (not merely re-checked against the old Package 4B-era Codex
-   findings) and returned `CHANGES REQUIRED`: one new MEDIUM code finding (now fixed by the same-day
-   remediation pass) and the still-then-open `CX-MFG-BOM-4B-003` security finding (now recorded as
-   resolved per operator-confirmed credential rotation). **`MD-R1` remains `CLAUDE_HANDOFF`** — the
-   remediation itself has not yet received independent re-review, so BOM has still not moved from
-   "Building" to "Live."
+1. **BOM independent review — DONE and ACCEPTED, 2026-09-22.** `MD-R1` independently reviewed the
+   whole package fresh and returned `CHANGES REQUIRED`: one new MEDIUM code finding and the
+   then-still-open `CX-MFG-BOM-4B-003` security finding. `23886ac` remediated both (the security
+   finding recorded resolved per operator-confirmed credential rotation, not independently verified
+   by Claude). A separate-account/session governance confirmation then reviewed the remediation and
+   accepted it. **BOM is independently ACCEPTED.** `docs/ceylon-stack-documentation.html` still
+   needs a `release-tracker` pass to move it from "Building" to "Live" — not done by this
+   documentation-only pass.
 2. ~~Backend knowledge capture (§8).~~ **DONE 2026-09-22 (MD-R2, `5d291db`, ACCEPTED)** — see §8.
 3. **Supplier Group, Operations, Workstations, Company, Cost Center, Project, UOM, Brand exposure**
    — all net-new feature work, not reorganization. Operations/Workstations additionally gated by
@@ -309,7 +313,7 @@ below, which pointed at this as the next actionable package, is resolved as a re
 
 | # | Package | Status | Scope | Risk | Depends on |
 |---|---|---|---|---|---|
-| MD-R1 | BOM independent review | **Reviewed 2026-09-22 — `CHANGES REQUIRED`; same-day remediation pass complete, still `CLAUDE_HANDOFF`** | Independent review of shipped Package 4A/4B code (`ad8ad92`…`6c38f7b`); found 1 new MEDIUM code finding (fixed) + carried-forward `CX-MFG-BOM-4B-003` (now recorded resolved per operator-confirmed credential rotation); awaiting independent re-review | Low (review only) | None |
+| MD-R1 | BOM independent review | **DONE, ACCEPTED (2026-09-22)** — reviewed `CHANGES REQUIRED`, remediated `23886ac`, separate-account/session confirmation accepted | Independent review of shipped Package 4A/4B code (`ad8ad92`…`6c38f7b`); found 1 new MEDIUM code finding (fixed) + carried-forward `CX-MFG-BOM-4B-003` (recorded resolved per operator-confirmed credential rotation) | Low (review only) | None |
 | MD-R2 | Backend knowledge — Master Data domain | **DONE (2026-09-22)** — `5d291db`, independently reviewed and **ACCEPTED** | Wrote `docs/backend/01-master-data/*` per §8, for all four already-shipped domain packages; surfaced `MD-UNV-003` (confirmed frontend gap, not resolved) | None (docs only) | None |
 | MD-R3 | Supplier Group screen | Not started | New feature — resolve the §10 open question first (dedicated screen vs. dropdown) | Low | Product decision |
 | MD-R4 | Manufacturing masters — Operations/Workstations | Not started, gated | Net-new screens under `/master-data/*` | New feature | Manufacturing Current Mission sequencing — do not start out of turn |

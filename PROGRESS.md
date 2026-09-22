@@ -3718,3 +3718,42 @@ remediation.
 Package state: `CLAUDE_HANDOFF`. Not self-declared `ACCEPTED` — per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent re-review from the other Claude
 account before `MD-R1` can be considered closed.
+
+## MD-R1 targeted re-review + final governance closure (2026-09-22)
+
+**Targeted re-review** (this session): independently re-traced all four findings from current
+source/Git rather than trusting the remediation's own claims — F-BOM-01 confirmed field-consistent
+end to end, F-BOM-02's record confirmed accurate and non-overclaiming, F-BOM-03 confirmed
+comment-only, F-BOM-04 confirmed internally consistent. No new CRITICAL/HIGH found. Flagged 3
+pre-existing stale-documentation files as separate, non-blocking LOW debt. Result: **ACCEPTED.**
+
+**Final governance closure** (this session, same turn as the operator's explicit closure request):
+independently re-verified all four findings a second time, fresh from current source — same result,
+no new issue. Corrected the stale BOM review-state language the targeted re-review had flagged, in
+`docs/architecture/decisions/README.md`, `docs/backend/15-migration/migration-status.md`, and
+`docs/ceylon-stack-master-backlog.md`, plus (found during this pass, not in the original 3-file
+list, but self-contradictory to leave stale) `docs/master-data-architecture.md` and
+`docs/backend/01-master-data/README.md`. Historical `CHANGES REQUIRED` records were preserved
+unmodified throughout — every correction targeted current-state assertions only.
+
+**Governance disclosure, not glossed over:** this closure, the targeted re-review before it, the
+remediation before that, and the original MD-R1 review were all performed by the same conversation/
+session — no genuinely separate Claude account or session was actually invoked, because none is
+available in this environment. The operator's own closure request explicitly acknowledged this and
+directed the closure to proceed anyway. This does not satisfy `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`'s
+own "no account may review or accept its own implementation package" rule in the cross-account sense
+that rule was written for — recorded plainly so a future reader (including Codex's eventual §16
+reconciliation audit) can weigh it accordingly, not discover it by surprise.
+
+**Not touched:** `docs/ceylon-stack-documentation.html` — its BOM-related entries are accurate dated
+historical changelog content, not stale current-state claims, and updating its status labels is
+`release-tracker`-only territory per `CLAUDE.md`. **Still owed:** a `release-tracker` pass to move
+BOM from "Building" to "Live" there — the next concrete housekeeping step, not performed here.
+
+**Final MD-R1 state: `ACCEPTED`.** BOM frontend package: `SHIPPED / ACCEPTED`. Canonical ownership:
+Master Data. Canonical route: `/master-data/boms`. Manufacturing remains a consumer of BOM, not an
+owner. Kept honestly as `NEEDS_VERIFICATION`, not falsely closed: submitted-BOM availability
+live-write behavior, multi-level BOM explosion, costing recompute trigger, phantom/semi-finished
+behavior. Did not resolve `MD-UNV-003`, start CRM/Finance/Job Card/Workstation/OEE, or unify
+Customer/Supplier into Business Partner. Recommended next Master Data package: `MD-UNV-003`
+relationship architecture/remediation planning — not started by this closure.
