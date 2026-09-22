@@ -4415,3 +4415,87 @@ TEMP_DUAL_CLAUDE_MODE.md`, and this file. No application code, route, or compone
 consistent with the dual-Claude model, a future session may independently verify these governance
 and documentation edits if warranted, though none of them touch application behavior. `MD-R1` (BOM
 independent review) remains the next actionable Master Data package whenever separately authorized.
+
+## 2026-09-22 — MD-R1 (BOM independent review) — coordination-state record only
+
+**PACKAGE:** MD-R1 — BOM independent review (of `ad8ad92`/`305ccd7`/`6c38f7b`)
+**ROLE:** REVIEWER
+**IMPLEMENTER:** not applicable to this entry — the reviewed commits' own implementer is already
+recorded as unknown/reconstructed in this file's "Architecture/master-data baseline adoption +
+MD-R2" entry above; this entry does not re-litigate that.
+**REVIEWER:** this session, no durable session identifier available
+**BASE COMMIT:** `406cc72` (MD-R2 closure)
+**ASSIGNED BY:** Niroshan, direct "CEYLON STACK — MD-R1: BOM INDEPENDENT REVIEW" brief.
+**ASSIGNMENT TIMESTAMP:** this conversation turn, 2026-09-22 (no separately recorded clock time).
+
+This entry records coordination state only, per the review brief's own instruction ("update only
+review/coordination state explicitly permitted by the governance documents"). It does not
+constitute a `docs/backend/` update, a `PROGRESS.md`/`QA_LOG.md` entry, or remediation of any
+finding — none of those were authorized by this review's scope. Full report (20 sections,
+including exact evidence per area) was returned to the operator in-conversation, not duplicated
+here in full; this is the durable pointer.
+
+**Package boundary independently reconstructed from Git** (not trusted from the brief): `ad8ad92`
+(Package 4A, read-only list/detail, 2026-09-19) → `305ccd7` (Package 4B, create + Draft-only edit,
+same day) → **Codex independent review of `305ccd7`, same day, `CHANGES REQUIRED`**, 3 findings
+(`CX-MFG-BOM-4B-001` HIGH, `CX-MFG-BOM-4B-002` MEDIUM, `CX-MFG-BOM-4B-003` HIGH/security) → `6c38f7b`
+(remediation, same day: `-001`/`-002` fixed; `-003` left `ACTION REQUIRED`, not `CLOSED`, since it
+is an operational credential-rotation action outside any session's authority). **No re-review of
+`6c38f7b` by Codex or a cross-account session exists anywhere in this repository.** Package 4A was
+never independently reviewed at all, in any form.
+
+**Independent findings (this review), summarized — full evidence in the returned report:**
+- **Carried-forward, still-open HIGH (security, non-code):** `CX-MFG-BOM-4B-003` — an
+  Administrator API credential exposed to a QA subagent's context during Package 4B's own QA pass —
+  remains `ACTION REQUIRED`, not `CLOSED`. Independently re-verified: no repository evidence
+  (commit, `PROGRESS.md`, `QA_LOG.md`, or `PLAN.md`) shows the credential was ever rotated/revoked;
+  `.env` remains gitignored and absent from Git history, consistent with all prior records. This
+  finding alone drives the review outcome below.
+- **New, MEDIUM (code, previously undisclosed):** the BOM detail page's Operations tab
+  (`master-data/boms/[name]/page.tsx`) labels a column "Hourly Rate" and binds it to
+  `op.base_hour_rate` (company currency) — but the create/edit form's identically-labeled field
+  (`BomOperationsEditor.tsx`) collects and validates `hour_rate` (the BOM's own transaction
+  currency, per `bomRows.ts`'s own doc comment). For a BOM whose `currency` differs from company
+  currency, what a user enters is silently not what's shown back under the same label, with no
+  currency indicator on that column. Currently unexercised — the one real BOM on this instance has
+  `currency` == company currency (`LKR`, `conversion_rate: 1.0`), same masking pattern already
+  disclosed for the unrelated `CX-MFG-002`/`MFG-UNV-007` Work Order Operation case.
+- **LOW (documentation/comment accuracy):** `Sidebar.tsx` (~line 272-274) and
+  `masterDataWorkspace.ts` (~line 17-18) code comments still describe BOM as "read-only only (no
+  create/edit/delete route exists for BOM in this app)" — stale since Package 4B shipped the same
+  day the comment was written. Actual routing/behavior is correct (single canonical nav entry,
+  `/master-data/boms`, no duplicate); only the comments are wrong.
+- **LOW (documentation/coordination accuracy):** `docs/backend/01-master-data/bom.md` and
+  `docs/master-data-architecture.md`'s "never received independent review" characterization of BOM
+  understates the real history — Package 4B *was* reviewed once (`CHANGES REQUIRED`), partially
+  remediated same day, and one finding remains open; "never reviewed" reads as though no review
+  ever happened. Separately, this file's own top-of-file Package Ledger table (rows for
+  "Manufacturing Masters — BOM Package 4A/4B") still shows Codex Status "Not yet reviewed" even
+  though the narrative record later in this same file documents a real completed Codex review of
+  4B — an internal self-consistency gap in this file, not corrected by this entry (out of this
+  review's authorized scope).
+- Architecture, ERPNext model, list/detail/create, child-table, cross-module usage, and
+  server-boundary reviews all otherwise found no CRITICAL/HIGH code defects — canonical ownership
+  (`/master-data/boms`, no duplicate `/manufacturing/boms` route), server-side `docstatus`
+  re-fetching before every mutation (`updateBomAction`/`setBomAvailability`), and literal
+  (non-`formData`-spread) mutation payloads for the submitted-availability actions were all
+  independently verified against source, not trusted from prior documentation.
+
+**QA evidence (this review):** `npx tsc --noEmit` — clean. `npx eslint` scoped to all BOM
+route/component/lib files — clean. `npm run build` — succeeded (`✓ Compiled successfully`), BOM
+routes registered, only the same pre-existing build-time `Dynamic server usage`/network diagnostics
+every route in this app already produces (not BOM-specific, not a regression). No live ERPNext
+writes performed — review-only, non-destructive checks only, consistent with the brief's own
+constraint.
+
+**Final Review State: `CHANGES REQUIRED`** — driven by the still-open `CX-MFG-BOM-4B-003` HIGH
+security finding (operational remediation: credential rotation/revocation, not a code change) plus
+the newly-identified MEDIUM code finding above. Per the review brief's own instruction, findings
+were not fixed and no remediation was performed — remediation requirements are stated in the full
+report returned to the operator this turn, not executed here. `MD-R1` (BOM independent review) is
+not self-declared closed by this entry.
+
+**Package isolation:** this entry, plus a matching `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` Session
+Log row, are the only files touched by this review. No application code, route, `Sidebar.tsx`
+content, `docs/backend/` content, `PROGRESS.md`, or `QA_LOG.md` was modified — consistent with the
+review's explicit "review only" scope.
