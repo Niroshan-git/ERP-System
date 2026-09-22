@@ -28,7 +28,7 @@ not yet accepted** under `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` — see `AI_WO
 | Production Item cell | `production_item` | `production_item` | Link → Item | yes (create) | no | Create restricted client-side to items with `default_bom` set — see `MFG-VAL-001` |
 | item name display | `item_name` | `item_name` | Data | auto-fetched | no | |
 | Quantity | `qty` | `qty` | Float | yes (create), `> 0` | **no**, per `MFG-VAL-002` | |
-| Produced qty (progress bar) | `produced_qty` | `produced_qty` | Float | system-set | n/a | Written by ERPNext's own Manufacture-purpose Stock Entry flow — not written by this frontend (no Manufacture entry UI built) |
+| Produced qty (progress bar) | `produced_qty` | `produced_qty` | Float | system-set | n/a | Written by ERPNext's own Manufacture-purpose Stock Entry flow on submit — this frontend now triggers that flow (`MFG-WF-005`, `manufacture-completion.md`), but the value itself is always ERPNext's own recompute, never written directly |
 | Process loss qty | `process_loss_qty` | `process_loss_qty` | Float | system-set | n/a | |
 | BOM | `bom_no` | `bom_no` | Link → BOM | yes (create) | no | Auto-filled from the item's `default_bom` when exactly one active+default BOM exists; editable otherwise |
 | Stock UOM | `stock_uom` | `stock_uom` | Link → UOM | auto | no | |
@@ -55,7 +55,7 @@ Canonical `work_order_item`, 1:N under `work_order`. Frappe child DocType `Work 
 | Item cell | `item_code` / `item_name` | `item_code` / `item_name` | |
 | Required | `required_qty` | `required_qty` | Auto-populated by ERPNext from `bom_no` × `qty` on insert (`MFG-CALC-001`). **Not editable after submit** (`MFG-VAL-002`) |
 | Transferred | `transferred_qty` | `transferred_qty` | Written only by a submitted Material Transfer for Manufacture Stock Entry — see `material-transfer.md` |
-| Consumed | `consumed_qty` | `consumed_qty` | Written by a Manufacture-purpose Stock Entry (not built in this frontend) |
+| Consumed | `consumed_qty` | `consumed_qty` | Written by a Manufacture-purpose Stock Entry — built `MFG-CLOSE-1` (`MFG-WF-005`), see `manufacture-completion.md` |
 | Source | `source_warehouse` | `source_warehouse` | |
 | ADDITIONAL tag | `is_additional_item` | `is_additional_item` | Real ERPNext field, set only when a Material Transfer Stock Entry adds a non-BOM line (`add_additional_items`) — never inferred client-side |
 | (not rendered) | `voucher_detail_reference` | `voucher_detail_reference` | Back-link to the Stock Entry Detail row that added an additional item; read during QA, not rendered in the UI |
@@ -187,6 +187,16 @@ non-blocking `NEEDS_VERIFICATION`.
   ERPNext's own pending-qty calculation only nets out *Submitted* Work Orders), and the
   live-confirmed cancel-cascade (cancelling the source Production Plan hard-deletes any still-Draft
   Work Order it created, via `delete_draft_work_order()`).
+- **`MFG-WF-005`** (MFG-CLOSE-1) — Production completion. `submitProductionAction`
+  (`manufacturing/work-orders/[name]/complete-production/actions.ts`) calls the same native
+  `make_stock_entry(purpose="Manufacture")` mechanism Material Transfer already uses — see
+  `material-transfer.md`'s sibling doc, `manufacture-completion.md`, for the full field mapping,
+  business rules, and Work Order side-effect chain (`produced_qty`/`consumed_qty`/`process_loss_qty`/
+  `status`, all source-traced live on the Hetzner instance by the `devops` subagent). Supports
+  partial production via a re-previewed `fg_completed_qty`. `produced_qty` on this document is
+  written by ERPNext's own submit-time recompute, never by this frontend directly — this closes
+  the `work-order.md` field-mapping table's own long-standing note that `produced_qty` was "not
+  written by this frontend (no Manufacture entry UI built)".
 - **`MFG-WF-002`** — The ERPNext-native mechanism for a Work-Order-specific material deviation
   during production (add a non-BOM item, remove one, substitute one) is **Stock-Entry-driven, not
   a Work Order edit** — see `material-transfer.md`'s `MFG-STK-001`/`MFG-STK-002` and
@@ -216,7 +226,8 @@ independent roles.
 Work Order itself does not move stock — it is the planning document. Stock movement happens via
 linked Stock Entries: Material Transfer for Manufacture (documented in `material-transfer.md`,
 writes `required_items[].transferred_qty`) and Manufacture-purpose entries (writes `consumed_qty`
-and `produced_qty` — **not built in this frontend**, `NEEDS_VERIFICATION` for exact mechanics).
+and `produced_qty` — built `MFG-CLOSE-1`, see `manufacture-completion.md` for the full mechanics,
+source-traced live against the installed ERPNext v16.34.2).
 
 ## Accounting impact
 

@@ -10,7 +10,7 @@ import { DocTabs } from "@/components/DocTabs";
 import { ProgressBar } from "@/components/ProgressBar";
 import { StockBadge } from "@/components/StockBadge";
 import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
-import { canTransferMaterials, workOrderStatus } from "@/lib/erpStatus";
+import { canCompleteProduction, canTransferMaterials, workOrderStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
@@ -122,10 +122,10 @@ export default async function WorkOrderDetailPage({
   searchParams,
 }: {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ transferred?: string }>;
+  searchParams: Promise<{ transferred?: string; produced?: string }>;
 }) {
   const { name } = await params;
-  const { transferred } = await searchParams;
+  const { transferred, produced } = await searchParams;
 
   let doc: WorkOrderDoc;
   try {
@@ -135,7 +135,7 @@ export default async function WorkOrderDetailPage({
     throw e;
   }
 
-  const [jobCards, materialTransfers, timeline, session] = await Promise.all([
+  const [jobCards, materialTransfers, manufactureEntries, timeline, session] = await Promise.all([
     listDocs<JobCardRow>("Job Card", {
       fields: [
         "name",
@@ -164,27 +164,37 @@ export default async function WorkOrderDetailPage({
       limit: 50,
       orderBy: "creation desc",
     }),
+    listDocs<MaterialTransferRow>("Stock Entry", {
+      fields: ["name", "docstatus", "posting_date", "purpose"],
+      filters: [
+        ["work_order", "=", doc.name],
+        ["purpose", "=", "Manufacture"],
+      ],
+      limit: 50,
+      orderBy: "creation desc",
+    }),
     buildTimeline("Work Order", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
   ]);
 
   const status = workOrderStatus(doc);
   const transferEligibility = canTransferMaterials(doc);
-  const produced = doc.produced_qty ?? 0;
-  const remaining = Math.max(doc.qty - produced, 0);
-  const progressPct = doc.qty > 0 ? (produced / doc.qty) * 100 : 0;
+  const productionEligibility = canCompleteProduction(doc);
+  const producedQty = doc.produced_qty ?? 0;
+  const remaining = Math.max(doc.qty - producedQty, 0);
+  const progressPct = doc.qty > 0 ? (producedQty / doc.qty) * 100 : 0;
 
   const progressSection = (
     <div className="mb-6 rounded-xl border border-border bg-surface p-4">
       <h2 className="mb-2 text-sm font-semibold text-graphite-900">Production Progress</h2>
       <p className="mb-2 text-sm text-graphite-500">
-        <span className="font-mono text-graphite-900">{produced}</span> /{" "}
+        <span className="font-mono text-graphite-900">{producedQty}</span> /{" "}
         <span className="font-mono text-graphite-900">{doc.qty}</span> {doc.stock_uom || "units"} produced
       </p>
       <ProgressBar value={progressPct} />
       <dl className="mt-4 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
         <DocField label="Required" value={String(doc.qty)} mono />
-        <DocField label="Produced" value={String(produced)} mono />
+        <DocField label="Produced" value={String(producedQty)} mono />
         <DocField label="Process loss" value={String(doc.process_loss_qty ?? 0)} mono />
         <DocField label="Remaining" value={String(remaining)} mono />
       </dl>
@@ -363,6 +373,41 @@ export default async function WorkOrderDetailPage({
               <tr>
                 <td colSpan={4} className="px-4 py-6 text-center text-graphite-500">
                   No material transfers against this Work Order yet.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <h2 className="mb-2 mt-6 text-sm font-semibold text-graphite-900">Production Entries</h2>
+      <div className={plainTableWrap}>
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className={plainTableHead}>
+              <th className={`${cell} font-semibold`}>Stock Entry</th>
+              <th className={`${cell} font-semibold`}>Status</th>
+              <th className={`${cell} font-semibold`}>Date</th>
+              <th className={`${cell} font-semibold`}>Purpose</th>
+            </tr>
+          </thead>
+          <tbody>
+            {manufactureEntries.map((se) => (
+              <tr key={se.name} className="border-b border-border last:border-0">
+                <td className={cell}>
+                  <DocLink href={`/stock/stock-entries/${encodeURIComponent(se.name)}`}>{se.name}</DocLink>
+                </td>
+                <td className={`${cell} text-graphite-500`}>
+                  {se.docstatus === 0 ? "Draft" : se.docstatus === 1 ? "Submitted" : "Cancelled"}
+                </td>
+                <td className={`${cell} font-mono text-graphite-500`}>{se.posting_date || "—"}</td>
+                <td className={`${cell} text-graphite-500`}>{se.purpose || "—"}</td>
+              </tr>
+            ))}
+            {manufactureEntries.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-6 text-center text-graphite-500">
+                  No production entries against this Work Order yet.
                 </td>
               </tr>
             )}
@@ -557,28 +602,49 @@ export default async function WorkOrderDetailPage({
           </Link>
         </div>
       )}
-      <div className="mb-4 flex items-center justify-between">
+      {produced && (
+        <div className="mb-4 rounded-md border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-success">
+          Production completed. Stock Entry:{" "}
+          <Link
+            href={`/stock/stock-entries/${encodeURIComponent(produced)}`}
+            className="underline decoration-success/50 underline-offset-2"
+          >
+            {produced}
+          </Link>
+        </div>
+      )}
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-medium text-graphite-900">{doc.name}</h1>
           <div className="mt-1">
             <StatusPill label={status.label} tone={status.tone} />
           </div>
         </div>
-        {doc.docstatus === 0 && (
-          <DocActionBar
-            action={submitWorkOrderAction.bind(null, doc.name)}
-            label="Submit"
-            pendingLabel="Submitting…"
-          />
-        )}
-        {transferEligibility.allowed && (
-          <Link
-            href={`/manufacturing/work-orders/${encodeURIComponent(doc.name)}/transfer-materials`}
-            className="rounded-md bg-signal px-4 py-2 text-sm font-medium text-white hover:bg-signal/90"
-          >
-            Transfer Materials
-          </Link>
-        )}
+        <div className="flex flex-wrap items-center gap-3">
+          {doc.docstatus === 0 && (
+            <DocActionBar
+              action={submitWorkOrderAction.bind(null, doc.name)}
+              label="Submit"
+              pendingLabel="Submitting…"
+            />
+          )}
+          {transferEligibility.allowed && (
+            <Link
+              href={`/manufacturing/work-orders/${encodeURIComponent(doc.name)}/transfer-materials`}
+              className="rounded-md border border-signal px-4 py-2 text-sm font-medium text-signal hover:bg-signal/10"
+            >
+              Transfer Materials
+            </Link>
+          )}
+          {productionEligibility.allowed && (
+            <Link
+              href={`/manufacturing/work-orders/${encodeURIComponent(doc.name)}/complete-production`}
+              className="rounded-md bg-signal px-4 py-2 text-sm font-medium text-white hover:bg-signal/90"
+            >
+              Complete Production
+            </Link>
+          )}
+        </div>
       </div>
       <DocTabs
         tabs={[

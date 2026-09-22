@@ -116,13 +116,13 @@ export const MFG_FLOW_RECORDS: Record<MfgFlowNodeKey, FlowRecord<MfgFlowNodeKey>
     icon: Cog,
     kind: "Stock Entry (Manufacture)",
     area: "Inventory",
-    href: null,
-    purpose: "Once operations are complete, consume the transferred raw materials from WIP and receive the finished goods into the target warehouse.",
+    href: "/manufacturing/work-orders",
+    purpose: "Once operations are complete, consume the raw materials per the BOM and receive the finished goods into the target warehouse.",
     effects: [
       "Writes the Work Order's consumed_qty and produced_qty.",
       "The real stock/costing event of production — everything upstream is planning.",
     ],
-    note: "Not yet built in this app's frontend (no Manufacture-purpose Stock Entry UI). Exists today only via ERPNext Desk or a direct API call.",
+    note: "Built (MFG-CLOSE-1): open a Submitted Work Order from the list and use its own \"Complete Production\" action — supports partial production across multiple entries. Like Material Transfer, there is no standalone page; the generic Stock Entry list under Inventory explicitly excludes this Manufacture-purpose entry too.",
   },
   complete: {
     key: "complete",

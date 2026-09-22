@@ -12,6 +12,15 @@ exists in the current build"):
   business rules, lifecycle, relationships.
 - [`material-transfer.md`](material-transfer.md) — Material Transfer for Manufacture (the
   Stock Entry flow triggered from Work Order Detail). Fields, business rules, stock impact.
+- [`manufacture-completion.md`](manufacture-completion.md) — Manufacture Stock Entry
+  ("Complete Production", `MFG-CLOSE-1`, 2026-09-22): `/manufacturing/work-orders/[name]/
+  complete-production` calls the same native `make_stock_entry` mechanism as Material Transfer,
+  with `purpose: "Manufacture"`. Supports partial production, has zero client-editable item rows
+  (stricter than Material Transfer — ERPNext's Manufacture flow has no "additional item"
+  mechanism), and writes the Work Order's `produced_qty`/`consumed_qty`/`status` on submit.
+  Source-traced live via SSH (`devops` subagent) against the installed ERPNext v16.34.2; **no live
+  Stock Entry was created/submitted this session** — `Runtime Test: NOT RUN`, see that doc's "Live
+  QA" section.
 - [`job-card.md`](job-card.md) — read-only fields only (surfaced on the Work Order detail page's
   Job Cards tab). Job Card's own lifecycle is out of scope until it gets its own frontend package.
 - [`bom.md`](bom.md) — started as a 2026-09-19 investigation baseline (BOM/BOM Item/BOM Operation

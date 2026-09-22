@@ -435,6 +435,62 @@ export function canTransferMaterials(doc: {
 }
 
 /**
+ * Eligibility gate for the Manufacture Stock Entry ("Complete Production") action
+ * (MFG-CLOSE-1). Unlike `canTransferMaterials`, this app never read ERPNext Desk's own
+ * `set_custom_buttons` source for the Manufacture/"Finish" button this session (no browser/SSH
+ * source read for that specific button — the underlying `make_stock_entry(purpose="Manufacture")`
+ * mechanics were, see `workOrderManufacture.ts`) — so this is a deliberately conservative,
+ * server-enforced-anyway gate, not a mirrored Desk indicator:
+ *
+ * - `docstatus === 1` and `status` not in `{Closed, Completed, Stopped}` — same submitted/active
+ *   requirement `canTransferMaterials` uses; a Work Order that's already `Completed` has nothing
+ *   left to produce, confirmed by the remaining-qty check below anyway.
+ * - `!track_semi_finished_goods` — same boundary `canTransferMaterials` draws: this app doesn't
+ *   build multi-level/semi-finished-goods routing (`work-order.md`'s `MFG-CALC-001`/operations
+ *   table note), and semi-finished Work Orders route Manufacture-purpose entries differently
+ *   server-side (`load_items_from_bom`'s FG/Semi-FG branching).
+ * - `transfer_material_against !== "Job Card"` — Job Card lifecycle is explicitly out of scope
+ *   for this app (no Job Card list/detail/complete UI exists); a Job-Card-driven Work Order's
+ *   normal path is to complete production through its Job Cards, not this generic action. This
+ *   frontend-only restriction fails closed rather than allowing a Manufacture entry around a
+ *   workflow this app doesn't otherwise support.
+ * - remaining qty (`qty - produced_qty`) `> 0` — nothing left to manufacture otherwise; this is
+ *   also the exact quantity `make_stock_entry` itself defaults `fg_completed_qty` to.
+ *
+ * `skip_transfer` is deliberately NOT checked here (unlike `canTransferMaterials`, which blocks
+ * on it): a Work Order that skips the transfer step still needs a Manufacture entry to actually
+ * produce — `skip_transfer` only changes where `make_stock_entry` sources raw materials from
+ * (`work_order.source_warehouse` instead of WIP, source-confirmed), not whether Manufacture is
+ * allowed.
+ */
+export function canCompleteProduction(doc: {
+  docstatus: number;
+  status: string;
+  qty: number;
+  produced_qty?: number;
+  track_semi_finished_goods?: 0 | 1;
+  transfer_material_against?: string;
+}): { allowed: boolean; reason?: string } {
+  if (doc.docstatus !== 1) {
+    return { allowed: false, reason: "Work Order must be submitted before production can be completed." };
+  }
+  if (["Closed", "Completed", "Stopped"].includes(doc.status)) {
+    return { allowed: false, reason: `Not available while the Work Order is ${doc.status}.` };
+  }
+  if (doc.track_semi_finished_goods) {
+    return { allowed: false, reason: "Not available for Work Orders tracking semi-finished goods." };
+  }
+  if (doc.transfer_material_against === "Job Card") {
+    return { allowed: false, reason: "Production is completed per Job Card for this Work Order, not here." };
+  }
+  const remaining = doc.qty - (doc.produced_qty ?? 0);
+  if (remaining <= 0) {
+    return { allowed: false, reason: "This Work Order has already been fully produced." };
+  }
+  return { allowed: true };
+}
+
+/**
  * BOM has no separate `status` Select field of its own (live-confirmed via
  * `get_doctype_fields`, 2026-09-19 Manufacturing Masters (BOM) investigation — see
  * `docs/backend/05-manufacturing/bom.md`'s Identity/Status tables) — only the standard
