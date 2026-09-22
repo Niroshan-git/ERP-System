@@ -4499,3 +4499,114 @@ not self-declared closed by this entry.
 Log row, are the only files touched by this review. No application code, route, `Sidebar.tsx`
 content, `docs/backend/` content, `PROGRESS.md`, or `QA_LOG.md` was modified — consistent with the
 review's explicit "review only" scope.
+
+## 2026-09-22 — MD-R1 BOM remediation (F-BOM-01/02/03/04)
+
+**PACKAGE:** MD-R1 BOM remediation
+**ROLE:** IMPLEMENTER
+**IMPLEMENTER:** this session, no durable session identifier available
+**REVIEWER:** not yet assigned — this remediation is not self-accepted
+**BASE COMMIT:** `0b3bfe6` (MD-R1 independent review coordination record)
+**ASSIGNED BY:** Niroshan, direct "CEYLON STACK — MD-R1 BOM REMEDIATION" brief, narrowly scoped to
+exactly the four findings from the prior MD-R1 review turn.
+**ASSIGNMENT TIMESTAMP:** this conversation turn, 2026-09-22.
+
+Narrow remediation of exactly F-BOM-01, F-BOM-03, F-BOM-04 from the MD-R1 independent review above,
+plus recording F-BOM-02's operational closure per explicit operator confirmation. Did not reopen
+the wider BOM package (no Submit/Cancel/Amend, no new BOM functionality, no redesign) and did not
+begin CRM, `MD-UNV-003`, Finance, or Job Card/Workstation/OEE work — all explicitly out of scope per
+the assigning brief.
+
+### F-BOM-02 (HIGH, security) — operational closure
+
+**The Product Owner/operator (Niroshan) explicitly confirmed, in the direct request that opened
+this session turn, that the previously-exposed ERPNext Administrator API credential
+(`CX-MFG-BOM-4B-003`, filed by Codex 2026-09-19) has been rotated/revoked.** This is recorded as the
+operator's own statement, not independently re-verified by this session — application code and
+repository state cannot prove a credential rotation happened; only the operator who performed it
+can confirm that. Per the assigning brief's own instruction, this closure is recorded because
+explicit operator confirmation exists, not merely inferred from repository changes.
+
+**Status change: `CX-MFG-BOM-4B-003` — `ACTION REQUIRED` → `RESOLVED`** (repository's existing
+Finding-status vocabulary, this file's own §"Finding status: OPEN, IN_PROGRESS, RESOLVED,
+ACCEPTED_RISK"). The original Codex-authored findings table (2026-09-19, in this file's "Manufacturing
+Masters — BOM Package 4B" section) is left byte-for-byte unmodified as the historical record of what
+was found and when — this entry is the resolution record, matching the same pattern already
+established for `CX-MFG-BOM-4B-001`/`002`'s own "Claude Remediation" narrative section rather than
+editing the original table in place.
+
+No secret value (API key, API secret, replacement credential, or old credential) is recorded here or
+anywhere in this remediation — per the assigning brief's explicit security rule. No claim is made
+about the replacement credential's privilege level, since that was not independently evidenced to
+this session.
+
+### F-BOM-01 (MEDIUM) — fixed
+
+`apps/frontend/src/app/(app)/master-data/boms/[name]/page.tsx`'s Operations tab "Hourly Rate" column
+changed from `op.base_hour_rate` to `op.hour_rate` (with the BOM's own `currency` appended, reusing
+the page's existing `currency` variable — no new conversion logic, no costing calculation touched).
+Traced end-to-end per the brief's own instruction: `BomOperationsEditor.tsx`'s "Hourly Rate" input
+writes `hour_rate` → `lib/bomRows.ts`'s `parseBomOperationRows` sends `hour_rate` in the create/update
+payload → `BomDetailPage`'s existing `BomOperationRow` type already declared `hour_rate?: number`
+(no type/schema change needed, the field was already being fetched, just not displayed) → the
+Operations tab now reads that same field. Create/edit/detail are now semantically consistent — the
+value a user types under "Hourly Rate" is the value shown back under that label. `Operating Cost`
+(a pure backend-computed field with no matching create-form input) was deliberately left unchanged —
+out of this finding's scope.
+
+### F-BOM-03 (LOW) — fixed
+
+`Sidebar.tsx` (~line 272-274) and `apps/frontend/src/lib/masterDataWorkspace.ts` (~line 17-18)
+code comments corrected from "read-only only (no create/edit/delete route exists for BOM in this
+app)" to accurately describe list/detail/create/Draft-edit/submitted-availability actions.
+Comment-only changes — no navigation, route, or Sidebar structure touched; canonical route remains
+`/master-data/boms`, single entry, no duplicate.
+
+### F-BOM-04 (LOW) — fixed
+
+Corrected the historical review-state characterization in `docs/backend/01-master-data/bom.md`,
+`docs/backend/01-master-data/README.md`'s ownership-matrix table, and
+`docs/master-data-architecture.md` (§9 CURRENT STATE, §9 GAPS item 1, the `MD-R1` table row, and
+§14's Governance Note) — all now state precisely: Package 4A never independently reviewed; Package
+4B reviewed once by Codex (`CHANGES REQUIRED`), `6c38f7b` fixed 2 of 3 findings same day,
+`CX-MFG-BOM-4B-003` remained open until this turn's operator-confirmed rotation; `MD-R1` (2026-09-22)
+reviewed the whole package fresh and also returned `CHANGES REQUIRED`; this remediation pass follows,
+still `CLAUDE_HANDOFF`, not self-declared `ACCEPTED`. Did not rewrite unrelated history — historical
+narrative sections describing what was true *at the time they were written* were left untouched;
+only statements asserting current/ongoing state were corrected.
+
+### QA
+
+`npx tsc --noEmit` — clean. `npx eslint` scoped to `master-data/boms/**`, `Bom*.tsx`,
+`Sidebar.tsx`, `masterDataWorkspace.ts` — clean. `npm run build` — succeeded
+(`✓ Compiled successfully`), `/master-data/boms/[name]` still registers correctly, no new route, no
+new build errors (only the same pre-existing build-time `Dynamic server usage` diagnostics every
+route in this app already produces). `git status`/`git diff --stat` confirms the actual changed-file
+set matches exactly what's listed below — no unexpected scope expansion. Repository-wide search for
+tracked secrets: `apps/mcp-server/.env` confirmed still gitignored and absent from Git history
+(`git check-ignore`/`git log`, contents never read) — no secret value appears anywhere in this
+remediation's diff, commit message, or this log entry.
+
+### Live-write verification
+
+Not performed. No safe dedicated test environment or authorized integration credential was
+available to this session for non-destructive submitted-BOM availability testing
+(`activateBomAction`/`deactivateBomAction`/`setDefaultBomAction` against the real server). Left
+`NEEDS_VERIFICATION` exactly as before — not falsely closed, per the assigning brief's explicit
+instruction not to use the newly-rotated credential merely to make this review pass.
+
+### Files changed
+
+`apps/frontend/src/app/(app)/master-data/boms/[name]/page.tsx` (F-BOM-01),
+`apps/frontend/src/components/Sidebar.tsx` (F-BOM-03, comment only),
+`apps/frontend/src/lib/masterDataWorkspace.ts` (F-BOM-03, comment only),
+`docs/backend/01-master-data/bom.md`, `docs/backend/01-master-data/README.md`,
+`docs/master-data-architecture.md` (F-BOM-04), `PROGRESS.md`, this file, and a matching
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` Session Log row (F-BOM-02/F-BOM-04 coordination). No other
+files touched — matches the assigning brief's "extremely small" expected change footprint; scope was
+not expanded.
+
+### Final State
+
+`CLAUDE_HANDOFF` — not self-declared `ACCEPTED`. Awaiting independent re-review of this remediation
+before `MD-R1` can be considered closed.

@@ -3664,3 +3664,57 @@ Finance; start any new Master Data feature package; introduce `/crm/customers`, 
 Package state: closure edits not self-declared independently reviewed — none touch application
 behavior, so this is disclosed rather than escalated for review, consistent with the closure
 brief's own scope.
+
+## MD-R1 BOM independent review + remediation (2026-09-22)
+
+**Independent review** (this session, same conversation): reconstructed the real BOM package
+boundary from Git — `ad8ad92` (Package 4A, never independently reviewed) → `305ccd7` (Package 4B)
+→ a real Codex review of 4B, 2026-09-19, `CHANGES REQUIRED` (3 findings) → `6c38f7b` (same-day
+remediation, fixed 2 of 3; `CX-MFG-BOM-4B-003`, the security finding, left `ACTION REQUIRED`). Full
+fresh review across architecture/ERPNext-model/list/detail/create/edit/submitted-actions/child
+tables/security/documentation/cross-module usage found no new CRITICAL/HIGH code defects, but
+surfaced one new MEDIUM finding and confirmed `CX-MFG-BOM-4B-003` was still unresolved — **Final
+Review State: `CHANGES REQUIRED`**.
+
+**Remediation** (this session, same turn): narrowly fixed exactly the 4 findings, nothing else.
+
+- **F-BOM-01 (MEDIUM, fixed):** BOM detail page's Operations tab "Hourly Rate" column was bound to
+  `op.base_hour_rate` (company currency) while the create/edit form's identically-labeled field
+  (`BomOperationsEditor.tsx`) collects `hour_rate` (the BOM's own transaction currency) — a real
+  label/value mismatch for any BOM priced in a non-company currency, masked today because the one
+  real BOM on this instance has `currency == company currency`. Fixed by displaying `op.hour_rate`
+  (with the BOM's own `currency` appended, no new conversion logic) — traced end-to-end from the
+  editor through `lib/bomRows.ts` to the detail page to confirm the field was already being fetched,
+  just not displayed. No costing calculation touched.
+- **F-BOM-02 (HIGH, security — recorded `RESOLVED`):** the Product Owner/operator (Niroshan)
+  explicitly confirmed, in the request that opened this remediation turn, that the Administrator API
+  credential exposed during Package 4B's QA pass (`CX-MFG-BOM-4B-003`) has been rotated/revoked.
+  **This is the operator's own statement, not independently re-verified by this session** —
+  application code and repository state cannot prove a credential rotation happened. No secret value
+  recorded anywhere in this remediation. The original Codex findings table is left unmodified as the
+  historical record; this closure is a new, separately dated entry, matching the pattern already used
+  for `CX-MFG-BOM-4B-001`/`002`'s own resolution.
+- **F-BOM-03 (LOW, fixed):** stale `Sidebar.tsx`/`masterDataWorkspace.ts` code comments describing
+  BOM as "read-only only" corrected to reflect create/Draft-edit/submitted-availability actions —
+  comment-only, no navigation or route change.
+- **F-BOM-04 (LOW, fixed):** historical review-state statements in `docs/backend/01-master-data/
+  {bom.md,README.md}` and `docs/master-data-architecture.md` corrected — Package 4A never reviewed;
+  Package 4B reviewed once (`CHANGES REQUIRED`), partially remediated; `MD-R1` reviewed fresh, also
+  `CHANGES REQUIRED`. Historical narrative describing what was true *at the time it was written* was
+  left untouched — only current-state assertions were corrected.
+
+**Not performed, disclosed:** live-write verification of the submitted-BOM availability actions
+(`activateBomAction`/`deactivateBomAction`/`setDefaultBomAction`) — no safe dedicated test
+environment or authorized integration credential was available; remains `NEEDS_VERIFICATION`, not
+falsely closed. No new BOM functionality introduced, no redesign, no CRM/`MD-UNV-003`/Finance/Job
+Card/Workstation/OEE work started.
+
+**Verification:** `npx tsc --noEmit` — clean. `npx eslint` scoped to the BOM files plus
+`Sidebar.tsx`/`masterDataWorkspace.ts` — clean. `npm run build` — succeeded, `/master-data/boms/
+[name]` still registers correctly, no new route. `apps/mcp-server/.env` confirmed still gitignored
+and absent from Git history — contents never read, no secret value appears anywhere in this
+remediation.
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared `ACCEPTED` — per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, this needs independent re-review from the other Claude
+account before `MD-R1` can be considered closed.

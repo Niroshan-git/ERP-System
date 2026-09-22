@@ -435,7 +435,7 @@ export default async function BomDetailPage({
               <td className={`${cell} text-right font-mono tabular-nums`}>{op.time_in_mins ?? "—"}</td>
               <td className={`${cell} text-right font-mono tabular-nums`}>{op.batch_size ?? "—"}</td>
               <td className={`${cell} text-right font-mono tabular-nums`}>
-                {op.base_hour_rate !== undefined ? formatAmount(op.base_hour_rate) : "—"}
+                {op.hour_rate !== undefined ? `${formatAmount(op.hour_rate)} ${currency}`.trim() : "—"}
               </td>
               <td className={`${cell} text-right font-mono tabular-nums`}>
                 {op.base_operating_cost !== undefined ? formatAmount(op.base_operating_cost) : "—"}

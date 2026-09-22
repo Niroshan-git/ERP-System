@@ -15,7 +15,9 @@ import type { WorkspaceCard } from "@/lib/sellingWorkspace";
  * (see `docs/master-data-architecture.md` §2/§7), so they were deliberately NOT moved
  * alongside Warehouse.
  * The Manufacturing Masters — BOM package (2026-09-19, Package 4A) added BOM as a net-new
- * (not moved) read-only entity screen — see `docs/backend/05-manufacturing/bom.md`. Entities
+ * (not moved) entity screen. Package 4B (same day) added create and Draft-only edit; a
+ * same-day remediation added submitted-BOM Activate/Deactivate/Set-as-Default availability
+ * actions — see `docs/backend/05-manufacturing/bom.md`. Entities
  * with no existing route at all (UOM, Operation, Workstation, Company, Cost Center, Project,
  * Currency, Tax, Payment Terms) are deliberately left out rather than shown as dead links or
  * "Coming soon" — each is its own future MD package.

@@ -279,18 +279,24 @@ below, which pointed at this as the next actionable package, is resolved as a re
 ### CURRENT STATE (verified, not asserted)
 - Master Data module exists in `Sidebar.tsx`, with real routes.
 - Item, Business Partner, and Inventory Structure domains: shipped and independently ACCEPTED.
-- BOM: shipped, in-session reviewed, but never independently reviewed — `CLAUDE_HANDOFF`.
+- BOM: shipped. Package 4A never independently reviewed; Package 4B reviewed once by Codex
+  (`CHANGES REQUIRED`, 2 of 3 findings fixed same day, the security finding left `ACTION REQUIRED`
+  until operator-confirmed credential rotation 2026-09-22). `MD-R1` (2026-09-22) reviewed the whole
+  package fresh and also returned `CHANGES REQUIRED`; a remediation pass followed the same day —
+  still `CLAUDE_HANDOFF`, awaiting independent re-review, not self-declared `ACCEPTED`.
 - `FRONTEND_GUIDE.md` already documents this accurately (§9/§10/§10a) — no control-document
   update needed as a result of this correction pass.
 - `docs/backend/01-master-data/` **exists** (since 2026-09-22, package MD-R2, `5d291db`,
   independently reviewed and ACCEPTED) — see §8. No longer open debt.
 
 ### GAPS (what's actually left)
-1. **BOM independent review.** BOM Package 4A and 4B need an actual independent (Codex or
-   cross-account) review before they can move from "Building" to "Live." This is the most
-   immediately actionable item — the code already exists, review is what's missing, not
-   implementation. **Still not started** — MD-R1 remains open (see the table below); this closure
-   pass is documentation/governance only and does not begin it.
+1. **BOM independent review.** **Done, 2026-09-22 — `MD-R1`.** The whole package was
+   independently reviewed fresh (not merely re-checked against the old Package 4B-era Codex
+   findings) and returned `CHANGES REQUIRED`: one new MEDIUM code finding (now fixed by the same-day
+   remediation pass) and the still-then-open `CX-MFG-BOM-4B-003` security finding (now recorded as
+   resolved per operator-confirmed credential rotation). **`MD-R1` remains `CLAUDE_HANDOFF`** — the
+   remediation itself has not yet received independent re-review, so BOM has still not moved from
+   "Building" to "Live."
 2. ~~Backend knowledge capture (§8).~~ **DONE 2026-09-22 (MD-R2, `5d291db`, ACCEPTED)** — see §8.
 3. **Supplier Group, Operations, Workstations, Company, Cost Center, Project, UOM, Brand exposure**
    — all net-new feature work, not reorganization. Operations/Workstations additionally gated by
@@ -303,7 +309,7 @@ below, which pointed at this as the next actionable package, is resolved as a re
 
 | # | Package | Status | Scope | Risk | Depends on |
 |---|---|---|---|---|---|
-| MD-R1 | BOM independent review | **Ready to start — not yet started** | Independent review of already-shipped Package 4A/4B code (`ad8ad92`…`305ccd7`); no new code expected unless findings require it | Low (review only) | None |
+| MD-R1 | BOM independent review | **Reviewed 2026-09-22 — `CHANGES REQUIRED`; same-day remediation pass complete, still `CLAUDE_HANDOFF`** | Independent review of shipped Package 4A/4B code (`ad8ad92`…`6c38f7b`); found 1 new MEDIUM code finding (fixed) + carried-forward `CX-MFG-BOM-4B-003` (now recorded resolved per operator-confirmed credential rotation); awaiting independent re-review | Low (review only) | None |
 | MD-R2 | Backend knowledge — Master Data domain | **DONE (2026-09-22)** — `5d291db`, independently reviewed and **ACCEPTED** | Wrote `docs/backend/01-master-data/*` per §8, for all four already-shipped domain packages; surfaced `MD-UNV-003` (confirmed frontend gap, not resolved) | None (docs only) | None |
 | MD-R3 | Supplier Group screen | Not started | New feature — resolve the §10 open question first (dedicated screen vs. dropdown) | Low | Product decision |
 | MD-R4 | Manufacturing masters — Operations/Workstations | Not started, gated | Net-new screens under `/master-data/*` | New feature | Manufacturing Current Mission sequencing — do not start out of turn |
@@ -425,7 +431,10 @@ not itself authorize CRM discovery to begin.
   document is corrected in this same pass.
 - **One real open review item:** BOM Package 4A/4B (`CLAUDE_HANDOFF`, never independently reviewed).
   This document does not authorize starting that review — it identifies it as the next actionable
-  Master Data item (MD-R1).
+  Master Data item (MD-R1). **Correction, 2026-09-22 (MD-R1 remediation pass):** this line was
+  already imprecise when written — Package 4B specifically *had* been independently reviewed by
+  Codex on 2026-09-19 (`CHANGES REQUIRED`), only Package 4A had genuinely never been reviewed. See
+  §9's CURRENT STATE bullet above for the accurate, current history.
 - This document does not authorize MD-R3 through MD-R6, Business Partner unification, or any other
   undecided item above. It is the corrected record of what already happened, plus what's actually
   left — not a new implementation authorization.

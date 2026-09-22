@@ -62,7 +62,7 @@ silently upgraded to `VERIFIED`.
 | Contact | `Contact` | `/master-data/contacts` | No | first-name-derived (`VERIFIED` base pattern, collision suffix `NEEDS_VERIFICATION`) | ACCEPTED |
 | Address | `Address` | `/master-data/addresses` | No | `NEEDS_VERIFICATION` (zero live records) | ACCEPTED |
 | Territory | `Territory` | `/master-data/territories` | No | `name == territory_name` (`VERIFIED` live) | ACCEPTED |
-| BOM | `BOM` | `/master-data/boms` | **Yes** (documented in `05-manufacturing/bom.md`) | `NEEDS_VERIFICATION` (see that document) | **`CLAUDE_HANDOFF` — never independently reviewed** |
+| BOM | `BOM` | `/master-data/boms` | **Yes** (documented in `05-manufacturing/bom.md`) | `NEEDS_VERIFICATION` (see that document) | **`CLAUDE_HANDOFF`** — Pkg 4A never reviewed; Pkg 4B reviewed once (`CHANGES REQUIRED`, 2 of 3 findings fixed); `MD-R1` (2026-09-22) reviewed fresh, `CHANGES REQUIRED`, remediation pass in progress, not yet re-reviewed |
 
 "Review status" reflects `docs/operations/AI_WORK_LOG.md`/`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`
 as of 2026-09-22, reconciled in `docs/master-data-architecture.md`. Documenting a doctype here does

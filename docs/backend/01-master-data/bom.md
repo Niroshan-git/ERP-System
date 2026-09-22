@@ -32,15 +32,22 @@ See: [`docs/backend/05-manufacturing/bom.md`](../05-manufacturing/bom.md).
    duplicate 405 lines of already-accepted content for no informational gain. Update
    `05-manufacturing/bom.md` in place for any future BOM behavior change; do not fork a second copy
    here.
-2. **Review status, current as of this package (MD-R2, 2026-09-22).** BOM Package 4A (read-only
-   list/detail) and Package 4B (create + Draft-edit) are both shipped in code and passed in-session
-   `code-reviewer`/`qa-tester` checks, but **neither has ever received independent (Codex or
-   cross-account) review** — confirmed via `docs/operations/AI_WORK_LOG.md`, where both packages
-   remain `CLAUDE_HANDOFF` with no later acceptance entry found. This is why
+2. **Review status, corrected 2026-09-22 (MD-R1 remediation pass).** **Package 4A** (read-only
+   list/detail) was never independently reviewed at all, in any form. **Package 4B** (create +
+   Draft-edit) *was* independently reviewed — by Codex, 2026-09-19, same day it shipped — and
+   returned `CHANGES REQUIRED` with 3 findings (`CX-MFG-BOM-4B-001` HIGH, `CX-MFG-BOM-4B-002`
+   MEDIUM, `CX-MFG-BOM-4B-003` HIGH/security). `6c38f7b`, the same-day remediation, fixed the two
+   functional findings (submitted-BOM availability, Draft view/edit split); `CX-MFG-BOM-4B-003`
+   (an exposed Administrator API credential) remained `ACTION REQUIRED` until the Product
+   Owner/operator confirmed the credential's rotation/revocation on 2026-09-22 — see
+   `docs/operations/AI_WORK_LOG.md`'s matching entry. **No re-review of `6c38f7b` by Codex or a
+   cross-account session has ever happened.** A separate independent review (`MD-R1`, 2026-09-22)
+   then reviewed the whole package fresh and returned its own `CHANGES REQUIRED` (one new MEDIUM
+   code finding, now fixed by this remediation pass, plus `CX-MFG-BOM-4B-003` which was still open
+   at review time); **`MD-R1` itself remains `CLAUDE_HANDOFF`, not self-declared `ACCEPTED`** — it
+   awaits independent re-review of this remediation. This is why
    `docs/ceylon-stack-documentation.html` correctly keeps BOM at "Building," not "Live." Treat BOM's
-   frontend as shipped-but-not-release-ready. The recommended next Master Data package
-   (`docs/master-data-architecture.md` §9, MD-R1) is exactly this independent review — this
-   cross-reference document does not perform it.
+   frontend as shipped-but-not-yet-independently-accepted.
 3. **Master Data ownership-matrix entry** — for the summary table in
    `01-master-data/README.md`, so BOM appears alongside the other 9 priority DocTypes in this
    package's scope without its content being copied here.

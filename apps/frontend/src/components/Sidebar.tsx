@@ -271,7 +271,9 @@ const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
 // (§2/§7) they're transaction-generated/operational entities, not structural masters, so
 // they were deliberately NOT moved alongside Warehouse. The Manufacturing Masters — BOM
 // package (2026-09-19, Package 4A) added BOM as this module's first net-new (not moved)
-// entity screen — read-only only (no create/edit/delete route exists for BOM in this app).
+// entity screen. Package 4B (same day) added create and Draft-only edit; a same-day
+// remediation added submitted-BOM Activate/Deactivate/Set-as-Default availability actions
+// (see docs/backend/05-manufacturing/bom.md) — no delete route exists for BOM in this app.
 // Operation and Workstation remain unimplemented — real ERPNext masters with no frontend
 // screen at all yet, each its own future, separately authorized package (see
 // `docs/backend/05-manufacturing/bom.md`'s Operation/Routing/Workstation classification
