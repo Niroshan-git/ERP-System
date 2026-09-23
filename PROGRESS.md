@@ -3792,3 +3792,28 @@ this one) were not touched.
 **Sign-off:** `CLAUDE_HANDOFF` — not self-declared `ACCEPTED`. Per `docs/controls/
 TEMP_DUAL_CLAUDE_MODE.md`, independent cross-review is required before this package or the next
 Manufacturing package proceeds.
+
+## MFG-CLOSE-2 / `MFG-BOM-LC-1` — independent review ACCEPTED (2026-09-23)
+
+Niroshan dispatched a separate, explicit independent-review mission for the BOM Cancel/Amend
+package above (commit `8559edb`). Two fresh subagents with no memory of the implementation
+independently re-derived evidence rather than grading the prior write-up — a `code-reviewer`
+(no CRITICAL/HIGH findings, one non-blocking LOW cosmetic note) and a `devops` instance (fresh
+`TEST-BOMLC-*` disposable fixtures, all 6 required scenarios plus the sub-assembly case, zero
+discrepancies from the original claims). `tsc`/`eslint`/`build` independently re-run clean a
+third time. Full detail in `QA_LOG.md`'s "independent review — ACCEPTED" entry and
+`docs/operations/AI_WORK_LOG.md`.
+
+**Package-ID collision resolved**: this package collided with an unrelated planning document's
+reservation of `MFG-CLOSE-2` for the still-unbuilt Work Order Cancel package. Canonicalized going
+forward as `MFG-BOM-LC-1` (this package, shipped) and `MFG-WO-LC-1` (reserved for Work Order
+Cancel) — see `AI_WORK_LOG.md`'s Package-ID note. No historical entry rewritten.
+
+**Final state: `ACCEPTED`.** Safe to start `MFG-WO-LC-1` (Work Order Cancel) as the next
+Manufacturing package, in its own session/package per `AGENT_USAGE_POLICY.md`.
+
+`docs/architecture.md`'s unsolicited, unrelated Mermaid diagram (added by an earlier `devops`
+subagent during this package's own closure, never part of commit `8559edb`) remains uncommitted
+and undecided — independently recommended `DISCARD` (duplicates the better-maintained,
+source-tagged `docs/backend/11-relationships/master-erd.md`; wrong location; no verification
+tagging), pending Niroshan's own call.

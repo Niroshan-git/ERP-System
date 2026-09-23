@@ -2114,3 +2114,28 @@ touched.
 **Sign-off**: this session, no durable session identifier available, produces a `CLAUDE_HANDOFF` —
 not self-accepted. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, independent cross-review is still
 required before this package (or the next Manufacturing package) proceeds.
+
+## 2026-09-23 — MFG-CLOSE-2 / `MFG-BOM-LC-1` independent review — ACCEPTED
+
+Independent cross-review of commit `8559edb`, dispatched by Niroshan as a separate, explicit review
+mission after the closure above. Two fresh subagents (no memory of the implementation) independently
+re-derived evidence rather than grading the prior write-up: a `code-reviewer` re-traced the full
+trust boundary, amend field-safety, UI lifecycle matrix, and commit isolation directly from
+`git show 8559edb` — no CRITICAL/HIGH findings, one non-blocking LOW cosmetic note. A `devops`
+instance independently re-read the live v16.34.2 source (quotes matched verbatim) and ran fresh
+disposable fixtures (`TEST-BOMLC-*`, a different prefix from the original testing) through all 6
+required scenarios plus the sub-assembly case and a regression spot-check — zero discrepancies,
+plus two additional confirmations the original write-up hadn't explicitly covered (amend-against-
+nonexistent-BOM fails safely; a real `amendBomAction`-shaped amend produces an Inactive/non-Default
+Draft). `tsc`/`eslint`/`build` independently re-run clean. Full detail in
+`docs/operations/AI_WORK_LOG.md`'s corresponding ledger row and Session Log entry in
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`.
+
+**Package-ID note**: this package collided with an unrelated planning document's reservation of
+`MFG-CLOSE-2` for a different, still-unbuilt Work Order Cancel package. Canonicalized going forward
+as `MFG-BOM-LC-1` (this package) and `MFG-WO-LC-1` (reserved for Work Order Cancel) — see
+`AI_WORK_LOG.md`'s Package-ID note. The commit message and this log's own prior entries are left
+as originally written, per instruction not to rewrite history.
+
+**Final state**: `ACCEPTED`. Safe to start `MFG-WO-LC-1` (Work Order Cancel) as the next
+Manufacturing package.
