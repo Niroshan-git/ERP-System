@@ -5,6 +5,9 @@ import type {
   ErrorEvent,
   ErrorListResult,
   ErrorTrendPoint,
+  IntegrationEvent,
+  IntegrationHealthSummary,
+  IntegrationListResult,
   ModuleErrorBreakdown,
   ObservabilityFilters,
   ObservabilitySummary,
@@ -512,7 +515,12 @@ export async function getDemoObservabilitySummary(range: TrendRange): Promise<Ob
     return ageHours > 24 && ageHours <= 48;
   }).length;
   const criticalErrors = ALL_EVENTS.filter((e) => e.severity === "CRITICAL" && e.status !== "Resolved").length;
-  const failedIntegrations = ALL_EVENTS.filter((e) => e.source === "INTEGRATION").length;
+  // Sourced from Integration Monitoring's own fixtures (O-9), not from `ALL_EVENTS`'
+  // `source === "INTEGRATION"` error rows — those are Error Explorer entries that happen
+  // to originate from an integration, a different count than "how many integration
+  // operations failed to complete." TIMEOUT counts as failed-to-complete for this stat,
+  // same as FAILED, since neither represents a successful operation.
+  const failedIntegrations = INTEGRATION_FIXTURES.filter((e) => e.status === "FAILED" || e.status === "TIMEOUT").length;
   const recentActivityCount = inRange.length * 9; // demo scaling factor — activity volume exceeds error volume in any real system
 
   return {
@@ -1127,4 +1135,275 @@ export async function getDemoAuditRecords(
   const start = (page - 1) * pageSize;
   const items = filtered.slice(start, start + pageSize);
   return { items, pagination: { page, pageSize, total } };
+}
+
+/**
+ * DEMO Integration Monitoring (O-9) fixtures — extends the same interconnected
+ * investigation story rather than inventing a disconnected screen (mission §21):
+ *
+ *   demo-int-1 reuses O-7's `demo-err-1` correlation ID (`CS-YYMMDD-F82A41`) and is, field
+ *   for field, this package's own worked example ("ERPNext / make_stock_entry / FAILED /
+ *   287 ms / WO-00042 / Niroshan / CS-260923-F82A41") — clicking its Trace badge resolves
+ *   to the real O-7 trace, whose "View Audit" link resolves to the real O-8 Quantity
+ *   change that explains the failure. Four more rows (`demo-int-4/5/6/7`) reuse other
+ *   existing O-7 correlation IDs (`3B19C7`/`77E0F5`/`2A77D9`/`3F60A9`) purely to widen
+ *   cross-links into real traces without inventing new technical-detail content, matching
+ *   O-8's own precedent for doing this.
+ *
+ *   `demo-int-2` is this mission's second worked example verbatim (Email confirmation on
+ *   the existing `SAL-ORD-2026-00091` Sales Order — the same document O-8's second
+ *   investigation story already uses). `demo-int-3` is the dedicated TIMEOUT example
+ *   (mission §23) — kept intentionally distinct from a same-integration FAILED row so the
+ *   UI's visual difference between the two statuses is actually exercised.
+ *
+ *   `demo-int-7` (Automation), `demo-int-10` (External API), and `demo-int-11` (ERPNext)
+ *   are the mission §27 null-actor set: `demo-int-7`/`demo-int-10` both set
+ *   `systemGenerated: true` because their source is a genuinely scheduled job, so the UI
+ *   may honestly render "System"; `demo-int-11`'s attribution is simply unresolved (a
+ *   webhook delivery, not a scheduled job), so it must render "Actor unavailable" — never
+ *   inferred from the null actor alone. See `IntegrationExplorerTable` and
+ *   `docs/observability-frontend-architecture.md`'s "Null actor semantics" section.
+ *
+ *   `demo-int-8/9` (AI Service) and `demo-int-10` (External API) round out the five
+ *   integration categories this mission names (mission §1/§7) without hard-coding any UI
+ *   branch to those specific names — `integration`/`integrationType` are plain strings.
+ */
+function plusMs(date: Date, ms: number): string {
+  return new Date(date.getTime() + ms).toISOString();
+}
+
+const INTEGRATION_FIXTURES: IntegrationEvent[] = [
+  {
+    id: "demo-int-1",
+    occurredAt: hoursAgo(0.4).toISOString(),
+    completedAt: plusMs(hoursAgo(0.4), 287),
+    durationMs: 287,
+    integration: "ERPNext",
+    integrationType: "ERPNext",
+    operation: "make_stock_entry",
+    status: "FAILED",
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    correlationId: correlationIdFor(hoursAgo(0.4), "F82A41"),
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    source: "INTEGRATION",
+    safeMessage: "Material Transfer could not be completed because the requested quantity is unavailable.",
+    errorClassification: "ValidationError",
+  },
+  {
+    id: "demo-int-2",
+    occurredAt: hoursAgo(18).toISOString(),
+    completedAt: plusMs(hoursAgo(18), 420),
+    durationMs: 420,
+    integration: "Email",
+    integrationType: "Email",
+    operation: "Send Sales Order Confirmation",
+    status: "SUCCESS",
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    referenceDoctype: "Sales Order",
+    referenceName: "SAL-ORD-2026-00091",
+    source: "INTEGRATION",
+    safeMessage: "Sales Order confirmation email sent successfully.",
+  },
+  {
+    id: "demo-int-3",
+    occurredAt: hoursAgo(1.2).toISOString(),
+    completedAt: plusMs(hoursAgo(1.2), 30000),
+    durationMs: 30000,
+    integration: "ERPNext API",
+    integrationType: "ERPNext",
+    operation: "submit Work Order",
+    status: "TIMEOUT",
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    source: "INTEGRATION",
+    safeMessage: "ERPNext did not respond within the configured request timeout.",
+    errorClassification: "TimeoutError",
+  },
+  {
+    id: "demo-int-4",
+    occurredAt: hoursAgo(3).toISOString(),
+    completedAt: plusMs(hoursAgo(3), 610),
+    durationMs: 610,
+    integration: "ERPNext",
+    integrationType: "ERPNext",
+    operation: "submit_sales_order",
+    status: "FAILED",
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    correlationId: correlationIdFor(hoursAgo(3), "3B19C7"),
+    referenceDoctype: "Sales Order",
+    referenceName: "SAL-ORD-2026-00041",
+    source: "INTEGRATION",
+    safeMessage: "Sales Order could not be submitted because a linked Item is missing a Price List rate.",
+    errorClassification: "ValidationError",
+  },
+  {
+    id: "demo-int-5",
+    occurredAt: hoursAgo(9).toISOString(),
+    completedAt: plusMs(hoursAgo(9), 340),
+    durationMs: 340,
+    integration: "ERPNext",
+    integrationType: "ERPNext",
+    operation: "create_purchase_receipt",
+    status: "FAILED",
+    actor: { email: "kasun@customer.example", fullName: "Kasun Perera" },
+    correlationId: correlationIdFor(hoursAgo(9), "77E0F5"),
+    referenceDoctype: "Purchase Receipt",
+    referenceName: "MAT-PRE-2026-00027",
+    source: "INTEGRATION",
+    safeMessage: "Purchase Receipt could not be created because the linked Purchase Order is fully received.",
+    errorClassification: "ValidationError",
+  },
+  {
+    id: "demo-int-6",
+    occurredAt: hoursAgo(48).toISOString(),
+    completedAt: plusMs(hoursAgo(48), 150),
+    durationMs: 150,
+    integration: "ERPNext",
+    integrationType: "ERPNext",
+    operation: "update_item",
+    status: "WARNING",
+    actor: { email: "kasun@customer.example", fullName: "Kasun Perera" },
+    correlationId: correlationIdFor(hoursAgo(48), "2A77D9"),
+    referenceDoctype: "Item",
+    referenceName: "FG-STEEL-BRACKET-ASSY",
+    source: "INTEGRATION",
+    safeMessage: "Item was updated, but its reorder level is set below its safety stock.",
+  },
+  {
+    id: "demo-int-7",
+    occurredAt: hoursAgo(690).toISOString(),
+    completedAt: plusMs(hoursAgo(690), 30000),
+    durationMs: 30000,
+    integration: "Automation",
+    integrationType: "Automation",
+    operation: "Supplier Data Sync",
+    status: "TIMEOUT",
+    actor: null,
+    systemGenerated: true,
+    correlationId: correlationIdFor(hoursAgo(690), "3F60A9"),
+    source: "INTEGRATION",
+    safeMessage: "A scheduled Supplier data sync did not complete within its expected window.",
+    errorClassification: "TimeoutError",
+  },
+  {
+    id: "demo-int-8",
+    occurredAt: hoursAgo(6).toISOString(),
+    completedAt: plusMs(hoursAgo(6), 1800),
+    durationMs: 1800,
+    integration: "AI Service",
+    integrationType: "AI Service",
+    operation: "Generate Demand Forecast",
+    status: "SUCCESS",
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    source: "INTEGRATION",
+    safeMessage: "Demand forecast generated successfully.",
+  },
+  {
+    id: "demo-int-9",
+    occurredAt: hoursAgo(30).toISOString(),
+    completedAt: plusMs(hoursAgo(30), 2400),
+    durationMs: 2400,
+    integration: "AI Service",
+    integrationType: "AI Service",
+    operation: "Generate Demand Forecast",
+    status: "FAILED",
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    source: "INTEGRATION",
+    safeMessage: "Demand forecast could not be generated because insufficient historical sales data exists.",
+    errorClassification: "ValidationError",
+  },
+  {
+    id: "demo-int-10",
+    occurredAt: hoursAgo(0.05).toISOString(),
+    integration: "External API",
+    integrationType: "External API",
+    operation: "Currency Exchange Rate Refresh",
+    status: "PENDING",
+    actor: null,
+    systemGenerated: true,
+    source: "INTEGRATION",
+    safeMessage: "Exchange rate refresh is in progress.",
+  },
+  {
+    id: "demo-int-11",
+    occurredAt: hoursAgo(5.5).toISOString(),
+    completedAt: plusMs(hoursAgo(5.5), 210),
+    durationMs: 210,
+    integration: "ERPNext",
+    integrationType: "ERPNext",
+    operation: "Webhook Delivery",
+    status: "FAILED",
+    actor: null,
+    source: "INTEGRATION",
+    safeMessage: "Webhook delivery to a configured endpoint could not be confirmed.",
+    errorClassification: "NetworkError",
+  },
+];
+
+function matchesIntegrationFilters(event: IntegrationEvent, filters: ObservabilityFilters): boolean {
+  if (filters.status && event.status !== filters.status) return false;
+  if (filters.integration && event.integration !== filters.integration) return false;
+  if (filters.integrationType && event.integrationType !== filters.integrationType) return false;
+  if (filters.operation && event.operation !== filters.operation) return false;
+  if (filters.actorEmail && event.actor?.email !== filters.actorEmail) return false;
+  if (filters.doctype && event.referenceDoctype !== filters.doctype) return false;
+  if (filters.docname && event.referenceName !== filters.docname) return false;
+  if (filters.correlationId && event.correlationId !== filters.correlationId.toUpperCase()) return false;
+  if (filters.dateFrom && new Date(event.occurredAt) < new Date(filters.dateFrom)) return false;
+  if (filters.dateTo && new Date(event.occurredAt) > new Date(`${filters.dateTo}T23:59:59`)) return false;
+  if (filters.search) {
+    const needle = filters.search.trim().toLowerCase();
+    if (needle) {
+      const haystack = [
+        event.integration,
+        event.integrationType,
+        event.operation,
+        event.safeMessage,
+        event.correlationId,
+        event.referenceDoctype,
+        event.referenceName,
+        event.actor?.email,
+        event.actor?.fullName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(needle)) return false;
+    }
+  }
+  return true;
+}
+
+/** Integration Explorer's list query (O-9) — same filter/sort/page contract as
+ * `getDemoErrors()`/`getDemoActivity()`/`getDemoAuditRecords()`. */
+export async function getDemoIntegrationEvents(
+  filters: ObservabilityFilters,
+  page: number,
+  pageSize: number,
+): Promise<IntegrationListResult> {
+  const filtered = INTEGRATION_FIXTURES.filter((e) => matchesIntegrationFilters(e, filters)).sort(
+    (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+  );
+  const total = filtered.length;
+  const start = (page - 1) * pageSize;
+  const items = filtered.slice(start, start + pageSize);
+  return { items, pagination: { page, pageSize, total } };
+}
+
+/** Integration Monitoring's health-summary row (O-9, mission §6) — computed from the same
+ * fixture set `getDemoIntegrationEvents()` filters, across the full set (no date-range
+ * scoping; no screen needs one yet). `failed` counts TIMEOUT alongside FAILED, same
+ * reasoning as `getDemoObservabilitySummary`'s `failedIntegrations` above — neither
+ * represents a completed, successful operation. */
+export async function getDemoIntegrationSummary(): Promise<IntegrationHealthSummary> {
+  const totalOperations = INTEGRATION_FIXTURES.length;
+  const successful = INTEGRATION_FIXTURES.filter((e) => e.status === "SUCCESS").length;
+  const failed = INTEGRATION_FIXTURES.filter((e) => e.status === "FAILED" || e.status === "TIMEOUT").length;
+  const withDuration = INTEGRATION_FIXTURES.filter((e): e is IntegrationEvent & { durationMs: number } => e.durationMs !== undefined);
+  const averageDurationMs =
+    withDuration.length > 0 ? withDuration.reduce((sum, e) => sum + e.durationMs, 0) / withDuration.length : 0;
+
+  return { totalOperations, successful, failed, averageDurationMs };
 }

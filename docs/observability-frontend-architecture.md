@@ -523,3 +523,260 @@ real browser and should be checked before this is treated as fully screen-review
 - `QA_LOG.md`/`release-tracker` — same reasoning as O-6/O-7: no live ERPNext data, no core
   flow (Sales/Stock/Buying) touched, so neither is policy-mandated, but a `code-reviewer`
   pass was run (see PROGRESS.md's O-8 entry).
+
+## O-9: Integration Monitoring (implemented 2026-09-24)
+
+**Note on package numbering:** the "Not done" list directly above calls this screen
+"O-10" — that was this doc's own placeholder numbering before Niroshan's explicit mission
+brief for this package assigned it "O-9" instead (and renumbered the real-backend
+convergence/hardening package to O-10). This section, the mission brief it was built
+against, and the Sidebar's own code comment now use the brief's numbering — **Integration
+Monitoring is O-9**; the older "(O-10)" mentions above are stale labels from before that
+brief existed, the same kind of harmless staleness as `docs/observability-architecture.md`'s
+already-superseded package table (see its own "Superseded note").
+
+**What this package built**, entirely on top of O-6/O-7/O-8's foundation — no parallel
+data architecture, no new auth logic, no new provider seam pattern, no changes to
+Manufacturing or any other module:
+
+- **Route:** `/admin/observability/integrations`, nested under
+  `app/(app)/admin/observability/`, so it automatically inherits the real server-side
+  `isSystemManager` re-check in `admin/observability/layout.tsx` — no authorization logic
+  of its own.
+- **Sidebar:** "Integrations" flipped from `soon: true` to a real link
+  (`/admin/observability/integrations`). All five primary Observability nav destinations
+  (Overview, Errors, User Activity, Audit Trail, Integrations) now exist as real screens.
+- **Provider extended, not replaced:** `ObservabilityProvider` (`provider.ts`) gained
+  `getIntegrationSummary()` (the health-summary row) and
+  `getIntegrationEvents(filters, page, pageSize)` (the same real page-by-page contract
+  every other list method already uses), backed by two new `demoProvider.ts` functions
+  (`getDemoIntegrationSummary`, `getDemoIntegrationEvents`). No per-item detail method was
+  added — the chosen Integration detail pattern (expandable row, same as O-8's Audit Trail)
+  needs no separate fetch.
+- **Typed models extended** (`types.ts`):
+  - `IntegrationEvent` (previously an unused O-6-era forward declaration) was reshaped to
+    match this mission's field list: `occurredAt`/`completedAt`/`durationMs`,
+    `integration`/`integrationType`/`operation` (all free text — mission §7 explicitly
+    rules out hard-coding UI logic to a fixed name set, the same "curated select
+    suggestions, not an enforced union" precedent `UserActivityEvent.action` already
+    established), `status: IntegrationStatus`, `actor: Actor | null` plus a new
+    `systemGenerated?: boolean` flag (see "Null actor semantics" below),
+    `correlationId`/`referenceDoctype`/`referenceName`/`source`, `safeMessage`, an optional
+    `errorClassification` (kept separate from `status` — see "Status semantics"), and
+    `safeRequestSummary`/`safeResponseSummary` (kept from the O-6 draft, still never
+    populated with anything but short allowlisted text).
+  - New `IntegrationStatus = "SUCCESS" | "FAILED" | "PENDING" | "TIMEOUT" | "WARNING"` — a
+    closed union (mission explicitly names these five), deliberately never merged with
+    `Severity` or `UserActivityEvent["status"]`.
+  - New `IntegrationHealthSummary` (`totalOperations`/`successful`/`failed`/
+    `averageDurationMs`) and `IntegrationListResult`, mirroring `ErrorListResult`'s shape.
+  - `ObservabilityFilters` gained `integration`/`integrationType`/`operation` (all free
+    text, same precedent as `action`).
+- **New components:** `IntegrationStatusBadge` (its own badge, not reused from
+  `SeverityBadge`/`ActivityStatusBadge` — see "Status semantics"), `IntegrationExplorerTable`
+  (a `"use client"` component for the local expand/collapse toggle only — filtering/
+  pagination stays server-side and URL-driven, unchanged from O-7/O-8's convention). Reused
+  unchanged: `TraceIdBadge`, `RelatedDocumentLink`, `ObservabilityHealthCard` (for the four
+  health-summary cards), `ListFilterBar`, `PaginationControls`, `Breadcrumb`. `format.ts`
+  gained `formatDuration(ms)` (`124 ms` / `1.8 s` / `30.0 s` — mission §24's "basic
+  operational diagnosis," not latency-percentile analytics).
+- **Demo data — extends the same interconnected investigation story, not a disconnected
+  screen** (mission §21): `INTEGRATION_FIXTURES` (11 rows) in `demoProvider.ts`. The
+  flagship row (`demo-int-1`) is this mission's own worked example verbatim — ERPNext /
+  `make_stock_entry` / FAILED / 287 ms / WO-00042 / Niroshan / `CS-YYMMDD-F82A41` — reusing
+  the exact same correlation ID as O-7's `demo-err-1` and O-8's `demo-act-5`/`demo-aud-4`,
+  so Integration → Trace → (Trace Detail's existing "View Audit") → Audit fully resolves.
+  Four more rows (`demo-int-4/5/6/7`) reuse other existing O-7 correlation IDs (`3B19C7`,
+  `77E0F5`, `2A77D9`, `3F60A9`) for the same reason O-8 did — widening cross-links into real
+  trace content without inventing new technical-detail payloads. `demo-int-2` is this
+  mission's second worked example verbatim (Email confirmation on the existing
+  `SAL-ORD-2026-00091` Sales Order, O-8's second investigation story). `demo-int-3` is a
+  dedicated TIMEOUT scenario kept intentionally separate from any same-integration FAILED
+  row, so the FAILED/TIMEOUT visual distinction (mission §23) is actually exercised.
+  `demo-int-8/9` (AI Service) and `demo-int-10` (External API) fill out the five integration
+  categories the mission names (§1/§7) without any component branching on those specific
+  strings.
+
+### Status semantics (mission §9)
+
+`IntegrationStatus` (did the operation succeed?) is deliberately never conflated with
+`Severity` (how bad was it?) or `errorClassification` (what kind of failure was it?). The
+same underlying event can carry `status: "FAILED"` and `errorClassification:
+"ValidationError"` at once — two different questions, two different fields, exactly the
+mission's own "Status: FAILED / Severity: ERROR may coexist but represent different
+concepts" example. `IntegrationStatusBadge` gives `TIMEOUT` its own icon/tone (a hollow
+alert-tinted badge with a "timer-off" icon) distinct from `FAILED`'s solid fill, so the two
+are visually distinguishable without reading the label text.
+
+### Null actor semantics (mission §27) — and the O-8 inconsistency this leaves open
+
+`IntegrationExplorerTable`'s `ActorCell` renders a null `actor` as "Actor unavailable"
+**unless** the event explicitly sets `systemGenerated: true`, in which case it renders
+"System." This is the honest distinction the mission requires: a missing actor does not by
+itself prove an operation was system-generated, so the UI only says "System" when the
+event's own source verifiably establishes that (a genuinely scheduled job —
+`demo-int-7`/`demo-int-10`), and says "Actor unavailable" when attribution is simply
+unresolved (`demo-int-11`, a webhook delivery with no scheduling context at all).
+
+This is **not** back-ported to O-8's `ActivityExplorerTable`, which still unconditionally
+renders a null actor as "System" with no `systemGenerated`-equivalent field on
+`UserActivityEvent` to gate it — per this mission's own §27 instruction not to broadly
+rewrite O-8 in this package. That inconsistency is a real, disclosed gap: O-8's copy can be
+semantically wrong today (a null-actor Activity row is not necessarily system-generated
+either). **O-10 hardening item:** add the same `systemGenerated` flag to
+`UserActivityEvent` and align `ActivityExplorerTable`'s copy with
+`IntegrationExplorerTable`'s `ActorCell` logic, rather than each screen inventing its own
+null-actor rule.
+
+### Safe request/response handling (mission §15/§34)
+
+`IntegrationExplorerTable`'s detail panel renders `safeRequestSummary`/`safeResponseSummary`
+only when present, as plain preformatted text — never `JSON.stringify` on a raw object, and
+neither field is populated by any of this package's 11 demo fixtures at all, since no real
+request/response ever occurred. The same rule `TechnicalDetailsPanel` already enforces for
+Error Explorer: only named, typed, pre-classified-safe fields ever reach the DOM.
+
+### Cross-navigation wired in this package
+
+- **Integration → Trace:** `TraceIdBadge` with a real `openHref`, same component and same
+  route O-7/O-8 already use — no integration-specific trace viewer.
+- **Integration → Document:** `RelatedDocumentLink`, the same `documentRoutes.ts` allowlist
+  every other screen uses — an unmapped doctype renders identity text, never a guessed link.
+- **Integration → Activity:** "View Actor Activity" in the expanded detail panel, rendered
+  only when `actor` is non-null (mission §19: "do not create this action when actor context
+  is unavailable").
+- **Integration → Audit:** "View Audit History" in the expanded detail panel, rendered only
+  when both `referenceDoctype` and `referenceName` are present, using the exact same
+  `?doctype=&document=` URL shape Activity/Trace Detail's own "View Audit" actions already
+  use — Audit Trail's existing Document History mode, no new surface.
+- **Overview → Integrations:** the Overview's "Failed Integrations" health card now carries
+  `href="/admin/observability/integrations?status=FAILED"` (mission §25) — no longer a
+  disconnected, non-interactive card. `ObservabilityHealthCard`'s existing `href` prop
+  (added in O-8) needed no changes.
+- **Trace Detail → Integration context:** mission §26 asked whether the current Trace model
+  already represents an integration step for the flagship demo trace — it does. O-7's
+  `demo-err-1` timeline already includes a `kind: "ERPNEXT_API"` step
+  (`{ label: "ERPNext API", detail: "make_stock_entry" }`) which *is* this same operation;
+  no duplicate event was added and the `Trace`/`TraceEvent` types were not touched.
+
+### `ObservabilitySummary.failedIntegrations` now sourced from real integration fixtures
+
+Previously (O-6) this Overview stat counted `ErrorEvent`s with `source === "INTEGRATION"`
+— a proxy, since no Integration Monitoring data existed yet. Now that
+`INTEGRATION_FIXTURES` exists, `getDemoObservabilitySummary()` counts
+`status === "FAILED" || status === "TIMEOUT"` directly from it instead, which is a more
+accurate answer to "how many integration operations failed" (a `TIMEOUT` counts as a
+failure to complete, same as `FAILED`, for this one stat).
+
+### LIVE / DEMO / WAITING_FOR_BACKEND
+
+Identical breakdown to O-6/O-7/O-8 — see that section above. Every field this package
+renders is DEMO; the "Demo data" pill on the page header and every fixture's own realistic-
+but-fictional content make this explicit, same convention as Errors/Activity/Audit.
+
+### Pagination / filtering contract
+
+Same real page-by-page contract as `getErrors()`/`getActivity()`/`getAuditRecords()`:
+`getIntegrationEvents(filters, page, pageSize)` filters and sorts the full fixture array,
+then slices exactly one page, returning the real filtered `total` — never "fetch everything
+and paginate in the browser." `getIntegrationSummary()` is intentionally unscoped by page/
+filters (mission §6's four numbers describe the whole fixture set, not the current filtered
+view) and by `TrendRange` (no screen needs a range-scoped version yet).
+
+### Testing
+
+`npx tsc --noEmit`, scoped `eslint` (the O-9 files plus `Sidebar.tsx` and the Overview
+page), and `npm run build` all pass clean. Manual review of the filter-matching logic
+(`matchesIntegrationFilters`), the health-summary math (`getDemoIntegrationSummary`), and
+every cross-navigation link's conditional-rendering guard (document/actor/trace presence)
+confirms each renders only when its target can actually resolve, per mission §16/§18/§19/§20.
+
+**VISUAL_VERIFICATION: NEEDS_VERIFICATION.** O-8's own attempt at authenticated browser
+verification (a temporary, dev-only session-minting route) was blocked by this
+environment's auto-mode safety classifier as session/auth-cookie manipulation and was not
+retried, per the project's standing instruction never to route around a permission denial
+— see that section above for the full account. That blocker is unchanged this session, so
+the same approach was not attempted again. Structural correctness (the route renders,
+filters/pagination/cross-navigation logic, empty states, null-actor branching) is verified
+by the passing typecheck/lint/build and by direct code review of the rendering logic;
+actual visual layout, spacing, the four-card health-summary row's responsive wrap,
+dark-mode rendering, and small-viewport table behavior remain unconfirmed in a real browser.
+
+### O-10 — documented gap (mission §40, document only, not implemented)
+
+O-10 is the convergence package: replace every DEMO provider method with a real,
+server-side-authorized read API, one screen at a time. What it must connect, screen by
+screen:
+
+- **Overview (`getSummary`):** real error/activity/integration counts and trend buckets —
+  today entirely computed from `demoProvider.ts`'s in-memory fixture arrays.
+- **Errors (`getErrors`/`getTrace`/`getTechnicalDetails`):** real `Error Log` reads, plus
+  whatever backend package finally clears specific diagnostic fields as UI-safe (the O-2
+  independent review's redaction finding is still open — see below).
+- **User Activity (`getActivity`):** real `Activity Log` + O-2's business-activity write
+  records, joined and read back.
+- **Audit Trail (`getAuditRecords`):** real `Version` reads via `getDocInfo()` or an
+  equivalent whitelisted method, replacing `AUDIT_FIXTURES`.
+- **Integrations (`getIntegrationEvents`/`getIntegrationSummary`):** a real backend record
+  of outbound/cross-system calls does not exist yet at all — this is the biggest net-new
+  backend surface O-10 needs (something `Integration Request`-shaped, per
+  `docs/observability-architecture.md`'s original package table, or an O-2-style
+  `log_operation` extension that also records integration-specific fields like
+  `integration`/`integrationType`/`durationMs`).
+
+**Other unresolved hardening items carried into O-10:**
+
+- The O-2 independent review's redaction finding (`access_token`/`refresh_token` bypassing
+  `lib/redact.ts`) — still open; `TechnicalDetailsPanel` and this package's safe-summary
+  fields stay demo-only specifically because this isn't resolved yet.
+- Operation-level correlation grouping — today's model is still "one write call = one
+  correlation ID" (see `types.ts`'s `Trace`/`TraceEvent` doc comments); the types are
+  already structurally ready for a backend that groups several technical events under one
+  trace, but no demo fixture proves that grouping actually works end-to-end.
+- A fresh, request-time privileged-authorization check for `isSystemManager` (today a
+  session-cached 12h snapshot, an already-documented, accepted limitation for demo-data
+  screens — not acceptable once real diagnostic data is wired in, per O-2's own review).
+- The `systemGenerated` null-actor gap on `UserActivityEvent` (see "Null actor semantics"
+  above) — align Activity's copy with Integration's.
+- Full authenticated browser E2E — every package from O-6 onward has flagged
+  `VISUAL_VERIFICATION: NEEDS_VERIFICATION` for the same blocked-technique reason; O-10
+  should either get a sanctioned way to mint a test session or accept this as a standing
+  limitation.
+- Server-side pagination against a real, possibly large `Error Log`/`Activity Log`/
+  `Version`/integration-log table — today's `paginate`-after-`filter` demo logic works fine
+  on 10-20 in-memory rows and proves nothing about real-table performance.
+- Retention — none of these DocTypes have a documented retention/archival policy yet; O-10
+  should either confirm ERPNext's own log retention is sufficient or scope a cleanup job.
+- A safe-diagnostics contract — a backend-authored allowlist of exactly which `Error Log`/
+  `Version`/integration-record fields may ever reach `TechnicalDetails`/
+  `safeRequestSummary`/`safeResponseSummary`, replacing today's "always `available: false`
+  except a few opted-in demo fixtures" placeholder.
+
+### Not done in this package
+
+- A real backend read API — still the demo adapter throughout; `provider.ts`'s two new
+  methods are the seam waiting for it (see "O-10 — documented gap" above).
+- Actual visual/responsive screen review in a real browser (see Testing above —
+  `VISUAL_VERIFICATION: NEEDS_VERIFICATION`).
+- A dedicated `getIntegrationEvent(id)` provider method — deliberately not built, same
+  reasoning as O-8's Audit Trail: the chosen expandable-row detail pattern needs no
+  separate fetch.
+- Aligning `UserActivityEvent`/`ActivityExplorerTable` with the new `systemGenerated`
+  null-actor semantics — explicitly out of scope for this package (mission §27); flagged as
+  an O-10 hardening item above, not a silent gap.
+- `QA_LOG.md`/`release-tracker` — same reasoning as O-6/O-7/O-8: no live ERPNext data, no
+  core flow (Sales/Stock/Buying) touched, so neither is policy-mandated. A `code-reviewer`
+  pass was run (see `PROGRESS.md`'s O-9 entry). `docs/ceylon-stack-documentation.html` has
+  never listed the Observability Center at all (confirmed by grep before this package
+  started) — O-6/O-7/O-8 didn't add it either, so O-9 doesn't either, for consistency;
+  bringing Observability onto that page is its own small future task, not part of any of
+  these packages.
+
+### Foreign work confirmation
+
+The working tree's other uncommitted changes at the start of this package (a Login/
+Forgot-Password redesign — `apps/frontend/src/app/login/*`, `apps/frontend/src/lib/
+erpnext.ts`, `apps/frontend/src/app/api/auth/forgot-password/`, `docs/ceylon-stack-
+documentation.html`, `docs/brand/package/ceylonstack-login.html` — and pre-existing Master
+Data/relationship doc edits) were re-confirmed present, untouched, and unstaged both before
+and after this package's implementation work, and are excluded from this package's commit.

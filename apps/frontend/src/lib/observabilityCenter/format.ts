@@ -16,6 +16,14 @@ export function formatClockTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
+/** Integration Monitoring's Duration column (mission §24: "basic operational diagnosis,"
+ * not latency-percentile analytics) — sub-second durations show as whole milliseconds,
+ * everything else as seconds to one decimal place (e.g. `124 ms`, `1.8 s`, `30.0 s`). */
+export function formatDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  return `${(ms / 1000).toFixed(1)} s`;
+}
+
 /** Builds the safe, copyable support-summary text for a trace (mission §22) — every field
  * here already exists on the `Trace`'s own safe surface (never anything from
  * `TechnicalDetails`), so this never risks leaking gated diagnostic content into a

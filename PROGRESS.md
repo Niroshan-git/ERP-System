@@ -4432,3 +4432,134 @@ commit throughout.
 verification explicitly flagged `NEEDS_VERIFICATION` rather than skipped silently. Not
 self-declared `ACCEPTED` — pending Niroshan's review and independent cross-review per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
+## O-9 — Integration Monitoring (2026-09-24)
+
+Completes the Observability Center's five primary screens (O-6 shell+Overview; O-7 Error
+Explorer+Trace Detail; O-8 User Activity+Audit Trail) with "what external/cross-system
+operation ran, did it succeed, and how do I investigate it?" — no parallel data
+architecture, no new auth logic, same provider/demo-adapter boundary O-6/O-7/O-8 already
+established. Full write-up: `docs/observability-frontend-architecture.md`'s "O-9:
+Integration Monitoring" section.
+
+**Route:** `/admin/observability/integrations`, nested under the existing
+`admin/observability/` route tree, so it inherits the real server-side `isSystemManager`
+re-check in `layout.tsx` untouched. Sidebar's "Integrations" item flipped from `soon: true`
+to a real link — all five primary Observability nav destinations now exist.
+
+**Provider extended, not replaced:** `getIntegrationSummary()` (health-summary row) and
+`getIntegrationEvents()` (list) added to the same `ObservabilityProvider` interface, backed
+by two new demo-adapter functions with the identical filter/page/sort contract
+`getErrors()`/`getActivity()`/`getAuditRecords()` already established.
+
+**Types extended:** `IntegrationEvent` (an unused O-6-era forward declaration) reshaped to
+the mission's field list — `integration`/`integrationType`/`operation` as free text (same
+"curated suggestions, not an enforced union" precedent as `UserActivityEvent.action`), a
+new closed `IntegrationStatus` union (`SUCCESS`/`FAILED`/`PENDING`/`TIMEOUT`/`WARNING`,
+deliberately never merged with `Severity`), a new `systemGenerated?: boolean` flag for
+honest null-actor semantics, and `errorClassification` kept separate from `status`. New
+`IntegrationHealthSummary`/`IntegrationListResult` types. `ObservabilityFilters` gained
+`integration`/`integrationType`/`operation`. `format.ts` gained `formatDuration()`
+(`124 ms` / `1.8 s` / `30.0 s`).
+
+**Demo data — extends the same interconnected story, not a disconnected screen:** 11
+`INTEGRATION_FIXTURES` rows. The flagship row is this mission's own worked example verbatim
+(ERPNext / `make_stock_entry` / FAILED / 287 ms / WO-00042 / Niroshan /
+`CS-YYMMDD-F82A41`), reusing the exact same correlation ID as O-7's `demo-err-1` and O-8's
+`demo-act-5`/`demo-aud-4`, so Integration → Trace → (Trace Detail's existing "View Audit")
+→ Audit fully resolves end-to-end. Four more rows reuse other existing O-7 correlation IDs
+(`3B19C7`/`77E0F5`/`2A77D9`/`3F60A9`) for the same reason O-8 did. A dedicated TIMEOUT
+scenario, an Email/Sales-Order-confirmation SUCCESS scenario (this mission's second worked
+example verbatim), AI Service and External API rows, and three null-actor rows (two
+`systemGenerated: true`, one not) round out the five integration categories and the status
+set the mission names.
+
+**New components:** `IntegrationStatusBadge` (its own badge — integration status must
+never be confused with error severity; gives TIMEOUT a visually distinct treatment from
+FAILED), `IntegrationExplorerTable` (the one new `"use client"` component, expandable-row
+detail pattern copied from O-8's `AuditExplorerTable` — no separate fetch needed, every
+detail field already lives on `IntegrationEvent`). Reused unchanged: `TraceIdBadge`,
+`RelatedDocumentLink`, `ObservabilityHealthCard` (gained a doc-comment update, no behavior
+change), `ListFilterBar`, `PaginationControls`, `Breadcrumb`.
+
+**Cross-navigation wired:** Integration→Trace/Document/Activity/Audit (each gated on its
+target actually resolving — no guessed routes, no dead links), Overview's "Failed
+Integrations" card now links to `/admin/observability/integrations?status=FAILED`
+(previously a disconnected, non-interactive card), and Trace Detail's existing
+`ERPNEXT_API` timeline step for the flagship trace already represents the integration
+operation — no duplicate event added, `Trace`/`TraceEvent` types untouched.
+
+**Null actor semantics (mission §27):** `IntegrationExplorerTable` renders a null actor as
+"Actor unavailable" unless the event sets `systemGenerated: true`, in which case "System" —
+never inferred from the null actor alone. Deliberately **not** back-ported to O-8's
+`ActivityExplorerTable` (still unconditionally "System" today, with no equivalent flag on
+`UserActivityEvent`) — out of scope for this package per the mission's own instruction;
+flagged as an explicit O-10 hardening item.
+
+**Independent review (`code-reviewer`):** **No architecture, security, or correctness
+violations found.** Confirmed: provider/pagination contract matches `getErrors()` exactly
+(only the sliced page ever reaches the table, never the full fixture array); no raw
+request/response payloads or secrets rendered anywhere; "Demo data" badge present;
+cross-navigation links correctly gated; null-actor logic matches every fixture with no
+contradictory combinations; `IntegrationStatus` kept separate from severity/error
+classification with a visually distinct FAILED/TIMEOUT treatment; all five reused
+correlation IDs verified by hand to resolve correctly through `getDemoTrace()`; average-
+duration math correctly excludes the one durationless (PENDING) fixture; `tsc`/`eslint`
+clean on every changed file; this package's diff confirmed not to touch any of the
+concurrent foreign work. Two non-blocking doc-comment nits (an `ObservabilityHealthCard`
+comment left stale by this package's own card-linking change, and a fixture comment
+describing the null-actor set as a pair when a third row shares the pattern) were fixed
+directly rather than deferred. The review also flagged, as an isolation reminder rather
+than a defect in this diff, that the working tree had picked up further unrelated,
+uncommitted Sales/Connections changes (`apps/frontend/src/lib/connections.ts` and four
+Sales `actions.ts` files) mid-session — confirmed untouched by and unrelated to O-9, and
+excluded from this package's commit.
+
+**Testing:** `npx tsc --noEmit`, scoped `eslint`, and `npm run build` all pass clean.
+**VISUAL_VERIFICATION: NEEDS_VERIFICATION** — O-8's authenticated-browser-session technique
+(a temporary, dev-only session-minting route) remains blocked by this environment's
+auto-mode safety classifier as session/auth-cookie manipulation; per the project's standing
+instruction never to route around a permission denial, it was not attempted again this
+session. Structural correctness is verified by the passing typecheck/lint/build and by
+direct review of the rendering/filtering logic; actual visual layout, the four-card
+health-summary row's responsive wrap, dark-mode rendering, and small-viewport table
+behavior remain unconfirmed in a real browser.
+
+**O-10 gap documented (mission §40, not implemented):** a full screen-by-screen real-backend
+connection list and an unresolved-hardening-items list (open O-2 redaction finding,
+correlation grouping, fresh request-time authorization, the `systemGenerated` gap on
+`UserActivityEvent`, full browser E2E, server-side pagination against real tables,
+retention, a safe-diagnostics contract) are written up in
+`docs/observability-frontend-architecture.md`'s "O-9" section — O-10 itself was not started.
+
+**Not done, disclosed:** a real backend read API (still 100% demo data); a dedicated
+`getIntegrationEvent(id)` method (not needed — expandable-row pattern needs no separate
+fetch); aligning `UserActivityEvent`/`ActivityExplorerTable` with the new `systemGenerated`
+semantics (explicitly out of scope per mission §27, flagged as an O-10 item);
+`QA_LOG.md`/`release-tracker` sync — same reasoning as O-6/O-7/O-8 (no live ERPNext data,
+no core flow touched, neither is policy-mandated); `docs/ceylon-stack-documentation.html`
+still doesn't list the Observability Center at all (confirmed by grep — it never has, since
+O-6, for consistency this package doesn't add it either).
+
+**Foreign work confirmation:** re-confirmed before and after implementation that this
+package's commit excludes the pre-existing Login/Forgot-Password redesign
+(`apps/frontend/src/app/login/*`, `apps/frontend/src/lib/erpnext.ts`,
+`apps/frontend/src/app/api/auth/forgot-password/`, `docs/ceylon-stack-documentation.html`,
+`docs/brand/package/ceylonstack-login.html`), pre-existing Master Data/relationship doc
+edits, and the newly-appeared, unrelated Sales/Connections changes the independent review
+also flagged (`apps/frontend/src/lib/connections.ts` and four Sales `actions.ts` files) —
+none of these were touched, staged, or included.
+
+**Sign-off:** `CLAUDE_HANDOFF` — code review complete with no blocking findings, visual
+verification explicitly flagged `NEEDS_VERIFICATION` rather than skipped silently. Not
+self-declared `ACCEPTED` — pending Niroshan's review and independent cross-review per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
+## Fix Connection Map & Cancellation Blockers (Sales Module) (2026-09-24)
+
+- **Updated `lib/connections.ts`**: Added missing downstream connections to the map.
+  - **Sales Order**: `Material Request`, `Purchase Order`
+  - **Sales Invoice**: `Payment Entry`
+  - **Delivery Note**: `Stock Entry`
+- **Refactored Cancellation Blockers**: Replaced hardcoded connection checks in `sales/orders/actions.ts`, `sales/delivery-notes/actions.ts`, `sales/quotations/actions.ts`, and `sales/invoices/actions.ts` with a generic pattern that iterates over all downstream connections.
+- **Verification**: Ran `npm run lint` and `npx tsc --noEmit` locally, both passed with zero errors. All changes adhered to Frappe's native cancellation constraints.

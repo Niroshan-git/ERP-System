@@ -92,6 +92,16 @@ exists — the brief is the real authorization, this table is now stale for O-2/
 and should be treated as superseded for those three rows. O-4 and O-6 through O-11 remain
 un-started and this breakdown still applies to them.
 
+**Second superseded note (2026-09-24):** this table's O-9/O-10 rows are also now stale.
+Niroshan's explicit mission brief for Integration Monitoring assigned it **O-9** (not this
+table's O-10), reusing the number this table had originally given to Audit Trail — which,
+per O-8's own implemented scope, actually shipped bundled with User Activity as one "O-8"
+package, never as its own separate O-9. The real-backend convergence/hardening package this
+table doesn't separately name is now **O-10** — see
+`docs/observability-frontend-architecture.md`'s "O-9: Integration Monitoring" section for
+the full, current numbering and its documented O-10 gap list. Treat this table's O-8/O-9/O-10
+rows as historical context only, not the current plan.
+
 ## O-2: Identity + Correlation Foundation (implemented, 2026-09-23)
 
 **Status:** implemented, code-committed (`2e297fe`), backend live-tested and independently

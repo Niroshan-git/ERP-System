@@ -197,22 +197,73 @@ export type AuditRecord = {
   versionId?: string;
 };
 
-/** One row in Integration Monitoring (O-10). */
+/** Distinct from both `Severity` (Error Explorer) and `UserActivityEvent["status"]`
+ * (Activity) — mission §9: "Do not confuse integration status with error severity." A
+ * `FAILED` operation and an `ERROR`-severity log entry can describe the same event but
+ * answer different questions ("did it succeed?" vs. "how bad was it?"). `TIMEOUT` is kept
+ * distinct from `FAILED` (not folded into it) specifically so the UI can visually tell
+ * apart "the call completed and failed" from "the call never completed" (mission §23). */
+export type IntegrationStatus = "SUCCESS" | "FAILED" | "PENDING" | "TIMEOUT" | "WARNING";
+
+/** One row in Integration Monitoring (O-9). Models a general integration-operation shape
+ * per mission §7 ("integration name / integration type / operation", not per-name UI
+ * branching) — `integration`/`integrationType`/`operation` are free text, the same
+ * "curated select suggestions, not an enforced closed set" precedent
+ * `UserActivityEvent.action` already established, not a literal union the type enforces.
+ *
+ * `actor` follows the same nullable convention as `ErrorEvent`/`UserActivityEvent` —
+ * absent for legitimate scheduled/system-initiated operations. `systemGenerated` is the
+ * explicit, verified signal mission §27 requires before the UI may ever render "System"
+ * for a null actor; without it, a null actor must render "Actor unavailable" (see
+ * `IntegrationExplorerTable`). This same distinction is documented as an open O-10
+ * hardening item for `UserActivityEvent`, which has no such flag yet and today always
+ * falls back to "System" — see `docs/observability-frontend-architecture.md`. */
 export type IntegrationEvent = {
   id: string;
-  integration: string; // e.g. "ERPNext", "Email", "AI Service"
-  operation: string;
-  startedAt: string;
+  occurredAt: string; // ISO 8601 — when the operation started
   completedAt?: string;
   durationMs?: number;
-  status: "Success" | "Failed" | "In Progress";
+  integration: string; // e.g. "ERPNext", "Email", "AI Service", "Automation", "External API"
+  integrationType: string; // category/grouping for the integration above — may equal `integration` for a demo fixture with only one operation in its category
+  operation: string;
+  status: IntegrationStatus;
+  actor: Actor | null;
+  /** See doc comment above — only `true` when the event's own source explicitly marks it
+   * as a scheduled/system-initiated operation, never inferred merely from `actor` being
+   * null. */
+  systemGenerated?: boolean;
   correlationId?: CorrelationId;
   referenceDoctype?: string;
   referenceName?: string;
+  source: EventSource;
+  /** Short, human-safe summary — always safe to render, same convention as
+   * `ErrorEvent.userSafeMessage`. */
+  safeMessage: string;
+  /** Only present for FAILED/TIMEOUT/WARNING outcomes — e.g. "ValidationError",
+   * "TimeoutError", "NetworkError". Deliberately separate from `status`: a status answers
+   * "did it succeed?", this answers "what kind of failure was it?" (mission §9). */
+  errorClassification?: string;
   /** Safe, allowlisted-field summaries only — never a raw request/response dump,
-   * mirroring O-2's own `log_operation` field-allowlist design. */
+   * mirroring O-2's own `log_operation` field-allowlist design and the same rule
+   * `TechnicalDetailsPanel` already enforces for Error Explorer. */
   safeRequestSummary?: string;
   safeResponseSummary?: string;
+};
+
+/** Integration Monitoring's compact health-summary row (mission §6) — always DEMO today,
+ * computed from the same fixtures `getDemoIntegrationEvents()` filters/paginates, not a
+ * separate hand-authored number. */
+export type IntegrationHealthSummary = {
+  totalOperations: number;
+  successful: number;
+  failed: number;
+  averageDurationMs: number;
+};
+
+/** Integration Explorer's page result — same page-by-page contract as `ErrorListResult`. */
+export type IntegrationListResult = {
+  items: IntegrationEvent[];
+  pagination: Pagination;
 };
 
 export type TrendRange = "24h" | "7d" | "30d";
@@ -261,6 +312,12 @@ export type ObservabilityFilters = {
    * .action` / `AuditRecord.action`, not enforced against any closed value set. */
   action?: string;
   correlationId?: CorrelationId;
+  /** Integration Monitoring only (O-9) — matched against `IntegrationEvent.integration`
+   * / `.integrationType` / `.operation`, same "curated suggestions, not a closed set"
+   * precedent as `action` above. */
+  integration?: string;
+  integrationType?: string;
+  operation?: string;
 };
 
 export type Pagination = {

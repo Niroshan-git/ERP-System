@@ -84,6 +84,7 @@ export default async function ObservabilityOverviewPage({
           subLabel="Last 30 days"
           icon={Cable}
           tone={summary.failedIntegrations > 0 ? "alert" : "neutral"}
+          href="/admin/observability/integrations?status=FAILED"
         />
         <ObservabilityHealthCard
           label="Activity"

@@ -3,6 +3,8 @@ import {
   getDemoActivity,
   getDemoAuditRecords,
   getDemoErrors,
+  getDemoIntegrationEvents,
+  getDemoIntegrationSummary,
   getDemoObservabilitySummary,
   getDemoTechnicalDetails,
   getDemoTrace,
@@ -10,6 +12,8 @@ import {
 import type {
   AuditListResult,
   ErrorListResult,
+  IntegrationHealthSummary,
+  IntegrationListResult,
   ObservabilityFilters,
   ObservabilitySummary,
   TechnicalDetails,
@@ -56,6 +60,13 @@ export type ObservabilityProvider = {
    * Modeled around native `Version` diffs (mission §19); never returns raw `Version`
    * JSON, only the already-transformed `AuditChange[]` shape `types.ts` defines. */
   getAuditRecords(filters: ObservabilityFilters, page: number, pageSize: number): Promise<AuditListResult>;
+  /** Integration Monitoring's compact health row (O-9, mission §6) — always computed from
+   * the full current fixture set, not scoped to a `TrendRange` like `getSummary()`; no
+   * screen needs a range-scoped version of this yet. */
+  getIntegrationSummary(): Promise<IntegrationHealthSummary>;
+  /** One page of Integration Explorer rows (O-9) — same real page-by-page contract as
+   * `getErrors()`/`getActivity()`/`getAuditRecords()`. */
+  getIntegrationEvents(filters: ObservabilityFilters, page: number, pageSize: number): Promise<IntegrationListResult>;
 };
 
 /**
@@ -85,6 +96,12 @@ export function getObservabilityProvider(): ObservabilityProvider {
     },
     async getAuditRecords(filters, page, pageSize) {
       return getDemoAuditRecords(filters, page, pageSize);
+    },
+    async getIntegrationSummary() {
+      return getDemoIntegrationSummary();
+    },
+    async getIntegrationEvents(filters, page, pageSize) {
+      return getDemoIntegrationEvents(filters, page, pageSize);
     },
   };
 }

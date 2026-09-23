@@ -10,9 +10,10 @@ import type { LucideIcon } from "lucide-react";
  *
  * `href` (added O-8) makes the whole card a link to a real screen — used once User
  * Activity actually exists to link the "Activity" card there, continuing the "one
- * investigation system" goal (mission §3). Optional and backward compatible: cards with
- * no real destination (Failed Integrations, still O-10) simply omit it and render as
- * plain, non-interactive cards, same as before.
+ * investigation system" goal (mission §3), and again in O-9 to link Overview's "Failed
+ * Integrations" card to Integration Monitoring filtered to `status=FAILED`. Optional and
+ * backward compatible: a card with no real destination simply omits it and renders as a
+ * plain, non-interactive card, same as before.
  */
 const TONE_CLASSES = {
   neutral: "text-graphite-900",
