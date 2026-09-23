@@ -4064,3 +4064,54 @@ treated as fully closed.
 **Sign-off:** `CLAUDE_HANDOFF` — code review pending below; not self-declared `ACCEPTED`,
 pending Niroshan's review and independent cross-review per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
+## MFG-JOBCARD-0 — Job Card discovery/architecture (2026-09-23)
+
+**Scope: discovery/documentation only, no implementation** — per the mission brief. No route,
+Sidebar entry, form, server action, or ERPNext data was created or modified in the frontend.
+
+**What was produced:** a full rewrite of `docs/backend/05-manufacturing/job-card.md` — the
+complete Job Card data model (fields, all 6 child tables), creation contract, lifecycle (including
+a load-bearing live-confirmed quirk: the `status` field goes stale after cancel, so `docstatus`
+must be the source of truth for a future UI), time-log model, quantity/partial-completion model,
+and the Cancel/Amend contract — the core motivating finding, since a submitted Job Card is what
+currently forces an operator into ERPNext Desk to unblock a Work Order cancel. Resolves
+`MFG-UNV-004`. Confirmed Operation/Workstation master data already exists and populated (2
+Operations, 2 Workstations, 1 BOM with Operations) and is not a prerequisite for a Job Card
+frontend. A proposed (not built) Ceylon Stack architecture and package sequence is documented:
+`MFG-JOBCARD-1` (read-only list/detail + Work Order contextual link) → `MFG-JOBCARD-LC-1` (Cancel
+— the package that actually closes the Desk-dependency gap) → `MFG-JOBCARD-2` (execution/time-log
+actions, reasonably deferred given live data shows Job Card is barely used today — 11 of 12 real
+Job Cards on this instance are still untouched Drafts).
+
+**Method:** repo audit (confirmed zero Job Card frontend footprint beyond the existing read-only
+Work Order tab), then a `devops` subagent independently source-traced the live ERPNext v16.34.2 /
+Frappe v16.33.1 install (`job_card.py`, `job_card_time_log.py`, `work_order.py`,
+`frappe/model/{document,delete_doc}.py`) and ran one disposable-fixture live test
+(`TEST-JOBCARD-0-*`: Item/BOM/Work Order/Job Card, fully cleaned up, real production BOM/Item/
+Operation `modified` timestamps confirmed unchanged) to confirm the full Work-Order-submit →
+Job-Card-auto-create → time-log → submit → cancel → Work-Order-cancel-unblocked flow end to end.
+Also independently confirmed this project's already-shipped Work Order create action
+(`manufacturing/work-orders/actions.ts`) already correctly guards against a real ERPNext gotcha
+the investigation surfaced (a server-side WO insert that doesn't copy the BOM's `operations` would
+silently produce zero Job Cards) — not a defect, a corroborating check.
+
+**Key findings, `NEEDS_VERIFICATION` register additions:** `MFG-UNV-013` (mechanism for who picks
+up a Job Card's carried-forward `pending_qty` after partial completion), `MFG-UNV-014` (exact
+error UX when a Job Card cancel is blocked by an already-submitted Manufacture Stock Entry —
+source shows this throws via `validate_produced_quantity()`, not live-reproduced), `MFG-UNV-015`
+(Work Order's own `status` also doesn't revert when its Job Card is cancelled — cosmetic, worth a
+UX check once a Job Card UI exists).
+
+**Not done, disclosed:** no code written, no `code-reviewer`/`qa-tester` invoked (nothing
+implemented to review), no `release-tracker` invoked (nothing shipped/live). `docs/backend/
+05-manufacturing/README.md` and `docs/backend/15-migration/migration-status.md` updated to point
+at the new document and its verification status. Foreign uncommitted working-tree content — both
+the pre-existing MD-UNV-003 Master Data work and a newly-observed, unrelated batch of Observability
+Center frontend files (admin/observability routes, trace/error explorer components) that appeared
+in this working tree during this session without this session creating them — deliberately **not**
+touched, read in depth, staged, or committed.
+
+**Sign-off:** `CLAUDE_HANDOFF` — docs-only discovery, no code changed, so no `code-reviewer`/
+`qa-tester` pass required per the Package Closure Rules; not self-declared `ACCEPTED` pending
+Niroshan's review of the proposed package breakdown and sequencing.

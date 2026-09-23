@@ -23,8 +23,11 @@ exists in the current build"):
   Source-traced live via SSH (`devops` subagent) against the installed ERPNext v16.34.2; **no live
   Stock Entry was created/submitted this session** — `Runtime Test: NOT RUN`, see that doc's "Live
   QA" section.
-- [`job-card.md`](job-card.md) — read-only fields only (surfaced on the Work Order detail page's
-  Job Cards tab). Job Card's own lifecycle is out of scope until it gets its own frontend package.
+- [`job-card.md`](job-card.md) — full model, lifecycle, time-log, quantity, and Cancel/Amend
+  contract (`MFG-JOBCARD-0` discovery package, 2026-09-23) — resolves `MFG-UNV-004`. Still no
+  frontend beyond the Work Order detail page's read-only Job Cards tab; a proposed route/package
+  sequence (`MFG-JOBCARD-1` read-only → `MFG-JOBCARD-LC-1` Cancel → `MFG-JOBCARD-2` execution) is
+  documented but not built.
 - [`bom.md`](bom.md) — started as a 2026-09-19 investigation baseline (BOM/BOM Item/BOM Operation
   schema, lifecycle, costing, multi-level, Production Plan relationship, Operation/Routing/
   Workstation classification), then **implemented**: `/master-data/boms` now has read-only
