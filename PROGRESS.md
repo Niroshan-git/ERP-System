@@ -3984,3 +3984,83 @@ Order). Work Order Amend not investigated or built — flagged as a candidate fu
 defects; the one real issue found (an unearned verification record, not a code defect) was
 corrected, not silently absorbed. Not self-declared `ACCEPTED`, pending Niroshan's review and
 independent cross-review per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
+## Observability Center — Package O-6: Frontend shell + Overview (2026-09-23)
+
+**Provenance:** Niroshan issued a mission brief for a full six-screen "Observability
+Center" frontend (Overview, Error Explorer, Trace Detail, User Activity, Audit Trail,
+Integrations) plus its complete data architecture, in one session. That conflicts with
+`docs/controls/AGENT_USAGE_POLICY.md`'s package-size discipline and with this same
+initiative's own proposed breakdown (`docs/observability-architecture.md`'s O-6 through
+O-10 split). Flagged before writing any code; Niroshan chose the compliant path — this
+package is the navigation shell, shared data layer, and Overview screen only (O-6);
+Error Explorer/Trace Detail (O-7), User Activity (O-8), Audit Trail (O-9), and
+Integration Monitoring (O-10) remain future packages.
+
+**What was built:** an "Admin" Sidebar module (visible only when the session's
+`isSystemManager` is true), containing an "Observability" group; the real landing route
+`/admin/observability`, independently authorized server-side in a dedicated layout (not
+just hidden from navigation); a data-provider boundary
+(`lib/observabilityCenter/provider.ts`) with one swap point for a future real adapter;
+typed models covering both what this package renders and what O-7 through O-10 will need
+(`lib/observabilityCenter/types.ts`); a DEMO fixture adapter using this project's own real
+domain vocabulary (Work Order, Material Transfer, BOM, Sales Order, Purchase Order, Pick
+List, Stock Entry) across all module categories; and the Overview screen itself — global
+trace search (exact-match only, honestly stubbed pending Error Explorer), four health
+cards, an error trend chart (reusing the existing `LineChart` component, 24h/7d/30d
+ranges), an errors-by-module breakdown, and a recent-critical-events feed. New reusable
+components: `SeverityBadge` (text-label-first, no new color tokens — Ceylon Stack's
+palette has no distinct red, so CRITICAL/ERROR/WARNING/INFO are differentiated by icon +
+intensity of the existing `alert` hue, not a new one), `TraceIdBadge`,
+`ObservabilityHealthCard`, `ObservabilityTraceSearch`, `ObservabilityRangeTabs`,
+`SystemManagerOnlyNotice`. Full design write-up, including the LIVE/DEMO/
+WAITING_FOR_BACKEND/FUTURE_PACKAGE breakdown and the permission-boundary limitations, in
+`docs/observability-frontend-architecture.md`.
+
+**Explicitly not touched:** `lib/observability.ts`, `lib/correlationId.ts`,
+`lib/actorContext.ts`, `lib/erpnext.ts`, `lib/session.ts`, `lib/redact.ts`, or any O-2
+backend file — this package is UI/read-side only, layered on top of O-2 without modifying
+it. No foreign uncommitted work (the Manufacturing/master-data changes already in the
+working tree at session start) was touched, staged, or reviewed.
+
+**Testing:** `npx tsc --noEmit`, scoped `eslint`, and a full `npm run build` all pass
+clean. Functional verification against the already-running local dev server (started
+independently by Niroshan before this session, unaffected/untouched otherwise) via a
+temporary, dev-only session-minting route that called the app's own real `signSession()`
+for a synthetic identity — never real ERPNext credentials — deleted immediately after use
+and confirmed absent from `git status` before this entry was written: unauthenticated
+request → redirects to `/login` (pre-existing, unaffected by this package);
+non-System-Manager session → `SystemManagerOnlyNotice` renders; System-Manager session →
+the real Overview renders correctly (all four health cards, error trend section, module
+breakdown across 5 real module names, recent-critical-events feed with correctly
+formatted, date-consistent `CS-YYMMDD-XXXXXX` correlation IDs), no server errors in either
+response body or dev server log. **Not executed:** actual visual/responsive screen review
+in a real browser — the Chrome browser-automation tool's extension was not connected in
+this session, so spacing/overflow/dark-mode/small-viewport behavior were not visually
+confirmed, only verified structurally via direct HTTP responses. Flagged for a follow-up
+visual pass before this is treated as fully screen-reviewed per the mission's own §38.
+
+**Independent review:** `code-reviewer` pass — **Approved, no blocking issues.**
+Independently traced and confirmed: the `admin/observability/layout.tsx` gate is a real
+server-side re-check (not decorative), no O-2 files were touched (zero diff), the
+client-safe `correlationIdFormat.ts` regex is byte-identical to both
+`lib/correlationId.ts`'s and `observability.py`'s authoritative patterns, no stray
+unfiltered `MODULES` reference survived the `visibleModules` refactor in `Sidebar.tsx`,
+and every "not yet built" affordance (`TraceIdBadge`'s disabled state, the trace search's
+inline feedback, the module-breakdown/recent-critical-events captions) is honest rather
+than a fake success or dead link. One non-blocking suggestion — the Overview's Breadcrumb
+should lead with "Home" like every other module home page — applied.
+
+**Not done:** Error Explorer, Trace Detail, User Activity, Audit Trail, and Integration
+Monitoring screens (O-7 through O-10) — each its own future package. No real backend
+read-side API exists yet (O-2 only built the write side); `provider.ts` is the seam
+waiting for it. `docs/backend/` was not updated — this package makes zero live ERPNext
+calls, so `BACKEND_KNOWLEDGE_POLICY.md`'s trigger condition isn't met yet. `QA_LOG.md`
+was not updated and `release-tracker` was not invoked — this package touches no live
+ERPNext data and no core flow (Sales/Stock/Buying), so neither is policy-mandated per
+`CLAUDE.md`'s Package Closure Rules, but should still be considered before this is
+treated as fully closed.
+
+**Sign-off:** `CLAUDE_HANDOFF` — code review pending below; not self-declared `ACCEPTED`,
+pending Niroshan's review and independent cross-review per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.

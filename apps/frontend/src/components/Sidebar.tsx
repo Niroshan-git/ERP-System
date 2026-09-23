@@ -5,10 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
+  Activity,
   ArrowLeftRight,
+  Bug,
   Box,
   Boxes,
   Building2,
+  Cable,
   ChartNoAxesCombined,
   ChevronDown,
   ChevronRight,
@@ -17,9 +20,11 @@ import {
   Contact,
   Database,
   Factory,
+  FileClock,
   FileMinus,
   FilePenLine,
   Handshake,
+  History,
   Layers,
   LayoutDashboard,
   ListTree,
@@ -34,6 +39,7 @@ import {
   ReceiptText,
   ScanBarcode,
   Settings2,
+  ShieldCheck,
   ShoppingBag,
   ShoppingCart,
   SlidersHorizontal,
@@ -80,6 +86,13 @@ type ModuleDef = {
   icon: LucideIcon;
   groups: NavGroupDef[];
   soon?: true;
+  /** Hidden from the module switcher entirely unless the signed-in human is a System
+   * Manager (see `lib/session.ts`'s `isSystemManager`, resolved server-side at login from
+   * real ERPNext roles — never client-suppliable). This is a navigation-visibility
+   * affordance only, not the real security boundary: the route itself independently
+   * re-checks on the server (`app/(app)/admin/observability/layout.tsx`), per
+   * `docs/observability-frontend-architecture.md`'s permission-boundary note. */
+  requiresSystemManager?: true;
 };
 
 const SALES_NAV_GROUPS: NavGroupDef[] = [
@@ -322,12 +335,44 @@ const MASTER_DATA_NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
+// Admin module — first package (O-6, 2026-09-23): Observability Overview only. "Admin
+// Home" (the module's homeHref) *is* the Observability Overview page rather than a
+// separate landing dashboard, since Observability is currently the module's only
+// section — matching the mission brief's own IA ("Admin -> Observability -> Overview/
+// Errors/User Activity/Audit Trail/Integrations") without a redundant duplicate link to
+// the same page from both the top-level "Admin Home" link and a group item. Errors/User
+// Activity/Audit Trail/Integrations are each their own future package (O-7 through
+// O-10, see docs/observability-architecture.md's package breakdown) — listed as
+// `soon: true` now (same precedent Sales' "Returns & credits" group already sets for an
+// all-soon group) so the intended IA is visible without linking anywhere unbuilt.
+const ADMIN_NAV_GROUPS: NavGroupDef[] = [
+  {
+    id: "observability",
+    label: "Observability",
+    icon: Activity,
+    items: [
+      { label: "Errors", icon: Bug, soon: true },
+      { label: "User Activity", icon: History, soon: true },
+      { label: "Audit Trail", icon: FileClock, soon: true },
+      { label: "Integrations", icon: Cable, soon: true },
+    ],
+  },
+];
+
 const MODULES: ModuleDef[] = [
   { id: "sales", label: "Selling", homeHref: "/sales", icon: ShoppingCart, groups: SALES_NAV_GROUPS },
   { id: "buying", label: "Buying", homeHref: "/buying", icon: ShoppingBag, groups: BUYING_NAV_GROUPS },
   { id: "stock", label: "Inventory", homeHref: "/stock", icon: Boxes, groups: STOCK_NAV_GROUPS },
   { id: "manufacturing", label: "Manufacturing", homeHref: "/manufacturing", icon: Factory, groups: MANUFACTURING_NAV_GROUPS },
   { id: "master-data", label: "Master Data", homeHref: "/master-data", icon: Database, groups: MASTER_DATA_NAV_GROUPS },
+  {
+    id: "admin",
+    label: "Admin",
+    homeHref: "/admin/observability",
+    icon: ShieldCheck,
+    groups: ADMIN_NAV_GROUPS,
+    requiresSystemManager: true,
+  },
 ];
 
 const DEFAULT_MODULE_ID = "sales";
@@ -429,8 +474,11 @@ const activeModuleStore = createLocalStore<string | null>(ACTIVE_MODULE_STORAGE_
   typeof parsed === "string" ? parsed : null,
 );
 
-export function Sidebar() {
+export function Sidebar({ isSystemManager = false }: { isSystemManager?: boolean }) {
   const pathname = usePathname();
+  // Module switcher visibility only — see ModuleDef.requiresSystemManager's doc comment
+  // for why the real access check lives server-side on the route itself, not here.
+  const visibleModules = MODULES.filter((m) => !m.requiresSystemManager || isSystemManager);
   const stored = useSyncExternalStore(sidebarStore.subscribe, sidebarStore.getSnapshot, sidebarStore.getServerSnapshot);
   const persistedModuleId = useSyncExternalStore(
     activeModuleStore.subscribe,
@@ -451,11 +499,11 @@ export function Sidebar() {
   // route always wins), falling back to the last module chosen via the switcher — or
   // navigated into directly — and finally to Sales when nothing matches and nothing has
   // been persisted yet (e.g. sitting on the "/" module-picker page on a fresh session).
-  const pathModule = MODULES.find((m) => !m.soon && isItemActive(pathname, m.homeHref));
+  const pathModule = visibleModules.find((m) => !m.soon && isItemActive(pathname, m.homeHref));
   const activeModule =
     pathModule ??
-    MODULES.find((m) => m.id === persistedModuleId) ??
-    MODULES.find((m) => m.id === DEFAULT_MODULE_ID)!;
+    visibleModules.find((m) => m.id === persistedModuleId) ??
+    visibleModules.find((m) => m.id === DEFAULT_MODULE_ID)!;
 
   // Visiting a module's pages directly (not just via the switcher) should also update
   // which module "/" and the sidebar fall back to next time.
@@ -661,7 +709,7 @@ export function Sidebar() {
             }`}
           >
             <ul>
-              {MODULES.map((mod) => {
+              {visibleModules.map((mod) => {
                 const ModIcon = mod.icon;
                 if (mod.soon) {
                   return (

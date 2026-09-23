@@ -61,6 +61,12 @@ Each is one session, one package, with its own code review / QA per `docs/contro
 3. **O-4** — Redaction/sanitization layer + safe user-facing error UI with reference ID (`error.tsx`/`global-error.tsx`). (`product-designer` + `frontend-dev`)
 4. **O-5** — Session/role model extension (adds a role tier to `ceylon_session`, sourced from the real user's ERPNext roles) — prerequisite for Phase 13 access control. (`frappe-dev` + `frontend-dev`)
 5. **O-6** — Admin `/admin/system-logs` shell + Overview tab, gated on O-5's roles. (`frontend-dev`)
+   **Implemented 2026-09-23** as `/admin/observability` (not `/admin/system-logs` — the
+   mission brief that authorized this package used "Observability" throughout, and no
+   other admin section exists yet to disambiguate against), gated on O-2's
+   `isSystemManager` (O-5, the finer role-tier extension this table originally proposed,
+   was folded into O-2 already — see the Superseded note above). DEMO data only — see
+   `docs/observability-frontend-architecture.md` for the full write-up.
 6. **O-7** — Error Explorer (search by trace ID, filters, detail view) reading `Error Log`. (`frontend-dev`)
 7. **O-8** — User Activity view reading `Activity Log` + the O-2 business-activity records. (`frontend-dev`)
 8. **O-9** — Audit Trail view reading `Version` via `getDocInfo()`, per-document history navigation. (`frontend-dev`)
