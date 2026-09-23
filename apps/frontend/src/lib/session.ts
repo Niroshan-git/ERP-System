@@ -7,6 +7,17 @@ export type SessionPayload = {
   email: string;
   fullName: string;
   exp: number;
+  /**
+   * Derived once at login from the real ERPNext roles for this email (see
+   * lib/erpnext.ts's resolveActorRoles(), backed by smart_factory's resolve_actor_roles) —
+   * never trust a client-supplied value for this. Deliberately just one coarse flag rather
+   * than the full role list: keeps the signed cookie small and ties Ceylon Stack's one
+   * currently-needed access tier to something that already exists in real ERPNext, instead
+   * of inventing Support/Audit tiers with no backing role yet (see
+   * docs/observability-architecture.md's session/role design note). Absent on cookies issued
+   * before this field existed — treated as `false` by callers, not a crash.
+   */
+  isSystemManager?: boolean;
 };
 
 async function getKey() {
@@ -35,8 +46,12 @@ function base64UrlToBytes(value: string) {
   return Uint8Array.from(binary, (c) => c.charCodeAt(0));
 }
 
-export async function signSession(email: string, fullName: string): Promise<string> {
-  const payload: SessionPayload = { email, fullName, exp: Date.now() + SESSION_TTL_MS };
+export async function signSession(
+  email: string,
+  fullName: string,
+  isSystemManager = false,
+): Promise<string> {
+  const payload: SessionPayload = { email, fullName, isSystemManager, exp: Date.now() + SESSION_TTL_MS };
   const body = bytesToBase64Url(encoder.encode(JSON.stringify(payload)));
   const key = await getKey();
   const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));

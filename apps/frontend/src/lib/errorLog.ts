@@ -22,6 +22,10 @@ export type ErrorLogEntry = {
   status?: number;
   path?: string;
   detail?: string;
+  /** Ceylon Stack correlation ID (see lib/correlationId.ts) — lets this dev-only tail log be
+   * cross-referenced with the same failure's native Error Log entry (trace_id) once
+   * lib/observability.ts's report reaches ERPNext. */
+  correlationId?: string;
 };
 
 let dirReady: Promise<void> | null = null;

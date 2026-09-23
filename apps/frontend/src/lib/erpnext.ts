@@ -1,7 +1,10 @@
 import "server-only";
+import { after } from "next/server";
 import { logError } from "./errorLog";
-
-const BASE_URL = process.env.ERPNEXT_URL;
+import { BASE_URL, serviceAuthHeader } from "./erpnextAuth";
+import { generateCorrelationId } from "./correlationId";
+import { getActorContext } from "./actorContext";
+import { reportOperation } from "./observability";
 
 export class ErpNextError extends Error {
   status: number;
@@ -13,10 +16,46 @@ export class ErpNextError extends Error {
    * isn't a recognizable Frappe error shape.
    */
   erpnextMessage?: string;
-  constructor(message: string, status: number, erpnextMessage?: string) {
+  /** Ceylon Stack correlation ID for this failure (see lib/correlationId.ts) — safe to show
+   * the user as a support reference; always server-generated, never client-supplied. */
+  correlationId: string;
+  constructor(message: string, status: number, correlationId: string, erpnextMessage?: string) {
     super(message);
     this.status = status;
+    this.correlationId = correlationId;
     this.erpnextMessage = erpnextMessage;
+  }
+}
+
+/**
+ * Schedules the failure's observability report via next/server's after() so it runs once the
+ * response has already been sent, instead of adding a second HTTP round-trip's worth of
+ * latency to every ERPNext error path. Never reports on calls to the observability endpoint
+ * itself — that would recurse.
+ *
+ * `actor` must be resolved by the caller *before* calling this, not inside the after()
+ * callback: erpnextFetch() is called from both Server Actions and plain Server Component
+ * page reads, and Next.js forbids calling cookies() (which getActorContext() does) inside an
+ * after() callback from a Server Component — see node_modules/next/dist/docs's `after` page,
+ * "In Server Components (pages and layouts)".
+ *
+ * Swallows any scheduling error (e.g. after() called outside a request scope) rather than
+ * letting a telemetry-plumbing problem surface as the request's actual error.
+ */
+function scheduleFailureReport(
+  path: string,
+  correlationId: string,
+  actor: Awaited<ReturnType<typeof getActorContext>>,
+  operation: string,
+  detail: string,
+) {
+  if (path.includes("smart_factory.api.observability.")) return;
+  try {
+    after(async () => {
+      await reportOperation({ correlationId, actor, severity: "ERROR", operation, detail });
+    });
+  } catch {
+    // Telemetry scheduling must never break the request that triggered it.
   }
 }
 
@@ -49,19 +88,15 @@ function extractErpNextMessage(body: string): string | undefined {
   }
 }
 
-function serviceAuthHeader() {
-  const key = process.env.ERPNEXT_API_KEY;
-  const secret = process.env.ERPNEXT_API_SECRET;
-  if (!BASE_URL || !key || !secret) {
-    throw new Error(
-      "ERPNext connection is not configured — set ERPNEXT_URL, ERPNEXT_API_KEY and ERPNEXT_API_SECRET in apps/frontend/.env.local",
-    );
-  }
-  return `token ${key}:${secret}`;
-}
-
-/** All data calls run as the "Frontend Integration" service account — see apps/frontend/README.md. */
-async function erpnextFetch(path: string, init: RequestInit = {}) {
+/**
+ * All data calls run as the "Frontend Integration" service account — see apps/frontend/README.md.
+ *
+ * `opts.correlationId` lets a caller that makes more than one erpnextFetch() call for a single
+ * logical operation (or that wants its success report to share the ID with a possible failure)
+ * supply one instead of getting a fresh one generated per call — see createDoc/updateDoc below
+ * for the pattern.
+ */
+async function erpnextFetch(path: string, init: RequestInit = {}, opts: { correlationId?: string } = {}) {
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
@@ -75,21 +110,39 @@ async function erpnextFetch(path: string, init: RequestInit = {}) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    logError({ source: "erpnextFetch", message: `network error calling ${path}`, path, detail: message });
-    throw err;
+    const correlationId = opts.correlationId ?? generateCorrelationId();
+    const actor = await getActorContext();
+    logError({ source: "erpnextFetch", message: `network error calling ${path}`, path, detail: message, correlationId });
+    scheduleFailureReport(path, correlationId, actor, `network error calling ${path}`, message);
+    throw new ErpNextError(message, 0, correlationId);
   }
 
   if (!res.ok) {
     const body = await res.text();
     const erpnextMessage = extractErpNextMessage(body);
+    const correlationId = opts.correlationId ?? generateCorrelationId();
+    const actor = await getActorContext();
     logError({
       source: "erpnextFetch",
       message: `ERPNext ${res.status} on ${path}`,
       status: res.status,
       path,
       detail: erpnextMessage ?? body.slice(0, 500),
+      correlationId,
     });
-    throw new ErpNextError(`ERPNext ${res.status} on ${path}: ${body.slice(0, 300)}`, res.status, erpnextMessage);
+    scheduleFailureReport(
+      path,
+      correlationId,
+      actor,
+      `ERPNext ${res.status} on ${path}`,
+      erpnextMessage ?? body.slice(0, 500),
+    );
+    throw new ErpNextError(
+      `ERPNext ${res.status} on ${path}: ${body.slice(0, 300)}`,
+      res.status,
+      correlationId,
+      erpnextMessage,
+    );
   }
   if (res.status === 204) return null;
   return res.json();
@@ -143,27 +196,61 @@ export async function createDoc<T = Record<string, unknown>>(
   doctype: string,
   fields: Record<string, unknown>,
 ): Promise<T> {
-  const data = await erpnextFetch(`/api/resource/${encodeURIComponent(doctype)}`, {
-    method: "POST",
-    body: JSON.stringify(fields),
-  });
-  return data.data as T;
+  const correlationId = generateCorrelationId();
+  const data = await erpnextFetch(
+    `/api/resource/${encodeURIComponent(doctype)}`,
+    { method: "POST", body: JSON.stringify(fields) },
+    { correlationId },
+  );
+  const created = data.data as T;
+  await reportBusinessActivity(correlationId, `create ${doctype}`, doctype, (created as { name?: string })?.name);
+  return created;
 }
 
 export async function deleteDoc(doctype: string, name: string): Promise<void> {
-  await erpnextFetch(`/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
-    method: "DELETE",
-  });
+  const correlationId = generateCorrelationId();
+  await erpnextFetch(
+    `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`,
+    { method: "DELETE" },
+    { correlationId },
+  );
+  await reportBusinessActivity(correlationId, `delete ${doctype}`, doctype, name);
 }
 
 /** docstatus 0→1. ERPNext runs the doctype's full submit validation server-side. */
 export async function submitDoc<T = Record<string, unknown>>(doctype: string, name: string): Promise<T> {
-  return updateDoc<T>(doctype, name, { docstatus: 1 });
+  return updateDoc<T>(doctype, name, { docstatus: 1 }, `submit ${doctype}`);
 }
 
 /** docstatus 1→2. Reversible in the sense that ERPNext keeps cancelled docs for audit trail. */
 export async function cancelDoc<T = Record<string, unknown>>(doctype: string, name: string): Promise<T> {
-  return updateDoc<T>(doctype, name, { docstatus: 2 });
+  return updateDoc<T>(doctype, name, { docstatus: 2 }, `cancel ${doctype}`);
+}
+
+/**
+ * Reports a successful business write to smart_factory's observability endpoint, deferred via
+ * next/server's after() so it never adds latency to the write it's describing. Resolves
+ * `actor` before scheduling after() (small local cost: an HMAC verify, no network call) rather
+ * than inside the callback — see scheduleFailureReport()'s docstring above for why that
+ * matters. Fire-and-forget beyond that: a failure here must not surface as a failure of the
+ * write, which has already succeeded by the time this runs.
+ */
+async function reportBusinessActivity(correlationId: string, operation: string, doctype: string, name?: string) {
+  const actor = await getActorContext();
+  try {
+    after(async () => {
+      await reportOperation({
+        correlationId,
+        actor,
+        severity: "INFO",
+        operation,
+        referenceDoctype: doctype,
+        referenceName: name,
+      });
+    });
+  } catch {
+    // Telemetry scheduling must never break the write that triggered it.
+  }
 }
 
 /**
@@ -373,15 +460,24 @@ export async function addComment(
   });
 }
 
+/**
+ * `operation` labels the resulting Activity Log entry (e.g. "submit Sales Order" via
+ * submitDoc() above) — defaults to a generic "update {doctype}" for the many plain field-edit
+ * call sites that don't pass one, so every call site keeps working unchanged.
+ */
 export async function updateDoc<T = Record<string, unknown>>(
   doctype: string,
   name: string,
   fields: Record<string, unknown>,
+  operation?: string,
 ): Promise<T> {
-  const data = await erpnextFetch(`/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
-    method: "PUT",
-    body: JSON.stringify(fields),
-  });
+  const correlationId = generateCorrelationId();
+  const data = await erpnextFetch(
+    `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`,
+    { method: "PUT", body: JSON.stringify(fields) },
+    { correlationId },
+  );
+  await reportBusinessActivity(correlationId, operation ?? `update ${doctype}`, doctype, name);
   return data.data as T;
 }
 
@@ -410,4 +506,19 @@ export async function verifyErpNextLogin(
 
   const data = (await res.json()) as { full_name?: string };
   return { fullName: data.full_name ?? email };
+}
+
+/**
+ * Resolves the real ERPNext roles for a human who just passed verifyErpNextLogin(), via
+ * smart_factory's resolve_actor_roles whitelisted method — the trusted source lib/session.ts's
+ * `isSystemManager` flag is derived from at login time. Deliberately not derived from
+ * anything the browser supplies. See apps/smart_factory/smart_factory/api/observability.py.
+ */
+export async function resolveActorRoles(email: string): Promise<{ roles: string[]; isSystemManager: boolean }> {
+  const data = await erpnextFetch("/api/method/smart_factory.api.observability.resolve_actor_roles", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+  const message = data.message as { roles?: string[]; is_system_manager?: boolean };
+  return { roles: message.roles ?? [], isSystemManager: message.is_system_manager ?? false };
 }

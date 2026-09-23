@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { verifyErpNextLogin } from "@/lib/erpnext";
+import { resolveActorRoles, verifyErpNextLogin } from "@/lib/erpnext";
 import { SESSION_COOKIE, signSession } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -20,7 +20,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Incorrect email or password." }, { status: 401 });
   }
 
-  const cookieValue = await signSession(email, result.fullName);
+  // Role resolution failure must not block a login that already succeeded against ERPNext's
+  // own credential check — falls back to the safe default (no elevated access) rather than
+  // failing the request.
+  let isSystemManager = false;
+  try {
+    isSystemManager = (await resolveActorRoles(email)).isSystemManager;
+  } catch {
+    isSystemManager = false;
+  }
+
+  const cookieValue = await signSession(email, result.fullName, isSystemManager);
   const response = NextResponse.json({ ok: true });
   response.cookies.set(SESSION_COOKIE, cookieValue, {
     httpOnly: true,
