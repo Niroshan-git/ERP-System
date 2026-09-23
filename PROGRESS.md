@@ -4563,3 +4563,98 @@ self-declared `ACCEPTED` — pending Niroshan's review and independent cross-rev
   - **Delivery Note**: `Stock Entry`
 - **Refactored Cancellation Blockers**: Replaced hardcoded connection checks in `sales/orders/actions.ts`, `sales/delivery-notes/actions.ts`, `sales/quotations/actions.ts`, and `sales/invoices/actions.ts` with a generic pattern that iterates over all downstream connections.
 - **Verification**: Ran `npm run lint` and `npx tsc --noEmit` locally, both passed with zero errors. All changes adhered to Frappe's native cancellation constraints.
+
+## O-10A — Observability Center fresh authorization check (2026-09-24)
+
+**Package type:** first checkpoint of the O-10 mission ("real observability integration +
+production hardening" — converts O-6 through O-9's DEMO-backed screens into a real,
+production-capable system). This checkpoint is scoped to Phase 2 of that mission
+("Authorization Hardening") only — not a broader real-data wiring pass.
+
+**Starting baseline:** HEAD `a1e461b` (`MFG-STOCK-LC-VERIFY-1`), confirmed via `git log`/
+`git status` before any change. Substantial foreign uncommitted work was present and
+confirmed untouched throughout and after (Sales `connections.ts`/`actions.ts` map changes
+from the entry directly above, an in-flight Login/Forgot-Password redesign, Master Data doc
+edits) — none staged or committed by this package.
+
+**Phase 0/1 reconciliation (investigation only, documented here since no dedicated doc
+section existed yet for this):**
+- **O2-01 (secret redaction):** re-verified against current `lib/redact.ts` at HEAD, not
+  trusted from old doc claims — the `Authorization:`/`Bearer`/`token`/`ceylon_session`/
+  `password|secret|api-key` patterns all correctly capture the credential itself (the O-2
+  independent-review fix from 2026-09-23 is live and intact). **Already resolved, no
+  action needed.**
+- **O2-02 (read failures ≠ business activity):** re-verified against `lib/erpnext.ts` —
+  plain reads (`callMethod`/`callDocMethod`/list/get) never write `Activity Log` on success
+  or failure; only their *failures* get a correlation ID + `Error Log` report, same as every
+  other call. **Already satisfies the mission's semantic rule by design, no action needed.**
+- **O2-03 (per-operation vs per-write correlation IDs):** still open — the backend model
+  remains "one write call = one correlation ID" (`opts.correlationId` exists for a caller to
+  share one ID across multiple `erpnextFetch()` calls, but no call site uses it yet).
+  Deferred to a future O-10 checkpoint that actually needs multi-call correlation grouping —
+  no fake grouping fabricated.
+- **O2-04/O2-05 (defense-in-depth redaction):** already satisfied on the write path
+  (`observability.py`'s fixed-field allowlist + `redact.ts`'s regex pass on top of it); not
+  yet applicable to a real read/exposure path since no real read API exists yet (O-10B+).
+- **O2-06/O2-07 (safe low-risk robustness):** one real minor item carried forward, not
+  fixed here — `observability.py`'s `actor_full_name`/`actor_email` aren't length-truncated
+  before persisting (inconsistent with `message`/`detail`/`operation`, which are; can only
+  fail safely via the existing try/except, not crash). Deliberately not bundled into this
+  frontend-only checkpoint since fixing it means a live `smart_factory` deploy — left as a
+  named follow-up for the next package that touches `observability.py` anyway.
+
+**Phase 2 implementation (Authorization Hardening):** `app/(app)/admin/observability/
+layout.tsx` no longer trusts `session.isSystemManager` (a flag cached in the signed session
+cookie for up to 12h) as the actual authorization decision. It now calls the existing
+`resolveActorRoles()` (`lib/erpnext.ts`, backed by the already-reviewed, already-live
+`smart_factory.api.observability.resolve_actor_roles` — a real `frappe.get_roles()` call)
+fresh on every request, wrapped in React's `cache()` so it resolves once per request rather
+than once per component (the "request-scoped resolution" option the mission's
+"Authorization Performance" section asked to investigate) without reintroducing any
+cross-request staleness. Three deny branches (no session / fresh-check-failed / fresh-check-
+succeeded-but-not-authorized) all render an honest notice and never reach `children`; only
+a successful check returning `isSystemManager: true` does. A check failure (e.g. ERPNext
+unreachable) fails **closed** — denies access via a new `ObservabilityCheckFailedNotice`
+component, deliberately distinct from `SystemManagerOnlyNotice` (which means "the check
+ran and said no," a different message than "the check itself couldn't run"). No new backend
+surface was needed — `resolve_actor_roles` already existed from O-2 and needed no changes.
+
+**Code review** (`code-reviewer`, independent fresh subagent): approved, no blocking
+findings. Confirmed the old cached-flag path is fully removed from the authorization
+decision (only remains as a UX nav-hiding affordance in `Sidebar.tsx`, unchanged, already
+documented as non-security); confirmed all three deny branches are unreachable-skip-free;
+confirmed `resolveActorRoles` cannot produce a false positive (backend `_check_caller()`
+still restricts the whitelisted method to the one service-account caller; a nonexistent
+user returns `is_system_manager: False`, not a throw or a positive default) and does
+propagate real failures (`erpnextFetch` throws on both network and non-2xx, so the catch
+block is genuinely reachable); confirmed `cache()` is the correct per-request React Server
+Components primitive (not `unstable_cache`, which would leak across requests); confirmed no
+happy-path regression for a real System Manager with ERPNext reachable.
+
+**Tests:** `npx tsc --noEmit`, scoped `eslint` on both changed files, and `npm run build`
+(full project) all clean — all 6 `/admin/observability/*` routes still build as dynamic
+(`ƒ`) routes, no regressions to any other route.
+
+**Package isolation:** exactly `app/(app)/admin/observability/layout.tsx` and the new
+`components/ObservabilityCheckFailedNotice.tsx`. `lib/erpnext.ts`, `lib/connections.ts`,
+the four Sales `actions.ts` files, the Login/Forgot-Password redesign, and the Master
+Data/relationship doc edits were all re-confirmed present and untouched, both before staging
+and after commit.
+
+**Commit hash:** `4319503`.
+
+**Not done in this package (explicitly deferred, not silently skipped):** O2-03/O2-06/O2-07
+(see above); the real read API for any Observability screen (still 100% DEMO data — this
+checkpoint only hardens the door, not what's behind it yet); `QA_LOG.md`/`release-tracker`
+sync — following the same reasoning O-6 through O-9 documented (no core flow — Sales/Stock/
+Buying — touched), though this is the first Observability package to make a genuine live
+ERPNext call (the role lookup), which the next real-data checkpoint (O-10B) should revisit
+for whether that threshold has now been crossed; full security attack-pass verification
+(forged role, ERPNext-down live drill) — deferred to O-10's own Phase 15/16 closeout once
+more of the mission is built, not meaningful to run against an authorization gate alone with
+nothing sensitive behind it yet.
+
+**Final state:** `CLAUDE_HANDOFF` — code review complete with no blocking findings. Not
+self-declared `ACCEPTED`. `SAFE FOR INDEPENDENT REVIEW: YES`. `SAFE TO START O-10B: YES`
+(this checkpoint's own scope is closed; O-10B — the real read-API/provider foundation — is
+the next unstarted piece per the mission's suggested checkpoint breakdown).

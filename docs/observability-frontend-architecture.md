@@ -1,8 +1,11 @@
 # Observability Center — Frontend Architecture
 
 **Status:** Package O-6 (2026-09-23) — navigation shell + Observability Overview screen —
-Package O-7 (2026-09-23) — Error Explorer + Trace Detail — and Package O-8 (2026-09-23) —
-User Activity + Audit Trail — all implemented. DEMO data only throughout. Not binding like
+Package O-7 (2026-09-23) — Error Explorer + Trace Detail — Package O-8 (2026-09-23) —
+User Activity + Audit Trail — Package O-9 (2026-09-24) — Integration Monitoring — and
+Package O-10A (2026-09-24) — fresh request-time authorization check — all implemented.
+DEMO data only throughout for every screen (O-10A hardened the door, not the data behind
+it — see its own section below). Not binding like
 `docs/controls/`; same tier as
 `docs/architecture.md` and `docs/observability-architecture.md` (the backend-side sibling
 doc this one builds on top of — read that one first for the trust model, actor-vs-
@@ -751,6 +754,33 @@ screen:
   `Version`/integration-record fields may ever reach `TechnicalDetails`/
   `safeRequestSummary`/`safeResponseSummary`, replacing today's "always `available: false`
   except a few opted-in demo fixtures" placeholder.
+
+## O-10A: Fresh authorization check (implemented 2026-09-24)
+
+**What this checkpoint built**, scoped to Phase 2 ("Authorization Hardening") of the O-10
+mission only — the first of several planned O-10 checkpoints (O-10B onward still cover the
+real read-API/provider foundation and per-screen live wiring listed in "O-10 — documented
+gap" above, all still unstarted):
+
+`app/(app)/admin/observability/layout.tsx` no longer authorizes on `session.isSystemManager`
+(the cookie-cached, up-to-12h-stale flag this doc's own "Permission boundary" section above
+already flagged as insufficient once real data is wired in). It now calls `resolveActorRoles()`
+fresh on every request — the same O-2-built, already-reviewed function/backend method that
+originally only ran once at login — wrapped in React's `cache()` for per-request (not
+per-component, not cross-request) memoization. Fails closed: any of "no session,"
+"fresh check itself failed" (new `ObservabilityCheckFailedNotice` component), or "fresh
+check succeeded but not a System Manager" denies access; only a successful, real, request-time
+`is_system_manager: true` result reaches `children`. No new backend surface was needed.
+
+This directly closes the "Permission boundary" section's own stated requirement above and
+the O-9 section's "O-10 hardening item" bullet for a fresh, request-time privileged-
+authorization check. Independently code-reviewed with no blocking findings — see
+`PROGRESS.md`'s "O-10A" entry for the full account. **Still DEMO** behind this now-hardened
+door: every screen under `/admin/observability/*` still reads from `demoProvider.ts`
+exactly as before — this checkpoint only hardens who can reach the door, not what's behind
+it. `QA_LOG.md`/`release-tracker` sync not run this checkpoint, same standing reasoning as
+O-6 through O-9 (no core flow — Sales/Stock/Buying — touched); flagged in `PROGRESS.md` as
+worth revisiting once O-10B's real reads make this a genuine live-diagnostic surface.
 
 ### Not done in this package
 
