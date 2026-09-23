@@ -3757,3 +3757,38 @@ live-write behavior, multi-level BOM explosion, costing recompute trigger, phant
 behavior. Did not resolve `MD-UNV-003`, start CRM/Finance/Job Card/Workstation/OEE, or unify
 Customer/Supplier into Business Partner. Recommended next Master Data package: `MD-UNV-003`
 relationship architecture/remediation planning — not started by this closure.
+
+## MFG-CLOSE-2 — BOM Cancel/Amend (2026-09-23)
+
+**Provenance:** the implementation (`cancelBomAction`, `amendBomAction`, the `[name]/page.tsx`
+UI, the `connections.ts` `BOM` entry) was built by an earlier session and left fully coded but
+uncommitted, with no review/QA/documentation/logging done — found via `git status` at the start
+of a Manufacturing Completion mission. This entry records this session's closure of that
+already-built package, not new implementation.
+
+**What was verified and shipped:** independent `code-reviewer` pass (no CRITICAL/HIGH findings;
+one blocking documentation gap, resolved below); `devops` subagent source-verification (BOM's own
+`validate_bom_links()` sub-assembly check vs. Frappe's generic `check_no_back_links_exist()`
+back-link check are two independent mechanisms, both quoted from the live v16.34.2 source) plus
+live E2E QA against three disposable fixtures (Draft-Work-Order-doesn't-block, Submitted-Work-
+Order-blocks-then-unblocks-after-cancel, sub-assembly-BOM-blocks-then-unblocks-after-parent-
+cancel) — full detail in `QA_LOG.md`'s "MFG-CLOSE-2" entry and `docs/backend/05-manufacturing/
+bom.md`'s new "Cancel/Amend contract" section. One factual correction made to the implementation's
+own doc-comment (amended-BOM naming: it's `<cancelled-name>-<counter>` via site-wide amend-naming
+settings, not `BOM.autoname()`'s `BOM-<ITEM>-<NNN>` scheme — no functional impact, the code never
+depended on the wrong assumption). `tsc`/`eslint`/`build` all clean.
+
+**Documentation updated:** `docs/backend/05-manufacturing/bom.md` (new "Cancel/Amend contract"
+section, three stale "Cancel, Amend... Not implemented" lines corrected),
+`docs/backend/05-manufacturing/README.md`, `docs/backend/15-migration/migration-status.md`.
+
+**Not done:** Work Order itself still has no Cancel action (confirmed absent from
+`work-orders/actions.ts` during this session's audit) — that gap is real and separate from this
+BOM-scoped package, and is the recommended next Manufacturing package. Foreign uncommitted
+`docs/backend/99-unverified/unverified-behaviours.md`/`docs/master-data-architecture.md`/the new
+`party-contact-address-architecture.md` (unrelated MD-UNV-003 package, entry immediately above
+this one) were not touched.
+
+**Sign-off:** `CLAUDE_HANDOFF` — not self-declared `ACCEPTED`. Per `docs/controls/
+TEMP_DUAL_CLAUDE_MODE.md`, independent cross-review is required before this package or the next
+Manufacturing package proceeds.

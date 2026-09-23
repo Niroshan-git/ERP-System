@@ -2032,3 +2032,85 @@ not self-accepted. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, no genuinely se
 account/session was available in this environment for independent review (same disclosed gap as
 every prior package in this session — flagged for Codex's eventual §16 reconciliation audit);
 independent review is still requested and required before this package can be considered accepted.
+
+## 2026-09-23 — MFG-CLOSE-2: BOM Cancel/Amend
+
+**Package:** MFG-CLOSE-2 (BOM Cancel/Amend). **Provenance note:** the implementation itself
+(`cancelBomAction`, `amendBomAction`, the `page.tsx` UI, the `connections.ts` `BOM` entry) was
+built by an earlier, different session and left fully coded but uncommitted, with no
+code-reviewer/qa-tester pass, no `QA_LOG.md`/`PROGRESS.md`/`AI_WORK_LOG.md` entry, and no
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` Session Log row — a real process gap, not a historical
+fact being invented here. This session picked it up cold (found via `git status`/`git diff` at the
+start of the Manufacturing Completion mission) and ran the full closure loop: independent code
+review, source verification, live QA, documentation, this record. Base commit for the diff:
+`2200cad` (tip at pickup time).
+
+**Scope tested:** `apps/frontend/src/app/(app)/master-data/boms/[name]/page.tsx`,
+`apps/frontend/src/app/(app)/master-data/boms/actions.ts` (`cancelBomAction`/`amendBomAction`/
+`humanizeCancelError`), `apps/frontend/src/lib/connections.ts` (new `BOM` entry).
+
+**Static verification**: `npx tsc --noEmit` — clean. `npx eslint` scoped to the three changed
+files — clean. `npm run build` — clean (same long-standing pre-existing `erpnextFetch network
+error` build-time logs on unrelated dynamic routes attempting static generation, not new
+failures).
+
+**In-session code review** (`code-reviewer` subagent, no independent Codex/second-account review
+available — see `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`): verdict "code is correct and
+well-built," no CRITICAL/HIGH findings. Confirmed `cancelBomAction`/`amendBomAction` both
+re-fetch the BOM fresh server-side and independently re-derive `getConnections()`/`docstatus`
+rather than trusting the calling page; confirmed `amendBomAction`'s field list is identical to
+`buildBomFields`'s create payload (no missing/extra fields, no computed/costing field leakage);
+confirmed the pattern mirrors `cancelProductionPlanAction` structurally. One BLOCKING
+documentation-only finding: the code's own doc-comments cited a "Cancel/Amend contract" section in
+`docs/backend/05-manufacturing/bom.md` that did not actually exist — `bom.md` still said "Cancel,
+Amend... Not implemented" in three places. No code changes required by this finding.
+
+**Source verification + live E2E QA** (`devops` subagent, SSH source read of the live v16.34.2
+install + `bench execute`/docker-cp'd standalone script against disposable fixtures, same rigor
+model as `manufacture-completion.md`'s MFG-CLOSE-1 QA):
+
+- **Source-verified**: BOM cancel is blocked by two independent mechanisms — BOM's own
+  `validate_bom_links()` (sub-assembly-only, requires parent `docstatus=1 AND is_active=1`,
+  message "linked with other BOMs") inside `on_cancel()`, and Frappe's generic
+  `check_no_back_links_exist()` (all other doctypes, requires only `docstatus=1`, message "linked
+  with <doctype> <name>") after it. `on_cancel()` unconditionally sets `is_active`/`is_default` to
+  0 via `db_set` before either check; a throw rolls back those writes too (same DB transaction).
+  `manage_default_bom()` then nulls `Item.default_bom` if it pointed at the cancelled BOM, with no
+  automatic fail-over to another BOM. Amend has no bespoke endpoint — generic Frappe
+  insert-with-`amended_from` handling only.
+- **One correction to the implementation's own doc-comment**: the amended BOM's name is not
+  computed by `BOM.autoname()`'s `BOM-<ITEM>-<NNN>` scheme (never reached for an amended doc on
+  this instance) — it's `<cancelled-name>-<counter>` via the site-wide `Document Naming
+  Settings.default_amend_naming` ("Amend Counter" on this instance). Corrected in
+  `actions.ts`'s `amendBomAction` doc-comment; no functional change, since the action already reads
+  the resulting name back from `createDoc`'s response rather than predicting it.
+- **Live-confirmed** (3 disposable fixture passes, fully cleaned up and independently re-queried
+  absent afterward; the 4 real Work Orders and the one real BOM read-verified unchanged
+  throughout): a Draft Work Order does **not** block BOM cancel (only submitted docs count); a
+  Submitted Work Order **does** block it with the exact generic `LinkExistsError` message, and
+  cancelling the Work Order first lets the BOM cancel succeed (`is_active`/`is_default` → 0,
+  `Item.default_bom` → `None`); a submitted sub-assembly BOM referenced by a submitted+active
+  parent BOM is blocked by `validate_bom_links()` specifically (distinct exception/message),
+  resolved by cancelling the parent first; amending a cancelled BOM produces a new Draft with
+  `amended_from` set correctly. Full detail, including exact error text and the live-queried
+  complete link-field list, is in `docs/backend/05-manufacturing/bom.md`'s new "Cancel/Amend
+  contract" section.
+
+**Not tested**: ~20 of the ~24 real link-field doctypes found in the live schema scan (Job Card,
+Stock Entry, Quality Inspection, PO/PR/PI/Material Request/Sales Order item rows, Subcontracting)
+were confirmed as real schema link fields but not individually exercised through a live
+cancel-block scenario — Work Order was the one this frontend proactively checks and was fully
+live-tested; the rest rely on Frappe's own proven-correct generic mechanism, not reimplemented
+here. Role/permission restrictions on cancel/amend were not investigated (moot today under this
+app's single shared service-account identity).
+
+**Documentation**: `docs/backend/05-manufacturing/bom.md` — new "Cancel/Amend contract" section,
+plus three stale "Cancel, Amend... Not implemented" lines corrected. `docs/backend/05-manufacturing/
+README.md` still needs its own stale-claim correction (see `PROGRESS.md` entry). Foreign
+uncommitted `docs/backend/99-unverified/unverified-behaviours.md`/`docs/master-data-architecture.md`/
+the new `party-contact-address-architecture.md` (unrelated MD-UNV-003 package) deliberately **not**
+touched.
+
+**Sign-off**: this session, no durable session identifier available, produces a `CLAUDE_HANDOFF` —
+not self-accepted. Per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`, independent cross-review is still
+required before this package (or the next Manufacturing package) proceeds.

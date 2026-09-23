@@ -82,10 +82,10 @@ naming customization rather than hard-code the standard format.
 ## Document lifecycle
 
 **BOM is a submittable doctype** (has `amended_from: Link → BOM`, the standard Frappe
-amend-pattern field). The one real BOM is `docstatus: 1` (submitted). Draft → Submit is now built
-and live-verified (`MFG-CLOSE-0c`, 2026-09-22, see "Submit contract" below); Cancel → Amend remain
-unbuilt and were not exercised through live writes. The verified exception is that ERPNext permits
-the availability fields described below to change after submit.
+amend-pattern field). The one real BOM is `docstatus: 1` (submitted). Draft → Submit → Cancel →
+Amend are all now built and live-verified (`MFG-CLOSE-0c`, 2026-09-22; Cancel/Amend, 2026-09-23,
+see "Submit contract" and "Cancel/Amend contract" below). The verified exception is that ERPNext
+permits the availability fields described below to change after submit.
 
 ### Verified lifecycle and availability rules (2026-09-19 Codex review)
 
@@ -336,9 +336,10 @@ detail page when `docstatus === 0`) — see `apps/frontend/src/app/(app)/master-
   refuses to call `updateDoc` at all unless it's `0` (Draft) — a frontend-side safety check, not a
   substitute for ERPNext's own server-side enforcement, which was **not independently live-tested
   this session** (see `NEEDS_VERIFICATION` below).
-- **Not implemented, and deliberately so:** Cancel, Amend, "Update Cost". Submit is now built (see
-  "Submit contract" below). A submitted or cancelled BOM (`docstatus` 1 or 2) falls straight through
-  to Package 4A's existing read-only view — this app has no path back into edit mode for it at all
+- **Not implemented, and deliberately so:** "Update Cost". Submit, Cancel, and Amend are now built
+  (see "Submit contract" and "Cancel/Amend contract" below). A submitted or cancelled BOM
+  (`docstatus` 1 or 2) falls straight through to Package 4A's existing read-only view — this app
+  has no path back into edit mode for it at all
   right now, by design.
 - **`NEEDS_VERIFICATION` — no live write-testing was possible this session** (no working ERPNext
   frontend login credentials existed; MCP tools are read-only). Specifically unconfirmed against
@@ -449,7 +450,120 @@ app had no way to submit one without ERPNext Desk.
      this same investigation's earlier finding — always bypasses `validate_bom_no()` via
      `ignore_validate` regardless of BOM docstatus; this step confirms the submitted-BOM path
      specifically still behaves as expected, not that the bypass was removed or should be).
-- **Not implemented by this package, and deliberately so:** Cancel, Amend, any structural change to
-  a submitted BOM (unchanged from the Mutation/Availability contracts above). No change to
-  `bomStatus()` — Draft/Submitted/Cancelled were already generic docstatus-derived labels, unaffected
-  by adding a new transition between two already-modeled states.
+- **Not implemented by this package, and deliberately so:** Cancel, Amend (see "Cancel/Amend
+  contract" below for those), any structural change to a submitted BOM (unchanged from the
+  Mutation/Availability contracts above). No change to `bomStatus()` — Draft/Submitted/Cancelled
+  were already generic docstatus-derived labels, unaffected by adding a new transition between two
+  already-modeled states.
+
+## Cancel/Amend contract (`MFG-CLOSE-2`, 2026-09-23)
+
+Closes the last unbuilt BOM lifecycle transition. `/master-data/boms/[name]` now shows "Cancel BOM"
+(`cancelBomAction`) whenever `docstatus === 1`, and "Amend BOM" (`amendBomAction`) whenever
+`docstatus === 2`, both in `master-data/boms/actions.ts`. No new route.
+
+### Mechanism — two independent cancel-blocking checks, not one
+
+**SOURCE VERIFIED** by reading the live v16.34.2 install directly (`erpnext/manufacturing/doctype/
+bom/bom.py`, `frappe/model/document.py`, `frappe/model/delete_doc.py`) and confirmed live against a
+disposable fixture (see "Live QA" below):
+
+1. **BOM's own `validate_bom_links()`**, called from `on_cancel()` before the generic check ever
+   runs:
+   ```python
+   def on_cancel(self):
+       self.db_set("is_active", 0)
+       self.db_set("is_default", 0)
+       self.validate_bom_links()
+       self.manage_default_bom()
+       self.update_bom_creator_status()
+
+   def validate_bom_links(self):
+       if not self.is_active:
+           act_pbom = frappe.db.sql("""select distinct bom_item.parent from `tabBOM Item` bom_item
+               where bom_item.bom_no = %s and bom_item.docstatus = 1 and bom_item.parenttype='BOM'
+               and exists (select * from `tabBOM` where name = bom_item.parent
+                   and docstatus = 1 and is_active = 1)""", self.name)
+           if act_pbom and act_pbom[0][0]:
+               frappe.throw(_("Cannot deactivate or cancel BOM as it is linked with other BOMs"))
+   ```
+   This checks **only** the sub-assembly case: this BOM referenced via `BOM Item.bom_no` inside
+   another BOM that is both `docstatus = 1` **and** `is_active = 1`. Raises a plain
+   `ValidationError` with the message above (not `LinkExistsError`). Because `on_cancel()` runs
+   inside the same DB transaction as the `db_set` calls above it, a throw here rolls back the
+   `is_active`/`is_default` writes too — live-confirmed (re-queried unchanged after a blocked
+   cancel).
+2. **Frappe's generic `check_no_back_links_exist()`**, called from `document.py`'s cancel flow
+   *after* `on_cancel()` returns successfully: a fully reflective scan (`get_link_fields`) over
+   every Link/Dynamic Link field across the whole schema pointing at BOM, counting only rows on a
+   **submitted** (`docstatus = 1`) referencing document (Draft doesn't count, live-confirmed).
+   Raises `frappe.LinkExistsError`: `"Cannot delete or cancel because BOM <name> is linked with
+   <doctype> <name>"`. **Live-queried real link-field list on this instance** (no custom fields):
+   `BOM Item.bom_no`, `BOM Operation.bom_no`, `BOM Update Log`/`Tool.new_bom`/`current_bom`,
+   `Item.default_bom`, `Job Card.bom_no`/`semi_fg_bom`, `Master Production Schedule Item.bom_no`,
+   `Material Request Item.bom_no`, `Material Request Plan Item.from_bom`,
+   `Production Plan Item.bom_no`, `Production Plan Sub Assembly Item.bom_no`,
+   `Purchase Invoice/Order/Receipt Item.bom`, `Quality Inspection.bom_no`,
+   `Sales Order Item.bom_no`, `Stock Entry.bom_no`, `Stock Entry Detail.bom_no`,
+   `Subcontracting BOM.finished_good_bom`, `Subcontracting Inward Order/Order/Receipt Item.bom`,
+   `Work Order.bom_no`, `Work Order Operation.bom_no`/`bom`. `BOM.amended_from` is explicitly
+   excluded from this check by Frappe itself.
+   This frontend's own `cancelBomAction` only proactively checks **Work Order** (via
+   `lib/connections.ts`'s new `BOM` entry — the one relationship this app can actually create);
+   every other doctype above is left to this generic mechanism's own real enforcement, surfaced
+   through `humanizeCancelError`'s pass-through of ERPNext's raw message rather than being
+   duplicated client-side. `BOM Item.bom_no` is checked by **both** mechanisms — `validate_bom_links()`
+   requires the parent to be `is_active = 1` too, so the generic check is the actual backstop for a
+   submitted-but-deactivated parent BOM, which `validate_bom_links()` alone would miss.
+3. **`manage_default_bom()`** (called from `on_cancel()`, after the link check passes): since
+   `is_active` is now 0, takes its "else" branch — leaves `is_default = 0` and, if
+   `Item.default_bom` pointed at this BOM, sets it to `None`. **Live-confirmed: no automatic
+   fail-over to another BOM** — cancelling the item's default BOM leaves the item with no default
+   until something else is explicitly made default.
+4. **Amend** has no bespoke BOM endpoint — confirmed by source grep, only generic Frappe
+   insert-time handling: `validate_amended_from()` throws unless the target's `docstatus == 2`.
+   **Correction to an earlier assumption in this app's own code comments**: the amended BOM's name
+   is **not** computed by `BOM.autoname()`'s `BOM-<ITEM>-<NNN>` scheme — `autoname()` is never
+   reached for an amended document on this instance. `frappe/model/naming.py`'s `set_new_name()`
+   checks `amended_from` first and short-circuits via `_set_amended_name()`, which reads the
+   site-wide `Document Naming Settings.default_amend_naming` (live-queried on this instance:
+   `"Amend Counter"`, not `"Default Naming"`) and sets `name = amended_from + "-" + counter` —
+   i.e. the new Draft's name genuinely **is** the cancelled BOM's own name with a numeric suffix
+   (`BOM-X-001` → `BOM-X-001-1`), the opposite of what was previously assumed. This is a site-wide
+   Frappe naming-settings behavior, not BOM-specific, and doesn't affect correctness since this
+   app's `amendBomAction` reads the new name back from `createDoc`'s own response rather than
+   predicting it.
+
+### Live QA (`devops` subagent, disposable fixtures, 2026-09-23)
+
+Three fixture passes, all disposable Items/BOMs/Work Orders created, tested, deleted, and
+independently re-confirmed absent afterward via fresh SQL re-query. The 4 real Work Orders and the
+one real BOM (`BOM-FG-STEEL-BRACKET-ASSY-001`) were read-verified unchanged throughout.
+
+1. **Draft Work Order does not block cancel**: submitted BOM + Draft (docstatus 0) Work Order
+   referencing it via `bom_no` → `bom.cancel()` **succeeded**. Confirms the generic check's
+   submitted-only filter. Side finding: the still-Draft Work Order's own `bom_no` now pointed at a
+   cancelled BOM, and attempting to `.submit()` it failed with `CancelledLinkError: Cannot link
+   cancelled document: BOM No: <name>` — `Document._validate_links()`'s generic guard, the mirror
+   image of the cancel-side check.
+2. **Submitted Work Order blocks cancel**: fresh submitted BOM + submitted Work Order →
+   `bom.cancel()` **blocked** with the exact generic message `LinkExistsError: Cannot delete or
+   cancel because BOM <name> is linked with Work Order <name>`; re-queried `(docstatus, is_active)
+   = (1, 1)` unchanged (transaction rolled back cleanly). Cancelled the Work Order, retried →
+   **succeeded**; re-queried `(docstatus, is_active, is_default) = (2, 0, 0)`,
+   `Item.default_bom` → `None`. Amended the cancelled BOM → new Draft named `<name>-1`,
+   `amended_from` set correctly, `docstatus = 0`.
+3. **Sub-assembly case**: submitted sub-assembly BOM referenced via `BOM Item.bom_no` inside a
+   submitted, active parent BOM. Cancelling the sub-assembly BOM **blocked** with
+   `ValidationError: Cannot deactivate or cancel BOM as it is linked with other BOMs` (confirmed
+   this is `validate_bom_links()`, not the generic mechanism — distinct exception type and
+   message). Cancelled the parent BOM first, retried the sub-assembly cancel → **succeeded**.
+
+**Not tested**: the remaining ~20 non-Work-Order doctypes in the live-queried link-field list above
+(Job Card, Stock Entry, Quality Inspection, PO/PR/PI/Material Request/Sales Order item rows,
+Subcontracting) were confirmed as real link fields via schema introspection but not individually
+exercised through a live cancel-block scenario — their enforcement is Frappe's own generic
+mechanism (proven correct against Work Order above), not reimplemented or specially handled by this
+app, so no per-doctype behavior difference is expected, but this is `NEEDS_VERIFICATION` if ever in
+doubt. Role/permission restrictions on who may cancel/amend a BOM were not investigated (this app's
+single shared service-account identity makes it moot today, same caveat as elsewhere in this doc).

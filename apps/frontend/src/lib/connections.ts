@@ -201,6 +201,28 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
       hrefBase: "/buying/purchase-orders",
     },
   ],
+  // BOM Cancel guard (MFG-CLOSE-2): Frappe's generic back-link check (`check_if_doc_is_linked`,
+  // source-confirmed in `bom.py`'s `on_cancel` -> `check_no_back_links_exist` chain) blocks
+  // cancelling a BOM referenced by ANY submitted document across many doctypes (Work Order, Job
+  // Card, Production Plan Item/Sub Assembly Item, another BOM's sub-assembly `bom_no`, Stock
+  // Entry, Quality Inspection, Subcontracting, PO/PR/PI/Material Request item rows — full list in
+  // `docs/backend/05-manufacturing/bom.md`'s Cancel/Amend contract). Only the one relationship
+  // this frontend can actually create — Work Order via its own direct `bom_no` field, same
+  // 4-tuple-as-3-tuple shape as the Production Plan entry above — is checked proactively here;
+  // everything else is left to ERPNext's own real enforcement (this proactive check is a UI
+  // nicety, not the source of truth, same as every other entry in this file). The sub-assembly
+  // "linked with other BOMs" case is BOM's own domain-specific `validate_bom_links()` check, not
+  // a generic back-link — its message passes through `cancelBomAction`'s `humanizeCancelError`
+  // untouched rather than being duplicated here.
+  BOM: [
+    {
+      label: "Work Order",
+      parentDoctype: "Work Order",
+      childDoctype: "Work Order",
+      filterField: "bom_no",
+      hrefBase: "/manufacturing/work-orders",
+    },
+  ],
 };
 
 export async function getConnections(doctype: string, name: string): Promise<Connection[]> {

@@ -26,9 +26,10 @@ exists in the current build"):
 - [`bom.md`](bom.md) — started as a 2026-09-19 investigation baseline (BOM/BOM Item/BOM Operation
   schema, lifecycle, costing, multi-level, Production Plan relationship, Operation/Routing/
   Workstation classification), then **implemented**: `/master-data/boms` now has read-only
-  list/detail, create, Draft-only edit, Submit (`MFG-CLOSE-0c`, 2026-09-22), and submitted-BOM
-  Active/Inactive/Default availability actions — see `bom.md`'s "Frontend capability"/"Mutation
-  contract"/"Submit contract"/"Submitted-BOM availability contract". Cancel/Amend remain unbuilt.
+  list/detail, create, Draft-only edit, Submit (`MFG-CLOSE-0c`, 2026-09-22), submitted-BOM
+  Active/Inactive/Default availability actions, and Cancel/Amend (`MFG-CLOSE-2`, 2026-09-23) — see
+  `bom.md`'s "Frontend capability"/"Mutation contract"/"Submit contract"/"Submitted-BOM
+  availability contract"/"Cancel/Amend contract".
 - [`production-plan.md`](production-plan.md) — started as a 2026-09-19 discovery/canonicalization
   baseline (header/child-table schema, Sales Order sourcing rules, multi-BOM resolution,
   sub-assembly explosion, material requirement formula, Work Order/Material Request generation,
@@ -47,9 +48,6 @@ Per the Current Mission priority lock in `CLAUDE.md` ("Manufacturing frontend un
 2026-09-17... create/submit/cancel actions [now partially built — see note below], Job Card
 list/detail, BOM, Workstations, and OEE are each their own future scoped package"):
 
-- **BOM Cancel/Amend** — BOM itself now has create/Draft-edit/Submit/submitted-availability
-  actions (`/master-data/boms`, see [`bom.md`](bom.md)'s "Mutation contract"/"Submit contract"/
-  "Submitted-BOM availability contract"), but Cancel and Amend remain unbuilt.
 - **Job Card list/detail pages** — no dedicated route exists; fields are read only via the Work
   Order detail page.
 - **Workstations** — not touched by the frontend at all yet.

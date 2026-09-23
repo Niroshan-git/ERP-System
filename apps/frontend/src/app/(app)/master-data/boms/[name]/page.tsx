@@ -7,12 +7,21 @@ import { DocField } from "@/components/DocField";
 import { DocTabs } from "@/components/DocTabs";
 import { SavedBanner } from "@/components/SavedBanner";
 import { StatusPill } from "@/components/StatusPill";
+import { getConnections } from "@/lib/connections";
 import { ErpNextError, getDoc } from "@/lib/erpnext";
 import { formatAmount } from "@/lib/format";
 import { bomStatus } from "@/lib/erpStatus";
 import { listItemOptions } from "@/lib/actions/itemLookup";
 import { fetchLinkOptions } from "@/lib/linkOptions";
-import { activateBomAction, deactivateBomAction, setDefaultBomAction, submitBomAction, updateBomAction } from "../actions";
+import {
+  activateBomAction,
+  amendBomAction,
+  cancelBomAction,
+  deactivateBomAction,
+  setDefaultBomAction,
+  submitBomAction,
+  updateBomAction,
+} from "../actions";
 
 /**
  * Full canonical BOM component/operation row shapes read off `getDoc` — deliberately
@@ -130,6 +139,15 @@ export default async function BomDetailPage({
   const operations = doc.operations ?? [];
   const currency = doc.currency || "";
 
+  // Cancel dependency guard (MFG-CLOSE-2) — only meaningful once Submitted; re-derived
+  // server-side again inside `cancelBomAction` itself before it actually cancels anything, so
+  // this is a UI-only preview, not the enforcement point. See `lib/connections.ts`'s "BOM"
+  // entry doc comment for why only Work Order is checked here (everything else Frappe's
+  // generic link check or BOM's own `validate_bom_links()` could name is left to ERPNext's
+  // real enforcement, surfaced via `humanizeCancelError` if hit).
+  const connections = doc.docstatus === 1 ? await getConnections("BOM", doc.name) : [];
+  const cancelBlocking = connections.flatMap((c) => c.submittedDocs ?? []);
+
   const breadcrumb = (
     <Breadcrumb
       items={[
@@ -145,10 +163,13 @@ export default async function BomDetailPage({
    * Availability (Active/Inactive) and Default are their own action row, separate from the
    * Draft-only structural "Edit BOM" action — CX-MFG-BOM-4B-001/002 remediation. A submitted
    * BOM (docstatus 1) can have its `is_active`/`is_default` changed without cancel/amend
-   * (ERPNext marks both `allow_on_submit`), so those actions only ever appear at docstatus 1;
-   * a cancelled BOM (docstatus 2) gets no actions at all, and a Draft gets "Edit BOM" plus
-   * Submit (`MFG-CLOSE-0c`) — this app has no Cancel action for BOM, so once submitted the
-   * only remaining lifecycle actions are Activate/Deactivate/Set as Default below.
+   * (ERPNext marks both `allow_on_submit`), so those actions appear alongside Cancel at
+   * docstatus 1; a cancelled BOM (docstatus 2) gets Amend (`MFG-CLOSE-2`); a Draft gets "Edit
+   * BOM" plus Submit (`MFG-CLOSE-0c`).
+   *
+   * Cancel is hidden (replaced by an explanatory message) whenever `cancelBlocking` is
+   * non-empty — same "UI preview, real enforcement happens server-side regardless" pattern as
+   * `cancelProductionPlanAction`'s page.
    */
   const headerActions =
     doc.docstatus === 0 ? (
@@ -176,6 +197,17 @@ export default async function BomDetailPage({
         {doc.is_active && !doc.is_default ? (
           <DocActionBar action={setDefaultBomAction.bind(null, doc.name)} label="Set as Default" pendingLabel="Setting…" />
         ) : null}
+        {cancelBlocking.length > 0 ? (
+          <p className="text-sm text-alert">
+            Cannot cancel — linked with Work Order {cancelBlocking.join(", ")}. Cancel those first.
+          </p>
+        ) : (
+          <DocActionBar action={cancelBomAction.bind(null, doc.name)} label="Cancel BOM" pendingLabel="Cancelling…" variant="danger" />
+        )}
+      </div>
+    ) : doc.docstatus === 2 ? (
+      <div className="flex flex-wrap items-center gap-3">
+        <DocActionBar action={amendBomAction.bind(null, doc.name)} label="Amend BOM" pendingLabel="Amending…" />
       </div>
     ) : null;
 
@@ -337,9 +369,9 @@ export default async function BomDetailPage({
         </dl>
       </div>
       <p className="text-xs text-graphite-500">
-        Read-only view of ERPNext&apos;s own BOM record. Submit is available above while this BOM is
-        a Draft; cancel, amend, and cost recompute are not performed by this app — see this
-        record&apos;s status above for its current backend-recorded state.
+        Read-only view of ERPNext&apos;s own BOM record. Submit, Cancel, and Amend are available
+        above depending on this BOM&apos;s current status; cost recompute is not performed by
+        this app — see this record&apos;s status above for its current backend-recorded state.
       </p>
     </div>
   );
