@@ -3817,3 +3817,50 @@ subagent during this package's own closure, never part of commit `8559edb`) rema
 and undecided — independently recommended `DISCARD` (duplicates the better-maintained,
 source-tagged `docs/backend/11-relationships/master-erd.md`; wrong location; no verification
 tagging), pending Niroshan's own call.
+
+## Observability & Audit Center — Package O-1: discovery (2026-09-23)
+
+**Provenance:** Niroshan requested a full 19-phase Ceylon Stack Observability/Audit Center as one
+end-to-end mission. That conflicted with `AGENT_USAGE_POLICY.md` §3/§8/§10.6 ("build the whole
+module" is an explicitly invalid package) and the Current Mission priority lock (this initiative
+isn't on it — Sales/Inventory/Buying/Manufacturing are). Flagged the conflict per `CLAUDE.md`'s
+Enforcement clause instead of proceeding; Niroshan approved treating it as a new tracked
+initiative, broken into small packages, starting with read-only discovery. No code changed in
+this package.
+
+**What was done:** live-schema-verified (via the `ceylon-stack` MCP data connector) every relevant
+native Frappe Core doctype — `Error Log` (already has `trace_id`/`fingerprint`), `Activity Log`,
+`Version` (+ confirmed Desk's "Audit Trail" is a report over `Version`, not a separate table),
+`Integration Request`, `Deleted Document`, `Permission Log`, `View Log`, `Access Log`,
+`API Request Log`, `Scheduled Job Log`, `Log Settings`/`Logs To Clear` — and classified each
+mission requirement area as NATIVE / NATIVE_EXTEND / CEYLON_STACK_REQUIRED / NOT_REQUIRED.
+Inspected the current frontend baseline: `lib/erpnext.ts`'s `erpnextFetch()` chokepoint,
+`lib/errorLog.ts` (existing dev-only, unstructured, non-production logging), `lib/session.ts`
+(confirmed **no role field exists in the session today** — just `email`/`fullName`/`exp`), and
+confirmed no `error.tsx`/`global-error.tsx` exists anywhere in the app router. Confirmed
+`apps/smart_factory` currently exposes zero `@frappe.whitelist()` methods.
+
+**Key finding:** every ERPNext write from this app runs under one shared service account
+(`frontend-integration@...`), so native `Version`/`Activity Log` records will show the service
+account, not the real human — the real identity exists only in the `ceylon_session` cookie and
+currently goes no further than session validation. This blocks Audit Trail/User Activity
+"who did this" and Access Control's role tiers at the foundation, and needs solving once,
+centrally, not per-page later.
+
+**Documentation added:** `docs/observability-architecture.md` (classification table, the
+service-account identity-gap finding, a correlation-ID design proposal, and a 10-package
+breakdown O-2 through O-11 for the rest of this initiative) and
+`docs/backend/14-frappe-reference/observability-logging-doctypes.md` (the live-verified native
+doctype field reference backing it).
+
+**Not done / deferred:** no code, no `smart_factory` API surface, no frontend routes — this
+package was discovery only. Pre-existing uncommitted foreign work (`docs/architecture.md`,
+`docs/backend/99-unverified/unverified-behaviours.md`, `docs/master-data-architecture.md`, the new
+`party-contact-address-architecture.md`) was left untouched; three `NEEDS_VERIFICATION` items are
+tracked inside `docs/observability-architecture.md` rather than appended to `99-unverified/`
+directly, to avoid colliding with that file's pending foreign edit — should be merged in once
+resolved.
+
+**Sign-off:** `CLAUDE_HANDOFF` — docs-only discovery, no code changed, so no `code-reviewer`/
+`qa-tester` pass was required per the Package Closure Rules; not self-declared `ACCEPTED` pending
+Niroshan's review of the proposed package breakdown and priority-lock placement.
