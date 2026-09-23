@@ -4336,3 +4336,99 @@ of this package's scope.
 **Sign-off:** `CLAUDE_HANDOFF` — code review and live QA both complete with no functional defects
 found. Not self-declared `ACCEPTED` — pending Niroshan's review and independent cross-review per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
+## O-8 — User Activity + Audit Trail (2026-09-23)
+
+Extends the Observability Center (O-6: shell + Overview; O-7: Error Explorer + Trace
+Detail) with the two screens the mission's own "CORE INVESTIGATION MODEL" centers on:
+"what did this person do?" and "what exactly changed?" — no parallel data architecture,
+no new auth logic, same provider/demo-adapter boundary O-6/O-7 already established.
+
+**Routes:** `/admin/observability/activity` (User Activity) and
+`/admin/observability/audit` (Audit Trail), both nested under the existing
+`admin/observability/` route tree so both automatically inherit the real server-side
+`isSystemManager` re-check in `layout.tsx` — untouched, no duplicated auth logic. Sidebar's
+"User Activity"/"Audit Trail" items flipped from `soon: true` to real links; only
+"Integrations" (O-10) remains a placeholder.
+
+**Provider extended, not replaced:** `getActivity()`/`getAuditRecords()` added to the same
+`ObservabilityProvider` interface, backed by two new demo-adapter functions
+(`getDemoActivity`/`getDemoAuditRecords`) with the identical filter/page/sort contract
+`getErrors()` already established. No `getAuditRecord(id)` lookup was added — the chosen
+Audit detail pattern (expandable row) needs no separate fetch.
+
+**Types extended:** `UserActivityEvent`/`AuditRecord`/`AuditChange` (forward-declared by
+O-6, unused until now) adjusted to match the mission brief — `actor` widened to
+`Actor | null` on both (never fabricate a human identity when attribution is absent — see
+mission §25), `UserActivityEvent.status` gained `"Pending"/"Warning"`, `AuditChange`
+gained an optional `changeType` for child-table changes (`row_added`/`row_removed`/
+`child_row_changed`, rendered as a conservative WAITING_FOR_BACKEND summary rather than an
+invented row diff), `ObservabilityFilters` gained `action`/`correlationId`.
+
+**Demo data — one interconnected story, not per-screen fixtures** (mission §29): reuses
+the exact same actor/Work Order/correlation ID as O-7's own fixtures
+(`niroshan@customer.example` / `WO-00042` / `CS-YYMMDD-F82A41`) so the full chain resolves
+end-to-end: Activity "Material Transfer" (Failed) → the real O-7 Trace Detail → its new
+"View Audit" link → Audit Trail showing the Quantity change (10→15) that explains the
+failure. A second story (Priya / a new Sales Order / a Delivery Date change 22→28 Sep)
+mirrors the mission brief's own worked example almost verbatim.
+
+**New components:** `ActivityStatusBadge`, `ActivityExplorerTable`, `AuditExplorerTable`
+(the one new `"use client"` component — local row expand/collapse only, filters/pagination
+stay URL-driven), `AuditChangesList` (readable Previous/New comparison, never raw
+`Version` JSON). `ObservabilityHealthCard` gained an optional `href` so the Overview's
+"Activity" card now links to the real screen.
+
+**Cross-navigation wired:** Activity→Trace/Document/Audit, Audit→Trace/Document, a new
+Trace Detail→Audit "View Audit" link (completing the mission's own flagship demo chain),
+Overview's Activity card→Activity, and an actor-name link for the mission's "user-focused
+view" (§12).
+
+**Independent review (`code-reviewer`):** **Approved, no blocking issues.** Confirmed: no
+new live ERPNext calls, real server-side auth inherited (not duplicated/weakened), actor/
+execution-principal separation honored throughout (never falls back to the shared
+`frontend-integration@ceylonstack.local` principal when `actor` is null), no raw `Version`
+JSON rendered anywhere, all document/trace links go through the existing allowlisted
+helpers (never guessed routes), pagination contract matches `getErrors()` exactly, and the
+foreign concurrent work in the working tree (a Login/Forgot-Password redesign, Master Data
+docs) was correctly untouched. Two non-blocking polish notes: Document History mode's
+oldest-first ordering only applies within a page when a document's history exceeds one
+page (already disclosed in-UI, no demo fixture triggers it); Activity's null-actor copy
+("System") and Audit's ("Actor unavailable") differ slightly in wording for the same
+underlying case — both honest, left as an intentional, documented distinction rather than
+forced-uniform copy (see `docs/observability-frontend-architecture.md`'s "Actor
+attribution" section).
+
+**Testing:** `npx tsc --noEmit`, scoped `eslint`, and `npm run build` all pass clean —
+re-run again after two concurrent Manufacturing commits (`dd6036a`, `16b4cf9`) landed
+mid-session, confirming no interaction with this package's isolated diff.
+**VISUAL_VERIFICATION: NEEDS_VERIFICATION** — Chrome browser automation was available this
+session (unlike O-6/O-7), and the plan was to repeat O-6/O-7's own documented technique (a
+temporary, dev-only session-minting API route calling the app's real `signSession()` for a
+synthetic identity, deleted immediately after use) to authenticate a real browser session.
+That route was created, but every attempt to invoke it — a direct browser navigation and a
+`curl` request — was blocked by this environment's own auto-mode safety classifier as
+session/auth-cookie manipulation. Per this project's standing instruction never to route
+around a permission denial, the attempt was not retried or worked around; the temporary
+route was deleted immediately and confirmed absent from `git status`. Flagged honestly
+rather than fabricated — actual visual layout, spacing, dark-mode, and small-viewport
+behavior for both new screens remain unconfirmed in a real browser.
+
+**Not done, disclosed:** Integration Monitoring (O-10); a real backend read API (still
+100% demo data); a dedicated `getAuditRecord(id)` method (not needed — see above);
+globally-correct oldest-first ordering across multiple pages of one document's history (a
+known, flagged limitation affecting no current fixture); `QA_LOG.md`/`release-tracker`
+sync — same reasoning as O-6/O-7 (no live ERPNext data, no core flow touched, neither is
+policy-mandated for this package).
+
+**Foreign work confirmation:** the working tree's other uncommitted changes (a Login/
+Forgot-Password redesign — `apps/frontend/src/app/login/*`, `apps/frontend/src/lib/
+erpnext.ts`, `apps/frontend/src/app/api/auth/forgot-password/`, `docs/ceylon-stack-
+documentation.html`, `docs/brand/package/ceylonstack-login.html` — and pre-existing Master
+Data doc edits) were confirmed untouched, unstaged, and excluded from this package's
+commit throughout.
+
+**Sign-off:** `CLAUDE_HANDOFF` — code review complete with no blocking findings, visual
+verification explicitly flagged `NEEDS_VERIFICATION` rather than skipped silently. Not
+self-declared `ACCEPTED` — pending Niroshan's review and independent cross-review per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.

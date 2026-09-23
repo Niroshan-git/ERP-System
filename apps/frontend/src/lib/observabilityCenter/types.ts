@@ -122,35 +122,73 @@ export type TechnicalDetails = {
   metadata?: Record<string, string>;
 };
 
-/** One row in User Activity (O-8) — a business event, not a page-view. */
+/** One row in User Activity (O-8) — a business event, not a page-view. `actor` is
+ * nullable for the same reason `ErrorEvent.actor` is (see above): a small number of
+ * legitimate activity kinds (scheduled/integration actions) have no human initiator, and
+ * the UI must say so honestly rather than fabricate one — never fall back to
+ * `executionPrincipal` in this slot. */
 export type UserActivityEvent = {
   id: string;
   occurredAt: string;
-  actor: Actor;
+  actor: Actor | null;
   module: string;
-  action: string; // e.g. "Created Work Order", "Submitted Work Order"
+  /** Short verb/phrase, e.g. "Login", "Created", "Submitted", "Material Transfer" — kept
+   * as free text (not a closed literal union) per the O-8 brief's §7 instruction not to
+   * hard-code the UI to a fixed value set; filter UIs offer a curated option list without
+   * the type enforcing it, matching this file's existing `Severity`/`EventSource` vs.
+   * `ErrorEvent.operation` precedent. */
+  action: string;
+  /** Optional longer human-readable sentence for events with no natural document context
+   * (e.g. a Login) or that benefit from more detail than `action` + document identity
+   * alone convey. */
+  description?: string;
   referenceDoctype?: string;
   referenceName?: string;
   correlationId?: CorrelationId;
-  status: "Success" | "Failed";
+  source: EventSource;
+  /** Deliberately distinct from `EventStatus` (mission §13: "Do not confuse activity
+   * status with error severity — these are separate concepts"). "Pending"/"Warning" exist
+   * for activity kinds that are genuinely in-flight or partially successful; most fixtures
+   * use Success/Failed. */
+  status: "Success" | "Failed" | "Pending" | "Warning";
 };
 
-/** One field-level change within an AuditRecord (O-9) — modeled around native `Version`
+/** How one `AuditChange` should be presented (mission §24). `field_changed` is the
+ * default/common case (old value -> new value on a simple field). The child-table kinds
+ * (`row_added`/`row_removed`/`child_row_changed`) exist because O-8's brief explicitly
+ * anticipates them, but this frontend does not yet know the real shape of a child-table
+ * `Version` diff — until a backend package defines that contract, any change carrying one
+ * of these kinds is rendered with a conservative, generic description rather than an
+ * invented row-level diff. See `AuditChangesList`'s WAITING_FOR_BACKEND note. */
+export type AuditChangeType = "field_changed" | "field_added" | "field_cleared" | "row_added" | "row_removed" | "child_row_changed";
+
+/** One field-level change within an AuditRecord — modeled around native `Version`
  * diffs (old value → new value), not a re-invented audit schema, per the brief's §19/§20. */
 export type AuditChange = {
   field: string;
   fieldLabel: string;
   previousValue: string;
   newValue: string;
+  /** Defaults to `"field_changed"` when absent — every change built before this field
+   * existed (and any future adapter that doesn't yet classify changes) is still valid. */
+  changeType?: AuditChangeType;
 };
 
 /** One document-level audit entry — a `Version` row joined with the O-2 `Activity Log`
  * attribution record that shares its `reference_doctype`/`reference_name` and a close
- * timestamp (see docs/observability-architecture.md §8, "Future Audit Trail join"). */
+ * timestamp (see docs/observability-architecture.md §8, "Future Audit Trail join").
+ * `actor` is nullable per mission §25: never display the shared `frontend-
+ * integration@ceylonstack.local` execution principal as if it were the human who made a
+ * business change — when attribution can't be resolved, the UI must say "Actor
+ * unavailable" instead of guessing. */
 export type AuditRecord = {
   id: string;
   occurredAt: string;
-  actor: Actor;
+  actor: Actor | null;
+  /** Inferred display grouping (e.g. "Manufacturing") for the Audit Trail's Module
+   * filter/column — not a native `Version` field, since `Version` itself carries no module
+   * concept; derived the same way the demo provider derives it (from the doctype). */
+  module?: string;
   referenceDoctype: string;
   referenceName: string;
   action: string; // e.g. "Updated", "Submitted", "Cancelled"
@@ -204,7 +242,10 @@ export type ObservabilitySummary = {
 };
 
 /** Shared filter shape across Error Explorer / User Activity / Audit Trail — a superset,
- * each screen reads only the fields it uses. Not all filters apply to every list. */
+ * each screen reads only the fields it uses. Not all filters apply to every list.
+ * `status` is widened to `string` (rather than `EventStatus`) because Activity's status
+ * set (`UserActivityEvent["status"]`) is a different, non-overlapping union — each page's
+ * own type guard (e.g. `errors/page.tsx`'s `isStatus()`) still narrows it before use. */
 export type ObservabilityFilters = {
   search?: string;
   dateFrom?: string;
@@ -215,7 +256,11 @@ export type ObservabilityFilters = {
   actorEmail?: string;
   doctype?: string;
   docname?: string;
-  status?: EventStatus;
+  status?: string;
+  /** Free-text action filter (Activity/Audit only) — matched against `UserActivityEvent
+   * .action` / `AuditRecord.action`, not enforced against any closed value set. */
+  action?: string;
+  correlationId?: CorrelationId;
 };
 
 export type Pagination = {
@@ -228,5 +273,17 @@ export type Pagination = {
  * the pagination state needed to render Prev/Next and a result count, never the full set. */
 export type ErrorListResult = {
   items: ErrorEvent[];
+  pagination: Pagination;
+};
+
+/** User Activity's page result — same page-by-page contract as `ErrorListResult`. */
+export type UserActivityListResult = {
+  items: UserActivityEvent[];
+  pagination: Pagination;
+};
+
+/** Audit Trail's page result — same page-by-page contract as `ErrorListResult`. */
+export type AuditListResult = {
+  items: AuditRecord[];
   pagination: Pagination;
 };

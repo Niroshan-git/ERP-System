@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, History } from "lucide-react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { TraceIdBadge } from "@/components/TraceIdBadge";
@@ -108,7 +108,16 @@ export default async function TraceDetailPage({ params }: { params: Promise<{ tr
           </Link>
           <CopyTextButton text={supportSummary} label="Copy Support Summary" />
           {trace.referenceDoctype && trace.referenceName && (
-            <RelatedDocumentLink doctype={trace.referenceDoctype} name={trace.referenceName} />
+            <>
+              <RelatedDocumentLink doctype={trace.referenceDoctype} name={trace.referenceName} />
+              <Link
+                href={`/admin/observability/audit?doctype=${encodeURIComponent(trace.referenceDoctype)}&document=${encodeURIComponent(trace.referenceName)}`}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-graphite-900 hover:bg-canvas"
+              >
+                <History size={14} />
+                View Audit
+              </Link>
+            </>
           )}
         </div>
       </div>

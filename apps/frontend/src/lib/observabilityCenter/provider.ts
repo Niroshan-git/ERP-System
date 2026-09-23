@@ -1,12 +1,21 @@
 import "server-only";
-import { getDemoErrors, getDemoObservabilitySummary, getDemoTechnicalDetails, getDemoTrace } from "./demoProvider";
+import {
+  getDemoActivity,
+  getDemoAuditRecords,
+  getDemoErrors,
+  getDemoObservabilitySummary,
+  getDemoTechnicalDetails,
+  getDemoTrace,
+} from "./demoProvider";
 import type {
+  AuditListResult,
   ErrorListResult,
   ObservabilityFilters,
   ObservabilitySummary,
   TechnicalDetails,
   Trace,
   TrendRange,
+  UserActivityListResult,
 } from "./types";
 
 /**
@@ -39,6 +48,14 @@ export type ObservabilityProvider = {
    * actually enforced, not `getTrace()`'s general summary data. Today this always returns
    * `{ available: false }` unless the demo fixture explicitly opted in. */
   getTechnicalDetails(correlationId: string): Promise<TechnicalDetails>;
+  /** One page of User Activity rows (O-8) — same real page-by-page contract as
+   * `getErrors()`: filter and page server-side, never return the whole activity log to
+   * the caller. */
+  getActivity(filters: ObservabilityFilters, page: number, pageSize: number): Promise<UserActivityListResult>;
+  /** One page of Audit Trail rows (O-8) — same contract as `getErrors()`/`getActivity()`.
+   * Modeled around native `Version` diffs (mission §19); never returns raw `Version`
+   * JSON, only the already-transformed `AuditChange[]` shape `types.ts` defines. */
+  getAuditRecords(filters: ObservabilityFilters, page: number, pageSize: number): Promise<AuditListResult>;
 };
 
 /**
@@ -62,6 +79,12 @@ export function getObservabilityProvider(): ObservabilityProvider {
     },
     async getTechnicalDetails(correlationId) {
       return getDemoTechnicalDetails(correlationId);
+    },
+    async getActivity(filters, page, pageSize) {
+      return getDemoActivity(filters, page, pageSize);
+    },
+    async getAuditRecords(filters, page, pageSize) {
+      return getDemoAuditRecords(filters, page, pageSize);
     },
   };
 }

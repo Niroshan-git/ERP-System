@@ -1,8 +1,9 @@
 # Observability Center — Frontend Architecture
 
 **Status:** Package O-6 (2026-09-23) — navigation shell + Observability Overview screen —
-and Package O-7 (2026-09-23) — Error Explorer + Trace Detail — both implemented. DEMO data
-only throughout. Not binding like `docs/controls/`; same tier as
+Package O-7 (2026-09-23) — Error Explorer + Trace Detail — and Package O-8 (2026-09-23) —
+User Activity + Audit Trail — all implemented. DEMO data only throughout. Not binding like
+`docs/controls/`; same tier as
 `docs/architecture.md` and `docs/observability-architecture.md` (the backend-side sibling
 doc this one builds on top of — read that one first for the trust model, actor-vs-
 execution-principal design, and correlation-ID lifecycle this frontend layer displays but
@@ -16,8 +17,10 @@ initiative's own proposed breakdown (`docs/observability-architecture.md`'s "Pro
 package breakdown": O-6 through O-10, five separate sessions). Niroshan was asked and
 chose the compliant path: this package (O-6) is the navigation shell, the shared data
 layer, and the Overview screen only. Error Explorer (O-7), Trace Detail (also O-7 per the
-UX being one investigation flow), User Activity (O-8), Audit Trail (O-9), and Integration
-Monitoring (O-10) are each their own future package, building on the foundation below.
+UX being one investigation flow), and User Activity + Audit Trail (O-8, built together
+per their own mission brief since the two screens are "one investigation system" rather
+than independent features) are each their own package, building on the foundation below.
+Integration Monitoring (O-10) remains a future package.
 
 ## What this package built
 
@@ -326,3 +329,197 @@ either, same limitation as O-6; only verified structurally via direct HTTP respo
 - Visual/responsive screen review in an actual browser (see Testing above).
 - `QA_LOG.md`/`release-tracker` — same reasoning as O-6: no live ERPNext data, no core
   flow touched, so neither is policy-mandated, but a `code-reviewer` pass was run.
+
+## O-8: User Activity + Audit Trail (implemented 2026-09-23)
+
+**What this package built**, entirely on top of O-6/O-7's foundation — no parallel data
+architecture, no new auth logic, no new provider seam pattern:
+
+- **Routes:** `/admin/observability/activity` (User Activity) and
+  `/admin/observability/audit` (Audit Trail), both nested under
+  `app/(app)/admin/observability/`, so both automatically inherit the real server-side
+  `isSystemManager` re-check in `admin/observability/layout.tsx` — neither route contains
+  or duplicates any authorization logic of its own.
+- **Sidebar:** "User Activity" and "Audit Trail" flipped from `soon: true` to real links.
+  Only "Integrations" (O-10) remains `soon: true`.
+- **Provider extended, not replaced:** `ObservabilityProvider` (`provider.ts`) gained
+  `getActivity(filters, page, pageSize)` and `getAuditRecords(filters, page, pageSize)` —
+  the same real page-by-page contract `getErrors()` already established, backed by two new
+  `demoProvider.ts` functions (`getDemoActivity`, `getDemoAuditRecords`). No
+  `getAuditRecord(id)` lookup method was added — the chosen Audit detail pattern
+  (expandable row, see below) needs no separate fetch, since every field the detail view
+  renders already lives on the same `AuditRecord` the list already returned.
+- **Typed models extended** (`types.ts`): `UserActivityEvent` and `AuditRecord`/
+  `AuditChange` already existed as forward-declared types from O-6 (defined for O-8/O-9 to
+  build against without a type-model detour) but had never been consumed by a screen —
+  this package is the first to actually populate and render them, and adjusted their
+  shape where the O-6-era draft didn't yet match what O-8's mission brief specifies:
+  - `UserActivityEvent.actor` widened to `Actor | null` (previously required) — matching
+    `ErrorEvent.actor`'s existing precedent, since some activity kinds (e.g. a scheduled
+    Integration Action) legitimately have no human initiator.
+  - `UserActivityEvent.status` widened from `"Success" | "Failed"` to also include
+    `"Pending" | "Warning"` (mission §13) — kept as its own type, deliberately never
+    conflated with `EventStatus`/`Severity`.
+  - `AuditRecord.actor` widened to `Actor | null` (mission §25 — see "Actor attribution"
+    below) and gained an optional `module` field (a display-only grouping the Audit
+    Trail's Module filter needs; not a native `Version` field).
+  - `AuditChange` gained an optional `changeType: AuditChangeType` (mission §24) —
+    `"field_changed" | "field_added" | "field_cleared" | "row_added" | "row_removed" |
+    "child_row_changed"`, defaulting to `"field_changed"` when absent.
+  - `ObservabilityFilters` gained `action` (free text) and `correlationId`, and widened
+    `status` from `EventStatus` to `string` since Activity's status set doesn't overlap
+    with Error Explorer's — each page's own type guard still narrows it before use.
+  - New `UserActivityListResult`/`AuditListResult` page-result types, mirroring
+    `ErrorListResult` exactly.
+- **New components:** `ActivityStatusBadge` (deliberately separate from `SeverityBadge` —
+  mission §13's "do not confuse activity status with error severity"), `ActivityExplorerTable`,
+  `AuditExplorerTable` (a `"use client"` component — the only new client component this
+  package adds, purely for the local expand/collapse toggle on rows; all filtering/
+  pagination stays server-side and URL-driven, unchanged from O-7's convention),
+  `AuditChangesList` (mission §23's Previous/New comparison layout — never a raw `Version`
+  dump). Reused unchanged from O-6/O-7: `SeverityBadge`, `TraceIdBadge`,
+  `RelatedDocumentLink`, `ListFilterBar`, `PaginationControls`, `Breadcrumb`.
+  `ObservabilityHealthCard` gained an optional `href` prop (backward compatible — cards
+  with no real destination still render as plain, non-interactive cards) so the Overview's
+  "Activity" card can now link to the real User Activity screen.
+- **Demo data — one interconnected investigation story, not per-screen fixtures**
+  (mission §29): `ACTIVITY_FIXTURES` (18 rows) and `AUDIT_FIXTURES` (12 rows) in
+  `demoProvider.ts` deliberately reuse the exact same actor, Work Order, and correlation
+  ID the O-7 Error/Trace fixtures already use
+  (`niroshan@customer.example` / `WO-00042` / `CS-YYMMDD-F82A41`), so the full chain the
+  mission's own worked example describes actually resolves end-to-end in the demo: Activity
+  "Material Transfer" (Failed) → Trace `CS-YYMMDD-F82A41` (the real O-7 fixture, full
+  timeline + technical details) → Trace Detail's "View Audit" on the related WO-00042 →
+  Audit Trail filtered to WO-00042, showing the Quantity change (10→15) that explains *why*
+  the transfer failed, plus a transfer-failure flag entry carrying that same correlation ID
+  (so Audit → Trace resolves back to the identical trace). A second, independent story
+  (Priya / Sales Order `SAL-ORD-2026-00091` / a Delivery Date change from 22→28 Sep 2026)
+  mirrors the mission brief's own opening "CORE INVESTIGATION MODEL" illustration almost
+  verbatim, using this app's real Sales Order route/doctype. Several other fixtures reuse
+  existing O-7 correlation IDs (`2A77D9`, `3B19C7`, `77E0F5`, `E501AA`, `3F60A9`) to widen
+  cross-links into real Trace Detail content without inventing new technical-detail
+  payloads. Two fixtures exist specifically to exercise honest edge cases the mission calls
+  out by name: `demo-aud-9` (Colombo Warehouse, `actor: null`) for "Actor unavailable"
+  (§25), and `demo-aud-11` (a BOM component row) for the `row_added` change type (§24).
+
+### Actor attribution (mission §25)
+
+`AuditExplorerTable` renders `actor: null` as literal "Actor unavailable" text — never a
+silent fallback to the shared `frontend-integration@ceylonstack.local` execution
+principal, and never blank. `ActivityExplorerTable` does the same (renders "System" for a
+null actor, distinct wording since Activity's null-actor case is more often a genuine
+system/integration action than an attribution gap, but the principle — never fabricate a
+human identity — is identical). Neither table nor any provider function ever substitutes
+`ExecutionPrincipal` into an `Actor` slot.
+
+### Field-change presentation (mission §23/§24) — no raw `Version` JSON
+
+`AuditChangesList` renders each `AuditChange` as a labeled Previous/New comparison block.
+Changes carrying a child-table `changeType` (`row_added`/`row_removed`/
+`child_row_changed`) get a conservative, generic one-line summary plus an explicit
+"row-level detail is not yet available from the backend" note instead of an invented
+per-row diff — this frontend does not know the real shape of a child-table `Version` diff
+yet, and a future backend package that defines that contract is what unlocks a richer
+presentation here (WAITING_FOR_BACKEND, per the mission's own §24 instruction). Neither
+this component nor any other in this package ever stringifies or renders an arbitrary
+`Version` object — only the already-transformed, named `AuditChange` fields.
+
+### Document History mode (mission §27)
+
+The Audit Trail page (`audit/page.tsx`) detects when both `doctype` and `document` query
+params are set — the exact URL shape both "View Audit" actions (Activity row actions,
+Trace Detail's new "View Audit" link) navigate to
+(`?doctype=Work%20Order&document=WO-00042`) — and switches from the general newest-first
+Audit Explorer to that one document's full change timeline, oldest-first, with a "Document
+History" heading naming the document. No second provider method exists for this: it's the
+same `getAuditRecords()` call, with the returned page's `items` reversed before rendering.
+**Known limitation:** because the reversal happens per-fetched-page (not globally across
+the full filtered set), a document with more history than fits on one page will show
+oldest-first ordering *within* each page rather than one continuous oldest-to-newest
+sequence spanning pages — flagged inline in the UI when a document's total history exceeds
+the current page size, rather than silently understating the limitation. Every demo
+fixture's per-document history is small enough that this never actually triggers.
+
+### Cross-screen navigation wired in this package
+
+- **Activity → Trace:** `TraceIdBadge` renders whenever a row has a `correlationId`,
+  opening the real O-7 Trace Detail.
+- **Activity → Document:** `RelatedDocumentLink`, reusing O-7's exact doctype allowlist
+  (`documentRoutes.ts`) — never a guessed route.
+- **Activity → Audit:** a "View Audit" row action, rendered whenever a row has both
+  `referenceDoctype` and `referenceName`, linking to Audit Trail's Document History mode
+  for that document. Rendered even when that document turns out to have no audit history
+  yet — Audit Trail's own "No audit history" empty state is itself an honest outcome, not
+  a broken link, per the mission's §11 guidance about not showing an action only when the
+  *link target itself* can't be resolved (which document routing, not audit-data
+  existence, is what `documentRoutes.ts` governs).
+- **Activity user-focused view (mission §12):** an actor's name links back to the same
+  Activity page filtered to `?user=<their email>`.
+- **Audit → Trace:** same `TraceIdBadge` pattern, rendered whenever an `AuditRecord` has a
+  `correlationId`.
+- **Audit → Document:** `RelatedDocumentLink` inside each expanded row's detail panel.
+- **Trace Detail → Audit (new, added in this package):** Trace Detail
+  (`traces/[traceId]/page.tsx`) now renders a "View Audit" button next to its existing
+  "Open Document" link whenever the trace has a `referenceDoctype`/`referenceName`,
+  completing the mission's own flagship demo chain (Trace Detail → Related document →
+  Audit) even though this specific link wasn't in the O-7 scope that shipped it.
+- **Overview → Activity (new):** the Overview's "Activity" health card is now a real link
+  (via `ObservabilityHealthCard`'s new optional `href` prop), replacing what was
+  previously a static, non-interactive number.
+
+### Pagination / filtering contract
+
+Both `getActivity()` and `getAuditRecords()` return `{ items, pagination: { page,
+pageSize, total } }` — identical shape to `getErrors()`. Filter state lives entirely in
+the URL for both screens (`?search=&user=&action=&module=&doctype=&document=&status=
+&trace=&dateFrom=&dateTo=&page=&page_size=` for Activity; the same minus `status` plus
+Audit's own curated `action` options for Audit Trail), via the same `ListFilterBar`/
+`PaginationControls` GET-form convention — no client-side filter state, shareable/
+bookmarkable by design (mission §9/§21/§28). `action`/`status` filter options are curated
+UI suggestions only (plain string arrays in each `page.tsx`, matching the existing
+`MODULE_OPTIONS` precedent in `errors/page.tsx`) — `UserActivityEvent.action` and
+`AuditRecord.action` remain free text at the type level, per the mission's explicit §7
+instruction not to hard-code the UI to a closed value set.
+
+### Testing
+
+`npx tsc --noEmit`, scoped `eslint` (all new/changed O-8 files), and `npm run build` all
+pass clean — both new routes (`/admin/observability/activity`,
+`/admin/observability/audit`) build as dynamic (`ƒ`) routes alongside every existing
+route, with no regressions to `/admin/observability`, `/admin/observability/errors`, or
+`/admin/observability/traces/[traceId]`.
+
+**VISUAL_VERIFICATION: NEEDS_VERIFICATION.** Chrome browser automation *was* available
+this session (unlike O-6/O-7), and the plan was to repeat O-6/O-7's own documented
+technique — a temporary, dev-only session-minting API route calling the app's real
+`signSession()` for a synthetic identity, deleted immediately after use — to authenticate
+a real browser session and visually inspect both new screens plus re-check O-6/O-7 for
+regressions (mission §39). That route was created, but every attempt to actually invoke it
+(both a direct browser navigation and a `curl` request) was blocked by this environment's
+own auto-mode safety classifier as session/auth-cookie manipulation. Per this project's
+standing instruction to never route around a permission denial, the attempt was not
+retried or worked around — the temporary route file was deleted immediately
+(`apps/frontend/src/app/api/dev/mint-observability-session/route.ts`, confirmed absent
+from `git status`) and this is flagged honestly rather than fabricated. Structural
+correctness (routes render, filters/pagination logic, cross-links, empty states) is
+verified by the passing typecheck/lint/build and by direct code review of the
+filter-matching and rendering logic; actual visual layout, spacing, overflow, dark-mode
+rendering, and small-viewport behavior for the two new screens remain unconfirmed in a
+real browser and should be checked before this is treated as fully screen-reviewed.
+
+### Not done in this package
+
+- Integration Monitoring screen (O-10).
+- Real backend read API — still the demo adapter throughout; `provider.ts`'s two new
+  methods are the seam waiting for it, same as O-6/O-7.
+- Actual visual/responsive screen review in a real browser (see Testing above —
+  `VISUAL_VERIFICATION: NEEDS_VERIFICATION`).
+- A dedicated `getAuditRecord(id)` provider method — deliberately not built; the chosen
+  expandable-row Audit detail pattern needs no separate fetch (see "What this package
+  built" above).
+- Globally-correct oldest-first ordering for a single document's history across multiple
+  pages (see "Document History mode" above) — a known, flagged limitation, not a silent
+  gap; irrelevant to every current demo fixture.
+- `QA_LOG.md`/`release-tracker` — same reasoning as O-6/O-7: no live ERPNext data, no core
+  flow (Sales/Stock/Buying) touched, so neither is policy-mandated, but a `code-reviewer`
+  pass was run (see PROGRESS.md's O-8 entry).

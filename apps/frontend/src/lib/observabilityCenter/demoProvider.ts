@@ -1,5 +1,7 @@
 import "server-only";
 import type {
+  AuditListResult,
+  AuditRecord,
   ErrorEvent,
   ErrorListResult,
   ErrorTrendPoint,
@@ -10,6 +12,8 @@ import type {
   Trace,
   TraceEvent,
   TrendRange,
+  UserActivityEvent,
+  UserActivityListResult,
 } from "./types";
 
 /**
@@ -624,4 +628,503 @@ export async function getDemoTechnicalDetails(correlationId: string): Promise<Te
   const normalized = correlationId.trim().toUpperCase();
   const extras = TRACE_EXTRAS.get(normalized);
   return extras?.technicalDetails ?? { available: false };
+}
+
+/**
+ * DEMO User Activity (O-8) + Audit Trail (O-8) fixtures.
+ *
+ * Built as ONE interconnected investigation story (mission §29), not independent fixtures
+ * per screen — reusing the exact same actor, Work Order, and correlation ID
+ * (`niroshan@customer.example`, `WO-00042`, `CS-YYMMDD-F82A41`) the O-7 Error/Trace
+ * fixtures above already use, so the full chain actually resolves end-to-end:
+ *
+ *   Activity "Material Transfer" (Failed, demo-act-5)
+ *     -> Trace CS-YYMMDD-F82A41 (the real O-7 `demo-err-1` fixture, full timeline +
+ *        technical details)
+ *     -> Trace Detail's related document WO-00042 -> "View Audit"
+ *     -> Audit Trail filtered to WO-00042, showing the Quantity change (10 -> 15,
+ *        demo-aud-2) that explains *why* the transfer failed, plus the transfer-failure
+ *        flag itself (demo-aud-4, also carrying the same F82A41 correlation ID so Audit ->
+ *        Trace resolves back to the identical trace).
+ *
+ * A second, independent story (Priya / Sales Order SAL-ORD-2026-00091 / a Delivery Date
+ * change) mirrors this package's own worked example in the mission brief's opening
+ * "CORE INVESTIGATION MODEL" section, using this app's real Sales Order route/doctype.
+ * A handful of other fixtures reuse existing O-7 correlation IDs (2A77D9, 3B19C7, 77E0F5,
+ * E501AA, 3F60A9) purely to widen cross-links into Trace Detail without inventing new
+ * technical-detail content, plus standalone fixtures for module/actor/status variety and
+ * the two honest edge cases the mission explicitly calls out: a null `actor` (mission
+ * §25, "Actor unavailable" — never fabricated from the execution principal) and a
+ * `row_added` child-table change (mission §24, WAITING_FOR_BACKEND presentation).
+ */
+
+const ACTIVITY_FIXTURES: UserActivityEvent[] = [
+  {
+    id: "demo-act-1",
+    occurredAt: hoursAgo(0.95).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "System",
+    action: "Login",
+    description: "Signed in successfully.",
+    source: "SERVER",
+    status: "Success",
+  },
+  {
+    id: "demo-act-2",
+    occurredAt: hoursAgo(0.83).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "Manufacturing",
+    action: "Created",
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    source: "ERPNEXT",
+    status: "Success",
+  },
+  {
+    id: "demo-act-3",
+    occurredAt: hoursAgo(0.75).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "Manufacturing",
+    action: "Updated",
+    description: "Quantity changed from 10 to 15.",
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    source: "ERPNEXT",
+    status: "Success",
+  },
+  {
+    id: "demo-act-4",
+    occurredAt: hoursAgo(0.68).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "Manufacturing",
+    action: "Submitted",
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    source: "ERPNEXT",
+    status: "Success",
+  },
+  {
+    id: "demo-act-5",
+    occurredAt: hoursAgo(0.4).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "Manufacturing",
+    action: "Material Transfer",
+    description: "Material Transfer could not be completed because the requested quantity is unavailable.",
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    correlationId: correlationIdFor(hoursAgo(0.4), "F82A41"),
+    source: "ERPNEXT",
+    status: "Failed",
+  },
+  {
+    id: "demo-act-6",
+    occurredAt: hoursAgo(0.35).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "Manufacturing",
+    action: "Material Transfer",
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    source: "ERPNEXT",
+    status: "Success",
+  },
+  {
+    id: "demo-act-7",
+    occurredAt: hoursAgo(0.3).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "Manufacturing",
+    action: "Updated",
+    description: "Material Transferred quantity recorded.",
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    source: "ERPNEXT",
+    status: "Success",
+  },
+  {
+    id: "demo-act-8",
+    occurredAt: hoursAgo(0.1).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "System",
+    action: "Logout",
+    source: "SERVER",
+    status: "Success",
+  },
+  {
+    id: "demo-act-9",
+    occurredAt: hoursAgo(2.5).toISOString(),
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    module: "System",
+    action: "Login",
+    description: "Signed in successfully.",
+    source: "SERVER",
+    status: "Success",
+  },
+  {
+    id: "demo-act-10",
+    occurredAt: hoursAgo(20).toISOString(),
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    module: "Sales",
+    action: "Created",
+    referenceDoctype: "Sales Order",
+    referenceName: "SAL-ORD-2026-00091",
+    source: "ERPNEXT",
+    status: "Success",
+  },
+  {
+    id: "demo-act-11",
+    occurredAt: hoursAgo(18).toISOString(),
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    module: "Sales",
+    action: "Submitted",
+    referenceDoctype: "Sales Order",
+    referenceName: "SAL-ORD-2026-00091",
+    source: "ERPNEXT",
+    status: "Success",
+  },
+  {
+    id: "demo-act-12",
+    occurredAt: hoursAgo(15).toISOString(),
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    module: "Sales",
+    action: "Updated",
+    description: "Delivery Date changed from 22 Sep 2026 to 28 Sep 2026.",
+    referenceDoctype: "Sales Order",
+    referenceName: "SAL-ORD-2026-00091",
+    source: "ERPNEXT",
+    status: "Success",
+  },
+  {
+    id: "demo-act-13",
+    occurredAt: hoursAgo(3).toISOString(),
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    module: "Sales",
+    action: "Submitted",
+    description: "Sales Order could not be submitted because a linked Item is missing a Price List rate.",
+    referenceDoctype: "Sales Order",
+    referenceName: "SAL-ORD-2026-00041",
+    correlationId: correlationIdFor(hoursAgo(3), "3B19C7"),
+    source: "ERPNEXT",
+    status: "Failed",
+  },
+  {
+    id: "demo-act-14",
+    occurredAt: hoursAgo(48.2).toISOString(),
+    actor: { email: "kasun@customer.example", fullName: "Kasun Perera" },
+    module: "Master Data",
+    action: "Created",
+    referenceDoctype: "Item",
+    referenceName: "FG-STEEL-BRACKET-ASSY",
+    source: "ERPNEXT",
+    status: "Success",
+  },
+  {
+    id: "demo-act-15",
+    occurredAt: hoursAgo(48).toISOString(),
+    actor: { email: "kasun@customer.example", fullName: "Kasun Perera" },
+    module: "Master Data",
+    action: "Updated",
+    description: "Item was updated, but its reorder level is set below its safety stock.",
+    referenceDoctype: "Item",
+    referenceName: "FG-STEEL-BRACKET-ASSY",
+    correlationId: correlationIdFor(hoursAgo(48), "2A77D9"),
+    source: "ERPNEXT",
+    status: "Warning",
+  },
+  {
+    id: "demo-act-16",
+    occurredAt: hoursAgo(76).toISOString(),
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    module: "Buying",
+    action: "Approved",
+    referenceDoctype: "Purchase Order",
+    referenceName: "MAT-PO-2026-00031",
+    source: "ERPNEXT",
+    status: "Success",
+  },
+  {
+    id: "demo-act-17",
+    occurredAt: hoursAgo(9.2).toISOString(),
+    actor: { email: "kasun@customer.example", fullName: "Kasun Perera" },
+    module: "Buying",
+    action: "Created",
+    description: "Purchase Receipt could not be created because the linked Purchase Order is fully received.",
+    referenceDoctype: "Purchase Receipt",
+    referenceName: "MAT-PRE-2026-00027",
+    correlationId: correlationIdFor(hoursAgo(9.2), "77E0F5"),
+    source: "ERPNEXT",
+    status: "Failed",
+  },
+  {
+    id: "demo-act-18",
+    occurredAt: hoursAgo(690).toISOString(),
+    actor: null,
+    module: "Buying",
+    action: "Integration Action",
+    description: "A scheduled Supplier data sync did not complete within its expected window.",
+    correlationId: correlationIdFor(hoursAgo(690), "3F60A9"),
+    source: "INTEGRATION",
+    status: "Failed",
+  },
+];
+
+const AUDIT_FIXTURES: AuditRecord[] = [
+  {
+    id: "demo-aud-1",
+    occurredAt: hoursAgo(0.83).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "Manufacturing",
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    action: "Created",
+    changes: [{ field: "qty", fieldLabel: "Quantity", previousValue: "—", newValue: "10", changeType: "field_added" }],
+    versionId: "WO-VER-1001",
+  },
+  {
+    id: "demo-aud-2",
+    occurredAt: hoursAgo(0.75).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "Manufacturing",
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    action: "Updated",
+    changes: [{ field: "qty", fieldLabel: "Quantity", previousValue: "10", newValue: "15", changeType: "field_changed" }],
+    versionId: "WO-VER-1002",
+  },
+  {
+    id: "demo-aud-3",
+    occurredAt: hoursAgo(0.68).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "Manufacturing",
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    action: "Submitted",
+    changes: [{ field: "docstatus", fieldLabel: "Status", previousValue: "Draft", newValue: "Submitted", changeType: "field_changed" }],
+    versionId: "WO-VER-1003",
+  },
+  {
+    id: "demo-aud-4",
+    occurredAt: hoursAgo(0.4).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "Manufacturing",
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    action: "Material Transfer Failed",
+    changes: [
+      {
+        field: "material_transfer_status",
+        fieldLabel: "Material Transfer Status",
+        previousValue: "Not Started",
+        newValue: "Attempted — Failed",
+        changeType: "field_changed",
+      },
+    ],
+    correlationId: correlationIdFor(hoursAgo(0.4), "F82A41"),
+    versionId: "WO-VER-1004",
+  },
+  {
+    id: "demo-aud-5",
+    occurredAt: hoursAgo(0.3).toISOString(),
+    actor: { email: "niroshan@customer.example", fullName: "Niroshan" },
+    module: "Manufacturing",
+    referenceDoctype: "Work Order",
+    referenceName: "WO-00042",
+    action: "Updated",
+    changes: [
+      {
+        field: "material_transferred_for_manufacturing",
+        fieldLabel: "Material Transferred",
+        previousValue: "0",
+        newValue: "15",
+        changeType: "field_changed",
+      },
+    ],
+    versionId: "WO-VER-1005",
+  },
+  {
+    id: "demo-aud-6",
+    occurredAt: hoursAgo(20).toISOString(),
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    module: "Sales",
+    referenceDoctype: "Sales Order",
+    referenceName: "SAL-ORD-2026-00091",
+    action: "Created",
+    changes: [
+      { field: "delivery_date", fieldLabel: "Delivery Date", previousValue: "—", newValue: "22 Sep 2026", changeType: "field_added" },
+    ],
+    versionId: "SO-VER-2001",
+  },
+  {
+    id: "demo-aud-7",
+    occurredAt: hoursAgo(18).toISOString(),
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    module: "Sales",
+    referenceDoctype: "Sales Order",
+    referenceName: "SAL-ORD-2026-00091",
+    action: "Submitted",
+    changes: [{ field: "docstatus", fieldLabel: "Status", previousValue: "Draft", newValue: "Submitted", changeType: "field_changed" }],
+    versionId: "SO-VER-2002",
+  },
+  {
+    id: "demo-aud-8",
+    occurredAt: hoursAgo(15).toISOString(),
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    module: "Sales",
+    referenceDoctype: "Sales Order",
+    referenceName: "SAL-ORD-2026-00091",
+    action: "Updated",
+    changes: [
+      {
+        field: "delivery_date",
+        fieldLabel: "Delivery Date",
+        previousValue: "22 Sep 2026",
+        newValue: "28 Sep 2026",
+        changeType: "field_changed",
+      },
+    ],
+    versionId: "SO-VER-2003",
+  },
+  {
+    id: "demo-aud-9",
+    occurredAt: hoursAgo(260).toISOString(),
+    actor: null,
+    module: "Stock",
+    referenceDoctype: "Warehouse",
+    referenceName: "Colombo Warehouse",
+    action: "Updated",
+    changes: [{ field: "disabled", fieldLabel: "Disabled", previousValue: "No", newValue: "Yes", changeType: "field_changed" }],
+    versionId: "WH-VER-6001",
+  },
+  {
+    id: "demo-aud-10",
+    occurredAt: hoursAgo(75).toISOString(),
+    actor: { email: "priya@customer.example", fullName: "Priya Fernando" },
+    module: "Buying",
+    referenceDoctype: "Purchase Invoice",
+    referenceName: "MAT-PINV-2026-00019",
+    action: "Cancelled",
+    changes: [{ field: "docstatus", fieldLabel: "Status", previousValue: "Submitted", newValue: "Cancelled", changeType: "field_changed" }],
+    correlationId: correlationIdFor(hoursAgo(75), "E501AA"),
+    versionId: "PINV-VER-4001",
+  },
+  {
+    id: "demo-aud-11",
+    occurredAt: hoursAgo(48.5).toISOString(),
+    actor: { email: "kasun@customer.example", fullName: "Kasun Perera" },
+    module: "Manufacturing",
+    referenceDoctype: "BOM",
+    referenceName: "BOM-FG-STEEL-BRACKET-ASSY-002",
+    action: "Updated",
+    changes: [{ field: "items", fieldLabel: "Components", previousValue: "—", newValue: "RM-STEEL-ROD-12MM", changeType: "row_added" }],
+    versionId: "BOM-VER-5001",
+  },
+  {
+    id: "demo-aud-12",
+    occurredAt: hoursAgo(48).toISOString(),
+    actor: { email: "kasun@customer.example", fullName: "Kasun Perera" },
+    module: "Master Data",
+    referenceDoctype: "Item",
+    referenceName: "FG-STEEL-BRACKET-ASSY",
+    action: "Updated",
+    changes: [
+      { field: "reorder_level", fieldLabel: "Reorder Level", previousValue: "20", newValue: "15", changeType: "field_changed" },
+    ],
+    correlationId: correlationIdFor(hoursAgo(48), "2A77D9"),
+    versionId: "ITEM-VER-3001",
+  },
+];
+
+function matchesActivityFilters(event: UserActivityEvent, filters: ObservabilityFilters): boolean {
+  if (filters.module && event.module !== filters.module) return false;
+  if (filters.status && event.status !== filters.status) return false;
+  if (filters.action && event.action !== filters.action) return false;
+  if (filters.actorEmail && event.actor?.email !== filters.actorEmail) return false;
+  if (filters.doctype && event.referenceDoctype !== filters.doctype) return false;
+  if (filters.docname && event.referenceName !== filters.docname) return false;
+  if (filters.correlationId && event.correlationId !== filters.correlationId.toUpperCase()) return false;
+  if (filters.dateFrom && new Date(event.occurredAt) < new Date(filters.dateFrom)) return false;
+  if (filters.dateTo && new Date(event.occurredAt) > new Date(`${filters.dateTo}T23:59:59`)) return false;
+  if (filters.search) {
+    const needle = filters.search.trim().toLowerCase();
+    if (needle) {
+      const haystack = [
+        event.action,
+        event.module,
+        event.description,
+        event.correlationId,
+        event.referenceDoctype,
+        event.referenceName,
+        event.actor?.email,
+        event.actor?.fullName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(needle)) return false;
+    }
+  }
+  return true;
+}
+
+/** User Activity's list query — same filter/sort/page contract as `getDemoErrors()`. */
+export async function getDemoActivity(
+  filters: ObservabilityFilters,
+  page: number,
+  pageSize: number,
+): Promise<UserActivityListResult> {
+  const filtered = ACTIVITY_FIXTURES.filter((e) => matchesActivityFilters(e, filters)).sort(
+    (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+  );
+  const total = filtered.length;
+  const start = (page - 1) * pageSize;
+  const items = filtered.slice(start, start + pageSize);
+  return { items, pagination: { page, pageSize, total } };
+}
+
+function matchesAuditFilters(record: AuditRecord, filters: ObservabilityFilters): boolean {
+  if (filters.module && record.module !== filters.module) return false;
+  if (filters.action && record.action !== filters.action) return false;
+  if (filters.actorEmail && record.actor?.email !== filters.actorEmail) return false;
+  if (filters.doctype && record.referenceDoctype !== filters.doctype) return false;
+  if (filters.docname && record.referenceName !== filters.docname) return false;
+  if (filters.correlationId && record.correlationId !== filters.correlationId.toUpperCase()) return false;
+  if (filters.dateFrom && new Date(record.occurredAt) < new Date(filters.dateFrom)) return false;
+  if (filters.dateTo && new Date(record.occurredAt) > new Date(`${filters.dateTo}T23:59:59`)) return false;
+  if (filters.search) {
+    const needle = filters.search.trim().toLowerCase();
+    if (needle) {
+      const haystack = [
+        record.action,
+        record.module,
+        record.referenceDoctype,
+        record.referenceName,
+        record.correlationId,
+        record.actor?.email,
+        record.actor?.fullName,
+        ...record.changes.map((c) => c.fieldLabel),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(needle)) return false;
+    }
+  }
+  return true;
+}
+
+/** Audit Trail's list query — same filter/sort/page contract as `getDemoErrors()`.
+ * Returns newest-first; the "document history" presentation (mission §27, one document's
+ * full timeline oldest-first) is a page-level re-order of this same result, not a
+ * separate provider method — every field needed for either ordering is already present
+ * on each `AuditRecord`. */
+export async function getDemoAuditRecords(
+  filters: ObservabilityFilters,
+  page: number,
+  pageSize: number,
+): Promise<AuditListResult> {
+  const filtered = AUDIT_FIXTURES.filter((r) => matchesAuditFilters(r, filters)).sort(
+    (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+  );
+  const total = filtered.length;
+  const start = (page - 1) * pageSize;
+  const items = filtered.slice(start, start + pageSize);
+  return { items, pagination: { page, pageSize, total } };
 }

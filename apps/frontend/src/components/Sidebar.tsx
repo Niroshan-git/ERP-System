@@ -346,11 +346,11 @@ const MASTER_DATA_NAV_GROUPS: NavGroupDef[] = [
 // duplicate link to the same page from both the top-level "Admin Home" link and a group
 // item. O-6 (2026-09-23) shipped Overview only, with all four sub-screens as
 // `soon: true` placeholders. O-7 (2026-09-23) activated Errors (Error Explorer + Trace
-// Detail) as a real link. User Activity/Audit Trail/Integrations remain their own future
-// packages (O-8 through O-10, see docs/observability-architecture.md's package
-// breakdown) — still `soon: true` (same precedent Sales' "Returns & credits" group sets
-// for a partially-soon group) so the intended IA stays visible without linking anywhere
-// unbuilt.
+// Detail) as a real link. O-8 (2026-09-23) activated User Activity and Audit Trail as
+// real links. Integrations remains its own future package (O-10, see
+// docs/observability-architecture.md's package breakdown) — still `soon: true` (same
+// precedent Sales' "Returns & credits" group already sets for a partially-soon group) so
+// the intended IA stays visible without linking anywhere unbuilt.
 const ADMIN_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "observability",
@@ -358,8 +358,8 @@ const ADMIN_NAV_GROUPS: NavGroupDef[] = [
     icon: Activity,
     items: [
       { href: "/admin/observability/errors", label: "Errors", icon: Bug },
-      { label: "User Activity", icon: History, soon: true },
-      { label: "Audit Trail", icon: FileClock, soon: true },
+      { href: "/admin/observability/activity", label: "User Activity", icon: History },
+      { href: "/admin/observability/audit", label: "Audit Trail", icon: FileClock },
       { label: "Integrations", icon: Cable, soon: true },
     ],
   },

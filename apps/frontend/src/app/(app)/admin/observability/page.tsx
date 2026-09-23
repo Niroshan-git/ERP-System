@@ -91,6 +91,7 @@ export default async function ObservabilityOverviewPage({
           subLabel={`In the last ${range === "24h" ? "24 hours" : range === "7d" ? "7 days" : "30 days"}`}
           icon={ClipboardList}
           tone="signal"
+          href="/admin/observability/activity"
         />
       </div>
 
