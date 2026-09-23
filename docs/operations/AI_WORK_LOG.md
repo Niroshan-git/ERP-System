@@ -5120,3 +5120,66 @@ independently reviewed. Independent review explicitly requested. Per the assigni
 final control gate: `SAFE FOR INDEPENDENT REVIEW: YES`. This session does **not** declare
 `SAFE TO START MFG-CLOSE-2` — that remains locked until MFG-CLOSE-1 receives independent
 acceptance, exactly as the assigning brief specifies.
+
+## 2026-09-24 — `MFG-STOCK-LC-VERIFY-1` — Manufacturing Stock Entry cancel/reversal verification
+
+**Package type:** verification-first / minimal remediation, per the assigning brief. Investigated
+whether Ceylon Stack's existing generic Stock Entry cancel (`/stock/stock-entries/[name]`,
+`cancelStockEntryAction` -> `cancelDoc("Stock Entry", name)`) already covers Manufacturing-purpose
+Stock Entries without a Desk dependency. Confirmed yes, purely by reading the existing code
+(purpose-agnostic, no exclusion anywhere) and cross-referencing already-completed live QA from
+`MFG-WO-LC-1`/`MFG-JOBCARD-LC-1` (2026-09-23) that had already cancelled Material Transfer and
+Manufacture Stock Entries as part of their own dependency-chain testing. No new Stock Entry
+lifecycle code was built. `OUTCOME B — VERIFIED, MINIMAL UX FIX REQUIRED`.
+
+**Real gap found, evidence-backed, authorized by the brief's §11**: `MFG-FOLLOWUP-WO-LINK-1`
+(flagged open by `MFG-WO-LC-1`) was still open at HEAD — the Work Order cancel-blocker preview
+linked Job Card names but rendered Material Transfer/Manufacture Stock Entry names as plain text
+despite already carrying a valid `href`. Fixed generically (no purpose-specific special-casing) in
+`work-orders/[name]/page.tsx`. A `"Material Consumption"` labeled connection entry was also added to
+`connections.ts` (brief §12), mirroring the pre-existing `"Manufacture"` entry — this purpose blocks
+Work Order cancel identically per ERPNext's own unfiltered check, but previously had no proactive
+label. No cancellation architecture, cascade logic, or new routes touched (brief §§3/6/15/16 all
+held).
+
+**Code review** (`code-reviewer`, independent fresh subagent): diff confirmed correct — the
+generalized link-rendering JSX cannot produce an empty map or a broken link (every Work Order
+connection entry carries a non-optional `hrefBase`); "Material Consumption for Manufacture"
+confirmed a genuine ERPNext purpose string; zero mutation/lifecycle logic introduced. One
+non-blocking finding: `connections.ts` was already foreign-dirty (unrelated Sales/Buying connection
+additions) before this package touched it — resolved at commit time by hand-building a patch that
+stages only this package's two hunks via `git apply --cached`, leaving the foreign hunks untouched
+and unstaged, per the brief's §4/§29 foreign-work-protection instructions.
+
+**Live QA** (`qa-tester`, fresh subagent, 100% read-only): confirmed the exact purpose string
+against the live `Stock Entry.purpose` schema (and that a typo would silently return `[]` rather
+than error — the real risk this check was for); found real Work Order `MFG-WO-2026-00004` with two
+real submitted Stock Entries (`MAT-STE-2026-00001` Material Transfer, `MAT-STE-2026-00002`
+Manufacture) and confirmed both resolve correctly through the new link logic to real,
+non-404 `/stock/stock-entries/<name>` pages. Material Consumption's link mechanism confirmed
+structurally identical but not click-through-provable live (no such entry exists on this instance)
+— disclosed as `SOURCE VERIFIED`/`CODE VERIFIED`, not `LIVE VERIFIED`, per the brief's §14
+requirement to distinguish these honestly. No real data mutated; `modified` timestamps re-confirmed
+unchanged.
+
+**Static validation:** `npx tsc --noEmit`, `npm run lint`, `npm run build` all clean.
+
+**Concurrent work / foreign-work protection:** `git status` at package start showed substantial
+foreign dirty work (Observability Center, an in-flight login-page rewrite, Master Data docs,
+Sales/Buying connection entries) — none of it read, staged, or touched beyond the one file
+(`connections.ts`) this package's own change happened to also live in, handled via selective hunk
+staging as above. A concurrent session's own commit (`5c1b0d1`, Observability integration
+monitoring) landed mid-session; left untouched.
+
+**Documentation:** `docs/backend/05-manufacturing/work-order.md` (new "Manufacturing Stock Entry
+cancel/reversal verification" section — the full evidence trail), `QA_LOG.md`, this file. Per the
+brief's §27, no broad `docs/ceylon-stack-documentation.html`/release-tracker pass was performed this
+package — left for the dedicated release-documentation backfill already noted as owed. Per §28,
+Notion sync was not attempted: `NOTION SYNC BLOCKED — CONNECTOR REAUTHORIZATION REQUIRED` (per this
+project's standing, unrelated Notion connector issue, not something this package could fix).
+
+**Package outcome:** `OUTCOME B — VERIFIED, MINIMAL UX FIX REQUIRED`.
+
+**Final state:** `CLAUDE_HANDOFF` — code review and live QA both complete with no blocking findings.
+Not self-declared `ACCEPTED`. Per the brief's own final control gate: `SAFE FOR INDEPENDENT
+REVIEW: YES`.

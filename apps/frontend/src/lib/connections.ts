@@ -235,18 +235,17 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
   // validate_cancel()` (source-confirmed on the live v16.34.2 install) carries its OWN
   // bespoke check — a raw-SQL scan for any submitted Stock Entry with `work_order = <name>`,
   // regardless of purpose — entirely separate from BOM's generic-backlink-only approach. Split
-  // into two labeled entries here purely for a clearer blocking message (ERPNext's own check
-  // doesn't distinguish purpose; this frontend does, since it already tracks both categories
-  // elsewhere on the Work Order detail page). Job Card is a THIRD, independent blocker — but
+  // into labeled entries here purely for a clearer blocking message (ERPNext's own check
+  // doesn't distinguish purpose; this frontend does, since it already tracks these categories
+  // elsewhere on the Work Order detail page). Job Card is a further, independent blocker — but
   // caught by the *generic* Frappe back-link mechanism instead (`LinkExistsError`, a different
   // exception shape from the Stock Entry `ValidationError`), since Work Order's own
-  // `validate_cancel()` never looks at Job Card at all. `hrefBase` now points at the real Job
-  // Card detail route shipped in `MFG-JOBCARD-1` — the Work Order detail page's blocker preview
-  // renders each Job Card `submittedDocs` entry as a real per-document link
-  // (`${hrefBase}/${name}`), so an operator blocked by a submitted Job Card can navigate
-  // straight to it. Material Transfer/Manufacture above deliberately still render as plain text
-  // — wiring those into real per-document links is `MFG-FOLLOWUP-WO-LINK-1`, intentionally left
-  // open rather than folded into this narrow, Job-Card-specific change.
+  // `validate_cancel()` never looks at Job Card at all. Every entry's `hrefBase` points at a real
+  // canonical detail route (Job Card -> `MFG-JOBCARD-1`, Stock Entry -> the pre-existing
+  // `/stock/stock-entries/[name]` page, purpose-agnostic) — the Work Order detail page's blocker
+  // preview renders every `submittedDocs` entry as a real per-document link (`${hrefBase}/${name}`),
+  // closing `MFG-FOLLOWUP-WO-LINK-1` (`MFG-STOCK-LC-VERIFY-1`, 2026-09-24): Material Transfer/
+  // Manufacture/Material Consumption previously rendered as plain text; only Job Card did.
   //
   // Two further real link fields to Work Order exist on this instance (`Pick List.work_order`,
   // `Serial No.work_order`) but are not included here — this app has no create/cancel workflow
@@ -271,6 +270,20 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
       childDoctype: "Stock Entry",
       filterField: "work_order",
       extraFilters: [["Stock Entry", "purpose", "=", "Manufacture"]],
+      hrefBase: "/stock/stock-entries",
+    },
+    {
+      // `validate_cancel()`'s raw-SQL check is unfiltered by purpose (source-confirmed,
+      // see work-order.md's "Cancel contract"), so a submitted Material Consumption for
+      // Manufacture entry blocks Work Order cancel the same way Material Transfer/Manufacture
+      // do, even though this app has no create flow that produces one today (Desk-created
+      // entries against this Work Order would still count). Same shape as the two entries
+      // above purely for a clearer, labeled blocking message.
+      label: "Material Consumption",
+      parentDoctype: "Stock Entry",
+      childDoctype: "Stock Entry",
+      filterField: "work_order",
+      extraFilters: [["Stock Entry", "purpose", "=", "Material Consumption for Manufacture"]],
       hrefBase: "/stock/stock-entries",
     },
     {

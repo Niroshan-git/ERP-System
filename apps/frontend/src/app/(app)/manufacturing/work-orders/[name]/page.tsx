@@ -684,19 +684,18 @@ export default async function WorkOrderDetailPage({
                   <span key={c.label}>
                     {i > 0 && "; "}
                     {c.label}{" "}
-                    {/* Job Card links to its real detail route (MFG-JOBCARD-1). Material
-                        Transfer/Manufacture Stock Entries still render as plain text —
-                        wiring those is the separate, still-open MFG-FOLLOWUP-WO-LINK-1. */}
-                    {c.label === "Job Card"
-                      ? c.submittedDocs!.map((docName, j) => (
-                          <span key={docName}>
-                            {j > 0 && ", "}
-                            <Link href={`${c.href}/${encodeURIComponent(docName)}`} className="underline hover:no-underline">
-                              {docName}
-                            </Link>
-                          </span>
-                        ))
-                      : c.submittedDocs!.join(", ")}
+                    {/* Every entry in the Work Order connection config carries a real per-document
+                        href (Job Card -> /manufacturing/job-cards, Material Transfer/Manufacture/
+                        Material Consumption -> /stock/stock-entries), so every blocker name links
+                        to its canonical detail page. Closes MFG-FOLLOWUP-WO-LINK-1. */}
+                    {c.submittedDocs!.map((docName, j) => (
+                      <span key={docName}>
+                        {j > 0 && ", "}
+                        <Link href={`${c.href}/${encodeURIComponent(docName)}`} className="underline hover:no-underline">
+                          {docName}
+                        </Link>
+                      </span>
+                    ))}
                   </span>
                 ))}
                 . Cancel those first.

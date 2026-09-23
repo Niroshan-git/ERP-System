@@ -2372,3 +2372,75 @@ audit, predating `MFG-JOBCARD-1`'s actual ship date).
 **Sign-off**: `CLAUDE_HANDOFF` — code review and live QA both complete with no functional defects
 found. Not self-declared `ACCEPTED` — pending Niroshan's review and independent cross-review per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
+## 2026-09-24 — `MFG-STOCK-LC-VERIFY-1` — Manufacturing Stock Entry cancel/reversal verification
+
+**Scope**: verification-first package. Investigated whether the existing generic Stock Entry cancel
+capability (`/stock/stock-entries/[name]`, `cancelStockEntryAction` -> `cancelDoc("Stock Entry",
+name)`) already handles Manufacturing-purpose Stock Entries without a Desk dependency. Confirmed
+`YES` — the page/action are purpose-agnostic, no code change needed there. Found and fixed one real,
+already-flagged navigation gap instead (`MFG-FOLLOWUP-WO-LINK-1`): the Work Order cancel-blocker
+preview linked Job Card names but rendered Material Transfer/Manufacture Stock Entry names as plain
+text despite already having valid hrefs. `OUTCOME B — VERIFIED, MINIMAL UX FIX REQUIRED`. Full
+reasoning and evidence: `docs/backend/05-manufacturing/work-order.md`'s new "Manufacturing Stock
+Entry cancel/reversal verification" section.
+
+**Code changes**: `apps/frontend/src/app/(app)/manufacturing/work-orders/[name]/page.tsx` —
+generalized the blocker-preview JSX so every `submittedDocs` entry links to its canonical detail
+page (`${c.href}/${docName}`), removing the Job-Card-only special case. `apps/frontend/src/lib/
+connections.ts` — added a `"Material Consumption"` entry to the `"Work Order"` config (purpose
+`Material Consumption for Manufacture`), mirroring the pre-existing `"Manufacture"` entry; updated
+two stale comments referencing the now-closed `MFG-FOLLOWUP-WO-LINK-1`. No lifecycle/cancel logic
+touched — pure link-rendering plus one new read-only connection-query filter entry.
+
+**Code review** (`code-reviewer`, independent fresh subagent): diff confirmed correct and safe —
+`cancelBlocking` is pre-filtered to non-empty `submittedDocs`, so the new `.map` is never empty; the
+non-optional `Connection.href` is set from `hrefBase` on every Work Order config entry, so no entry
+can produce a broken link; `"Material Consumption for Manufacture"` confirmed a genuine standard
+ERPNext purpose string; no mutation/lifecycle/cascade logic introduced. **One non-blocking finding,
+a git-hygiene issue rather than a code defect**: `connections.ts` was already foreign-dirty (Sales
+Order -> Material Request/Purchase Order, Sales Invoice -> Payment Entry, Delivery Note -> Stock
+Entry additions, unrelated to this package) before this package started editing it — the reviewer
+correctly flagged that staging the whole file would misattribute unreviewed foreign hunks to this
+commit. Resolved at commit time via a hand-built patch (`git apply --cached`) staging only this
+package's two hunks (the Work Order section comment update + the new Material Consumption entry),
+leaving the foreign hunks unstaged exactly as found — not committed, not discarded, not reviewed
+(out of scope; belongs to whatever package owns them).
+
+**Live QA** (`qa-tester`, fresh subagent, read-only throughout):
+- **Purpose string**: pulled the live `Stock Entry.purpose` Select field metadata (`frappe.desk.
+  form.load.getdoctype`) — confirmed `"Material Consumption for Manufacture"` present,
+  character-for-character identical to the string used in code. Also confirmed a deliberately
+  misspelled variant returns `200 {"data":[]}` rather than erroring — the exact silent-failure mode
+  a typo in this filter would produce, making the schema-exact check the meaningful evidence here
+  rather than "the query didn't error." `LIVE VERIFIED`.
+- **Real link resolution**: found real Work Order `MFG-WO-2026-00004` (docstatus=1, Completed) with
+  two real submitted Stock Entries — `MAT-STE-2026-00001` (Material Transfer for Manufacture),
+  `MAT-STE-2026-00002` (Manufacture). Replicated the exact `connections.ts` filter tuple per purpose
+  against this WO; each returned precisely the matching entry. Fetched both Stock Entries directly
+  via `GET /api/resource/Stock Entry/<name>` — both resolve fully, confirming the new links would
+  render real pages, not 404s. `LIVE VERIFIED` for Material Transfer and Manufacture.
+- **Material Consumption entry**: query mechanism confirmed identical shape to the two working
+  purposes and correctly returns zero (no such entry exists on this instance, consistent with the
+  code's own comment) — no fixture built to force a positive case, since this is UI-only and the
+  pattern is proven for two of three purposes. `SOURCE VERIFIED` / `CODE VERIFIED`, explicitly
+  **not** `LIVE VERIFIED` for the click-through itself — disclosed, not hidden.
+- **Real-data safety**: read-only throughout, no POST/PUT/cancel calls. Re-fetched the real WO/Stock
+  Entries after testing; `modified` timestamps unchanged from pre-existing `QA_LOG.md` history.
+- **Not independently browser-tested**: no interactive browser session available — verification
+  method was live REST field-shape/query replication of exactly what the changed code paths fetch,
+  same limitation already disclosed in `MFG-JOBCARD-1`'s entry above.
+
+**Static validation**: `npx tsc --noEmit` clean, `npm run lint` clean, `npm run build` clean (exit
+0, "Compiled successfully" — only the pre-existing, unrelated "Dynamic server usage" notices from
+build-time routes that fetch against the live server, same as every prior package's build output).
+
+**Concurrent work note**: `apps/frontend/src/lib/connections.ts` and `git status` more broadly
+carried substantial foreign concurrent work throughout this package (Sales/Buying connection
+additions, an in-flight login-page rewrite, Observability Center work) — none of it staged, edited,
+or committed by this package; a concurrent session's own commit (`5c1b0d1`, Observability
+integration monitoring) landed mid-session and was left untouched.
+
+**Sign-off**: `CLAUDE_HANDOFF` — code review and live QA both complete with no blocking findings.
+Not self-declared `ACCEPTED` — pending Niroshan's review and independent cross-review per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.

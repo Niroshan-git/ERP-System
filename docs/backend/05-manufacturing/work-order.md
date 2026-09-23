@@ -428,3 +428,66 @@ in this doctype's own schema, same generic Frappe pattern as BOM), so an Amend a
 structurally similar to `amendBomAction`'s shape if ever built, but this is an inference from
 pattern similarity, not verified evidence — flagged as a candidate future package
 (`MFG-WO-LC-2`, provisional ID) rather than assumed safe to build without its own investigation.
+
+## Manufacturing Stock Entry cancel/reversal verification (`MFG-STOCK-LC-VERIFY-1`, 2026-09-24)
+
+**Business question answered:** can an operator reverse/cancel a Manufacturing-related Stock Entry
+(Material Transfer for Manufacture, Manufacture, Material Consumption for Manufacture) entirely
+through Ceylon Stack, without ERPNext Desk? **Yes** — and this was already true before this
+package; the generic `/stock/stock-entries/[name]` page and `cancelStockEntryAction` ->
+`cancelDoc("Stock Entry", name)` (`stock-entries/actions.ts`) carry **no purpose-based exclusion or
+filtering of any kind** — the detail page fetches via a plain `getDoc("Stock Entry", name)` and
+shows a Cancel button whenever `docstatus === 1`, identically for every purpose. `OUTCOME B` — no
+new Stock Entry lifecycle code was needed; a real, evidence-backed navigation gap was found and
+fixed instead.
+
+**Verified via a combination of source reading, this package's own live QA, and cross-referencing
+already-completed live QA from `MFG-WO-LC-1`/`MFG-JOBCARD-LC-1` (both 2026-09-23, see `QA_LOG.md`)
+that had already exercised cancelling Material Transfer and Manufacture Stock Entries as part of
+their own dependency-chain testing, without this package needing to repeat it:**
+
+- **Material Transfer for Manufacture** — `LIVE VERIFIED` (`MFG-WO-LC-1` scenario D; `MFG-TEST-014`
+  in `material-transfer.md` additionally confirms cancelling reverses an additional-item
+  `required_items` row). Cancelling unblocks a subsequent Work Order cancel.
+- **Manufacture** — `LIVE VERIFIED` (`MFG-WO-LC-1` scenario I: a Completed WO with a submitted
+  Manufacture entry cancelled cleanly once that entry was cleared; `MFG-JOBCARD-LC-1` scenario F:
+  cancelling the Manufacture entry first unblocked Job Card cancel, which unblocked Work Order
+  cancel — full reversal-order chain live-confirmed end to end). `produced_qty`/`consumed_qty`
+  reversal is `SOURCE VERIFIED`: both are recomputed from a fresh `SUM` over currently-submitted
+  entries on every Manufacture *and* Material Transfer submit/cancel (`manufacture-completion.md`),
+  not incremented/decremented — cancelling removes the entry from that sum mechanically, not via any
+  bespoke reversal code this app or ERPNext needs to get right per-field.
+- **Material Consumption for Manufacture** — `SOURCE VERIFIED` only (this app has no flow that
+  creates one; `validate_cancel()`'s check is unfiltered by purpose, so it would block/unblock
+  identically to the two purposes above if one ever existed). `NOT LIVE VERIFIED` — no real or
+  fixture entry of this purpose exists on this instance; this package's own `qa-tester` live-QA pass
+  confirmed the exact purpose string (`"Material Consumption for Manufacture"`) against the live
+  schema and confirmed the identical filter-tuple shape resolves correctly for the two sibling
+  purposes, but did not fabricate a fixture merely to exercise this one label.
+- **Job Card unblock chain** (Job Card cancel blocked by a submitted Manufacture entry -> cancel
+  that entry via the canonical Stock Entry page -> Job Card cancel succeeds -> Work Order cancel
+  succeeds) — `LIVE VERIFIED`, already fully proven by `MFG-JOBCARD-LC-1` scenario F. Not re-run
+  this package; re-verifying an already-closed scenario with a fresh fixture chain was judged
+  wasteful.
+
+**Real gap found and fixed — Outcome B, minimal UX remediation, no lifecycle code touched:**
+`MFG-FOLLOWUP-WO-LINK-1` (flagged open by `MFG-WO-LC-1`, see that package's `connections.ts`
+comment) was still open at this package's start: the Work Order detail page's cancel-blocker
+preview rendered a blocking Job Card name as a real link but rendered blocking Material
+Transfer/Manufacture Stock Entry names as plain text, even though `Connection.href` already carried
+a valid `/stock/stock-entries` base for those entries. Fixed generically in
+`work-orders/[name]/page.tsx` — every blocker entry now renders as a link to its canonical detail
+route, no purpose-specific special-casing. A `"Material Consumption"` labeled entry was also added
+to `connections.ts`'s `"Work Order"` config (same shape as the pre-existing `"Manufacture"` entry)
+so that purpose gets a clear proactive label too, closing the "no dedicated human-readable blocker
+label" gap for it. Both confirmed `LIVE VERIFIED` against real data by this package's own
+`qa-tester` pass: real Work Order `MFG-WO-2026-00004`'s two submitted Stock Entries
+(`MAT-STE-2026-00001` Material Transfer, `MAT-STE-2026-00002` Manufacture) both resolve correctly
+through the new link-generating logic to real, existing `/stock/stock-entries/<name>` pages — not a
+404. Code-reviewed independently (`code-reviewer`, no blocking findings on the change itself; see
+`QA_LOG.md` for the one non-blocking git-hygiene finding about a shared dirty file, handled at
+commit time via selective hunk staging, not a defect in the change).
+
+**Stock/accounting safety:** no custom stock or GL reversal logic was introduced or considered —
+every reversal above is entirely ERPNext-native, triggered by a single `cancelDoc("Stock Entry",
+name)` call this app already had before this package started.
