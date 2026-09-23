@@ -11,7 +11,14 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { StockBadge } from "@/components/StockBadge";
 import { getConnections, type Connection } from "@/lib/connections";
 import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
-import { canCancelWorkOrder, canCompleteProduction, canTransferMaterials, workOrderStatus } from "@/lib/erpStatus";
+import {
+  canCancelWorkOrder,
+  canCompleteProduction,
+  canTransferMaterials,
+  jobCardStatus,
+  workOrderStatus,
+} from "@/lib/erpStatus";
+import type { DocStatus } from "@/lib/docStatus";
 import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
@@ -91,6 +98,7 @@ type MaterialTransferRow = {
  */
 type JobCardRow = {
   name: string;
+  docstatus: DocStatus;
   status?: string;
   operation?: string;
   workstation?: string;
@@ -140,6 +148,7 @@ export default async function WorkOrderDetailPage({
     listDocs<JobCardRow>("Job Card", {
       fields: [
         "name",
+        "docstatus",
         "status",
         "operation",
         "workstation",
@@ -529,12 +538,21 @@ export default async function WorkOrderDetailPage({
             </tr>
           </thead>
           <tbody>
-            {jobCards.map((jc) => (
+            {jobCards.map((jc) => {
+              const jcStatus = jobCardStatus(jc);
+              return (
               <tr key={jc.name} className="border-b border-border last:border-0">
-                {/* Plain text, deliberately not a link — no Job Card detail route exists yet
-                    (a separate future package), so this must not imply one does. */}
-                <td className={`${cell} font-mono text-graphite-900`}>{jc.name}</td>
-                <td className={`${cell} text-graphite-500`}>{jc.status || "—"}</td>
+                {/* Real link — MFG-JOBCARD-1 shipped the detail route. */}
+                <td className={`${cell} font-mono text-graphite-900`}>
+                  <Link href={`/manufacturing/job-cards/${encodeURIComponent(jc.name)}`} className="text-signal hover:underline">
+                    {jc.name}
+                  </Link>
+                </td>
+                {/* docstatus-first, not raw `status` — see jobCardStatus's doc comment for
+                    the stale-status-after-cancel finding this guards against. */}
+                <td className={`${cell}`}>
+                  <StatusPill label={jcStatus.label} tone={jcStatus.tone} />
+                </td>
                 <td className={`${cell} text-graphite-500`}>{jc.operation || "—"}</td>
                 <td className={`${cell} text-graphite-500`}>{jc.workstation || "—"}</td>
                 <td className={`${cell} text-right font-mono tabular-nums`}>{jc.for_quantity ?? "—"}</td>
@@ -544,7 +562,8 @@ export default async function WorkOrderDetailPage({
                 <td className={`${cell} font-mono text-graphite-500`}>{jc.actual_start_date || "—"}</td>
                 <td className={`${cell} font-mono text-graphite-500`}>{jc.actual_end_date || "—"}</td>
               </tr>
-            ))}
+              );
+            })}
             {jobCards.length === 0 && (
               <tr>
                 <td colSpan={10} className="px-4 py-6 text-center text-graphite-500">
@@ -661,8 +680,26 @@ export default async function WorkOrderDetailPage({
             (cancelBlocking.length > 0 ? (
               <p className="text-sm text-alert">
                 Cannot cancel — linked with submitted{" "}
-                {cancelBlocking.map((c) => `${c.label} ${c.submittedDocs!.join(", ")}`).join("; ")}. Cancel
-                those first.
+                {cancelBlocking.map((c, i) => (
+                  <span key={c.label}>
+                    {i > 0 && "; "}
+                    {c.label}{" "}
+                    {/* Job Card links to its real detail route (MFG-JOBCARD-1). Material
+                        Transfer/Manufacture Stock Entries still render as plain text —
+                        wiring those is the separate, still-open MFG-FOLLOWUP-WO-LINK-1. */}
+                    {c.label === "Job Card"
+                      ? c.submittedDocs!.map((docName, j) => (
+                          <span key={docName}>
+                            {j > 0 && ", "}
+                            <Link href={`${c.href}/${encodeURIComponent(docName)}`} className="underline hover:no-underline">
+                              {docName}
+                            </Link>
+                          </span>
+                        ))
+                      : c.submittedDocs!.join(", ")}
+                  </span>
+                ))}
+                . Cancel those first.
               </p>
             ) : cancelEligibility.allowed ? (
               <DocActionBar

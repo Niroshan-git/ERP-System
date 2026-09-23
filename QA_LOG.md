@@ -2229,3 +2229,66 @@ found; the one real issue (an unearned verification record) has been corrected i
 documentation above, not silently absorbed. Not self-declared `ACCEPTED` — pending Niroshan's
 review and independent cross-review per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its
 window.
+
+## 2026-09-23 — `MFG-JOBCARD-1` — Job Card read-only workspace — code review + live QA
+
+**Scope**: new `/manufacturing/job-cards` (list) and `/manufacturing/job-cards/[name]` (detail)
+routes, `JobCardsTable.tsx`, `jobCardStatus()` in `lib/erpStatus.ts`, and cross-link updates to
+the Work Order detail page's Job Cards tab and Cancel-blocker preview. Strictly read-only — no
+create/submit/cancel/execution capability shipped; those are `MFG-JOBCARD-LC-1`/`MFG-JOBCARD-2`.
+
+**Code review** (`code-reviewer`, fresh subagent): no blocking findings. Independently re-derived
+that `jobCardStatus()`'s `docstatus`-first branching (`docstatus===2` → Cancelled,
+`docstatus===0` → Draft, checked before ever touching the raw `status` field) is airtight against
+the known stale-status-after-cancel quirk; confirmed every Job Card status render in the codebase
+goes through it (no leftover raw `.status` rendering); confirmed zero mutation capability exists
+anywhere in the diff (`"use server"`/fetch grep, zero matches); confirmed the Work Order Cancel
+blocker-preview's Job-Card-only link special-case doesn't regress the existing Material
+Transfer/Manufacture plain-text rendering; confirmed API layer discipline (`lib/erpnext.ts`
+wrappers only) and component reuse (no forked components). Two non-blocking suggestions, one
+applied same day (`docstatus` typed as the shared `DocStatus` alias instead of plain `number`,
+matching every sibling status function in `erpStatus.ts`).
+
+**Live QA** (`qa-tester`, fresh subagent, read-only — zero writes to the live instance, no
+fixtures created or needed since nothing mutates):
+
+- **A — List query**: `GET Job Card` with the exact field list `page.tsx` fetches returned all
+  12 real Job Cards with every field present and correctly typed; `Operation`/`Workstation`
+  option lists and `get_count` (12) also confirmed.
+- **B — Draft Job Card**: `PO-JOB00002` (docstatus 0) — every field the detail page reads
+  confirmed present with exact names in the real API response; `jobCardStatus` → "Draft"/neutral,
+  correct.
+- **C — Submitted/Completed Job Card**: `PO-JOB00001` (docstatus 1, status "Completed") — same
+  field cross-check plus 2 real `time_logs` rows with real employee/time/qty data, rendering
+  correctly.
+- **D — Cancelled Job Card**: no real cancelled Job Card exists on this instance (by design —
+  disposable fixtures from `MFG-JOBCARD-0` were fully cleaned up, not left cancelled). Per
+  instruction, no new fixture was created merely to exercise this cosmetic case — verified
+  code-correct instead: `jobCardStatus`'s `docstatus===2` branch is evaluated unconditionally
+  before any reference to `status`, so it is correct for any stale value. Explicitly flagged as
+  code-verified, not live-verified.
+- **E/F — Work Order ↔ Job Card navigation**: `MFG-WO-2026-00002` (real Work Order) ↔
+  `PO-JOB00001`/`PO-JOB00002` (its real Job Cards) — both link directions confirmed to produce
+  correct, working URLs against real document names.
+- **G — Nonexistent Job Card**: confirmed live 404 (`DoesNotExistError`) correctly triggers
+  `notFound()`, same pattern as every other detail page in this app.
+- **H — Permissions**: reconfirmed live (fresh calls, not re-trusting prior docs) that the
+  service account's existing roles already cover Job Card/Operation/Workstation read access — no
+  new provisioning needed.
+
+**Static validation**: `npx tsc --noEmit`, `npm run lint`, `npm run build` all clean (re-run a
+second time after the `DocStatus` type cleanup, still clean). Both new routes compile and appear
+in the production route table.
+
+**Not independently browser-tested**: no interactive browser session was available to either
+subagent — verification method was live REST field-shape cross-check against the real API plus a
+clean production build, not a manual click-through. Flagged, not hidden.
+
+**Documentation**: `docs/backend/05-manufacturing/job-card.md`, `README.md`, and
+`docs/backend/15-migration/migration-status.md` updated to mark `MFG-JOBCARD-1` shipped and
+recommend `MFG-JOBCARD-LC-1` (Cancel) next. Foreign uncommitted Master Data (MD-UNV-003) and a
+concurrent Observability Center session's files deliberately **not** touched throughout.
+
+**Sign-off**: `CLAUDE_HANDOFF` — code review and live QA both complete with no blocking findings;
+not self-declared `ACCEPTED`, pending Niroshan's review and independent cross-review per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.

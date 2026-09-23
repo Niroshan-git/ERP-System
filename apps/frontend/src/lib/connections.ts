@@ -240,11 +240,13 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
   // elsewhere on the Work Order detail page). Job Card is a THIRD, independent blocker — but
   // caught by the *generic* Frappe back-link mechanism instead (`LinkExistsError`, a different
   // exception shape from the Stock Entry `ValidationError`), since Work Order's own
-  // `validate_cancel()` never looks at Job Card at all. `hrefBase: ""` for Job Card is
-  // deliberate: no Job Card detail route exists anywhere in this app yet (a future scoped
-  // package), and `getConnections()`'s only current consumer (the cancel-blocking preview
-  // pattern below) renders plain document names, never a link, so this is inert today, not a
-  // dead link — do not wire a `hrefBase` here until a real Job Card route exists.
+  // `validate_cancel()` never looks at Job Card at all. `hrefBase` now points at the real Job
+  // Card detail route shipped in `MFG-JOBCARD-1` — the Work Order detail page's blocker preview
+  // renders each Job Card `submittedDocs` entry as a real per-document link
+  // (`${hrefBase}/${name}`), so an operator blocked by a submitted Job Card can navigate
+  // straight to it. Material Transfer/Manufacture above deliberately still render as plain text
+  // — wiring those into real per-document links is `MFG-FOLLOWUP-WO-LINK-1`, intentionally left
+  // open rather than folded into this narrow, Job-Card-specific change.
   //
   // Two further real link fields to Work Order exist on this instance (`Pick List.work_order`,
   // `Serial No.work_order`) but are not included here — this app has no create/cancel workflow
@@ -276,7 +278,7 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
       parentDoctype: "Job Card",
       childDoctype: "Job Card",
       filterField: "work_order",
-      hrefBase: "",
+      hrefBase: "/manufacturing/job-cards",
     },
   ],
 };

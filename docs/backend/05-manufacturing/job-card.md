@@ -2,16 +2,19 @@
 
 **Frappe DocType:** `Job Card` (module: Manufacturing)
 **Canonical entity:** `job_card`
-**Frontend surface today:** no dedicated route — fields are read only on the Work Order detail
-page's Job Cards tab (`/manufacturing/work-orders/[name]`) and via `apps/mcp-server`'s
-`list_job_cards`/`get_job_card_detail` tools (a separate consumer, different purpose).
+**Frontend surface today:** read-only list (`/manufacturing/job-cards`) and detail
+(`/manufacturing/job-cards/[name]`) pages, shipped `MFG-JOBCARD-1` (2026-09-23) — plus the
+pre-existing read-only fields on the Work Order detail page's Job Cards tab (now linked to the
+new detail route instead of plain text) and `apps/mcp-server`'s `list_job_cards`/
+`get_job_card_detail` tools (a separate consumer, different purpose). No create/submit/cancel/
+execution capability exists yet — see "Proposed Ceylon Stack architecture" below for what's next.
 **Verification:** `Documentation: VERIFIED` — full model, lifecycle, time-log, quantity, and
 Cancel/Amend contract confirmed via direct read of the live ERPNext v16.34.2 / Frappe v16.33.1
 source (`job_card.py`, `job_card_time_log.py`, `work_order.py`, `frappe/model/{document,delete_doc}.py`)
 and one disposable-fixture live test (`TEST-JOBCARD-0-*`, cleaned up, real data confirmed
-untouched). Resolves `MFG-UNV-004`. This document is the `MFG-JOBCARD-0` discovery/architecture
-package's output — **no code was written**; everything below is investigation plus a proposed
-(not yet built) frontend architecture.
+untouched) during `MFG-JOBCARD-0`. Resolves `MFG-UNV-004`. `MFG-JOBCARD-1`'s read-only frontend
+was independently live-QA'd against the real instance (zero-mutation, field-shape cross-check
+against real API responses) and code-reviewed with no blocking findings — see `QA_LOG.md`.
 
 ## Fields (full model, not just what the Work Order tab currently reads)
 
@@ -173,12 +176,12 @@ Only 3 roles have any access at all: **System Manager, Manufacturing User, Manuf
 
 ### Suggested package sequence (dependency-ordered, evidence-based, not forced to match the illustrative shape in the brief)
 
-1. **`MFG-JOBCARD-1` — Read-only list + detail + Work Order contextual link.** Zero lifecycle actions. Closes the "Job Card is a dead end from the Work Order page" gap on its own and is independently valuable/shippable even if nothing else follows. Must render `docstatus`-derived state, not the raw `status` field, per the quirk above.
+1. **`MFG-JOBCARD-1` — Read-only list + detail + Work Order contextual link. `SHIPPED` (2026-09-23).** Zero lifecycle actions, as scoped. `docstatus`-derived state (`jobCardStatus()` in `lib/erpStatus.ts`), not the raw `status` field, per the quirk above — live-QA'd. Work Order detail's Job Cards tab and the Work Order Cancel blocker-preview message both now link a Job Card name to the real detail route instead of plain text.
 2. **`MFG-JOBCARD-LC-1` — Cancel.** The actual motivating capability (unblocks Work Order cancel without Desk). Native `cancelDoc("Job Card", name)`, same defense-in-depth re-fetch/re-check pattern as every prior lifecycle package this project has shipped. Needs `MFG-JOBCARD-1`'s detail page to exist first (a Cancel action needs somewhere to live). Should surface `validate_produced_quantity()`'s rejection message (see `MFG-UNV-014`) via the same `humanizeCancelError` pass-through pattern, not a custom message.
 3. **`MFG-JOBCARD-2` — Time-log/execution actions** (`start_timer`/`pause_job`/`resume_job`/`complete_job_card`). Bigger scope — this is the actual shop-floor execution UX, not just lifecycle plumbing, and given the live-data signal that Job Card is barely used today, this is reasonably deferred until there's a concrete operational need, rather than assumed urgent.
 4. **`MFG-OPERATION-1` / `MFG-WORKSTATION-1`** — not required before any of the above (see "Operation/Workstation dependency"); only worth scoping if the business needs to add a 3rd operation/workstation, independent of Job Card's own timeline.
 
-Recommended immediate next package: **`MFG-JOBCARD-1`** — smallest, independently valuable, and a hard prerequisite for `MFG-JOBCARD-LC-1` (which is the package that actually closes the "Desk dependency" gap this whole investigation was motivated by).
+Recommended next package: **`MFG-JOBCARD-LC-1`** — Cancel is the package that actually closes the "Desk dependency" gap this whole investigation was motivated by, and its hard prerequisite (`MFG-JOBCARD-1`'s detail page) is now shipped.
 
 ### Operator experience (derived from the actual lifecycle, not assumed)
 

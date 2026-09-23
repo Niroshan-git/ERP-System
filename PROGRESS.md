@@ -4196,3 +4196,45 @@ touched, read in depth, staged, or committed.
 **Sign-off:** `CLAUDE_HANDOFF` — docs-only discovery, no code changed, so no `code-reviewer`/
 `qa-tester` pass required per the Package Closure Rules; not self-declared `ACCEPTED` pending
 Niroshan's review of the proposed package breakdown and sequencing.
+
+## MFG-JOBCARD-1 — Job Card read-only workspace (2026-09-23)
+
+**What was built:** the first canonical Job Card frontend capability — read-only list
+(`/manufacturing/job-cards`) and detail (`/manufacturing/job-cards/[name]`) pages, following the
+`MFG-JOBCARD-0` discovery package's contract. New `jobCardStatus()` in `lib/erpStatus.ts`
+implements the `docstatus`-first display rule that discovery flagged as load-bearing: Job Card's
+native `status` field can read stale after cancel, so `docstatus===2` always shows "Cancelled"
+and `docstatus===0` always shows "Draft", regardless of what the raw field says — only
+`docstatus===1` trusts the richer native status label. Work Order detail's existing Job Cards tab
+now links each Job Card name to the new route (previously deliberately plain text since no route
+existed) and uses the same docstatus-first status pill. The Work Order Cancel blocker-preview
+message now links a blocking Job Card's name to its detail page — a narrow, Job-Card-only change;
+Material Transfer/Manufacture Stock Entry blockers deliberately remain plain text
+(`MFG-FOLLOWUP-WO-LINK-1`, still open). No create/submit/cancel/execution capability shipped —
+strictly read-only, per scope.
+
+**Code review:** no blocking findings from an independent fresh subagent. Confirmed the
+`docstatus`-first branching is airtight, zero mutation capability exists anywhere in the diff,
+API-layer discipline held, and the Cancel-blocker-preview change didn't regress the existing
+Stock Entry plain-text rendering. Two non-blocking suggestions, one applied same day (`docstatus`
+typed as the shared `DocStatus` alias, matching every sibling status function).
+
+**Live QA:** independent fresh subagent, read-only (zero writes — nothing to mutate). Scenarios
+A–H (list query, Draft Job Card, Completed Job Card, cancelled-lifecycle-display code-verification,
+both navigation directions, nonexistent-name 404, permissions) all PASS, with every field the new
+pages consume cross-checked against real live API responses for field-name accuracy. Scenario D
+(cancelled Job Card) verified code-correct rather than live, since no real cancelled Job Card
+exists on this instance and none was created solely to exercise a cosmetic display case.
+
+**Static validation:** `tsc`/`eslint`/`build` all clean.
+
+**Documentation:** `docs/backend/05-manufacturing/job-card.md`, `README.md`, and
+`docs/backend/15-migration/migration-status.md` updated to mark this shipped and recommend
+`MFG-JOBCARD-LC-1` (Cancel) next — the package that actually closes the Desk-dependency gap this
+whole initiative was motivated by. Foreign uncommitted Master Data (MD-UNV-003) and a concurrent
+Observability Center session's files were not touched throughout implementation, QA, or this
+closure.
+
+**Sign-off:** `CLAUDE_HANDOFF` — code review and live QA both complete with no blocking findings;
+not self-declared `ACCEPTED`, pending Niroshan's review and independent cross-review per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.

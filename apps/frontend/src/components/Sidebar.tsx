@@ -16,6 +16,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronsUpDown,
+  ClipboardCheck,
   ClipboardList,
   Contact,
   Database,
@@ -252,8 +253,10 @@ const STOCK_NAV_GROUPS: NavGroupDef[] = [
 // First Manufacturing package (2026-09-17): Work Orders list only. Production Plan (PP-1,
 // 2026-09-19) added Production Plans as this group's second item — a read-only foundation,
 // see docs/backend/05-manufacturing/production-plan.md's "Frontend footprint"/"Canonical
-// routing decision" sections for why it belongs here, not under /master-data. Job Card,
-// Workstations, and OEE remain unbuilt, each its own future scoped package.
+// routing decision" sections for why it belongs here, not under /master-data. Job Cards
+// (MFG-JOBCARD-1, 2026-09-23) added a read-only list/detail workspace — Cancel/execution
+// actions remain separate future packages (MFG-JOBCARD-LC-1/MFG-JOBCARD-2). Workstations
+// and OEE remain unbuilt, each its own future scoped package.
 const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "cycle",
@@ -261,6 +264,7 @@ const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
     icon: Workflow,
     items: [
       { href: "/manufacturing/work-orders", label: "Work Orders", icon: ClipboardList },
+      { href: "/manufacturing/job-cards", label: "Job Cards", icon: ClipboardCheck },
       { href: "/manufacturing/production-plans", label: "Production Plans", icon: ListTree },
     ],
   },

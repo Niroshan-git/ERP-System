@@ -533,6 +533,34 @@ export function canCancelWorkOrder(doc: {
   return { allowed: true };
 }
 
+const JOB_CARD_STATUS_TONE: Record<string, StatusTone> = {
+  Open: "neutral",
+  "Work In Progress": "signal",
+  "Partially Transferred": "alert",
+  "Material Transferred": "signal",
+  "On Hold": "alert",
+  Submitted: "signal",
+  Completed: "success",
+};
+
+/**
+ * `docstatus`-first, deliberately NOT a pass-through of the raw `status` field like
+ * `workOrderStatus` — `MFG-JOBCARD-0`'s discovery (source + live-fixture-confirmed against the
+ * live v16.34.2 install) found Job Card's own `status` field goes **stale after cancel**:
+ * `on_cancel()` never calls `set_status(update_status=True)`, so a cancelled Job Card can still
+ * read e.g. `"Completed"` in the database. `docstatus` is the only reliable source of truth for
+ * Draft/Cancelled; the richer native `status` label (Open/Work In Progress/.../Completed) is
+ * only trusted for `docstatus === 1`, where no staleness was observed — same
+ * `docstatus`-first-then-richer-`status` shape as `salesOrderStatus`/`quotationStatus`/
+ * `pickListStatus`/`materialRequestStatus` elsewhere in this file, not a new pattern invented
+ * for Job Card. See `docs/backend/05-manufacturing/job-card.md`'s "Lifecycle" section.
+ */
+export function jobCardStatus(doc: { docstatus: DocStatus; status?: string }): StatusDisplay {
+  if (doc.docstatus === 2) return { label: "Cancelled", tone: "alert" };
+  if (doc.docstatus === 0) return { label: "Draft", tone: "neutral" };
+  return { label: doc.status || "Submitted", tone: JOB_CARD_STATUS_TONE[doc.status ?? ""] ?? "neutral" };
+}
+
 /**
  * BOM has no separate `status` Select field of its own (live-confirmed via
  * `get_doctype_fields`, 2026-09-19 Manufacturing Masters (BOM) investigation — see

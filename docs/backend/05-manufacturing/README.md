@@ -24,10 +24,10 @@ exists in the current build"):
   Stock Entry was created/submitted this session** — `Runtime Test: NOT RUN`, see that doc's "Live
   QA" section.
 - [`job-card.md`](job-card.md) — full model, lifecycle, time-log, quantity, and Cancel/Amend
-  contract (`MFG-JOBCARD-0` discovery package, 2026-09-23) — resolves `MFG-UNV-004`. Still no
-  frontend beyond the Work Order detail page's read-only Job Cards tab; a proposed route/package
-  sequence (`MFG-JOBCARD-1` read-only → `MFG-JOBCARD-LC-1` Cancel → `MFG-JOBCARD-2` execution) is
-  documented but not built.
+  contract (`MFG-JOBCARD-0` discovery package, 2026-09-23) — resolves `MFG-UNV-004`. Read-only
+  list/detail frontend (`MFG-JOBCARD-1`, 2026-09-23) shipped: `/manufacturing/job-cards` +
+  `/manufacturing/job-cards/[name]`, plus real Work Order ↔ Job Card cross-links. Cancel
+  (`MFG-JOBCARD-LC-1`) and execution/time-log actions (`MFG-JOBCARD-2`) remain future packages.
 - [`bom.md`](bom.md) — started as a 2026-09-19 investigation baseline (BOM/BOM Item/BOM Operation
   schema, lifecycle, costing, multi-level, Production Plan relationship, Operation/Routing/
   Workstation classification), then **implemented**: `/master-data/boms` now has read-only
