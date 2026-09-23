@@ -3864,3 +3864,82 @@ resolved.
 **Sign-off:** `CLAUDE_HANDOFF` — docs-only discovery, no code changed, so no `code-reviewer`/
 `qa-tester` pass was required per the Package Closure Rules; not self-declared `ACCEPTED` pending
 Niroshan's review of the proposed package breakdown and priority-lock placement.
+
+## Observability & Audit Center — Package O-2: Identity + Correlation Foundation (2026-09-23)
+
+**Provenance:** Niroshan issued a detailed, explicit package brief for "O-2 — IDENTITY +
+CORRELATION FOUNDATION" covering session/role strategy, correlation-ID lifecycle, a
+`smart_factory` whitelisted API surface, central `erpnext.ts` integration, redaction, and
+failure/degradation behavior — all as one package, after O-1 was committed separately
+(`37b5889`). This package's actual scope supersedes the finer O-2/O-3/O-5 split
+`docs/observability-architecture.md` had proposed at the end of O-1 — see that doc's
+"Superseded note" for why bundling them was the approved, not expanded, scope.
+
+**What was built:** a real human identity ("actor") is now distinguishable from the shared
+ERPNext execution principal (the `frontend-integration@ceylonstack.local` service account every
+write actually runs as) throughout the app's central API layer, and every ERPNext call now
+carries a `CS-YYMMDD-XXXXXX` correlation ID. New: `apps/smart_factory/smart_factory/api/
+observability.py` (two whitelisted methods, `log_operation` and `resolve_actor_roles`, gated by
+a caller-identity check against the one service account); `apps/frontend/src/lib/erpnextAuth.ts`,
+`correlationId.ts`, `redact.ts`, `actorContext.ts`, `observability.ts`. Modified: `lib/erpnext.ts`
+(correlation ID generation/propagation and actor-attributed activity reporting wired into
+`erpnextFetch()`, `createDoc`/`updateDoc`/`deleteDoc`/`submitDoc`/`cancelDoc` — zero page/
+`actions.ts` files touched, per `FRONTEND_GUIDE.md`'s single-API-layer rule), `lib/session.ts`
+(`isSystemManager` derived from real ERPNext roles at login, not client-suppliable),
+`lib/errorLog.ts` (correlation ID field), `app/api/auth/login/route.ts` (resolves roles at
+login). Full design write-up, including the "actor vs execution principal" trust model and why
+`AsyncLocalStorage` was investigated and rejected for this package, in
+`docs/observability-architecture.md`'s "O-2" section. Code committed at `2e297fe`.
+
+**Real bug found and fixed during live testing:** `Activity Log.reference_name` is a Dynamic
+Link — beyond the generic link validation `ignore_links=True` skips, `Activity Log`'s own
+`validate()` hook unconditionally loads the referenced document with no way to suppress it, so
+a reference to a just-deleted (or otherwise stale) document silently dropped the entire activity
+write. Fixed by checking the referenced document actually exists, not just that its DocType
+does — otherwise the reference is omitted rather than blocking the record.
+
+**Mid-session incident (twice):** partway through implementation, this package's entire
+working-tree diff (all new/modified files, and the doc section describing them) was discarded
+outside git — confirmed via `git status`/`git diff` showing the files absent/unmodified,
+`git reflog` showing no reset, and independently corroborated the first time by a `code-reviewer`
+subagent whose own `git`/`find` checks hit the same absence mid-review and correctly refused to
+review content it couldn't verify existed. It happened a second time after the first rebuild was
+already reviewed and its one finding fixed. Both times the backend module was unaffected
+(deployed live to Hetzner via SSH/docker, independent of the local git tree) and served as the
+source of truth for rebuilding — each rebuild was diffed against the live deployment and
+confirmed byte-identical. After the second occurrence, the code was committed (`2e297fe`)
+immediately upon rebuilding, before further doc/PROGRESS.md work, specifically to remove the
+working tree as the single point of failure — committed content survived both incidents.
+
+**Testing:** live-verified against the real Hetzner instance via `bench --site frontend
+console` — unauthenticated HTTP rejection (403), wrong-caller rejection (`PermissionError`),
+malformed correlation ID replacement, `CRITICAL`/`INFO` severity routing, `resolve_actor_roles`
+for both a real and nonexistent user, and the reference-existence bug above (found, fixed,
+re-verified, all test records cleaned up from the live instance). `npx tsc --noEmit`, scoped
+`eslint`, and a full `npm run build` all pass clean. **Not executed:** a full authenticated
+browser flow (real human login → real write → confirming Activity Log attribution) — needs a
+real ERPNext user's password, which this session was not given and should not request; flagged
+for `qa-tester` or Niroshan to close.
+
+**Independent review:** `code-reviewer` found one real, blocking issue — `lib/redact.ts`'s
+`Authorization:` pattern only matched the scheme word ("Bearer"/"token"), leaving the actual
+credential un-redacted in the small window where a raw header might end up in a logged message —
+fixed (captures the header value in one match instead of relying on later patterns to catch
+what the first one had already partially consumed) and verified against representative inputs.
+Confirmed via independent code trace, not just re-reading comments: actor/role forgery is not
+possible through this chain, `after()`/`cookies()` ordering is correct, no circular import, all
+29 existing `updateDoc()` call sites remain valid, an old session cookie without
+`isSystemManager` still parses. One non-blocking note (`actor_full_name`/`actor_email` aren't
+length-truncated in `observability.py`) left as a future follow-up.
+
+**Not done:** no UI surfaces the correlation ID yet (no `error.tsx`/`global-error.tsx` — still
+absent, confirmed in O-1); Admin/System Logs UI, Error Explorer, Audit Trail view, User
+Activity view, and Integration monitoring are all future packages (O-6 through O-11) that
+consume this foundation, not part of it. `QA_LOG.md` and the release-tracker sync are still
+outstanding — deferred to `qa-tester`'s pass given the one untestable-without-credentials gap
+above.
+
+**Sign-off:** `CLAUDE_HANDOFF` — independently reviewed with one real finding fixed; code
+committed; not self-declared `ACCEPTED`, pending Niroshan's review (per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window, otherwise the standard Codex
+handoff) and a `qa-tester` pass to close the authenticated-browser-flow gap.
