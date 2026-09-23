@@ -9,12 +9,13 @@ import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocTabs } from "@/components/DocTabs";
 import { ProgressBar } from "@/components/ProgressBar";
 import { StockBadge } from "@/components/StockBadge";
+import { getConnections, type Connection } from "@/lib/connections";
 import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
-import { canCompleteProduction, canTransferMaterials, workOrderStatus } from "@/lib/erpStatus";
+import { canCancelWorkOrder, canCompleteProduction, canTransferMaterials, workOrderStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
-import { submitWorkOrderAction } from "../actions";
+import { cancelWorkOrderAction, submitWorkOrderAction } from "../actions";
 
 type WorkOrderItemRow = {
   item_code: string;
@@ -122,10 +123,10 @@ export default async function WorkOrderDetailPage({
   searchParams,
 }: {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ transferred?: string; produced?: string }>;
+  searchParams: Promise<{ transferred?: string; produced?: string; cancelled?: string }>;
 }) {
   const { name } = await params;
-  const { transferred, produced } = await searchParams;
+  const { transferred, produced, cancelled } = await searchParams;
 
   let doc: WorkOrderDoc;
   try {
@@ -135,7 +136,7 @@ export default async function WorkOrderDetailPage({
     throw e;
   }
 
-  const [jobCards, materialTransfers, manufactureEntries, timeline, session] = await Promise.all([
+  const [jobCards, materialTransfers, manufactureEntries, timeline, session, connections] = await Promise.all([
     listDocs<JobCardRow>("Job Card", {
       fields: [
         "name",
@@ -175,11 +176,18 @@ export default async function WorkOrderDetailPage({
     }),
     buildTimeline("Work Order", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
+    // Cancel dependency guard (MFG-WO-LC-1) — only meaningful once Submitted; re-derived
+    // server-side again inside `cancelWorkOrderAction` before it actually cancels anything, so
+    // this is a UI-only preview, not the enforcement point — same "preview here, real check in
+    // the action" pattern `cancelBomAction`/`cancelProductionPlanAction` already established.
+    doc.docstatus === 1 ? getConnections("Work Order", doc.name) : Promise.resolve<Connection[]>([]),
   ]);
 
   const status = workOrderStatus(doc);
   const transferEligibility = canTransferMaterials(doc);
   const productionEligibility = canCompleteProduction(doc);
+  const cancelEligibility = canCancelWorkOrder(doc);
+  const cancelBlocking = connections.filter((c) => (c.submittedDocs?.length ?? 0) > 0);
   const producedQty = doc.produced_qty ?? 0;
   const remaining = Math.max(doc.qty - producedQty, 0);
   const progressPct = doc.qty > 0 ? (producedQty / doc.qty) * 100 : 0;
@@ -613,6 +621,11 @@ export default async function WorkOrderDetailPage({
           </Link>
         </div>
       )}
+      {cancelled && (
+        <div className="mb-4 rounded-md border border-border bg-canvas px-4 py-2 text-sm font-medium text-graphite-700">
+          Work Order cancelled.
+        </div>
+      )}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-medium text-graphite-900">{doc.name}</h1>
@@ -644,6 +657,23 @@ export default async function WorkOrderDetailPage({
               Complete Production
             </Link>
           )}
+          {doc.docstatus === 1 &&
+            (cancelBlocking.length > 0 ? (
+              <p className="text-sm text-alert">
+                Cannot cancel — linked with submitted{" "}
+                {cancelBlocking.map((c) => `${c.label} ${c.submittedDocs!.join(", ")}`).join("; ")}. Cancel
+                those first.
+              </p>
+            ) : cancelEligibility.allowed ? (
+              <DocActionBar
+                action={cancelWorkOrderAction.bind(null, doc.name)}
+                label="Cancel Work Order"
+                pendingLabel="Cancelling…"
+                variant="danger"
+              />
+            ) : (
+              <p className="text-sm text-graphite-500">{cancelEligibility.reason}</p>
+            ))}
         </div>
       </div>
       <DocTabs

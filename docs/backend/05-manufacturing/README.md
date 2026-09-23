@@ -8,8 +8,10 @@ Documented against the actual current frontend build in `apps/frontend/src/app/(
 per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` §10-11 ("only document functionality that
 exists in the current build"):
 
-- [`work-order.md`](work-order.md) — Work Order list, detail (6 tabs), and create. Fields,
-  business rules, lifecycle, relationships.
+- [`work-order.md`](work-order.md) — Work Order list, detail (6 tabs), create, Submit
+  (`MFG-WF-004`), and Cancel (`MFG-WO-LC-1`, 2026-09-23). Fields, business rules, lifecycle,
+  relationships. See its "Cancel contract" section for the full dependency matrix (Stock Entry,
+  Job Card, Production Plan cascade).
 - [`material-transfer.md`](material-transfer.md) — Material Transfer for Manufacture (the
   Stock Entry flow triggered from Work Order Detail). Fields, business rules, stock impact.
 - [`manufacture-completion.md`](manufacture-completion.md) — Manufacture Stock Entry
@@ -27,7 +29,8 @@ exists in the current build"):
   schema, lifecycle, costing, multi-level, Production Plan relationship, Operation/Routing/
   Workstation classification), then **implemented**: `/master-data/boms` now has read-only
   list/detail, create, Draft-only edit, Submit (`MFG-CLOSE-0c`, 2026-09-22), submitted-BOM
-  Active/Inactive/Default availability actions, and Cancel/Amend (`MFG-CLOSE-2`, 2026-09-23) — see
+  Active/Inactive/Default availability actions, and Cancel/Amend (`MFG-BOM-LC-1`, formerly logged
+  as `MFG-CLOSE-2` — see `docs/operations/AI_WORK_LOG.md`'s Package-ID note, 2026-09-23) — see
   `bom.md`'s "Frontend capability"/"Mutation contract"/"Submit contract"/"Submitted-BOM
   availability contract"/"Cancel/Amend contract".
 - [`production-plan.md`](production-plan.md) — started as a 2026-09-19 discovery/canonicalization
@@ -53,8 +56,6 @@ list/detail, BOM, Workstations, and OEE are each their own future scoped package
 - **Workstations** — not touched by the frontend at all yet.
 - **OEE** — not touched by the frontend; belongs to `apps/mes-service` eventually, not
   `apps/frontend`.
-- **Work Order Cancel** — Work Order Create and Submit both exist (see `work-order.md`,
-  `MFG-WF-004`); there is still no Cancel action in the frontend for Work Order itself.
 - **Production Plan (planning workspace)** — superseded: this is now a fully built, live-verified
   planning workspace (`/manufacturing/production-plans` — create, submit, Get Sub Assembly Items,
   Make Work Order, Make Material Request, cancel with real cascade rules; see

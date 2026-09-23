@@ -2,8 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createDoc, ErpNextError, submitDoc } from "@/lib/erpnext";
+import { cancelDoc, createDoc, ErpNextError, getDoc, submitDoc } from "@/lib/erpnext";
 import { getBomDetails } from "@/lib/actions/bomLookup";
+import { getConnections } from "@/lib/connections";
+import { canCancelWorkOrder } from "@/lib/erpStatus";
 
 export type FormState = { error?: string } | undefined;
 
@@ -20,6 +22,29 @@ function humanizeSubmitError(e: unknown): string {
   if (e instanceof ErpNextError) {
     if (e.status === 403) return "Not allowed to submit this work order.";
     return e.erpnextMessage ?? "ERPNext rejected this submission — check the required fields.";
+  }
+  return "Something went wrong. Try again.";
+}
+
+/**
+ * Passes ERPNext's own rejection text through mostly untouched, same "don't re-frame a cancel
+ * as a validation problem" precedent as `cancelBomAction`'s `humanizeCancelError`
+ * (`master-data/boms/actions.ts`). A Work Order cancel can surface **two structurally different
+ * exception shapes** for the two independent blockers this package's own source investigation
+ * found (`docs/backend/05-manufacturing/work-order.md`'s "Cancel contract"): a plain
+ * `ValidationError` from Work Order's own bespoke `validate_cancel()` (submitted Stock Entry, or
+ * `status === "Stopped"`), and a `LinkExistsError` from Frappe's entirely separate generic
+ * back-link mechanism (submitted Job Card — `validate_cancel()` never looks at Job Card at all).
+ * Both arrive as `ErpNextError` with a real `erpnextMessage` either way, so no special-casing by
+ * exception type is needed here — `lib/connections.ts`'s proactive check already catches the
+ * common Stock-Entry/Job-Card cases before this is ever reached; this is the fallback for
+ * anything that check doesn't cover (the confirmed-but-not-proactively-checked Pick List/Serial
+ * No link fields, a concurrent submission racing the page's own stale render, etc.).
+ */
+function humanizeCancelError(e: unknown): string {
+  if (e instanceof ErpNextError) {
+    if (e.status === 403) return "Not allowed to cancel this work order.";
+    return e.erpnextMessage ?? "ERPNext rejected this cancellation.";
   }
   return "Something went wrong. Try again.";
 }
@@ -227,4 +252,68 @@ export async function submitWorkOrderAction(name: string): Promise<FormState> {
   revalidatePath("/manufacturing/work-orders");
   revalidatePath(`/manufacturing/work-orders/${encodeURIComponent(name)}`);
   redirect(`/manufacturing/work-orders/${encodeURIComponent(name)}`);
+}
+
+/**
+ * docstatus 1 → 2 via ERPNext's own native cancel (`cancelDoc`, the same generic mechanism
+ * `cancelBomAction`/`cancelProductionPlanAction`/`cancelSalesOrderAction`/
+ * `cancelPurchaseOrderAction` already use) — no bespoke cancellation logic, no cascade-cancelling
+ * of downstream documents (`MFG-WO-LC-1`'s explicit, deliberate boundary: this app must never
+ * silently cancel a Work Order's Material Transfer/Manufacture Stock Entries or Job Cards on the
+ * user's behalf — ERPNext itself refuses the parent cancel while any of those are submitted,
+ * and that refusal is the correct, final word here).
+ *
+ * Re-fetches the Work Order fresh and independently re-checks eligibility via
+ * `canCancelWorkOrder()` — never trusts the page that rendered the button, same defense-in-depth
+ * precedent as every other action in this app. `getConnections("Work Order", name)` is re-derived
+ * server-side here too (not passed in from the caller), covering this package's own source-verified
+ * dependency matrix: Work Order's own `validate_cancel()` blocks on any submitted Stock Entry
+ * (Material Transfer or Manufacture, checked here as two separately labeled entries purely for a
+ * clearer message — ERPNext's own check doesn't distinguish purpose), and Frappe's generic
+ * back-link mechanism separately blocks on any submitted Job Card. Both are proactively
+ * surfaced with real document names before ERPNext is even asked to cancel; anything neither
+ * check catches (e.g. a submitted Pick List/Serial No, or a dependency created in the instant
+ * between this page's render and this action running) still surfaces safely through
+ * `humanizeCancelError`'s pass-through of ERPNext's own rejection — this proactive check is a UI
+ * nicety, not the sole source of truth, same precedent as `lib/connections.ts` establishes
+ * throughout.
+ *
+ * Deliberately does **not** attempt to cancel/reverse those blocking documents itself, and does
+ * **not** touch the Work Order's own `produced_qty`/`transferred_qty`/`consumed_qty` — ERPNext's
+ * `on_cancel()` only ever sets `status` to `"Cancelled"` and updates back-references on *other*
+ * documents (Production Plan's `ordered_qty`/`status` when this Work Order came from one, live-
+ * confirmed to change; Material Request's completed qty likewise) — this app doesn't reproduce or
+ * second-guess any of that math, ERPNext does it natively on submit of the cancel itself.
+ */
+export async function cancelWorkOrderAction(name: string): Promise<FormState> {
+  let current: { docstatus: number; status: string };
+  try {
+    current = await getDoc<{ docstatus: number; status: string }>("Work Order", name);
+  } catch {
+    return { error: "Could not load this Work Order." };
+  }
+
+  const eligibility = canCancelWorkOrder(current);
+  if (!eligibility.allowed) {
+    return { error: eligibility.reason ?? "This Work Order cannot be cancelled." };
+  }
+
+  const connections = await getConnections("Work Order", name);
+  const blocking = connections.filter((c) => (c.submittedDocs?.length ?? 0) > 0);
+  if (blocking.length > 0) {
+    const parts = blocking.map((c) => `${c.label} ${c.submittedDocs!.join(", ")}`);
+    return {
+      error: `Cannot cancel — linked with submitted ${parts.join("; ")}. Cancel those first.`,
+    };
+  }
+
+  try {
+    await cancelDoc("Work Order", name);
+  } catch (e) {
+    return { error: humanizeCancelError(e) };
+  }
+
+  revalidatePath("/manufacturing/work-orders");
+  revalidatePath(`/manufacturing/work-orders/${encodeURIComponent(name)}`);
+  redirect(`/manufacturing/work-orders/${encodeURIComponent(name)}?cancelled=1`);
 }

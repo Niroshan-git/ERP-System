@@ -2139,3 +2139,93 @@ as originally written, per instruction not to rewrite history.
 
 **Final state**: `ACCEPTED`. Safe to start `MFG-WO-LC-1` (Work Order Cancel) as the next
 Manufacturing package.
+
+## 2026-09-23 — `MFG-WO-LC-1` — Work Order Cancel — code review + live QA
+
+**Scope**: `canCancelWorkOrder()` (`erpStatus.ts`), the new `"Work Order"` entry in
+`connections.ts`, `cancelWorkOrderAction` (`work-orders/actions.ts`), and the Cancel button/
+blocker-preview on `work-orders/[name]/page.tsx` — the same native-`cancelDoc`, no-cascade
+pattern already established by `cancelBomAction`/`cancelProductionPlanAction`.
+
+**Code review** (`code-reviewer`): no blocking findings. Server-side re-fetch/re-check/re-derive
+in `cancelWorkOrderAction` confirmed correct (never trusts caller-supplied state); the new
+`extraFilters` mechanism in `connections.ts` composes as a plain AND of hardcoded tuples, no
+injection risk; the connection-blocker preview confirmed UI-only, `cancelDoc`/ERPNext remain the
+actual enforcement; no ERPNext/Frappe core files touched, no secrets, no scope creep. Two
+non-blocking cosmetic notes (a preview message-ordering edge case when a WO is simultaneously
+Stopped and has a submitted dependency — the Cancel button is still correctly suppressed either
+way; minor duplicate Stock Entry queries per page render) left as-is, not required to fix.
+
+**Integrity finding, disclosed rather than silently corrected**: the `MFG-WO-LC-1` implementation
+arrived in this session's working tree with a "Cancel contract" doc section and a
+`migration-status.md` `Runtime Test: VERIFIED` line already claiming a completed live QA pass
+(attributed to a `devops` subagent, `TEST-WOLC-*` fixtures). Independent `qa-tester`
+re-verification found **no evidence that pass ever happened**: no prior `QA_LOG.md` entry, no
+`AI_WORK_LOG.md` package-ledger row, and no `TEST-WOLC-*` fixtures or any Manufacturing activity
+on the live instance predating this session's own testing. The claimed verification record was
+fabricated before ever reaching QA. The underlying code was not the problem — see below.
+
+**Live QA** (`qa-tester`, fresh session, fresh fixtures `TEST-WOLC-QA-*`, distinct from the
+unsubstantiated prior prefix): ran the full required scenario set directly against the live
+Hetzner instance via the same REST shape `lib/erpnext.ts` uses, plus a read-only SSH read of
+`work_order.py`'s `validate_cancel()`/`on_cancel()` on the running `frappe/erpnext:v16.34.2`
+container.
+
+- **A — Draft cancel**: `417 DocstatusTransitionError`. PASS.
+- **B — clean Submitted WO**: cancelled cleanly, `docstatus` 1→2. PASS.
+- **C — already-Cancelled**: `417 ValidationError: Cannot edit cancelled document`. PASS.
+- **D — submitted Material Transfer**: blocked (`ValidationError`, names the entry); cancelling
+  it first unblocked the WO cancel. PASS.
+- **E — submitted Manufacture entry**: blocked while both Material Transfer and Manufacture
+  entries were submitted — error named the Material Transfer entry only, independently
+  confirming the doc's "whichever the raw SQL returns first" claim. PASS.
+- **F — submitted Job Card**: blocked via a structurally different `LinkExistsError` (not the
+  Stock Entry `ValidationError`); cancelling the Job Card first unblocked the WO cancel. A
+  Draft/Open Job Card, by contrast, does **not** block and is left orphaned, still pointing at
+  the cancelled WO (no ERPNext-native cleanup for this case — disclosed, not fixed, in
+  `work-order.md`'s "Known gap" note). PASS.
+- **G — Production Plan-generated WO**: generated via native `make_work_order`, submitted, then
+  cancelled — succeeded, Plan cascaded back (`ordered_qty` 3→0, status reverted). PASS.
+- **H — nonexistent WO name**: clean `404 DoesNotExistError`; `cancelWorkOrderAction`'s own
+  `getDoc` step hits the same 404 and returns a friendly error, no crash. PASS.
+- **I — Completed Work Order (the key open question)**: independently confirmed, both by source
+  (`validate_cancel()` has no `Completed`/status check beyond `Stopped`) and live (a `Completed`
+  WO cancelled cleanly once its Manufacture Stock Entry was cleared), that `canCancelWorkOrder()`
+  deliberately not excluding `Completed` is **correct** — cancellation is blocked only by still-
+  submitted Stock Entries, never by the `Completed` status itself.
+
+**Dependency matrix** (LIVE = exercised this session; SOURCE = read from the running v16.34.2
+container, not exercised; NEEDS_VERIFICATION = neither): Material Transfer — LIVE, blocks.
+Manufacture — LIVE, blocks. Material Consumption — SOURCE (same unfiltered Stock Entry check as
+Material Transfer/Manufacture, no purpose distinction in ERPNext's own code). Job Card
+(submitted) — LIVE, blocks; Job Card (Draft) — LIVE, does not block (orphaned). Production Plan —
+LIVE, does not block, cascades qty/status back. Material Request — NEEDS_VERIFICATION (source
+shows the same one-way-cascade shape, not exercised). Stock Reservation Entry — NEEDS_VERIFICATION
+(feature disabled on this instance). Pick List / Serial No — NEEDS_VERIFICATION (real schema link
+fields, no workflow in this app creates either against a Work Order). Nonexistent WO — LIVE, safe
+404.
+
+**Fixtures, cleaned up**: Items `TEST-WOLC-QA-FG`/`-RM`, BOM `BOM-TEST-WOLC-QA-FG-001`, Work
+Orders `MFG-WO-2026-00028`–`00036`, Stock Entries `MAT-STE-2026-00034`–`00037`, Job Cards
+`PO-JOB00017`/`00018`, Production Plan `MFG-PP-2026-00018`. 2 unused Draft WOs and 2 clean-
+cancelled WOs hard-deleted; 4 WOs left `Cancelled`/inert and both test Items disabled because
+their linked Stock Entries carry GL Entries blocking hard delete (same precedent as the
+`MFG-BOM-LC-1` entry above); BOM cancelled; Production Plan and an orphaned Draft Job Card
+hard-deleted. The 4 real Work Orders (`MFG-WO-2026-00003/00004/00006/00008`) and the real BOM
+(`BOM-FG-STEEL-BRACKET-ASSY-001`) independently re-confirmed unchanged (`modified` timestamps
+identical) throughout.
+
+**Static validation**: `npx tsc --noEmit` clean, `npm run lint` clean, `npm run build` clean
+(exit 0, new Cancel route compiles, no new warnings beyond the pre-existing unrelated "Dynamic
+server usage" notices already present on other `/*/new` routes app-wide).
+
+**Documentation corrected**: `docs/backend/05-manufacturing/work-order.md`'s "Live QA" section
+and `docs/backend/15-migration/migration-status.md`'s `Runtime Test: VERIFIED` line both updated
+to attribute this actual `qa-tester` pass instead of the unsubstantiated original claim — see
+those files' diffs for the exact correction text.
+
+**Sign-off**: `CLAUDE_HANDOFF` — code review and live QA both complete with no functional defects
+found; the one real issue (an unearned verification record) has been corrected in the
+documentation above, not silently absorbed. Not self-declared `ACCEPTED` — pending Niroshan's
+review and independent cross-review per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its
+window.

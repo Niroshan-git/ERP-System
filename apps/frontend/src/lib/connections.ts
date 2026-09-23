@@ -27,6 +27,14 @@ type ConnectionConfig = {
   childDoctype: string;
   filterField: string;
   hrefBase: string;
+  /**
+   * Optional additional static filter tuples, ANDed with the name-based filter above (e.g.
+   * narrowing a `Stock Entry` back-reference to one `purpose`). Added for Work Order Cancel
+   * (`MFG-WO-LC-1`) to split the single generic "Stock Entry" back-link into separately labeled
+   * Material Transfer / Manufacture entries for a clearer blocking message — every entry that
+   * doesn't need this simply omits it, unaffected.
+   */
+  extraFilters?: [string, string, string, string][];
 };
 
 /**
@@ -223,6 +231,54 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
       hrefBase: "/manufacturing/work-orders",
     },
   ],
+  // Work Order Cancel guard (MFG-WO-LC-1): unlike BOM, Work Order's own `on_cancel() ->
+  // validate_cancel()` (source-confirmed on the live v16.34.2 install) carries its OWN
+  // bespoke check — a raw-SQL scan for any submitted Stock Entry with `work_order = <name>`,
+  // regardless of purpose — entirely separate from BOM's generic-backlink-only approach. Split
+  // into two labeled entries here purely for a clearer blocking message (ERPNext's own check
+  // doesn't distinguish purpose; this frontend does, since it already tracks both categories
+  // elsewhere on the Work Order detail page). Job Card is a THIRD, independent blocker — but
+  // caught by the *generic* Frappe back-link mechanism instead (`LinkExistsError`, a different
+  // exception shape from the Stock Entry `ValidationError`), since Work Order's own
+  // `validate_cancel()` never looks at Job Card at all. `hrefBase: ""` for Job Card is
+  // deliberate: no Job Card detail route exists anywhere in this app yet (a future scoped
+  // package), and `getConnections()`'s only current consumer (the cancel-blocking preview
+  // pattern below) renders plain document names, never a link, so this is inert today, not a
+  // dead link — do not wire a `hrefBase` here until a real Job Card route exists.
+  //
+  // Two further real link fields to Work Order exist on this instance (`Pick List.work_order`,
+  // `Serial No.work_order`) but are not included here — this app has no create/cancel workflow
+  // that would ever generate a submitted Pick List or Serial No referencing a Work Order
+  // specifically (Pick List here is Sales-Order-scoped only), so a proactive check would query
+  // for a case that can't occur through this app; left to ERPNext's own real enforcement if
+  // ever wrong, same "proactive check is a UI nicety, not the source of truth" precedent as
+  // every other entry in this file. See `docs/backend/05-manufacturing/work-order.md`'s
+  // "Cancel contract" section for the full dependency matrix and evidence.
+  "Work Order": [
+    {
+      label: "Material Transfer",
+      parentDoctype: "Stock Entry",
+      childDoctype: "Stock Entry",
+      filterField: "work_order",
+      extraFilters: [["Stock Entry", "purpose", "=", "Material Transfer for Manufacture"]],
+      hrefBase: "/stock/stock-entries",
+    },
+    {
+      label: "Manufacture",
+      parentDoctype: "Stock Entry",
+      childDoctype: "Stock Entry",
+      filterField: "work_order",
+      extraFilters: [["Stock Entry", "purpose", "=", "Manufacture"]],
+      hrefBase: "/stock/stock-entries",
+    },
+    {
+      label: "Job Card",
+      parentDoctype: "Job Card",
+      childDoctype: "Job Card",
+      filterField: "work_order",
+      hrefBase: "",
+    },
+  ],
 };
 
 export async function getConnections(doctype: string, name: string): Promise<Connection[]> {
@@ -233,7 +289,7 @@ export async function getConnections(doctype: string, name: string): Promise<Con
       try {
         const rows = await listDocs<{ name: string; docstatus: number }>(config.parentDoctype, {
           fields: ["name", "docstatus"],
-          filters: [[config.childDoctype, config.filterField, "=", name]],
+          filters: [[config.childDoctype, config.filterField, "=", name], ...(config.extraFilters ?? [])],
           limit: 500,
         });
         const docs = Array.from(new Set(rows.map((r) => r.name))).sort();

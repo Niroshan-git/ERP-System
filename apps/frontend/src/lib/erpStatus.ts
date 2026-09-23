@@ -491,6 +491,49 @@ export function canCompleteProduction(doc: {
 }
 
 /**
+ * Eligibility gate for Work Order Cancel (`MFG-WO-LC-1`). Source-verified against the live
+ * v16.34.2 install (`erpnext/manufacturing/doctype/work_order/work_order.py`), then live-tested
+ * against disposable fixtures — see `docs/backend/05-manufacturing/work-order.md`'s "Cancel
+ * contract" for the full dependency matrix. Two things this deliberately does NOT do, both
+ * confirmed live rather than assumed:
+ *
+ * - **Does not block `status === "Completed"`.** Unlike `canTransferMaterials`/
+ *   `canCompleteProduction`, which both exclude Completed, ERPNext's own `on_cancel()` ->
+ *   `validate_cancel()` has no status-based restriction beyond `"Stopped"` — a fully completed
+ *   Work Order is genuinely cancellable natively (live-confirmed: a Work Order with
+ *   `produced_qty` fully filled cancelled cleanly once its Stock Entries were cancelled first).
+ *   Excluding Completed here would hide a real, ERPNext-native action.
+ * - **Does not proactively re-derive the Stock Entry/Job Card dependency check itself** — that
+ *   lives in `lib/connections.ts`'s new `"Work Order"` entry (`getConnections`), reused by both
+ *   this page's preview and `cancelWorkOrderAction`'s own re-derived, authoritative check. This
+ *   function only covers the two conditions ERPNext's `validate_cancel()` itself checks structurally
+ *   (docstatus, `Stopped` status) — the same "check what this doctype's own controller checks,
+ *   leave everything else to the real backend" boundary `canTransferMaterials`/
+ *   `canCompleteProduction` already draw.
+ *
+ * `docstatus !== 1` covers both Draft (0 — nothing to cancel yet; Frappe's own generic
+ * docstatus-transition guard would reject it anyway, `DocstatusTransitionError`, live-confirmed)
+ * and already-Cancelled (2 — Frappe rejects with `ValidationError: Cannot edit cancelled
+ * document`, live-confirmed) with one shared, friendlier message each rather than surfacing
+ * ERPNext's generic error for a state the UI could simply not offer the button in.
+ */
+export function canCancelWorkOrder(doc: {
+  docstatus: number;
+  status: string;
+}): { allowed: boolean; reason?: string } {
+  if (doc.docstatus === 0) {
+    return { allowed: false, reason: "A Draft Work Order has nothing to cancel yet." };
+  }
+  if (doc.docstatus === 2) {
+    return { allowed: false, reason: "This Work Order is already cancelled." };
+  }
+  if (doc.status === "Stopped") {
+    return { allowed: false, reason: "This Work Order is Stopped — unstop it first, then cancel." };
+  }
+  return { allowed: true };
+}
+
+/**
  * BOM has no separate `status` Select field of its own (live-confirmed via
  * `get_doctype_fields`, 2026-09-19 Manufacturing Masters (BOM) investigation — see
  * `docs/backend/05-manufacturing/bom.md`'s Identity/Status tables) — only the standard

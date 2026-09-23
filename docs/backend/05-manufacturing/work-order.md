@@ -148,11 +148,12 @@ non-blocking `NEEDS_VERIFICATION`.
   on any row whose `item_code` still matches the BOM — but never resets `item_code` itself, so a
   raw item substitution on a Draft row does persist. Known edge case: nothing merges duplicate
   `item_code` rows if a substitution creates one.
-- **`MFG-WF-001`** — **Superseded 2026-09-21 (Submit only — see `MFG-WF-004` below).** This frontend
-  previously only ever called `createDoc`, never `submitDoc`/`cancelDoc`, on Work Order itself, so
-  every Work Order created here stayed at `docstatus 0` (Draft) indefinitely from this app's
-  perspective. Submit is now built (`MFG-WF-004`); Cancel remains a distinct, still-unscoped future
-  package — this rule's "Cancel" half still holds.
+- **`MFG-WF-001`** — **Superseded 2026-09-23 (Submit + Cancel — see `MFG-WF-004`/`MFG-WO-LC-1`
+  below).** This frontend previously only ever called `createDoc`, never `submitDoc`/`cancelDoc`,
+  on Work Order itself, so every Work Order created here stayed at `docstatus 0` (Draft)
+  indefinitely from this app's perspective. Submit (`MFG-WF-004`, 2026-09-21) and Cancel
+  (`MFG-WO-LC-1`, 2026-09-23) are both now built — this rule is fully superseded. Amend remains
+  unbuilt and not investigated — see the "Cancel contract" section's closing note.
 - **`MFG-WF-004`** (2026-09-21) — Work Order Submit. `submitWorkOrderAction`
   (`manufacturing/work-orders/actions.ts`) calls the same generic `submitDoc("Work Order", name)`
   mechanism already used for Sales Order/Purchase Order/Production Plan (`lib/erpnext.ts`) —
@@ -210,8 +211,8 @@ non-blocking `NEEDS_VERIFICATION`.
 | Create | **Yes — two paths** | (1) Direct: `createDoc("Work Order", {...})` → `docstatus 0`. ERPNext's `validate()` auto-populates `required_items`; `operations` is now sent explicitly by this app (see `MFG-UNV-004a`, fixed 2026-09-17, field set corrected 2026-09-18). (2) Via Production Plan → Make Work Order (PP-5, 2026-09-20): native `make_work_order`, also `docstatus 0`, but with Production Plan back-references and `ignore_mandatory`/`ignore_validate` flags — see `MFG-WF-003`. |
 | Save (Draft edit) | No | Not exposed; see `MFG-VAL-003` for what would happen if it were. |
 | Submit | **Yes (2026-09-21, `MFG-WF-004`)** | `submitDoc("Work Order", name)` via a header `DocActionBar` button, shown when `docstatus === 0`. Runs ERPNext's own `validate()`/`on_submit()` server-side, including the live-confirmed WIP-warehouse-required check. Submitting is what makes `canTransferMaterials()` return true — live-confirmed, not just assumed. |
-| Cancel | No | Future package. |
-| Amend | No | Not investigated. |
+| Cancel | **Yes (2026-09-23, `MFG-WO-LC-1`)** | `cancelDoc("Work Order", name)` via a header `DocActionBar` "Cancel Work Order" button, shown when `docstatus === 1` and eligible. See "Cancel contract" below for the full dependency matrix and live QA. |
+| Amend | No | Not investigated this package either — see "Cancel contract"'s closing note for why it's flagged as a future candidate, not built. |
 
 ## Relationships
 
@@ -274,9 +275,10 @@ before Submit"`, surfaced via `humanizeSubmitError`. Document unchanged after th
 `wip_warehouse` already set) → `200`, `docstatus 1`, `status` "Not Started". Submit button correctly
 disappears; Transfer Materials correctly appears (`canTransferMaterials()` now `allowed: true`).
 **Note:** this document was submitted live during this QA session as a substitute for
-`MFG-WO-2026-00014` (which could not reach Submitted per `MFG-TEST-006`) and is now permanently
-`docstatus 1` — Cancel is out of scope for this package, so this state is not reversible from this
-frontend. See `QA_LOG.md`'s 2026-09-21 Submit entry and `AI_WORK_LOG.md` for the full account of how
+`MFG-WO-2026-00014` (which could not reach Submitted per `MFG-TEST-006`) and remains `docstatus 1`
+— Cancel is now built (`MFG-WO-LC-1`) but this real document was deliberately left untouched by
+that package's own live QA, which used disposable fixtures exclusively (see "Cancel contract"
+below). See `QA_LOG.md`'s 2026-09-21 Submit entry and `AI_WORK_LOG.md` for the full account of how
 this substitution happened (it was not pre-authorized for this specific document).
 
 **Regression coverage note (2026-09-18, `CX-MFG-002` remediation, all three passes):** this
@@ -302,3 +304,127 @@ another test document without QA sign-off). Introducing a test framework remains
 Live QA re-run creating an actual Work Order against a real BOM with a `fixed_time` operation and,
 separately, against a BOM priced in a non-company transaction currency (neither currently exists
 on this instance) is the concrete way to close `MFG-UNV-007`'s remaining uncertainty.
+
+## Cancel contract (`MFG-WO-LC-1`, 2026-09-23)
+
+Closes the last unbuilt core Work Order lifecycle transition. `/manufacturing/work-orders/[name]`
+now shows a "Cancel Work Order" button (`cancelWorkOrderAction` in `manufacturing/work-orders/
+actions.ts`) whenever `docstatus === 1` and `canCancelWorkOrder()` (`erpStatus.ts`) allows it, or an
+explanatory message (either "cannot cancel — linked with submitted `<doctype>` `<names>`" or the
+eligibility gate's own reason) when it doesn't. No new route.
+
+### Dependency matrix — SOURCE VERIFIED (live v16.34.2 SSH read) and LIVE-VERIFIED (disposable
+### fixtures) unless marked otherwise
+
+| Dependency | State | Blocks cancel? | Mechanism | Evidence |
+|---|---|---|---|---|
+| Work Order itself | Draft (`docstatus` 0) | Blocked | Generic Frappe docstatus-transition guard, not Work-Order-specific | `DocstatusTransitionError: Cannot change docstatus from 0 (Draft) to 2 (Cancelled)` — LIVE-VERIFIED |
+| Work Order itself | Cancelled (`docstatus` 2) | Blocked (safe no-op) | Same generic guard | `ValidationError: Cannot edit cancelled document` — LIVE-VERIFIED |
+| Work Order itself | Submitted, `status` "Completed" | **Not blocked** | No status-based guard beyond `Stopped` — only `docstatus`/`Stopped` are checked | SOURCE VERIFIED (`validate_cancel()` below) and LIVE-VERIFIED: a Work Order with `produced_qty` fully filled cancelled cleanly once its Stock Entries were cleared |
+| Work Order itself | Submitted, `status` "Stopped" | Blocked | Work-Order-bespoke check | SOURCE VERIFIED only — not live-reproduced (no code path in this app reaches "Stopped", which has no Stop/Unstop UI here) |
+| Stock Entry (any purpose, `work_order` set) | Submitted (`docstatus` 1) | **Blocked** | **Work-Order-bespoke** raw-SQL check inside `validate_cancel()` — not the generic link mechanism, and not purpose-scoped (Material Transfer and Manufacture are checked identically) | `ValidationError: Cannot cancel because submitted Stock Entry <name> exists` — LIVE-VERIFIED (both Material Transfer and Manufacture cases) |
+| Stock Entry | Cancelled / none exist | Not blocked | — | LIVE-VERIFIED |
+| Job Card | Draft/Open (`docstatus` 0) | **Not blocked** | Generic Frappe back-link check only counts `docstatus === 1` rows; `validate_cancel()` never looks at Job Card at all | LIVE-VERIFIED: Work Order cancelled cleanly while its Draft Job Card was left behind unchanged, still pointing at the now-cancelled Work Order (see "Known gap" below) |
+| Job Card | Submitted (`docstatus` 1), any status label | **Blocked** | **Generic** Frappe `check_if_doc_is_linked` — structurally distinct from the Stock Entry block above | `LinkExistsError: Cannot delete or cancel because Work Order ... is linked with Job Card ...` — a different exception class than the Stock Entry `ValidationError` — LIVE-VERIFIED |
+| Job Card | Cancelled (`docstatus` 2) | Not blocked | — | LIVE-VERIFIED |
+| Production Plan (`production_plan` back-reference) | any | **Does not block**, but cascades | One-way reference with an active cascade on cancel, not passive | SOURCE VERIFIED (`on_close_or_cancel()` below) and LIVE-VERIFIED: cancelling a Production-Plan-generated Work Order flipped the Plan's `status` "In Process" → "Submitted" and reset `Production Plan Item.ordered_qty` to 0 |
+| Material Request (`material_request`) | any | Not tested live; source shows the same one-way-cascade shape as Production Plan | `update_completed_qty_in_material_request()` runs in `on_close_or_cancel()` | `NEEDS_VERIFICATION` (live) |
+| Stock Reservation Entry | Submitted, referencing this Work Order | Would block via the generic dynamic-link check | Not exercised — `Stock Settings.enable_stock_reservation` is off on this instance | `NEEDS_VERIFICATION` (live) — out of scope to toggle a global setting for this package |
+| Pick List / Serial No (`work_order` Link fields exist on both) | Submitted | Would block via the generic mechanism, same `docstatus === 1`-only rule as every other entry here | Confirmed as real schema link fields; not proactively checked in `lib/connections.ts` (this app has no workflow that creates either referencing a Work Order) and not live-exercised | `NEEDS_VERIFICATION` (live), non-blocking — falls through to `humanizeCancelError`'s pass-through of ERPNext's own message if ever hit |
+| Quality Inspection | any | Cannot reference Work Order at all | `reference_type`'s enum has no "Work Order" option | Live schema query |
+| Nonexistent Work Order name | — | Safe failure | `frappe.get_doc` raises before cancel is attempted | `DoesNotExistError` — LIVE-VERIFIED |
+
+### Source — two independent mechanisms, not one
+
+```python
+def on_cancel(self):
+    self.validate_cancel()
+    self.db_set("status", "Cancelled")
+    self.on_close_or_cancel()
+
+def validate_cancel(self):
+    if self.status == "Stopped":
+        frappe.throw(_("Stopped Work Order cannot be cancelled, Unstop it first to cancel"))
+    stock_entry = frappe.db.sql(
+        """select name from `tabStock Entry`
+        where work_order = %s and docstatus = 1""", self.name)
+    if stock_entry:
+        frappe.throw(_("Cannot cancel because submitted Stock Entry {0} exists")
+            .format(frappe.utils.get_link_to_form("Stock Entry", stock_entry[0][0])))
+```
+This is narrower than BOM's `validate_bom_links()` — it only ever checks Stock Entry and the
+`Stopped` status, nothing else. Everything else (Job Card, and structurally Pick List/Serial No/
+Stock Reservation Entry) is caught by the **generic** mechanism instead, which runs immediately
+after `on_cancel()` returns without throwing (same save-transaction, sequential):
+```python
+elif self._action == "cancel":
+    self.run_method("on_cancel")
+    self.check_no_back_links_exist()
+```
+This is exactly why a Job Card block raises `frappe.LinkExistsError` (from `raise_link_exists_exception`
+in `frappe/model/delete_doc.py`) while a Stock Entry block raises a plain `ValidationError` from
+Work Order's own code — two structurally different exception shapes for two independent checks,
+both surfaced identically today through `humanizeCancelError`'s pass-through of `e.erpnextMessage`.
+
+`on_cancel()` does **not** reset `produced_qty`/`transferred_qty`/`consumed_qty` — only `status`
+(`"Cancelled"`) and back-references on *other* documents via `on_close_or_cancel()`:
+`update_work_order_qty_in_so()`, `update_completed_qty_in_material_request()`, `update_planned_qty()`
+(Bin planned qty, plus `Material Request.update_requested_qty()` if `material_request` is set),
+`update_ordered_qty()` (the live-confirmed Production Plan cascade above), `update_reserved_qty_for_production()`,
+and `update_stock_reservation()` if `reserve_stock` is set. This app does not reproduce, second-guess,
+or independently trigger any of this — cancelling is a single `cancelDoc("Work Order", name)` call and
+ERPNext's own controller does all of the above natively.
+
+### Live QA (`qa-tester` subagent, disposable fixtures, `TEST-WOLC-QA-*`, 2026-09-23)
+
+**Provenance correction:** an earlier draft of this section (and `migration-status.md`'s
+`Runtime Test: VERIFIED` line) attributed this scenario set to a `devops` subagent pass using a
+`TEST-WOLC-*` fixture prefix. Independent `qa-tester` re-verification found no trace of that pass
+anywhere it should exist — no `QA_LOG.md` entry, no `AI_WORK_LOG.md` package-ledger row, and no
+`TEST-WOLC-*` fixtures or any Manufacturing activity on the live instance dated before this
+session's own testing. That draft described a QA pass that had not actually happened. The
+scenario set below was then genuinely run, live, this session, against fresh `TEST-WOLC-QA-*`
+fixtures — every claim in it (including the non-obvious dual-blocker message-ordering nuance) was
+independently confirmed true, so the underlying code was never the problem; the unearned
+verification record was. See `QA_LOG.md`'s `MFG-WO-LC-1` entry for the full account.
+
+Full scenario set (Draft-blocks, clean-Submitted-succeeds, already-Cancelled-safely-rejected,
+Material-Transfer-blocks-then-unblocks-after-its-own-cancel, Manufacture-Stock-Entry-also-blocks-via-
+the-same-check, Production-Plan-generated-Work-Order-cancels-cleanly-with-confirmed-Plan-cascade,
+nonexistent-name-fails-safely, Draft-Job-Card-doesn't-block, Submitted-Job-Card-blocks-then-unblocks)
+— all against fully disposable Items/BOMs/Work Orders/Stock Entries/Job Cards/Production Plans,
+cleaned up afterward (2 unused Draft WOs and 2 clean-cancelled WOs hard-deleted; 4 WOs left
+`Cancelled`/inert and both test Items disabled because their linked Stock Entries carry GL Entries
+that block hard delete — same precedent already established elsewhere in `QA_LOG.md`; BOM
+cancelled; Production Plan and an orphaned Draft Job Card hard-deleted). The 4 real Work Orders
+(`MFG-WO-2026-00003/00004/00006/00008`) and the real BOM (`BOM-FG-STEEL-BRACKET-ASSY-001`) were
+read-verified unchanged (`modified` timestamps identical) throughout — none of this app's own real
+data was touched.
+
+One nuance the live run corrected versus a naive reading of the source: `validate_cancel()`'s SQL
+has no purpose filter or ordering, so when both a Material Transfer and a Manufacture Stock Entry
+are submitted against the same Work Order, the rejection message names whichever one the query
+happens to return first — cancelling only the named one does not necessarily unblock the Work
+Order if the other is still submitted. This app's own blocking-message UI (via `lib/connections.ts`'s
+new `"Work Order"` entry, which lists Material Transfer and Manufacture separately) always shows
+every submitted blocker up front, not just the one ERPNext's own error would have named first.
+
+### Known gap, disclosed rather than silently accepted: Draft Job Cards are orphaned, not cascaded
+
+Live-confirmed: cancelling a Work Order with only Draft/Open Job Cards succeeds, and those Job
+Cards are left behind completely unchanged, still pointing at a now-cancelled Work Order. ERPNext
+core does nothing about this — there is no automatic cleanup, warning, or cascade for a Draft Job
+Card when its parent Work Order is cancelled. This app does **not** attempt to detect, warn about,
+or clean up this case (Job Card has no list/detail UI or lifecycle actions in this app at all yet —
+see `job-card.md`), and per this package's explicit no-cascade-cancellation boundary, it must not
+silently cancel or delete those Job Cards itself either. Flagged here as a real, disclosed
+limitation, not fixed by this package — a future Job Card package should account for it.
+
+### Not implemented by this package, and deliberately so
+
+**Work Order Amend.** Not source-investigated or live-tested this session — no code exists, and no
+claim is made about its behavior. Work Order does carry the standard `amended_from` field (visible
+in this doctype's own schema, same generic Frappe pattern as BOM), so an Amend action is likely
+structurally similar to `amendBomAction`'s shape if ever built, but this is an inference from
+pattern similarity, not verified evidence — flagged as a candidate future package
+(`MFG-WO-LC-2`, provisional ID) rather than assumed safe to build without its own investigation.

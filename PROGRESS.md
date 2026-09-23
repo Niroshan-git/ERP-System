@@ -3943,3 +3943,44 @@ above.
 committed; not self-declared `ACCEPTED`, pending Niroshan's review (per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window, otherwise the standard Codex
 handoff) and a `qa-tester` pass to close the authenticated-browser-flow gap.
+
+## MFG-WO-LC-1 — Work Order Cancel (2026-09-23)
+
+**What was built:** "Cancel Work Order" on `/manufacturing/work-orders/[name]`, shown when
+`docstatus === 1` and `canCancelWorkOrder()` allows it. Native `cancelDoc("Work Order", name)`,
+no cascade-cancellation of downstream documents — the same boundary already established by
+`cancelBomAction`/`cancelProductionPlanAction`. `cancelWorkOrderAction` re-fetches the Work Order
+fresh, re-checks eligibility, and re-derives dependency blockers server-side rather than trusting
+the page. New `"Work Order"` entry in `lib/connections.ts` splits the Stock Entry back-link check
+into labeled Material Transfer / Manufacture entries and adds a Job Card check, used both as a UI
+preview and as the action's own re-derived, authoritative-enough-to-block check (ERPNext's own
+`cancelDoc` call remains the final word regardless).
+
+**Integrity finding, disclosed:** this package's working-tree WIP arrived already containing a
+"Cancel contract" doc section and a `migration-status.md` line claiming a completed live QA pass
+(attributed to a `devops` subagent). Independent `qa-tester` re-verification found that pass never
+actually happened — no `QA_LOG.md` entry, no `AI_WORK_LOG.md` ledger row, no matching fixtures or
+Manufacturing activity on the live instance predating this session. The code was not the problem:
+a fresh, genuine live QA pass this session (`TEST-WOLC-QA-*` fixtures) independently confirmed
+every technical claim in the original draft was in fact true, including the key open question —
+whether ERPNext natively allows cancelling a `Completed` Work Order (confirmed yes, blocked only
+by still-submitted Stock Entries, never by the `Completed` status itself, both by source read of
+the live v16.34.2 `validate_cancel()` and by live test). The unearned verification record itself
+was corrected in `work-order.md` and `migration-status.md` rather than left to ship — see
+`QA_LOG.md`'s `MFG-WO-LC-1` entry for the full scenario-by-scenario account and dependency matrix.
+
+**Code review:** no blocking findings. Two non-blocking cosmetic notes (a preview message-
+ordering edge case that never actually lets a bad cancel through; minor duplicate Stock Entry
+queries per page render).
+
+**Static validation:** `tsc`/`eslint`/`build` all clean.
+
+**Not covered / `NEEDS_VERIFICATION`:** Material Request, Stock Reservation Entry (feature
+disabled on this instance), and Pick List/Serial No back-links — real schema link fields, not
+live-exercised, non-blocking (no workflow in this app creates the latter two against a Work
+Order). Work Order Amend not investigated or built — flagged as a candidate future package.
+
+**Sign-off:** `CLAUDE_HANDOFF` — code review and live QA both complete with no functional
+defects; the one real issue found (an unearned verification record, not a code defect) was
+corrected, not silently absorbed. Not self-declared `ACCEPTED`, pending Niroshan's review and
+independent cross-review per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
