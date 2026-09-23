@@ -1,7 +1,8 @@
 # Observability Center — Frontend Architecture
 
-**Status:** Package O-6 implemented (2026-09-23) — navigation shell + Observability
-Overview screen, DEMO data only. Not binding like `docs/controls/`; same tier as
+**Status:** Package O-6 (2026-09-23) — navigation shell + Observability Overview screen —
+and Package O-7 (2026-09-23) — Error Explorer + Trace Detail — both implemented. DEMO data
+only throughout. Not binding like `docs/controls/`; same tier as
 `docs/architecture.md` and `docs/observability-architecture.md` (the backend-side sibling
 doc this one builds on top of — read that one first for the trust model, actor-vs-
 execution-principal design, and correlation-ID lifecycle this frontend layer displays but
@@ -209,3 +210,119 @@ already built to accept a real route once Trace Detail exists.
   reads is `demoProvider.ts`'s own fixture data), so `BACKEND_KNOWLEDGE_POLICY.md`'s
   trigger condition ("meaningful ERP frontend feature") isn't met yet — it will be once a
   real backend adapter and its underlying `smart_factory` read API exist.
+
+## O-7: Error Explorer + Trace Detail (implemented 2026-09-23)
+
+**What this package built**, entirely on top of O-6's foundation — no parallel data
+architecture, no new auth logic:
+
+- **Routes:** `/admin/observability/errors` (Error Explorer) and
+  `/admin/observability/traces/[traceId]` (Trace Detail), both nested under
+  `app/(app)/admin/observability/`, so both automatically inherit the real server-side
+  `isSystemManager` re-check in `admin/observability/layout.tsx` — neither route contains
+  or duplicates any authorization logic of its own.
+- **Sidebar:** the "Errors" item flipped from `soon: true` to a real link
+  (`/admin/observability/errors`). User Activity/Audit Trail/Integrations remain
+  `soon: true` (O-8 through O-10).
+- **Provider extended, not replaced:** `ObservabilityProvider` (`provider.ts`) gained
+  `getErrors(filters, page, pageSize)`, `getTrace(correlationId)`, and
+  `getTechnicalDetails(correlationId)` — three new methods on the same interface O-6
+  defined, backed by three new `demoProvider.ts` functions (`getDemoErrors`,
+  `getDemoTrace`, `getDemoTechnicalDetails`). Pages call only the provider, never
+  `demoProvider.ts` directly, unchanged from O-6's rule.
+- **Demo data extended:** the same 15-fixture pool O-6 built now includes a new System/
+  ERPNext-connectivity-failure fixture (closing the one scenario category O-6's set
+  didn't cover) and explicit multi-step `timeline`/`technicalDetails` on 8 of the 15
+  fixtures spanning Manufacturing, Sales, Buying, and Integration — covering the mission's
+  requested scenario spread without padding the set past what's useful to evaluate
+  filters/severity/modules/actors/timelines (its own "quality over quantity" instruction).
+  The remaining 7 fixtures fall back to a single-event timeline derived from the
+  `ErrorEvent` itself (`buildDefaultTimeline()`), matching the real O-2-verified "one
+  write call = one correlation ID" model rather than inventing steps that didn't happen.
+- **New components:** `ErrorExplorerTable` (purpose-built, not `DataTable.tsx` — see
+  its own doc comment for why), `TraceTimeline`, `TechnicalDetailsPanel`,
+  `RelatedDocumentLink`, `CopyTextButton`. Reused unchanged from O-6/elsewhere:
+  `SeverityBadge`, `TraceIdBadge`, `ListFilterBar`, `PaginationControls`, `Breadcrumb`.
+- **Document routing:** `lib/observabilityCenter/documentRoutes.ts` — a new explicit
+  doctype-to-route allowlist (mission §21: "do not construct guessed routes... if no safe
+  canonical route exists, display the document identity without a fake link"). No generic
+  version of this existed anywhere in the codebase before — every existing page hardcodes
+  the one specific related-document route it already knows. Every entry here is copied
+  from a real, already-live `[name]/page.tsx` route (cross-referenced against
+  `Sidebar.tsx`'s nav groups), never invented.
+- **Overview wiring:** `ObservabilityTraceSearch` now navigates to Trace Detail on a
+  correctly-formatted ID (previously only gave inline feedback, since Trace Detail didn't
+  exist yet) — Trace Detail itself owns the not-found state, so the search component
+  doesn't pre-check existence. The Overview's "Errors by Module" rows and "Recent Critical
+  Events" now link to the real filtered Error Explorer / real Trace Detail, replacing
+  O-6's honest "opens once that package ships" placeholders.
+
+### Actor vs. Execution Principal on Trace Detail
+
+Rendered as two visually separate blocks in one panel, never merged into a single "User"
+field — matching O-2's own trust-model language exactly: Actor is labeled "Authenticated
+Ceylon Stack user who initiated the operation," Execution Principal is labeled "ERPNext
+account used to execute the operation." When `actor` is `null` (matches O-2's documented
+case: attribution can be legitimately absent), the panel says so explicitly rather than
+falling back to showing the execution principal in the Actor slot, which would silently
+misattribute the operation to the wrong identity.
+
+### Safe diagnostics — what changed from O-6's placeholder-only state
+
+O-6 defined `TechnicalDetails` as a type but never rendered it. O-7 renders it for real,
+gated by `getTechnicalDetails()` — for fixtures with no demo diagnostic content,
+`TechnicalDetailsPanel` shows the exact "Technical diagnostics will become available when
+secure diagnostic access is enabled" copy the mission specifies. For the 8 fixtures that
+do have demo diagnostic content, the panel renders it but with a persistent "Demo data"
+label directly on the panel — **this is DEMO content, not a live diagnostic feed**,
+consistent with the O-2 independent review's HIGH redaction finding (access_token/
+refresh_token bypassing `lib/redact.ts`) making unrestricted live diagnostic exposure
+explicitly unsafe today. The gate (`getTechnicalDetails()` as a call separate from
+`getTrace()`) is deliberately where a future real adapter should enforce secure-diagnostic
+authorization — not folded into the general trace summary fetch.
+
+### Pagination / filtering contract
+
+`getErrors(filters, page, pageSize)` returns `{ items, pagination: { page, pageSize,
+total } }` — a real page-by-page contract (mission §27), not "fetch everything and
+paginate in the browser." Demo mode computes an exact `total` cheaply (filtering an
+in-memory 15-row array), but the *shape* of the contract is what a future real adapter
+must also honor: filter and page server-side against the real store, never return the
+whole Error Log to the caller. Filter/search state lives entirely in the URL
+(`?severity=&module=&source=&status=&user=&doctype=&dateFrom=&dateTo=&page=&page_size=`),
+via the same `ListFilterBar`/`PaginationControls` GET-form convention every other list
+page in this app already uses — no client-side filter state, shareable/bookmarkable by
+design (mission §28).
+
+### Testing
+
+`npx tsc --noEmit`, scoped `eslint`, and `npm run build` all pass clean — all three new
+routes (`/admin/observability`, `/admin/observability/errors`,
+`/admin/observability/traces/[traceId]`) build as dynamic (`ƒ`) routes. Functionally
+verified against the running dev server via the same temporary `signSession()`-based
+session-minting technique O-6 used (never real credentials, deleted immediately after):
+Error Explorer renders all 15 demo fixtures with correctly-formatted trace IDs;
+`?severity=CRITICAL` correctly returns exactly the 5 CRITICAL fixtures; `?module=Finance`
+(a module that doesn't exist in the demo set) correctly renders the "No errors found"
+empty state rather than erroring; Trace Detail for the Material Transfer fixture
+(`CS-YYMMDD-F82A41`) renders its full 5-step timeline, gated Technical Details panel
+(labeled Demo data), and Actor/Execution Principal split correctly; Trace Detail for a
+plain INFO Login fixture correctly falls back to a single-event timeline and shows the
+"diagnostics unavailable" state (not the demo-data panel, since that fixture has no
+`technicalDetails`); a syntactically invalid trace ID and a validly-formatted-but-
+nonexistent trace ID both correctly render the "Trace not found" state with no server
+error, rather than crashing. **Not executed:** actual visual/responsive screen review in a
+real browser — the Chrome browser-automation extension was not connected in this session
+either, same limitation as O-6; only verified structurally via direct HTTP responses.
+
+### Not done in this package
+
+- User Activity, Audit Trail, Integration Monitoring screens (O-8 through O-10).
+- Broader search (document/user/operation free-text matching beyond exact trace-ID
+  lookup) in the global Overview search box — scoped out per the brief's own §23
+  instruction to design for exact lookup first.
+- Real backend read API — still the demo adapter throughout; `provider.ts`'s three new
+  methods are the seam waiting for it, same as O-6's `getSummary()`.
+- Visual/responsive screen review in an actual browser (see Testing above).
+- `QA_LOG.md`/`release-tracker` — same reasoning as O-6: no live ERPNext data, no core
+  flow touched, so neither is policy-mandated, but a `code-reviewer` pass was run.

@@ -335,23 +335,25 @@ const MASTER_DATA_NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
-// Admin module — first package (O-6, 2026-09-23): Observability Overview only. "Admin
-// Home" (the module's homeHref) *is* the Observability Overview page rather than a
-// separate landing dashboard, since Observability is currently the module's only
-// section — matching the mission brief's own IA ("Admin -> Observability -> Overview/
-// Errors/User Activity/Audit Trail/Integrations") without a redundant duplicate link to
-// the same page from both the top-level "Admin Home" link and a group item. Errors/User
-// Activity/Audit Trail/Integrations are each their own future package (O-7 through
-// O-10, see docs/observability-architecture.md's package breakdown) — listed as
-// `soon: true` now (same precedent Sales' "Returns & credits" group already sets for an
-// all-soon group) so the intended IA is visible without linking anywhere unbuilt.
+// Admin module. "Admin Home" (the module's homeHref) *is* the Observability Overview
+// page rather than a separate landing dashboard, since Observability is currently the
+// module's only section — matching the mission brief's own IA ("Admin -> Observability
+// -> Overview/Errors/User Activity/Audit Trail/Integrations") without a redundant
+// duplicate link to the same page from both the top-level "Admin Home" link and a group
+// item. O-6 (2026-09-23) shipped Overview only, with all four sub-screens as
+// `soon: true` placeholders. O-7 (2026-09-23) activated Errors (Error Explorer + Trace
+// Detail) as a real link. User Activity/Audit Trail/Integrations remain their own future
+// packages (O-8 through O-10, see docs/observability-architecture.md's package
+// breakdown) — still `soon: true` (same precedent Sales' "Returns & credits" group sets
+// for a partially-soon group) so the intended IA stays visible without linking anywhere
+// unbuilt.
 const ADMIN_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "observability",
     label: "Observability",
     icon: Activity,
     items: [
-      { label: "Errors", icon: Bug, soon: true },
+      { href: "/admin/observability/errors", label: "Errors", icon: Bug },
       { label: "User Activity", icon: History, soon: true },
       { label: "Audit Trail", icon: FileClock, soon: true },
       { label: "Integrations", icon: Cable, soon: true },

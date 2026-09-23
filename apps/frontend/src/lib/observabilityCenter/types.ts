@@ -84,7 +84,7 @@ export type TraceEvent = {
   detail: string; // short, user-safe — see TechnicalDetails for anything raw
 };
 
-/** One logical trace — the unit Trace Detail (a future package) renders. */
+/** One logical trace — the unit Trace Detail (package O-7) renders. */
 export type Trace = {
   correlationId: CorrelationId;
   status: EventStatus;
@@ -95,6 +95,7 @@ export type Trace = {
   executionPrincipal: ExecutionPrincipal;
   module: string;
   operation: string;
+  source: EventSource;
   referenceDoctype?: string;
   referenceName?: string;
   route?: string;
@@ -221,4 +222,11 @@ export type Pagination = {
   page: number;
   pageSize: number;
   total: number;
+};
+
+/** Error Explorer's page result — provider returns exactly one page's worth of rows plus
+ * the pagination state needed to render Prev/Next and a result count, never the full set. */
+export type ErrorListResult = {
+  items: ErrorEvent[];
+  pagination: Pagination;
 };

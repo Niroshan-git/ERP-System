@@ -1,6 +1,13 @@
 import "server-only";
-import { getDemoObservabilitySummary } from "./demoProvider";
-import type { ObservabilitySummary, TrendRange } from "./types";
+import { getDemoErrors, getDemoObservabilitySummary, getDemoTechnicalDetails, getDemoTrace } from "./demoProvider";
+import type {
+  ErrorListResult,
+  ObservabilityFilters,
+  ObservabilitySummary,
+  TechnicalDetails,
+  Trace,
+  TrendRange,
+} from "./types";
 
 /**
  * The data-provider boundary the Observability Center UI reads through — pages never call
@@ -16,6 +23,22 @@ import type { ObservabilitySummary, TrendRange } from "./types";
  */
 export type ObservabilityProvider = {
   getSummary(range: TrendRange): Promise<ObservabilitySummary>;
+  /** One page of Error Explorer rows. `pagination.page`/`pageSize` are inputs (what page
+   * to fetch); the returned `pagination.total` is the real filtered count — this is a
+   * real page-by-page contract (mission §27/§12), not "fetch everything and paginate in
+   * the browser." A future real adapter must honor the same contract: filter and page
+   * server-side, never return the whole Error Log to this function's caller. */
+  getErrors(filters: ObservabilityFilters, page: number, pageSize: number): Promise<ErrorListResult>;
+  /** Resolves one trace by its exact correlation ID, or `null` if no trace exists (or the
+   * caller isn't permitted to see it) — callers must render an honest not-found state on
+   * `null`, never assume a malformed ID means "not found yet, try again." */
+  getTrace(correlationId: string): Promise<Trace | null>;
+  /** Gated technical-diagnostics fetch, kept separate from `getTrace()` — see §19/§20 of
+   * the O-7 mission brief and the O-2 independent review's redaction finding. A real
+   * adapter should treat this as the point where secure-diagnostic authorization is
+   * actually enforced, not `getTrace()`'s general summary data. Today this always returns
+   * `{ available: false }` unless the demo fixture explicitly opted in. */
+  getTechnicalDetails(correlationId: string): Promise<TechnicalDetails>;
 };
 
 /**
@@ -30,6 +53,15 @@ export function getObservabilityProvider(): ObservabilityProvider {
   return {
     async getSummary(range) {
       return getDemoObservabilitySummary(range);
+    },
+    async getErrors(filters, page, pageSize) {
+      return getDemoErrors(filters, page, pageSize);
+    },
+    async getTrace(correlationId) {
+      return getDemoTrace(correlationId);
+    },
+    async getTechnicalDetails(correlationId) {
+      return getDemoTechnicalDetails(correlationId);
     },
   };
 }

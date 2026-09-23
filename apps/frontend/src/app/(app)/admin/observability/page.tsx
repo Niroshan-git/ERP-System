@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AlertOctagon, Cable, ClipboardList, Siren } from "lucide-react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { LineChart } from "@/components/LineChart";
@@ -111,21 +112,25 @@ export default async function ObservabilityOverviewPage({
           {summary.errorsByModule.length === 0 ? (
             <p className="py-6 text-center text-sm text-graphite-500">No errors found for this period.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-1">
               {summary.errorsByModule.map((row) => (
-                <li key={row.module} className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm">
-                  <span className="text-graphite-900">{row.module}</span>
-                  <span className="flex items-center gap-2">
-                    {row.criticalCount > 0 && (
-                      <span className="text-xs font-medium text-alert">{row.criticalCount} critical</span>
-                    )}
-                    <span className="text-graphite-500">{row.count} errors</span>
-                  </span>
+                <li key={row.module}>
+                  <Link
+                    href={`/admin/observability/errors?module=${encodeURIComponent(row.module)}`}
+                    className="flex items-center justify-between rounded-lg px-2 py-1.5 text-sm hover:bg-canvas"
+                  >
+                    <span className="text-graphite-900">{row.module}</span>
+                    <span className="flex items-center gap-2">
+                      {row.criticalCount > 0 && (
+                        <span className="text-xs font-medium text-alert">{row.criticalCount} critical</span>
+                      )}
+                      <span className="text-graphite-500">{row.count} errors</span>
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>
           )}
-          <p className="mt-3 text-xs text-graphite-500/70">Opens a filtered Error Explorer once that package ships.</p>
         </div>
 
         <div className="rounded-xl border border-border bg-surface p-4">
@@ -139,7 +144,12 @@ export default async function ObservabilityOverviewPage({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <SeverityBadge severity={event.severity} />
-                      <span className="text-sm font-medium text-graphite-900">{event.operation}</span>
+                      <Link
+                        href={`/admin/observability/traces/${encodeURIComponent(event.correlationId)}`}
+                        className="text-sm font-medium text-graphite-900 hover:text-signal hover:underline"
+                      >
+                        {event.operation}
+                      </Link>
                     </div>
                     <span className="text-xs text-graphite-500">{formatRelativeTime(event.occurredAt)}</span>
                   </div>
@@ -153,7 +163,10 @@ export default async function ObservabilityOverviewPage({
                     )}
                   </div>
                   <div className="mt-2">
-                    <TraceIdBadge correlationId={event.correlationId} />
+                    <TraceIdBadge
+                      correlationId={event.correlationId}
+                      openHref={`/admin/observability/traces/${encodeURIComponent(event.correlationId)}`}
+                    />
                   </div>
                 </li>
               ))}

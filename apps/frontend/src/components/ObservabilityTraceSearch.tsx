@@ -1,22 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import { looksLikeCorrelationId } from "@/lib/observabilityCenter/correlationIdFormat";
 
 /**
- * Global trace search (mission §23) — "paste a trace ID, reach the trace" is meant to be
- * the primary support workflow. Scoped to exact trace-ID lookup only for now, per the
- * brief's own instruction ("design for exact trace lookup first... do not implement
- * unsafe client-side scanning over all logs") — broader search (document/user/operation
- * text) is explicitly a later increment, not built here.
+ * Global trace search (mission §23) — "paste a trace ID, reach the trace" is the primary
+ * support workflow. Scoped to exact trace-ID lookup only, per the brief's own instruction
+ * ("design for exact trace lookup first... do not implement unsafe client-side scanning
+ * over all logs") — broader search (document/user/operation text) is a later increment.
  *
- * There is no Trace Detail route yet (Error Explorer/Trace Detail are O-7, out of this
- * package's scope) — submitting never pretends to navigate anywhere; it gives honest
- * inline feedback instead, consistent with §16's "do not create fake successful
- * behavior."
+ * A correctly-formatted ID navigates straight to Trace Detail (O-7) — that route owns the
+ * honest not-found state itself (mission §24) when the trace doesn't exist, so this
+ * component doesn't need to (and, without an API call, can't) pre-check existence. A
+ * malformed ID never navigates — inline feedback only, never a guessed/fake destination.
  */
 export function ObservabilityTraceSearch() {
+  const router = useRouter();
   const [value, setValue] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -28,10 +29,10 @@ export function ObservabilityTraceSearch() {
       return;
     }
     if (looksLikeCorrelationId(trimmed)) {
-      setFeedback("Trace lookup will open here once Error Explorer ships — this trace ID is correctly formatted.");
-    } else {
-      setFeedback("Enter an exact trace ID, e.g. CS-260923-F82A41 — broader search is a future increment.");
+      router.push(`/admin/observability/traces/${encodeURIComponent(trimmed.toUpperCase())}`);
+      return;
     }
+    setFeedback("Enter an exact trace ID, e.g. CS-260923-F82A41 — broader search is a future increment.");
   }
 
   return (

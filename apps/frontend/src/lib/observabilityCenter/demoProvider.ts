@@ -1,9 +1,14 @@
 import "server-only";
 import type {
   ErrorEvent,
+  ErrorListResult,
   ErrorTrendPoint,
   ModuleErrorBreakdown,
+  ObservabilityFilters,
   ObservabilitySummary,
+  TechnicalDetails,
+  Trace,
+  TraceEvent,
   TrendRange,
 } from "./types";
 
@@ -36,7 +41,18 @@ function hoursAgo(n: number): Date {
   return new Date(Date.now() - n * 60 * 60 * 1000);
 }
 
-type Fixture = Omit<ErrorEvent, "correlationId"> & { correlationIdSeed: string };
+type Fixture = Omit<ErrorEvent, "correlationId"> & {
+  correlationIdSeed: string;
+  /** Explicit multi-step timeline for the handful of fixtures built to showcase Trace
+   * Detail's timeline (mission §16/§25) — absent on the rest, which fall back to a
+   * single-event timeline derived from the ErrorEvent itself in `buildDefaultTimeline()`
+   * below. Matches the real O-2-verified model: "one write call = one correlation ID"
+   * today, so most traces genuinely have exactly one event — only a few fixtures need
+   * (demo) multi-event richness to prove the UI can render more once a future backend
+   * groups events under one trace (see `types.ts`'s Trace/TraceEvent doc comments). */
+  timeline?: TraceEvent[];
+  technicalDetails?: TechnicalDetails;
+};
 
 const FIXTURES: Fixture[] = [
   {
@@ -56,6 +72,21 @@ const FIXTURES: Fixture[] = [
     hasTechnicalDetails: true,
     httpStatus: 417,
     route: "/manufacturing/work-orders/WO-00042",
+    timeline: [
+      { id: "t1", occurredAt: hoursAgo(0.4).toISOString(), label: "User Action", kind: "USER_ACTION", detail: "Material Transfer" },
+      { id: "t2", occurredAt: hoursAgo(0.3999).toISOString(), label: "Server Action", kind: "SERVER_ACTION", detail: "Transfer request accepted" },
+      { id: "t3", occurredAt: hoursAgo(0.3998).toISOString(), label: "ERPNext API", kind: "ERPNEXT_API", detail: "make_stock_entry" },
+      { id: "t4", occurredAt: hoursAgo(0.3997).toISOString(), label: "ERPNext Validation", kind: "ERPNEXT_VALIDATION", detail: "Stock availability validation" },
+      { id: "t5", occurredAt: hoursAgo(0.3996).toISOString(), label: "Error", kind: "ERROR", detail: "Insufficient stock" },
+    ],
+    technicalDetails: {
+      available: true,
+      errorType: "ValidationError",
+      erpnextMessage: "Row #2: Qty must be less than or equal to Available Qty 12.0 in Warehouse Raw Materials - CS",
+      requestContext: "POST /api/method/erpnext.stock.doctype.stock_entry.stock_entry.make_stock_entry",
+      responseContext: "417 Expectation Failed",
+      metadata: { doctype: "Stock Entry", purpose: "Material Transfer for Manufacture", work_order: "WO-00042" },
+    },
   },
   {
     id: "demo-err-2",
@@ -74,6 +105,14 @@ const FIXTURES: Fixture[] = [
     hasTechnicalDetails: true,
     httpStatus: 417,
     route: "/sales/orders/SAL-ORD-2026-00041",
+    technicalDetails: {
+      available: true,
+      errorType: "ValidationError",
+      erpnextMessage: "Row #3: Rate is mandatory for FG-STEEL-BRACKET-ASSY under Price List Standard Selling.",
+      requestContext: "PUT /api/resource/Sales Order/SAL-ORD-2026-00041",
+      responseContext: "417 Expectation Failed",
+      metadata: { doctype: "Sales Order", price_list: "Standard Selling" },
+    },
   },
   {
     id: "demo-err-3",
@@ -108,6 +147,14 @@ const FIXTURES: Fixture[] = [
     referenceName: "MAT-PRE-2026-00027",
     userSafeMessage: "Purchase Receipt could not be created because the linked Purchase Order is fully received.",
     hasTechnicalDetails: true,
+    technicalDetails: {
+      available: true,
+      errorType: "ValidationError",
+      erpnextMessage: "Purchase Order MAT-PO-2026-00031 is already fully received against all items.",
+      requestContext: "POST /api/resource/Purchase Receipt",
+      responseContext: "417 Expectation Failed",
+      metadata: { doctype: "Purchase Receipt", purchase_order: "MAT-PO-2026-00031" },
+    },
     httpStatus: 417,
     route: "/buying/purchase-receipts/MAT-PRE-2026-00027",
   },
@@ -128,6 +175,20 @@ const FIXTURES: Fixture[] = [
     hasTechnicalDetails: true,
     httpStatus: 417,
     route: "/master-data/boms/BOM-FG-STEEL-BRACKET-ASSY-001",
+    timeline: [
+      { id: "t1", occurredAt: hoursAgo(14).toISOString(), label: "User Action", kind: "USER_ACTION", detail: "Submit BOM" },
+      { id: "t2", occurredAt: hoursAgo(13.999).toISOString(), label: "Server Action", kind: "SERVER_ACTION", detail: "Submit request accepted" },
+      { id: "t3", occurredAt: hoursAgo(13.998).toISOString(), label: "ERPNext Validation", kind: "ERPNEXT_VALIDATION", detail: "Component Item warehouse validation" },
+      { id: "t4", occurredAt: hoursAgo(13.997).toISOString(), label: "Error", kind: "ERROR", detail: "Missing default warehouse" },
+    ],
+    technicalDetails: {
+      available: true,
+      errorType: "ValidationError",
+      erpnextMessage: "Item RM-STEEL-ROD-10MM: Default Warehouse is mandatory for stock Item before this BOM can be submitted.",
+      requestContext: "PUT /api/resource/BOM/BOM-FG-STEEL-BRACKET-ASSY-001",
+      responseContext: "417 Expectation Failed",
+      metadata: { doctype: "BOM", item: "RM-STEEL-ROD-10MM" },
+    },
   },
   {
     id: "demo-err-6",
@@ -161,6 +222,19 @@ const FIXTURES: Fixture[] = [
     hasTechnicalDetails: true,
     httpStatus: 417,
     route: "/manufacturing/work-orders/MFG-WO-2026-00014",
+    timeline: [
+      { id: "t1", occurredAt: hoursAgo(30).toISOString(), label: "User Action", kind: "USER_ACTION", detail: "Submit Work Order" },
+      { id: "t2", occurredAt: hoursAgo(29.999).toISOString(), label: "ERPNext Validation", kind: "ERPNEXT_VALIDATION", detail: "validate_warehouse() stock check" },
+      { id: "t3", occurredAt: hoursAgo(29.998).toISOString(), label: "Error", kind: "ERROR", detail: "Insufficient stock in source warehouse" },
+    ],
+    technicalDetails: {
+      available: true,
+      errorType: "ValidationError",
+      erpnextMessage: "Work Order cannot be submitted: insufficient stock for RM-STEEL-ROD-10MM in Raw Materials - CS.",
+      requestContext: "PUT /api/resource/Work Order/MFG-WO-2026-00014",
+      responseContext: "417 Expectation Failed",
+      metadata: { doctype: "Work Order", warehouse: "Raw Materials - CS" },
+    },
   },
   {
     id: "demo-err-8",
@@ -195,6 +269,14 @@ const FIXTURES: Fixture[] = [
     referenceName: "MAT-PINV-2026-00019",
     userSafeMessage: "Purchase Invoice could not be submitted because the linked Supplier account is on hold.",
     hasTechnicalDetails: true,
+    technicalDetails: {
+      available: true,
+      errorType: "ValidationError",
+      erpnextMessage: "Supplier Coastal Steel Supplies is on hold — release the hold before submitting this invoice.",
+      requestContext: "PUT /api/resource/Purchase Invoice/MAT-PINV-2026-00019",
+      responseContext: "417 Expectation Failed",
+      metadata: { doctype: "Purchase Invoice", supplier: "Coastal Steel Supplies" },
+    },
     httpStatus: 417,
     route: "/buying/purchase-invoices/MAT-PINV-2026-00019",
   },
@@ -213,6 +295,14 @@ const FIXTURES: Fixture[] = [
     referenceName: "SAL-DN-2026-00033",
     userSafeMessage: "Delivery Note could not be submitted because the Pick List it was created from is not submitted.",
     hasTechnicalDetails: true,
+    technicalDetails: {
+      available: true,
+      errorType: "ValidationError",
+      erpnextMessage: "Pick List SAL-PL-2026-00028 must be submitted before this Delivery Note can be submitted.",
+      requestContext: "PUT /api/resource/Delivery Note/SAL-DN-2026-00033",
+      responseContext: "417 Expectation Failed",
+      metadata: { doctype: "Delivery Note", pick_list: "SAL-PL-2026-00028" },
+    },
     httpStatus: 417,
     route: "/sales/delivery-notes/SAL-DN-2026-00033",
   },
@@ -264,6 +354,14 @@ const FIXTURES: Fixture[] = [
     referenceName: "MFG-PP-2026-00016",
     userSafeMessage: "Production Plan could not raise Work Orders because a linked BOM is inactive.",
     hasTechnicalDetails: true,
+    technicalDetails: {
+      available: true,
+      errorType: "ValidationError",
+      erpnextMessage: "BOM BOM-FG-STEEL-BRACKET-ASSY-002 is not active and cannot be used to raise a Work Order.",
+      requestContext: "POST /api/method/run_doc_method",
+      responseContext: "417 Expectation Failed",
+      metadata: { doctype: "Production Plan", bom: "BOM-FG-STEEL-BRACKET-ASSY-002" },
+    },
     httpStatus: 417,
     route: "/manufacturing/production-plans/MFG-PP-2026-00016",
   },
@@ -281,6 +379,43 @@ const FIXTURES: Fixture[] = [
     userSafeMessage: "A scheduled Supplier data sync did not complete within its expected window.",
     hasTechnicalDetails: true,
     httpStatus: 504,
+    timeline: [
+      { id: "t1", occurredAt: hoursAgo(690).toISOString(), label: "Integration", kind: "SERVER_ACTION", detail: "Scheduled Supplier sync started" },
+      { id: "t2", occurredAt: hoursAgo(689.98).toISOString(), label: "Error", kind: "ERROR", detail: "Sync did not complete before timeout" },
+    ],
+    technicalDetails: {
+      available: true,
+      errorType: "TimeoutError",
+      requestContext: "Scheduled job: supplier_data_sync",
+      responseContext: "504 Gateway Timeout after 30s",
+      metadata: { integration: "Supplier Data Sync" },
+    },
+  },
+  {
+    id: "demo-err-15",
+    correlationIdSeed: "7A2E60",
+    severity: "CRITICAL",
+    occurredAt: hoursAgo(120).toISOString(),
+    module: "System",
+    operation: "ERPNext Connectivity Failure",
+    actor: null,
+    executionPrincipal: { email: "frontend-integration@ceylonstack.local" },
+    source: "SYSTEM",
+    status: "Resolved",
+    userSafeMessage: "The application could not reach ERPNext for a short period — requests during this window failed.",
+    hasTechnicalDetails: true,
+    httpStatus: 0,
+    timeline: [
+      { id: "t1", occurredAt: hoursAgo(120).toISOString(), label: "Server", kind: "SERVER_ACTION", detail: "Outbound request to ERPNext initiated" },
+      { id: "t2", occurredAt: hoursAgo(119.995).toISOString(), label: "Error", kind: "ERROR", detail: "Connection refused" },
+    ],
+    technicalDetails: {
+      available: true,
+      errorType: "NetworkError",
+      requestContext: "POST /api/resource/Stock Entry",
+      responseContext: "Network error — no response received",
+      metadata: { host: "erpnext (internal)" },
+    },
   },
 ];
 
@@ -290,6 +425,28 @@ function toErrorEvent(fixture: Fixture): ErrorEvent {
 }
 
 const ALL_EVENTS: ErrorEvent[] = FIXTURES.map(toErrorEvent);
+
+/** correlationId -> the fixture's explicit timeline/technicalDetails (when defined), keyed
+ * off the same computed IDs `ALL_EVENTS` uses, so `getDemoTrace()` can look up a fixture's
+ * richer detail by the ID a user actually searches/clicks, not by its internal `id`. */
+const TRACE_EXTRAS = new Map<string, Pick<Fixture, "timeline" | "technicalDetails">>(
+  FIXTURES.map((f) => [correlationIdFor(new Date(f.occurredAt), f.correlationIdSeed), { timeline: f.timeline, technicalDetails: f.technicalDetails }]),
+);
+
+/** Fallback timeline for the (majority of) fixtures with no explicit `timeline` — a single
+ * event derived from the ErrorEvent itself, matching the real O-2-verified "one write call
+ * = one correlation ID" model rather than inventing steps that didn't happen. */
+function buildDefaultTimeline(event: ErrorEvent): TraceEvent[] {
+  return [
+    {
+      id: `${event.id}-default`,
+      occurredAt: event.occurredAt,
+      label: event.severity === "INFO" ? "Server" : "Error",
+      kind: event.severity === "INFO" ? "SERVER_ACTION" : "ERROR",
+      detail: event.operation,
+    },
+  ];
+}
 
 const RANGE_HOURS: Record<TrendRange, number> = { "24h": 24, "7d": 24 * 7, "30d": 24 * 30 };
 const RANGE_BUCKETS: Record<TrendRange, { count: number; hoursPerBucket: number; labelFormat: (d: Date) => string }> = {
@@ -368,4 +525,103 @@ export async function getDemoObservabilitySummary(range: TrendRange): Promise<Ob
       .sort((a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime())
       .slice(0, 5),
   };
+}
+
+function matchesFilters(event: ErrorEvent, filters: ObservabilityFilters): boolean {
+  if (filters.severity && event.severity !== filters.severity) return false;
+  if (filters.module && event.module !== filters.module) return false;
+  if (filters.source && event.source !== filters.source) return false;
+  if (filters.status && event.status !== filters.status) return false;
+  if (filters.actorEmail && event.actor?.email !== filters.actorEmail) return false;
+  if (filters.doctype && event.referenceDoctype !== filters.doctype) return false;
+  if (filters.docname && event.referenceName !== filters.docname) return false;
+  if (filters.dateFrom && new Date(event.occurredAt) < new Date(filters.dateFrom)) return false;
+  if (filters.dateTo && new Date(event.occurredAt) > new Date(`${filters.dateTo}T23:59:59`)) return false;
+  if (filters.search) {
+    const needle = filters.search.trim().toLowerCase();
+    if (needle) {
+      const haystack = [
+        event.operation,
+        event.module,
+        event.correlationId,
+        event.referenceDoctype,
+        event.referenceName,
+        event.actor?.email,
+        event.actor?.fullName,
+        event.userSafeMessage,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (!haystack.includes(needle)) return false;
+    }
+  }
+  return true;
+}
+
+/** Error Explorer's list query — filters, sorts newest-first, then returns exactly one
+ * page. Demo-only: filters/sorts an in-memory array, but the *shape* of the contract
+ * (accept filters + page/pageSize, return items + the real filtered total) is what a
+ * future real adapter must also honor, per `provider.ts`'s interface doc comment. */
+export async function getDemoErrors(
+  filters: ObservabilityFilters,
+  page: number,
+  pageSize: number,
+): Promise<ErrorListResult> {
+  const filtered = ALL_EVENTS.filter((e) => matchesFilters(e, filters)).sort(
+    (a, b) => new Date(b.occurredAt).getTime() - new Date(a.occurredAt).getTime(),
+  );
+  const total = filtered.length;
+  const start = (page - 1) * pageSize;
+  const items = filtered.slice(start, start + pageSize);
+  return { items, pagination: { page, pageSize, total } };
+}
+
+/** Resolves one trace by exact correlation ID. Normalizes case the same way
+ * `correlationIdFormat.ts`'s client-safe validator does, since a human might paste a
+ * lowercase ID — never treats near-matches or partial IDs as a hit (mission §7: exact
+ * lookup only). Returns `null` on no match, letting the caller render an honest
+ * not-found state rather than guessing. */
+export async function getDemoTrace(correlationId: string): Promise<Trace | null> {
+  const normalized = correlationId.trim().toUpperCase();
+  const event = ALL_EVENTS.find((e) => e.correlationId === normalized);
+  if (!event) return null;
+
+  const extras = TRACE_EXTRAS.get(event.correlationId);
+  const events = extras?.timeline ?? buildDefaultTimeline(event);
+  const durationMs =
+    events.length > 1
+      ? new Date(events[events.length - 1].occurredAt).getTime() - new Date(events[0].occurredAt).getTime()
+      : undefined;
+
+  return {
+    correlationId: event.correlationId,
+    status: event.status,
+    severity: event.severity,
+    title: event.operation,
+    occurredAt: event.occurredAt,
+    actor: event.actor,
+    executionPrincipal: event.executionPrincipal,
+    module: event.module,
+    operation: event.operation,
+    source: event.source,
+    referenceDoctype: event.referenceDoctype,
+    referenceName: event.referenceName,
+    route: event.route,
+    httpStatus: event.httpStatus,
+    durationMs,
+    events,
+    userSafeMessage: event.userSafeMessage,
+    hasTechnicalDetails: event.hasTechnicalDetails,
+  };
+}
+
+/** Returns the same fixture's `TechnicalDetails` `getDemoTrace()` would use internally —
+ * kept as its own export so Trace Detail can render the gated panel independently of the
+ * rest of the trace (mirroring how a real adapter would likely need a separate,
+ * more-restricted call for this than for the trace summary itself). */
+export async function getDemoTechnicalDetails(correlationId: string): Promise<TechnicalDetails> {
+  const normalized = correlationId.trim().toUpperCase();
+  const extras = TRACE_EXTRAS.get(normalized);
+  return extras?.technicalDetails ?? { available: false };
 }

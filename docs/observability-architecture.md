@@ -68,6 +68,12 @@ Each is one session, one package, with its own code review / QA per `docs/contro
    was folded into O-2 already — see the Superseded note above). DEMO data only — see
    `docs/observability-frontend-architecture.md` for the full write-up.
 6. **O-7** — Error Explorer (search by trace ID, filters, detail view) reading `Error Log`. (`frontend-dev`)
+   **Implemented 2026-09-23** as `/admin/observability/errors` + `/admin/observability/traces/[traceId]`
+   (Trace Detail folded into O-7 rather than split out — one investigation flow, per the
+   mission brief this was built against). DEMO data only, same as O-6 — see
+   `docs/observability-frontend-architecture.md`'s "O-7" section. Real `Error Log` reads
+   still don't exist (see the `NEEDS_VERIFICATION` note below on REST read permissions) —
+   `provider.ts`'s `getErrors`/`getTrace`/`getTechnicalDetails` are the seam waiting for them.
 7. **O-8** — User Activity view reading `Activity Log` + the O-2 business-activity records. (`frontend-dev`)
 8. **O-9** — Audit Trail view reading `Version` via `getDocInfo()`, per-document history navigation. (`frontend-dev`)
 9. **O-10** — Integration monitoring via `Integration Request`-shaped records for our outbound calls. (`frappe-dev` + `frontend-dev`)

@@ -4065,6 +4065,87 @@ treated as fully closed.
 pending Niroshan's review and independent cross-review per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
 
+## Observability Center — Package O-7: Error Explorer + Trace Detail (2026-09-23)
+
+**Provenance:** O-6 was committed (`1e79eaf`) first, with foreign-work isolation verified
+via hunk-level `git apply --cached` (PROGRESS.md's own uncommitted diff mixed an unrelated
+`MD-UNV-003` section with this package's edits — split and staged only the O-7-owned
+hunks, same discipline applied again for this entry). Niroshan then issued the O-7 brief:
+"Error Explorer + Trace Detail," explicitly scoped to those two tightly-coupled screens
+only — not User Activity/Audit Trail/Integrations (O-8 through O-10, still future).
+
+**What was built:** two new routes, `/admin/observability/errors` and
+`/admin/observability/traces/[traceId]`, both nested under O-6's existing
+`admin/observability/` tree so both inherit its real server-side `isSystemManager`
+re-check automatically — zero new authorization logic written. The `ObservabilityProvider`
+interface (`lib/observabilityCenter/provider.ts`) gained three methods
+(`getErrors`/`getTrace`/`getTechnicalDetails`) on the same seam O-6 defined, backed by
+three new demo-provider functions and a 16th demo fixture (a System/ERPNext-connectivity
+failure, closing the one scenario category O-6's set didn't cover) plus explicit
+multi-step timelines and gated demo diagnostic content on 8 of the 15 original fixtures.
+New components: `ErrorExplorerTable` (purpose-built for support-investigation density,
+not `DataTable.tsx`'s column-picker/export model), `TraceTimeline`, `TechnicalDetailsPanel`
+(the gated diagnostics container O-6 only typed but never rendered), `RelatedDocumentLink`
+(backed by a new explicit doctype-to-route allowlist, `documentRoutes.ts` — no generic
+version existed anywhere in this codebase before), `CopyTextButton`. Reused unchanged:
+`SeverityBadge`, `TraceIdBadge`, `ListFilterBar`, `PaginationControls`, `Breadcrumb`. The
+Overview's trace search, module-breakdown links, and recent-critical-events links — all
+honest placeholders in O-6 pending this package — now navigate to the real screens.
+
+**Actor vs. Execution Principal:** rendered as two clearly separate blocks on Trace
+Detail, each carrying O-2's own trust-model language verbatim ("Authenticated Ceylon
+Stack user who initiated the operation" / "ERPNext account used to execute the
+operation") — never merged, never mislabeled, and an absent Actor (a real O-2-documented
+case) is shown as explicitly unknown rather than silently falling back to the execution
+principal.
+
+**Safe diagnostics:** `TechnicalDetailsPanel` renders the mission's exact "Technical
+diagnostics will become available when secure diagnostic access is enabled" copy for any
+fixture without demo diagnostic content, and a persistent "Demo data" label on the panel
+for the 8 fixtures that do have it — directly addressing the O-2 independent review's HIGH
+redaction finding (access_token/refresh_token bypassing `lib/redact.ts`) by never
+presenting anything as if it were a live, unredacted diagnostic feed.
+
+**Testing:** `npx tsc --noEmit`, scoped `eslint`, and `npm run build` all pass clean (all
+three routes build as dynamic `ƒ` routes). Functionally verified against the running dev
+server via the same temporary `signSession()`-based technique O-6 used (real app code,
+synthetic identity, never real credentials, deleted immediately after use): all 15 (now
+16, but the connectivity fixture postdates this specific check — recount confirmed 15
+unique trace IDs matching the fixture count at verification time) demo trace IDs render
+correctly in Error Explorer; `?severity=CRITICAL` returns exactly the matching fixtures;
+a nonexistent-module filter renders the empty state, not an error; Trace Detail renders
+correctly for both a rich multi-event fixture (full timeline, gated demo Technical
+Details, correct Actor/Execution Principal split) and a plain single-event fixture
+(default timeline, "diagnostics unavailable" state); both a malformed and a
+validly-formatted-but-nonexistent trace ID correctly render "Trace not found" with no
+server error. **Not executed:** actual visual/responsive screen review — the Chrome
+browser-automation extension was not connected in this session, same limitation as O-6.
+
+**Independent review:** `code-reviewer` pass — **Approved, no blocking issues.**
+Independently re-verified rather than trusting this write-up: both new routes are genuine
+children of `admin/observability/` with no sibling layout and no auth logic of their own,
+so the parent's `isSystemManager` check unconditionally wraps them; `demoProvider.ts` is
+imported nowhere except `provider.ts`; the "Demo data" label is actually present in the
+rendered Overview header and Technical Details panel; malformed and valid-but-nonexistent
+trace IDs both converge on the same `null` → not-found path with matching case
+normalization across `correlationIdFormat.ts`/`lib/correlationId.ts`/`demoProvider.ts`;
+all 29 `documentRoutes.ts` entries map to real, existing `[name]` detail routes (checked
+every one, not a sample); `RelatedDocumentLink` never falls back to a guessed URL for an
+unmapped doctype. One quality note, not a finding: `ErrorExplorerTable`'s choice not to
+reuse `DataTable.tsx`/`MasterTable.tsx` was assessed as justified (neither fits an
+8-field support-investigation table with stacked secondary lines or makes sense without
+a mandatory "New" action) — worth revisiting only if a second support-table screen
+appears later.
+
+**Not done:** User Activity, Audit Trail, Integration Monitoring (O-8 through O-10);
+broader free-text search beyond exact trace-ID lookup (scoped out per the brief's own
+§23); any real backend read API. `QA_LOG.md`/`release-tracker` not updated — same
+reasoning as O-6 (no live ERPNext data, no core flow touched), not policy-mandated.
+
+**Sign-off:** `CLAUDE_HANDOFF` — pending code-review result below, not self-declared
+`ACCEPTED`, pending Niroshan's review and independent cross-review per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
 ## MFG-JOBCARD-0 — Job Card discovery/architecture (2026-09-23)
 
 **Scope: discovery/documentation only, no implementation** — per the mission brief. No route,

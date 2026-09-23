@@ -15,3 +15,31 @@ export function formatRelativeTime(iso: string): string {
 export function formatClockTime(iso: string): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
+
+/** Builds the safe, copyable support-summary text for a trace (mission §22) — every field
+ * here already exists on the `Trace`'s own safe surface (never anything from
+ * `TechnicalDetails`), so this never risks leaking gated diagnostic content into a
+ * clipboard action. */
+export function buildSupportSummary(trace: {
+  correlationId: string;
+  occurredAt: string;
+  module: string;
+  operation: string;
+  referenceDoctype?: string;
+  referenceName?: string;
+  actor: { fullName: string; email: string } | null;
+  userSafeMessage: string;
+}): string {
+  const lines = [
+    `Trace: ${trace.correlationId}`,
+    `Time: ${new Date(trace.occurredAt).toLocaleString()}`,
+    `Module: ${trace.module}`,
+    `Operation: ${trace.operation}`,
+  ];
+  if (trace.referenceName) {
+    lines.push(`Document: ${trace.referenceName}${trace.referenceDoctype ? ` (${trace.referenceDoctype})` : ""}`);
+  }
+  lines.push(`Actor: ${trace.actor ? `${trace.actor.fullName} <${trace.actor.email}>` : "Unknown"}`);
+  lines.push(`Error: ${trace.userSafeMessage}`);
+  return lines.join("\n");
+}
