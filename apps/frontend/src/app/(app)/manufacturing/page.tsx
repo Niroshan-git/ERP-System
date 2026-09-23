@@ -26,8 +26,10 @@ import { ManufacturingFlowMap } from "@/components/ManufacturingFlowMap";
  * from Server Components...") if passed as a prop across that boundary — a real runtime error
  * hit and fixed same day, not a hypothetical. Importing the data inside each wrapper's own
  * "use client" module avoids crossing that boundary. Work Order Submit (`MFG-WF-004`) shipped
- * the same day, so this copy no longer says Work Order create-only. Job Cards, Workstations,
- * and OEE remain their own future scoped packages.
+ * the same day, so this copy no longer says Work Order create-only. Copy corrected again
+ * 2026-09-23: Job Cards now have a read-only list/detail + Cancel frontend (`MFG-JOBCARD-1`/
+ * `MFG-JOBCARD-LC-1`) — no longer accurate to call them a future package. Workstations and OEE
+ * remain their own future scoped packages.
  */
 export default function ManufacturingHomePage() {
   const overviewTab = (
@@ -45,8 +47,12 @@ export default function ManufacturingHomePage() {
           Production Plans
         </Link>{" "}
         cover the full lifecycle (create, submit, Make Work Order, Make Material Request,
-        cancel). See the Manufacturing Flow tab for how these stages fit together end to end.
-        Job Cards, Workstations, and live status/OEE remain future packages.
+        cancel). See the Manufacturing Flow tab for how these stages fit together end to end.{" "}
+        <Link href="/manufacturing/job-cards" className="text-signal hover:underline">
+          Job Cards
+        </Link>{" "}
+        have a read-only list/detail view plus Cancel. Workstations, execution/time-log actions,
+        and live status/OEE remain future packages.
       </p>
     </div>
   );

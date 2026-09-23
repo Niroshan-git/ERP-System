@@ -20,14 +20,18 @@ exists in the current build"):
   with `purpose: "Manufacture"`. Supports partial production, has zero client-editable item rows
   (stricter than Material Transfer — ERPNext's Manufacture flow has no "additional item"
   mechanism), and writes the Work Order's `produced_qty`/`consumed_qty`/`status` on submit.
-  Source-traced live via SSH (`devops` subagent) against the installed ERPNext v16.34.2; **no live
-  Stock Entry was created/submitted this session** — `Runtime Test: NOT RUN`, see that doc's "Live
-  QA" section.
+  Source-traced live via SSH (`devops` subagent) against the installed ERPNext v16.34.2, then
+  independently live-QA'd against disposable fixtures (full/partial production, over-production
+  rejection, Draft-WO attempt) — `Runtime Test: VERIFIED`, see that doc's "Live QA" section and
+  `migration-status.md`. This line previously read `Runtime Test: NOT RUN`, reflecting only the
+  source-trace pass before the later live QA landed — corrected here to match reality.
 - [`job-card.md`](job-card.md) — full model, lifecycle, time-log, quantity, and Cancel/Amend
   contract (`MFG-JOBCARD-0` discovery package, 2026-09-23) — resolves `MFG-UNV-004`. Read-only
   list/detail frontend (`MFG-JOBCARD-1`, 2026-09-23) shipped: `/manufacturing/job-cards` +
   `/manufacturing/job-cards/[name]`, plus real Work Order ↔ Job Card cross-links. Cancel
-  (`MFG-JOBCARD-LC-1`) and execution/time-log actions (`MFG-JOBCARD-2`) remain future packages.
+  (`MFG-JOBCARD-LC-1`, 2026-09-23) shipped on top — native `cancelDoc`, live-QA'd including the
+  previously-open `MFG-UNV-014` (Manufacture Stock Entry blocks Job Card cancel), now resolved.
+  Execution/time-log actions (`MFG-JOBCARD-2`) remain a future package.
 - [`bom.md`](bom.md) — started as a 2026-09-19 investigation baseline (BOM/BOM Item/BOM Operation
   schema, lifecycle, costing, multi-level, Production Plan relationship, Operation/Routing/
   Workstation classification), then **implemented**: `/master-data/boms` now has read-only
@@ -54,8 +58,10 @@ Per the Current Mission priority lock in `CLAUDE.md` ("Manufacturing frontend un
 2026-09-17... create/submit/cancel actions [now partially built — see note below], Job Card
 list/detail, BOM, Workstations, and OEE are each their own future scoped package"):
 
-- **Job Card list/detail pages** — no dedicated route exists; fields are read only via the Work
-  Order detail page.
+- **Job Card list/detail/Cancel** — superseded: `/manufacturing/job-cards` +
+  `/manufacturing/job-cards/[name]` now exist (`MFG-JOBCARD-1`), with a native Cancel action
+  (`MFG-JOBCARD-LC-1`); see [`job-card.md`](job-card.md). Execution/time-log actions
+  (`MFG-JOBCARD-2`) remain the future package.
 - **Workstations** — not touched by the frontend at all yet.
 - **OEE** — not touched by the frontend; belongs to `apps/mes-service` eventually, not
   `apps/frontend`.

@@ -6,15 +6,21 @@
 (`/manufacturing/job-cards/[name]`) pages, shipped `MFG-JOBCARD-1` (2026-09-23) — plus the
 pre-existing read-only fields on the Work Order detail page's Job Cards tab (now linked to the
 new detail route instead of plain text) and `apps/mcp-server`'s `list_job_cards`/
-`get_job_card_detail` tools (a separate consumer, different purpose). No create/submit/cancel/
-execution capability exists yet — see "Proposed Ceylon Stack architecture" below for what's next.
+`get_job_card_detail` tools (a separate consumer, different purpose). Cancel (`MFG-JOBCARD-LC-1`,
+2026-09-23) shipped on top: native `cancelDoc("Job Card", name)` via a "Cancel Job Card" button
+on the detail page, same no-cascade pattern as Work Order/BOM cancel. Execution (Start/Pause/
+Complete, `MFG-JOBCARD-2`) remains unbuilt — see "Proposed Ceylon Stack architecture" below.
 **Verification:** `Documentation: VERIFIED` — full model, lifecycle, time-log, quantity, and
 Cancel/Amend contract confirmed via direct read of the live ERPNext v16.34.2 / Frappe v16.33.1
 source (`job_card.py`, `job_card_time_log.py`, `work_order.py`, `frappe/model/{document,delete_doc}.py`)
 and one disposable-fixture live test (`TEST-JOBCARD-0-*`, cleaned up, real data confirmed
 untouched) during `MFG-JOBCARD-0`. Resolves `MFG-UNV-004`. `MFG-JOBCARD-1`'s read-only frontend
 was independently live-QA'd against the real instance (zero-mutation, field-shape cross-check
-against real API responses) and code-reviewed with no blocking findings — see `QA_LOG.md`.
+against real API responses) and code-reviewed with no blocking findings. `MFG-JOBCARD-LC-1`'s
+Cancel action was independently code-reviewed (no blocking findings) and live-QA'd against fresh
+`TEST-JOBCARDLC-*` fixtures — scenarios A-F all `Runtime Test: VERIFIED`, including `MFG-UNV-014`
+(below), now resolved rather than open. See `QA_LOG.md`'s `MFG-JOBCARD-LC-1` entry for the full
+scenario-by-scenario evidence.
 
 ## Fields (full model, not just what the Work Order tab currently reads)
 
@@ -161,8 +167,32 @@ Only 3 roles have any access at all: **System Manager, Manufacturing User, Manuf
 ## `NEEDS_VERIFICATION`
 
 - `MFG-UNV-013` (new) — the exact mechanism/UI for who picks up a Job Card's carried-forward `pending_qty` after a partial completion (a second Job Card? manual re-open?).
-- `MFG-UNV-014` (new) — exact error UX when a Job Card cancel is blocked by an already-submitted Manufacture Stock Entry (`validate_produced_quantity()`), not live-reproduced this session.
 - `MFG-UNV-015` (new) — whether Work Order's own status display should defensively handle "Job Card cancelled but parent WO status didn't revert" (cosmetic, not a correctness bug in ERPNext, but worth a UX check once a Job Card UI exists).
+
+## Resolved: `MFG-UNV-014` — Manufacture Stock Entry blocks Job Card cancel — `LIVE VERIFIED` (`MFG-JOBCARD-LC-1`, 2026-09-23)
+
+Live-reproduced against a full disposable fixture chain (`TEST-JOBCARDLC-*`): Material Receipt →
+Material Transfer for Manufacture → submitted Job Card → native `make_stock_entry` "Manufacture"
+Stock Entry submitted (`Work Order.produced_qty` 0→2 confirmed) → Job Card cancel attempted while
+that Manufacture Stock Entry was still submitted.
+
+**Exact error, and a distinct exception type from the original guess:**
+
+```
+417 JobCardCancelError: The Job Card PO-JOB00018 is used to calculate the valuation cost for the
+finished good TEST-JOBCARDLC-FG. Kindly cancel the Manufacturing Entries first against the work
+order MFG-WO-2026-00037.
+```
+
+Not the generic `ValidationError` this section originally guessed — a dedicated
+`JobCardCancelError`. The response carries `_server_messages`, so `lib/erpnext.ts`'s
+`extractErpNextMessage()` → `cancelJobCardAction`'s `humanizeCancelError()` surfaces it cleanly
+(HTML-stripped) to the user rather than a generic fallback — confirmed, not assumed.
+
+**Reversal order, live-confirmed end-to-end:** cancelling the Manufacture Stock Entry first
+immediately unblocked the Job Card cancel, which in turn unblocked the Work Order cancel — the
+same cascade-of-independent-native-cancels shape already established by every other lifecycle
+package in this project (cancel Manufacture Stock Entry → cancel Job Card → cancel Work Order).
 
 ---
 
@@ -177,7 +207,7 @@ Only 3 roles have any access at all: **System Manager, Manufacturing User, Manuf
 ### Suggested package sequence (dependency-ordered, evidence-based, not forced to match the illustrative shape in the brief)
 
 1. **`MFG-JOBCARD-1` — Read-only list + detail + Work Order contextual link. `SHIPPED` (2026-09-23).** Zero lifecycle actions, as scoped. `docstatus`-derived state (`jobCardStatus()` in `lib/erpStatus.ts`), not the raw `status` field, per the quirk above — live-QA'd. Work Order detail's Job Cards tab and the Work Order Cancel blocker-preview message both now link a Job Card name to the real detail route instead of plain text.
-2. **`MFG-JOBCARD-LC-1` — Cancel.** The actual motivating capability (unblocks Work Order cancel without Desk). Native `cancelDoc("Job Card", name)`, same defense-in-depth re-fetch/re-check pattern as every prior lifecycle package this project has shipped. Needs `MFG-JOBCARD-1`'s detail page to exist first (a Cancel action needs somewhere to live). Should surface `validate_produced_quantity()`'s rejection message (see `MFG-UNV-014`) via the same `humanizeCancelError` pass-through pattern, not a custom message.
+2. **`MFG-JOBCARD-LC-1` — Cancel. `SHIPPED` (2026-09-23).** The actual motivating capability (unblocks Work Order cancel without Desk) — closes the "Desk dependency" gap this whole investigation was motivated by. Native `cancelDoc("Job Card", name)`, same defense-in-depth re-fetch/re-check pattern as every prior lifecycle package this project has shipped. `validate_produced_quantity()`'s rejection (`JobCardCancelError`, see the resolved `MFG-UNV-014` above) passes through `humanizeCancelError` untouched, as planned — no custom message needed. Independently code-reviewed (no blocking findings) and live-QA'd (scenarios A-F, all PASS) — see `QA_LOG.md`.
 3. **`MFG-JOBCARD-2` — Time-log/execution actions** (`start_timer`/`pause_job`/`resume_job`/`complete_job_card`). Bigger scope — this is the actual shop-floor execution UX, not just lifecycle plumbing, and given the live-data signal that Job Card is barely used today, this is reasonably deferred until there's a concrete operational need, rather than assumed urgent.
 4. **`MFG-OPERATION-1` / `MFG-WORKSTATION-1`** — not required before any of the above (see "Operation/Workstation dependency"); only worth scoping if the business needs to add a 3rd operation/workstation, independent of Job Card's own timeline.
 

@@ -3758,6 +3758,47 @@ behavior. Did not resolve `MD-UNV-003`, start CRM/Finance/Job Card/Workstation/O
 Customer/Supplier into Business Partner. Recommended next Master Data package: `MD-UNV-003`
 relationship architecture/remediation planning — not started by this closure.
 
+## MD-UNV-003 relationship architecture/discovery package (2026-09-22)
+
+**Scope: architecture/discovery/documentation only, explicitly not implementation** (per the
+mission brief this package was scoped against). No route, Sidebar entry, form, server action, or
+ERPNext data was created or modified.
+
+**What was produced:** `docs/backend/11-relationships/party-contact-address-architecture.md` — a
+full investigation of ERPNext's real Customer/Supplier ↔ Contact/Address relationship model
+(`Dynamic Link` mechanism, primary Contact/Address semantics across three independent layers,
+permission model, rename/identity cascade, migration classification, CRM contract), a proposed
+`MD-REL-1` through `MD-REL-5` implementation package sequence, and a Product Owner decision table
+(5 items, none decided by this package).
+
+**Method:** re-used already-cited MD-R2 live-schema/live-data evidence rather than re-querying it;
+new evidence this session came from reading `frappe/frappe`'s GitHub `develop` branch source directly
+(`contact.py`, `address.py`, `document.py`'s `_validate_links`, `rename_doc.py`'s
+`rename_dynamic_links`) — tiered `SOURCE VERIFIED (GitHub develop)` throughout, not silently
+upgraded to `VERIFIED`, since the installed instance's exact version was not independently
+re-confirmed against it this session.
+
+**Key findings:** Customer/Supplier sharing a Contact/Address is a real, by-design ERPNext
+capability, not a defect; "primary" Contact/Address is genuinely two unsynced mechanisms
+(`MD-UNV-006`, new); Frappe's generic Dynamic Link validation checks existence only, never
+permission, meaning any future relationship-write action must allowlist `link_doctype` itself
+(nothing in ERPNext's schema restricts it); renaming a party auto-cascades to Dynamic Link rows
+system-wide (`SOURCE VERIFIED`); Buying has zero Contact/Address selection UI today (new finding),
+so implementing this relationship carries no Buying-side regression risk, unlike Sales'
+`AddressContactFields.tsx`. Six new `NEEDS_VERIFICATION` items opened: `MD-UNV-006` through
+`MD-UNV-011`, all in `docs/backend/99-unverified/unverified-behaviours.md`.
+
+**Not done, disclosed:** no code written, no `code-reviewer`/`qa-tester` invoked (nothing
+implemented to review), no `release-tracker` invoked (nothing shipped/live). `docs/master-data-architecture.md`
+§9 (new MD-R7 row) and §12 (CRM dependency map) updated to point at the new document;
+`docs/backend/99-unverified/unverified-behaviours.md`'s `MD-UNV-003` entry updated with a summary
+and the six new register entries.
+
+Package state: `CLAUDE_HANDOFF`. Not self-declared `ACCEPTED` — needs Niroshan's sign-off before
+`MD-REL-1` (relationship action/API foundation) starts. Recommended next step: resolve the §16
+decision table (party-contact-address-architecture.md) and `MD-UNV-006` (does ERPNext auto-sync
+the two primary-selection layers?), since `MD-REL-4` depends on both.
+
 ## MFG-CLOSE-2 — BOM Cancel/Amend (2026-09-23)
 
 **Provenance:** the implementation (`cancelBomAction`, `amendBomAction`, the `[name]/page.tsx`
@@ -4237,4 +4278,61 @@ closure.
 
 **Sign-off:** `CLAUDE_HANDOFF` — code review and live QA both complete with no blocking findings;
 not self-declared `ACCEPTED`, pending Niroshan's review and independent cross-review per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
+## MFG-JOBCARD-LC-1 — Job Card Cancel (2026-09-23)
+
+**Provenance:** requested as one scoped package out of a much larger "Manufacturing Completion"
+mission brief pasted in full. That brief's own top-priority assumptions (Manufacture/Finished
+Goods Receipt still unbuilt, Work Order Cancel still unreviewed) turned out to be false against
+this repo's actual state — both were already shipped and closed in prior sessions — and its
+ask to run an 11-package sequence in one continuous mission conflicted with `CLAUDE.md`'s binding
+"single agent + one small package per session" rule. Flagged both before proceeding; a fresh
+audit (see below) replaced the brief's assumed gap list with the real one, and Niroshan chose
+Job Card Cancel as the one package to actually run.
+
+**Audit findings** (real state vs. the mission brief's assumptions, full detail not repeated
+here — see the conversation): BOM, Production Plan, Work Order, Material Transfer, and Manufacture
+Stock Entry (`MFG-CLOSE-1`) were all already shipped, live-QA'd, and reviewed. Real remaining gaps:
+Job Card Cancel/execution, Workstations master, Operation master, two stale-doc lines (this
+`README.md` Manufacture-Stock-Entry summary said `Runtime Test: NOT RUN`, contradicted by
+`migration-status.md`'s `VERIFIED`; `manufacturing/page.tsx` and `manufacturingFlowMap.ts` still
+said Job Cards were a future package after `MFG-JOBCARD-1` had already shipped). A generic Stock
+Entry cancel already exists at `/stock/stock-entries/[name]`, likely already covering Material
+Transfer/Manufacture reversal without Desk — not independently re-verified this package, flagged
+for whoever picks up that thread.
+
+**What was built:** `cancelJobCardAction` (`manufacturing/job-cards/actions.ts`, new file) and a
+"Cancel Job Card" button + `?cancelled=1` banner on the Job Card detail page — native
+`cancelDoc("Job Card", name)`, same no-cascade, fresh-refetch pattern as
+`cancelBomAction`/`cancelWorkOrderAction`. No proactive dependency check (deliberate — Job Card's
+real blocker, `validate_produced_quantity()`, isn't a simple back-link). Closes the "Desk
+dependency" gap `MFG-JOBCARD-0`'s discovery pass was motivated by: a submitted Job Card blocks
+Work Order cancel, and until this package the only way to clear that block was ERPNext Desk.
+
+**Code review:** no blocking findings — see `QA_LOG.md`'s `MFG-JOBCARD-LC-1` entry for the full
+account.
+
+**Live QA:** all 6 required scenarios (A-F) PASS against fresh `TEST-JOBCARDLC-*` fixtures,
+including resolving the previously-open `MFG-UNV-014` (Manufacture Stock Entry blocking Job Card
+cancel) with exact live evidence (`JobCardCancelError`, not the originally-guessed generic
+`ValidationError`) and the live-confirmed reversal order (Manufacture Stock Entry → Job Card →
+Work Order). Full scenario-by-scenario account in `QA_LOG.md`.
+
+**Static validation:** `tsc`/`eslint`/`build` all clean, re-run independently by both the
+`qa-tester` pass and the main session after subsequent documentation edits.
+
+**Documentation:** `docs/backend/05-manufacturing/job-card.md` (Cancel shipped, `MFG-UNV-014`
+resolved), `README.md` (Job Card section, plus the unrelated stale Manufacture-Stock-Entry
+`Runtime Test: NOT RUN` line found during this package's audit), `docs/backend/15-migration/
+migration-status.md` (Job Card row), `manufacturing/page.tsx` and `lib/manufacturingFlowMap.ts`
+(stale "future package" copy corrected). Foreign uncommitted Master Data (MD-UNV-003) and any
+concurrent Observability Center work were not touched throughout.
+
+**Not done, disclosed:** the generic Stock Entry cancel reachability question above; Workstations
+and Operation master data; Job Card execution/time-log actions (`MFG-JOBCARD-2`). None were part
+of this package's scope.
+
+**Sign-off:** `CLAUDE_HANDOFF` — code review and live QA both complete with no functional defects
+found. Not self-declared `ACCEPTED` — pending Niroshan's review and independent cross-review per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.

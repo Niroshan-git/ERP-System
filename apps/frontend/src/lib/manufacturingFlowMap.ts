@@ -9,8 +9,10 @@ import type { FlowRecord, FlowScene } from "@/lib/flowMap";
  * "standard"/"reserve" scenes' exact node/edge coordinates (proven to render correctly) rather
  * than inventing new SVG geometry from scratch.
  *
- * `href: null` marks a stage with no dedicated page in this app yet (Job Card, Manufacture
- * Stock Entry) — same "Coming soon" treatment as `salesFlowMap.ts`.
+ * `href: null` marks a stage with no dedicated page in this app yet — same "Coming soon"
+ * treatment as `salesFlowMap.ts`. (Job Card gained its own page 2026-09-23, `MFG-JOBCARD-1`;
+ * Manufacture Stock Entry still routes through the Work Order it belongs to, see its own
+ * `href` below.)
  */
 
 export type MfgFlowNodeKey =
@@ -104,10 +106,10 @@ export const MFG_FLOW_RECORDS: Record<MfgFlowNodeKey, FlowRecord<MfgFlowNodeKey>
     icon: HardHat,
     kind: "Shop-floor execution",
     area: "Manufacturing",
-    href: null,
+    href: "/manufacturing/job-cards",
     purpose: "Track each BOM operation (e.g. Assembly, Coating) against its workstation, quantity and time as the shop floor executes it.",
     effects: ["Records progress per operation.", "Can carry a Quality Inspection Template/result where configured."],
-    note: "Visible read-only inside a Work Order's own Job Cards tab in this app — there is no dedicated Job Card list/detail page yet.",
+    note: "Read-only list/detail (/manufacturing/job-cards) plus a native Cancel action are built; also linked from a Work Order's own Job Cards tab. Start/Pause/Resume/Complete execution actions are not yet built.",
   },
   manufactureEntry: {
     key: "manufactureEntry",

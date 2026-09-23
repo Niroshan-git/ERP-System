@@ -2292,3 +2292,83 @@ concurrent Observability Center session's files deliberately **not** touched thr
 **Sign-off**: `CLAUDE_HANDOFF` — code review and live QA both complete with no blocking findings;
 not self-declared `ACCEPTED`, pending Niroshan's review and independent cross-review per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
+## 2026-09-23 — `MFG-JOBCARD-LC-1` — Job Card Cancel — code review + live QA
+
+**Scope**: new `cancelJobCardAction` (`manufacturing/job-cards/actions.ts`, new file) and a
+"Cancel Job Card" button + `?cancelled=1` banner on `manufacturing/job-cards/[name]/page.tsx` —
+the fourth package in this project's native-`cancelDoc`, no-cascade Cancel series (after
+`MFG-BOM-LC-1`, `MFG-WO-LC-1`, and Manufacture Stock Entry's own eligibility gates). Closes the
+"Desk dependency" gap `MFG-JOBCARD-0`'s discovery pass was motivated by: a submitted Job Card
+blocks Work Order cancel (Frappe's generic `LinkExistsError` back-link check), and until this
+package the only way to cancel it was ERPNext Desk.
+
+**Code review** (`code-reviewer`, independent fresh subagent): no blocking findings. Confirmed:
+hardcoded doctype, `name` bound server-side from a `getDoc`-fetched `doc.name` (not client
+input), fresh re-fetch/re-check of `docstatus` before any cancel attempt, `humanizeCancelError`
+surfaces only `erpnextMessage`/a generic fallback (no stack trace/credential leakage), the
+conditional `revalidatePath` on the parent Work Order (gated on `current.work_order` from the
+same trusted fetch) carries no injection/malformed-path risk. Matches `cancelBomAction`'s
+simplified single-message `docstatus !== 1` shape (not `cancelWorkOrderAction`'s more granular
+split) — a deliberate, justified choice, not an inconsistency: Job Card has no `"Stopped"`-like
+status restriction to distinguish. No proactive `getConnections` dependency check — confirmed
+correct: Job Card's real blocker (`validate_produced_quantity()`) is an ERPNext valuation
+consistency check, not a simple back-link this app could safely re-derive client-side.
+
+**Live QA** (`qa-tester`, fresh session, fresh fixtures `TEST-JOBCARDLC-*`): ran the full required
+scenario set directly against the live Hetzner instance via the same REST shape `lib/erpnext.ts`
+uses.
+
+- **A — Draft Job Card cancel attempt**: `417 DocstatusTransitionError`. PASS.
+- **B — clean Submitted Job Card cancel**: `docstatus` 1→2 confirmed; also re-confirmed the
+  documented stale-`status`-after-cancel quirk live (`status` still read `"Completed"` after
+  `docstatus` had already moved to 2), validating `jobCardStatus()`'s `docstatus`-first branching.
+  PASS.
+- **C — already-Cancelled**: `417 ValidationError: Cannot edit cancelled document`. PASS.
+- **D — Job-Card-blocks-Work-Order-cancel, full cycle**: confirmed the precondition
+  (`417 LinkExistsError: Cannot delete or cancel because Work Order MFG-WO-2026-00036 is linked
+  with Job Card PO-JOB00017`), cancelled the Job Card, retried the Work Order cancel — succeeded
+  cleanly. PASS.
+- **E — nonexistent Job Card name**: clean `404 DoesNotExistError`, `cancelJobCardAction`'s own
+  `getDoc` step returns a friendly error, no crash. PASS.
+- **F — Manufacture Stock Entry blocks Job Card cancel (`MFG-UNV-014`, previously
+  `NEEDS_VERIFICATION`) — reproduced live, resolving the open item.** Built a full fixture chain
+  (Material Receipt → Material Transfer → submitted Job Card → submitted Manufacture Stock Entry,
+  `produced_qty` 0→2 confirmed), then attempted the Job Card cancel: `417 JobCardCancelError: The
+  Job Card PO-JOB00018 is used to calculate the valuation cost for the finished good
+  TEST-JOBCARDLC-FG. Kindly cancel the Manufacturing Entries first against the work order
+  MFG-WO-2026-00037.` — a distinct exception type from the originally-guessed generic
+  `ValidationError`. Confirmed `_server_messages` present, so `humanizeCancelError` surfaces it
+  cleanly. Live-confirmed reversal order: cancel Manufacture Stock Entry → cancel Job Card →
+  cancel Work Order, each step unblocking the next. PASS.
+
+**Dependency/behavior confirmation**: `Work Order.validate_cancel()` still never mentions Job
+Card directly (Frappe's generic back-link check, confirmed again on a fresh fixture). Job Card's
+own real blocker is `JobCardCancelError` (valuation-consistency), not a simple link check —
+confirms this app's choice not to proactively re-derive it client-side.
+
+**Fixtures, cleaned up**: Items `TEST-JOBCARDLC-FG`/`-RM`, BOM `BOM-TEST-JOBCARDLC-FG-001`, Work
+Orders `MFG-WO-2026-00036`/`00037`, Job Cards `PO-JOB00017`/`00018`, Stock Entries
+`MAT-STE-2026-00038`–`00040`. `PO-JOB00017`/`00018` and `MFG-WO-2026-00036` hard-deleted (no GL
+history); `MFG-WO-2026-00037`, its 3 Stock Entries, and the BOM left `Cancelled`/inert (GL-linked,
+same precedent as `MFG-WO-LC-1`/`MFG-BOM-LC-1`); both fixture Items disabled. All 12 real Job
+Cards (`PO-JOB00001`–`00012`), the real BOM, and the real Work Orders independently re-confirmed
+unchanged (`docstatus`/`status`/`modified` identical to the pre-task baseline); `Job Card` count
+back to exactly 12.
+
+**Static validation**: `npx tsc --noEmit` clean, `npm run lint` clean (both re-run independently
+by the `qa-tester` pass and again by the main session after subsequent documentation-copy edits),
+`npm run build` clean (exit 0, no new warnings beyond the pre-existing unrelated "Dynamic server
+usage" notices already present on other `/*/new` routes app-wide).
+
+**Documentation updated**: `docs/backend/05-manufacturing/job-card.md` (Cancel shipped, `MFG-UNV-
+014` resolved with full evidence), `README.md` (Job Card/Manufacture-Stock-Entry summary lines
+corrected — the latter's stale `Runtime Test: NOT RUN` line, found during this package's audit,
+predated the later live QA pass that actually verified it), `docs/backend/15-migration/
+migration-status.md` (Job Card row), `manufacturing/page.tsx` and `lib/manufacturingFlowMap.ts`
+(stale "Job Cards remain a future package" copy corrected — also found during this package's
+audit, predating `MFG-JOBCARD-1`'s actual ship date).
+
+**Sign-off**: `CLAUDE_HANDOFF` — code review and live QA both complete with no functional defects
+found. Not self-declared `ACCEPTED` — pending Niroshan's review and independent cross-review per
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.

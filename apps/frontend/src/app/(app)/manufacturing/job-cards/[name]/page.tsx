@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { ActivityTimeline } from "@/components/ActivityTimeline";
+import { DocActionBar } from "@/components/DocActionBar";
 import { DocField } from "@/components/DocField";
 import { StatusPill } from "@/components/StatusPill";
 import { Breadcrumb } from "@/components/Breadcrumb";
@@ -12,6 +13,7 @@ import type { DocStatus } from "@/lib/docStatus";
 import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { cancelJobCardAction } from "../actions";
 
 type JobCardTimeLogRow = {
   employee?: string;
@@ -66,16 +68,24 @@ function DocLink({ href, children }: { href: string; children: React.ReactNode }
 }
 
 /**
- * `MFG-JOBCARD-1` — read-only. No Start/Pause/Resume/Complete/Cancel actions; those are
- * `MFG-JOBCARD-2`/`MFG-JOBCARD-LC-1`. `items`/`secondary_items`/`sub_operations`/
- * `scheduled_time_logs` child tables (real, per `docs/backend/05-manufacturing/job-card.md`)
- * are deliberately not fetched/rendered here — on this instance's real data they're
- * consistently empty (no semi-finished-goods tracking or sub-operations configured on either
- * real Operation master), so showing them would be empty noise for the current operator
- * experience; revisit once real data actually populates them.
+ * `MFG-JOBCARD-1` shipped read-only; Cancel (`MFG-JOBCARD-LC-1`) added on top of it — native
+ * `cancelDoc("Job Card", name)` via `cancelJobCardAction`, same no-cascade pattern as
+ * Work Order/BOM cancel. No Start/Pause/Resume/Complete yet; those remain `MFG-JOBCARD-2`.
+ * `items`/`secondary_items`/`sub_operations`/`scheduled_time_logs` child tables (real, per
+ * `docs/backend/05-manufacturing/job-card.md`) are deliberately not fetched/rendered here — on
+ * this instance's real data they're consistently empty (no semi-finished-goods tracking or
+ * sub-operations configured on either real Operation master), so showing them would be empty
+ * noise for the current operator experience; revisit once real data actually populates them.
  */
-export default async function JobCardDetailPage({ params }: { params: Promise<{ name: string }> }) {
+export default async function JobCardDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ name: string }>;
+  searchParams: Promise<{ cancelled?: string }>;
+}) {
   const { name } = await params;
+  const { cancelled } = await searchParams;
 
   let doc: JobCardDoc;
   try {
@@ -104,11 +114,21 @@ export default async function JobCardDetailPage({ params }: { params: Promise<{ 
   );
 
   const header = (
-    <div className="mb-4">
-      <h1 className="text-2xl font-medium text-graphite-900">{doc.name}</h1>
-      <div className="mt-1">
-        <StatusPill label={status.label} tone={status.tone} />
+    <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-medium text-graphite-900">{doc.name}</h1>
+        <div className="mt-1">
+          <StatusPill label={status.label} tone={status.tone} />
+        </div>
       </div>
+      {doc.docstatus === 1 && (
+        <DocActionBar
+          action={cancelJobCardAction.bind(null, doc.name)}
+          label="Cancel Job Card"
+          pendingLabel="Cancelling…"
+          variant="danger"
+        />
+      )}
     </div>
   );
 
@@ -186,6 +206,11 @@ export default async function JobCardDetailPage({ params }: { params: Promise<{ 
   return (
     <div>
       {breadcrumb}
+      {cancelled && (
+        <div className="mb-4 rounded-md border border-border bg-canvas px-4 py-2 text-sm font-medium text-graphite-700">
+          Job Card cancelled.
+        </div>
+      )}
       {header}
       <DocTabs
         tabs={[
