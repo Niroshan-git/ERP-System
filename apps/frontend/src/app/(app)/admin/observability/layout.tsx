@@ -1,6 +1,9 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { resolveActorRoles } from "@/lib/erpnext";
 import { SystemManagerOnlyNotice } from "@/components/SystemManagerOnlyNotice";
+import { ObservabilityCheckFailedNotice } from "@/components/ObservabilityCheckFailedNotice";
 
 /**
  * Real server-side authorization for every route under /admin/observability — not just
@@ -9,20 +12,51 @@ import { SystemManagerOnlyNotice } from "@/components/SystemManagerOnlyNotice";
  * `getActorContext()` uses) rather than trusting anything passed down from a parent
  * layout, so a direct request to this route is independently checked here.
  *
- * Per this mission's §33/§11 guidance: `isSystemManager` is a role snapshot cached for
- * the session's 12h lifetime (see `lib/session.ts`), which is an accepted, already-
- * documented limitation for general navigation — acceptable for gating this demo-data
- * Overview screen. It is explicitly *not* sufficient on its own once a future package
- * wires this route to real diagnostic data; that will need a fresh server-side role
- * check at request time (re-calling `resolveActorRoles()`), per the O-2 independent
- * review's recommendation — see `docs/observability-frontend-architecture.md`'s
- * "Permission boundary" section.
+ * O-10 hardening: this route now serves (or leads to) real diagnostic data, so the O-2
+ * independent review's own recommendation applies — the session's cached `isSystemManager`
+ * flag (up to 12h stale, see `lib/session.ts`) is no longer sufficient on its own. Every
+ * request re-resolves the role fresh via `resolveActorRoles()` (backed by
+ * `smart_factory.api.observability.resolve_actor_roles`, i.e. a live `frappe.get_roles()`
+ * call), so a demoted System Manager loses access immediately rather than at next login.
+ * `cache()` from `react` scopes that resolution to once per request (not once per
+ * component) without reintroducing any cross-request staleness — the safest reasonable
+ * middle ground between "hit ERPNext on every render" and "trust a multi-hour-old cookie."
+ * If the fresh check itself fails (e.g. ERPNext unreachable), access is denied — this is a
+ * privileged boundary, so an unverifiable request must never fall back to trusting the
+ * stale cached flag.
  */
+const resolveFreshAuthorization = cache(async (email: string) => {
+  try {
+    const { isSystemManager } = await resolveActorRoles(email);
+    return { checked: true as const, isSystemManager };
+  } catch {
+    return { checked: false as const, isSystemManager: false };
+  }
+});
+
 export default async function ObservabilityLayout({ children }: { children: React.ReactNode }) {
   const jar = await cookies();
   const session = await verifySession(jar.get(SESSION_COOKIE)?.value);
 
-  if (!session?.isSystemManager) {
+  if (!session) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <SystemManagerOnlyNotice />
+      </div>
+    );
+  }
+
+  const authorization = await resolveFreshAuthorization(session.email);
+
+  if (!authorization.checked) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <ObservabilityCheckFailedNotice />
+      </div>
+    );
+  }
+
+  if (!authorization.isSystemManager) {
     return (
       <div className="mx-auto max-w-2xl">
         <SystemManagerOnlyNotice />
