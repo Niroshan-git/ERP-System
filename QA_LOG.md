@@ -2511,3 +2511,85 @@ evidence (live SSH queries, direct file reads, disposable test fixtures) rather 
 implementer's own claims, which is the compensating control this repo has used throughout
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`'s effective window — flagged as a candidate for Codex's
 eventual §16 reconciliation audit, same as every prior instance in this log.
+
+## 2026-09-24 — `FIN-1E` — Chart of Accounts maintenance (create/edit/disable/delete) — code review, fix, re-review + live QA
+
+**Package**: owner-authorized extension of the already-accepted `FIN-1` (read-only Chart of
+Accounts) into full operational maintenance, per `finance-architecture.md`'s Finance V1 CRUD
+policy (§37). Implementation commit `3c50478`: Account create (with contextual child-account
+creation from the tree), edit (renames routed through ERPNext's whitelisted
+`update_account_number`, not a plain field PUT), enable/disable, and dependency-checked delete —
+all against ERPNext's native `Account` doctype. Root accounts (no `parent_account`) get no
+edit/disable/delete affordance anywhere in the app. Bank Account (`FIN-1`) left untouched.
+
+**Code review, first pass** (`code-reviewer`, independent fresh subagent, worked from `git show`
+and current file contents): **CHANGES REQUIRED** — one real bug. `buildAccountFields` in
+`accounting/chart-of-accounts/actions.ts` used `value.trim() || undefined` for four optional
+fields (`account_type`, `account_currency`, `account_category`, `balance_must_be`).
+`JSON.stringify` drops `undefined` keys, and ERPNext's PUT does a partial merge — clearing a
+field in the Edit form silently left the old value in place server-side while the UI still showed
+"Saved." This also broke the Ledger→Group conversion the form implied it supported
+(`validate_group_or_ledger()` requires `account_type` genuinely empty, not merely absent).
+Everything else — delete/disable dependency checks (verified genuinely server-side and
+re-evaluated at write time, not just render time), root-account protection (three independent
+server-side checks, not a UI omission), `root_type`/`report_type` never client-submitted,
+`update_account_number` usage, API-layer discipline, scope boundary — passed cleanly with no
+blocking findings.
+
+**Fix** (`frontend-dev`, fresh subagent, narrowly scoped to exactly this bug): commit `387590a`.
+New `optionalStringField(formData, key, isEdit)` — Edit resolves a blank field to an explicit
+`""` (clears server-side); Create still resolves to `undefined` (correctly omitted, nothing to
+preserve/clear on a new record). The existing group-vs-ledger stripping ternary was made
+edit-aware the same way. Live-verified against the real tenant (SSH, `bench console`): read the
+live `Account` doctype meta to confirm field types (`account_type`/`balance_must_be` = Select,
+`account_currency`/`account_category` = Link, `""` correct for all four); reproduced the original
+bug for comparison (omitted key → value unchanged), then confirmed the fix (explicit `""` →
+value cleared); reproduced the Ledger→Group failure, then confirmed the fixed payload lets it
+succeed. Disposable `QA-FIN1E-FIX-TEST-*` fixtures cleaned up, Account count re-verified at
+96/company both before and after. Two files only (`actions.ts` + the canonical doc) — committed
+via `git commit --only -- <exact paths>` per this session's concurrency-safety discipline (see
+Notes).
+
+**Code review, targeted re-review** (`code-reviewer`, fresh subagent, independent of both the
+original review and the fix): **PASS**. Confirmed the fix's diff is scoped to exactly
+`optionalStringField` and `buildAccountFields`'s four field assignments — delete/disable
+dependency logic, root-account protection, `update_account_number` usage, and the create path
+are all byte-for-byte untouched. Independently live-verified the field-type claim and the
+before/after clearing behavior itself (not trusting the fix commit's own log), using its own
+disposable `CR-REVIEW-FIX-TEST` fixture, cleaned up afterward, count re-confirmed at 96/96.
+
+**Live QA** (`qa-tester`, fresh subagent, run against `3c50478` before the fix landed — the bug
+review found is a form-to-payload translation issue in the Next.js action layer, not something a
+direct `bench console` reproduction of the underlying ERPNext claims would surface): **PASS**, no
+HIGH/MEDIUM/LOW findings. Independently reproduced all six of the implementer's claimed live
+ERPNext behaviors (root-account edit rejection verbatim `"Root cannot be edited."`,
+dependency-blocked delete verbatim `"...as it has child nodes"`, root_type/report_type
+server-side inheritance despite a deliberately-wrong client value, Ledger→Group rejection verbatim
+`"Cannot covert to Group because Account Type is selected."`, cross-company/ledger-as-parent
+rejection, Freeze Account confirmed unusable on both companies via `role_allowed_for_frozen_entries
+= None`) plus additional validation paths not in the original claim list. Confirmed the
+dependency-checked delete is a genuine server-side rejection, not a hidden button. Disposable
+`QA-FIN1E-TEST-*` fixtures fully cleaned up (container and SSH host), tenant restored to exact
+96/96 baseline. `npx tsc --noEmit`/`npm run lint`/`npm run build` clean for every file this package
+touched (one pre-existing, unrelated lint error in foreign `sales/delivery-notes/actions.ts`,
+confirmed untouched by this commit).
+
+**Concurrency note (new to this package, not seen in prior entries)**: a background
+implementation agent for this package was interrupted mid-task by a session rate limit while the
+main session was concurrently running `git` commands in the same working directory (no worktree
+isolation). This produced a real hazard — a later `git add <one file> && git commit` in the main
+session scooped up unrelated foreign content that a concurrent process had staged in the shared
+index between the `add` and the `commit`, producing one accidental commit containing foreign
+Sales files. Caught immediately via `git show --name-status` on the resulting commit; fixed with
+`git reset --soft HEAD~1` (undoes the commit, preserves all content, nothing lost) followed by a
+correct `git commit --only -m "..." -- <path>` (commits exactly the named paths regardless of
+whatever else is staged in the index). Every commit in this package after that point used
+`--only` with an explicit pathspec. Recorded here as a process note for any future session running
+foreground `git` commands while background agents share the same non-isolated working directory.
+
+**Sign-off**: `ACCEPTED` — final state (`3c50478` + `387590a` together) has no remaining
+HIGH/MEDIUM/LOW findings from either independent code review pass or live QA. **Governance
+disclosure**, same as every prior entry under this constraint: no genuinely separate Claude
+account/session exists in this environment; review/fix/re-review/QA were each performed by fresh
+subagents independently re-deriving evidence rather than the implementer grading its own claims —
+flagged for Codex's eventual §16 reconciliation audit.
