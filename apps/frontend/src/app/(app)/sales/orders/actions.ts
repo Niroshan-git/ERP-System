@@ -241,11 +241,10 @@ export async function submitSalesOrderAction(name: string): Promise<FormState> {
  */
 export async function cancelSalesOrderAction(name: string): Promise<FormState> {
   const connections = await getConnections("Sales Order", name);
-  const blockingInvoices = connections.find((c) => c.label === "Sales Invoice")?.submittedDocs ?? [];
-  if (blockingInvoices.length > 0) {
-    return {
-      error: `Cannot cancel — linked with Sales Invoice ${blockingInvoices.join(", ")}. Cancel that first.`,
-    };
+  const blockers = connections.filter((c) => c.submittedDocs && c.submittedDocs.length > 0);
+  if (blockers.length > 0) {
+    const messages = blockers.map((c) => `${c.label} (${c.submittedDocs!.join(", ")})`);
+    return { error: `Cannot cancel — linked with ${messages.join(", ")}. Cancel those first.` };
   }
 
   try {
