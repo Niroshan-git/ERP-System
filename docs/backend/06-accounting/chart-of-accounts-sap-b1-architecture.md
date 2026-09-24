@@ -1,7 +1,8 @@
 # Chart of Accounts — SAP Business One-Inspired Architecture (FIN-1F)
 
-Domain status: `FIN-1F-1 IN PROGRESS` (2026-09-24) — Drawer/Title/Active/Level concept mapping +
-drawer navigation only. FIN-1 and FIN-1E remain `ACCEPTED` and unchanged; see
+Domain status: `FIN-1F-1 IN PROGRESS`, `FIN-1F-2 IN PROGRESS` (2026-09-24) — Drawer/Title/
+Active/Control/Level concept mapping, drawer navigation, and a three-pane SAP B1-style layout.
+FIN-1 and FIN-1E remain `ACCEPTED` and unchanged; see
 [`chart-of-accounts-bank-account.md`](chart-of-accounts-bank-account.md) for their canonical
 field/behavior documentation, which this document does not repeat.
 
@@ -9,16 +10,25 @@ Niroshan explicitly authorized enhancing the accepted Chart of Accounts into a S
 One-inspired hierarchy UX (owner brief, 2026-09-24). Because the full brief (drawer navigation,
 tree redesign, account detail inspector, contextual same/sub-level creation, search, level
 filtering, responsive rework) is too broad for one reviewable package, it was split into
-sub-packages:
+sub-packages. After FIN-1F-1 shipped, Niroshan reviewed a reference screenshot of SAP B1's own
+Chart of Accounts window (detail panel on the left, tree in the middle with a Level control,
+drawer tabs as a vertical rail on the right, Title/Active/**Control** accounts each a distinct
+color) and asked for the eventual detail panel to be a **live inline edit form**, SAP B1-style,
+not a read-only-plus-edit-link panel — which re-sequenced FIN-1F-2/3 below (originally FIN-1F-2
+was "tree redesign + level filtering + search" and FIN-1F-3 was "detail panel + contextual
+actions"; the two are now split by editing-risk instead):
 
-- **FIN-1F-1** (this package): SAP B1 research, the Drawer/Title/Active/Level concept mapping
-  below, and drawer navigation cards on the existing list page.
-- FIN-1F-2: tree row redesign (classification/level columns, level-through-N filtering, search
-  with hierarchy context).
-- FIN-1F-3: account detail inspector panel, contextual action menu (⋮), Add Same-Level Account,
-  Add Sub-Level Account, hierarchy-aware Parent Account selector.
-- FIN-1F-4: responsive rework, `is_group` conversion-safety verification writeup, final live QA,
-  release-tracker sync.
+- **FIN-1F-1** (shipped): SAP B1 research, the Drawer/Title/Active/Level concept mapping below,
+  and drawer navigation cards on the existing list page.
+- **FIN-1F-2** (this package): the three-pane layout itself — inline detail panel (left, **read
+  display only** in this package), tree + Display Level control (middle), vertical drawer rail
+  (right, supersedes FIN-1F-1's horizontal cards) — plus the Title/Active/**Control** three-way
+  classification and its color coding.
+- FIN-1F-3: converts the detail panel into a live inline edit form (SAP B1-style — the actual
+  re-sequencing driver above), Add Same-Level Account, Add Sub-Level Account, hierarchy-aware
+  Parent Account selector.
+- FIN-1F-4: search with hierarchy context, responsive rework, `is_group` conversion-safety
+  verification writeup, final live QA, release-tracker sync.
 
 FIN-2 (Payment Entry + AR/AP visibility) remains **not authorized** by this package.
 
@@ -42,6 +52,12 @@ SAP Business One's Chart of Accounts window organizes accounts as a fixed hierar
   under the same parent. Both actions are only available when "Use Segmentation Accounts" is
   disabled in Company Details — Ceylon Stack has no equivalent segmentation-account concept, so
   this is not a relevant constraint here.
+- **Control Accounts** are G/L accounts that automatically consolidate Business Partner
+  (Customer/Vendor) sub-ledger balances — whenever a document posts against a Business Partner,
+  SAP B1 registers the journal entry against both the Business Partner's own balance and its
+  linked control account. Manual journal entries are blocked against a control account; only the
+  receivable/payable control accounts themselves appear in the Chart of Accounts (individual
+  Business Partner balances don't).
 
 Sources:
 - [Chart of Accounts Window — SAP Business One (help.sap.com)](https://help.sap.com/docs/SAP_BUSINESS_ONE/68a2e87fb29941b5bf959a184d9c6727/45114b7229fc4805e10000000a1553f6.html)
@@ -49,6 +65,8 @@ Sources:
 - [Chart of Accounts in SAP Business One — Concepts, vinasystem.com](https://www.vinasystem.com/en/blogs/sap-hana/chart-of-accounts-in-sap-business-one-chart-of-accounts-concepts)
 - [How to see or activate Add Same-Level/Sub-Level Account — SAP Q&A](https://answers.sap.com/questions/315885/how-to-see-or-activate-the-add-same-level-account.html)
 - [Sub-accounts (SAP Business One) — sap-b1-blog.com](https://sap-b1-blog.com/en/glossary/sub-accounts-sap-business-one/)
+- [How to Set SAP Business One Control Account — sap-business-one-tips.com](https://www.sap-business-one-tips.com/en/how-to-defined-control-account-in-sap-business-one/)
+- [How to Define a Control Account in SAP Business One — sterling-team.com](https://www.sterling-team.com/news/en/how-to-define-a-control-account-in-sap-business-one/)
 
 ## 2. Ceylon Stack / ERPNext mapping
 
@@ -56,7 +74,8 @@ Sources:
 |-----------------|----------------------------------------------------------------------------------------|
 | Drawer          | Derived presentation concept — the top ancestor (`root_type` account) of any Account's `parent_account` chain. Not a field; computed by `buildAccountPresentation()` in [`lib/accountHierarchy.ts`](../../../apps/frontend/src/lib/accountHierarchy.ts). |
 | Title Account   | `Account.is_group = 1`. Presented as classification `"TITLE"`. Cannot post (ERPNext itself enforces this at GL Entry validation, not something Ceylon Stack re-implements). |
-| Active Account  | `Account.is_group = 0`. Presented as classification `"ACTIVE"`. Postable ledger account. |
+| Active Account  | `Account.is_group = 0` and `account_type` is **not** `Receivable`/`Payable`. Presented as classification `"ACTIVE"`. Postable ledger account. |
+| Control Account | `Account.is_group = 0` and `account_type` is `Receivable` or `Payable` — the accounts ERPNext's Customer/Supplier records point to (`default_receivable_account`/`default_payable_account`) and Sales/Purchase Invoices + Payment Entries post to automatically. Presented as classification `"CONTROL"`. |
 | Level           | Derived hierarchy depth, 1-indexed (drawer/root = Level 1), computed from `parent_account` — never persisted. `AccountPresentation.level` in `lib/accountHierarchy.ts`. |
 | Parent article  | `Account.parent_account` (ERPNext's own tree field — no new field introduced). |
 
@@ -86,6 +105,19 @@ load and are not stored anywhere.
   must always pair "Classification: Active/Title Account" with "Status: Enabled/Disabled" rather
   than reusing the bare word "Active" for both — this is the terminology rule to apply everywhere
   the SAP B1 badge and the FIN-1E status badge coexist.
+- **No hard posting block on Control Accounts.** SAP B1 physically blocks manual journal entries
+  against a control account. ERPNext does **not** — a Journal Entry can post directly against a
+  `Receivable`/`Payable` account (this is sometimes required, e.g. opening-balance entries or
+  write-offs). Ceylon Stack's `"CONTROL"` badge is informational/presentational only; it does not
+  gate Journal Entry (FIN-3, unbuilt) posting in any way. Documenting this now so a future FIN-3
+  package doesn't assume a restriction ERPNext never enforced.
+- **Control detection is heuristic, not a native ERPNext flag.** ERPNext has no `is_control`-style
+  field — Ceylon Stack infers "Control Account" from `account_type ∈ {Receivable, Payable}`, the
+  same two types Company/Customer/Supplier default-account fields use. A tenant that (unusually)
+  assigns `Receivable`/`Payable` to an account never linked to any Business Partner would still
+  show a `"CONTROL"` badge under this heuristic — live-verified on the real tenant (see §6) that
+  the 3 accounts this classifies as Control are exactly the ones acting as such (Debtors,
+  Creditors, Employee Advances), but this isn't a guarantee for every future ERPNext tenant.
 
 ## 4. FIN-1F-1 implementation notes
 
@@ -126,7 +158,70 @@ uses), bypassing only the dashboard's own login — not ERPNext:
   `drawer = own name`; every account's `classification` matches its `is_group` exactly (0
   mismatches); every resolved `drawer` value is itself a real Account name (0 orphans).
 - **Still outstanding before this sub-package can be called fully verified:** clicking through the
-  actual `AccountDrawerNav` UI in an authenticated browser session (drawer filter round-trip,
+  actual drawer-navigation UI in an authenticated browser session (drawer filter round-trip,
   "All Drawers" reset, invalid-`?drawer=` fallback) — someone with dashboard access should do a
   quick click-through before/alongside independent review.
 - No Account records created or modified — this package is read/derive-only.
+
+## 6. FIN-1F-2 implementation notes
+
+- **Three-way classification.** `classify()` in `lib/accountHierarchy.ts` now returns `"TITLE"`
+  (`is_group=1`) / `"CONTROL"` (`is_group=0` and `account_type` is `Receivable` or `Payable`) /
+  `"ACTIVE"` (`is_group=0`, everything else) — `AccountClassification` widened from 2 to 3 values.
+  `DrawerSummary` gained a `controls` count alongside `titles`/`actives`. `CLASSIFICATION_BADGE_CLASS`
+  / `CLASSIFICATION_LABEL` are exported once from `lib/accountHierarchy.ts` and reused by both
+  `ChartOfAccountsTree` (badge in the tree row) and `AccountDetailPanel` (badge in the panel), so
+  the three colors can't drift between the two surfaces.
+- **Three-pane layout** (`page.tsx`): a flex row ordered, on desktop, detail panel → tree → drawer
+  rail (matching the SAP B1 reference screenshot exactly), collapsing to a single column on
+  narrow viewports (rail as a horizontal scroll strip, then the tree, then the panel) — full
+  responsive polish is still FIN-1F-4's scope; this is a first-pass layout, not pixel-tuned.
+- **`AccountDrawerRail`** replaces FIN-1F-1's `AccountDrawerNav` (renamed/rewritten, not layered —
+  the horizontal-card version was never reviewed or accepted, so replacing it outright is safe).
+  Same `?drawer=` contract as before.
+- **`AccountLevelControl`** — "Display Level" pills (All/1/2/3/4/5+), `?level=N` filters the same
+  in-memory presentation to `level <= N`. Live-verified this can never orphan a tree node: level
+  strictly increases down any parent chain, so removing every node above a level cutoff always
+  leaves a complete, self-contained subtree (see §7). An account whose real children all fall
+  above the cutoff renders as a leaf in the truncated view — expected "hierarchy cut off here"
+  behavior per the owner brief's §21, not a bug.
+- **`AccountDetailPanel`** — new left-docked inline panel. Selecting a tree row now sets
+  `?account=<name>` (via `ChartOfAccountsTree`'s new `buildAccountHref` prop) instead of
+  navigating to `/accounting/chart-of-accounts/[name]`; the page fetches that one account's full
+  doc (`getDoc`, 404 handled the same way `[name]/page.tsx` already does) and renders it read-only
+  — code, classification, level, drawer, parent, account type, currency, status. Root accounts
+  get the same "protected, no edit" framing `[name]/page.tsx` already uses. The panel's **[Edit]**
+  link still goes to the existing, unchanged `[name]` route — this package does not touch
+  `AccountForm.tsx`, `actions.ts`, or the `[name]`/`new` routes at all. `?account=` is validated
+  against the full company Account set (not the currently-filtered/visible subset) — selecting an
+  account and then narrowing the drawer/level filter around it doesn't clear the selection.
+- No `lib/erpnext.ts` changes; no new DocType fields; no new API calls beyond the one extra
+  `getDoc` when an account is selected (same call `[name]/page.tsx` already makes for the same
+  purpose).
+
+## 7. Live QA (FIN-1F-2)
+
+`npx tsc --noEmit`, `npx eslint`, and `npx next build` all pass clean. Same standalone-script
+method as FIN-1F-1 (dashboard login unreachable from this environment) — extended to fetch
+`account_type` and run the widened `classify()`/`summarizeDrawers()`/new `maxLevel()` logic
+against both live companies ("Ceylon Stack" and "Ceylon Stack (Demo)"):
+
+- Both companies: 96/96 accounts, drawer totals still reconcile exactly, `maxLevel` = 4.
+- Control accounts correctly identified in both companies: **Debtors** (`Receivable`),
+  **Creditors** (`Payable`), **Employee Advances** (`Payable`) — 0 with a classification that
+  doesn't match their own `is_group`/`account_type`.
+- Level-cutoff orphan check: filtered to `level <= 1` (5 kept), `level <= 2` (20 kept), and
+  `level <= 3` (78 kept) on the real tree — 0 orphans at every cutoff (every kept node's parent,
+  if one exists, was also kept).
+- **Still outstanding**, same as FIN-1F-1: an authenticated browser click-through (select a tree
+  row → panel populates; change Display Level → tree truncates correctly; switch drawers → panel/
+  level selection resets as expected; the [Edit] link still reaches the working `[name]` form).
+- No Account records created or modified.
+
+Independent code review (same day) found no blocking issues and confirmed the level-cutoff
+orphan-safety and `?account=`/`?level=`/`?drawer=` validation claims above by tracing the logic
+directly rather than re-checking assertions. Two non-blocking notes were applied: the tree row's
+classification badge keeps its short enum text deliberately (a comment now says why, vs. the
+panel's full `CLASSIFICATION_LABEL`), and the Display Level control's max-level pill count is now
+scoped to the active drawer's own subtree rather than the whole tenant (`treeMaxLevel` filters by
+`validDrawer` before calling `maxLevel()`).

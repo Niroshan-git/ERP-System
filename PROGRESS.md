@@ -5422,3 +5422,59 @@ presentation model + drawer navigation cards on the existing list page.
   a dashboard click-through QA pass. FIN-2 remains not authorized. Recommended next package:
   FIN-1F-2 (tree row redesign — classification/level columns, level-through-N filtering, search
   with hierarchy context).
+
+## FIN-1F-2 — Three-pane SAP B1 layout, Control Account classification (2026-09-24)
+
+Niroshan reviewed a reference screenshot of SAP B1's own Chart of Accounts window and asked for:
+(1) the account detail panel docked left, inline, not a popup/separate page; (2) drawer tabs as a
+vertical rail exactly like SAP B1's; (3) three distinct colors for Title/Active/**Control**
+accounts (Control being a SAP B1 concept not yet mapped in FIN-1F-1 — the AR/AP-style account
+Business Partner transactions post to automatically). Also asked whether the eventual detail
+panel should be full inline edit (SAP B1-style) or read-only-plus-edit-link; chose **full inline
+edit**, which re-sequenced the remaining sub-packages: this package (FIN-1F-2) builds the layout
++ read-only panel + classification; FIN-1F-3 (next) converts the panel into a live inline edit
+form + adds Same-Level/Sub-Level creation; FIN-1F-4 stays search/responsive/final QA.
+
+- **`lib/accountHierarchy.ts`**: `AccountClassification` widened from 2 to 3 values —
+  `"TITLE"`/`"ACTIVE"`/`"CONTROL"` (`CONTROL` = `is_group=0` and `account_type` is `Receivable`
+  or `Payable`, mirroring what a Customer/Supplier's default-account fields point to). Added
+  `account_type` to `AccountHierarchyRow`, a `controls` count to `DrawerSummary`, `maxLevel()`,
+  and shared `CLASSIFICATION_BADGE_CLASS`/`CLASSIFICATION_LABEL` exports so the tree and panel
+  render classification identically.
+- **New `AccountDrawerRail.tsx`**: replaces FIN-1F-1's `AccountDrawerNav` (rewritten, not
+  layered — that component was never reviewed/accepted, so replacing it was safe) with a
+  vertical cabinet-tab rail matching the reference screenshot; same `?drawer=` contract.
+- **New `AccountLevelControl.tsx`**: "Display Level" pills (All/1..5+), `?level=N` filters the
+  tree to `level <= N` — live-verified this can never orphan a node (level strictly increases
+  down any parent chain).
+- **New `AccountDetailPanel.tsx`**: left-docked, read-only for this package. Selecting a tree row
+  now sets `?account=<name>` instead of navigating to `/accounting/chart-of-accounts/[name]`; the
+  page fetches that account's full doc and shows code/classification/level/drawer/parent/type/
+  currency/status inline, with an **[Edit]** link to the existing (unchanged) `[name]` route.
+  Root accounts get the same "protected" framing the existing detail page already uses.
+- **`ChartOfAccountsTree.tsx`**: `AccountTreeRow` gained precomputed `classification`/`level`
+  fields (the tree derives nothing itself); account name links now go through a
+  `buildAccountHref` prop (selects into the panel) instead of a hardcoded route link; selected
+  row gets a highlight; each row's badge row gained the Title/Active/Control badge.
+- **`chart-of-accounts/page.tsx`**: three-pane flex layout (detail panel / tree+level-control /
+  drawer rail — desktop order matches the reference screenshot, stacks to one column on narrow
+  viewports as a first pass, full responsive polish deferred to FIN-1F-4); `?account=`/`?level=`/
+  `?drawer=` are independent, composable display filters over the one existing Account fetch.
+- No `lib/erpnext.ts` changes; no new DocType fields; `AccountForm.tsx`, `actions.ts`, and the
+  `[name]`/`new` routes are completely untouched.
+- `npx tsc --noEmit`, `npx eslint`, and `npx next build` all clean.
+- **Live verification**: same standalone-script method as FIN-1F-1 (dashboard login unreachable
+  from this environment), extended to fetch `account_type` and re-run against both live
+  companies. Both: 96/96 accounts, drawer totals reconcile, `maxLevel` = 4. Control accounts
+  correctly identified in both: Debtors (Receivable), Creditors (Payable), Employee Advances
+  (Payable) — 0 misclassifications. Level-cutoff orphan check at levels 1/2/3 (5/20/78 accounts
+  kept respectively): 0 orphans at any cutoff. **Not yet click-tested through the authenticated
+  UI** — same outstanding item as FIN-1F-1, flagged in the architecture doc's Live QA section.
+- Docs: `docs/backend/06-accounting/chart-of-accounts-sap-b1-architecture.md` gained the Control
+  Account research/mapping/intentional-differences additions and new §6/§7 (FIN-1F-2
+  implementation notes + Live QA); its sub-package roadmap updated to reflect the re-sequencing
+  above.
+- **Status:** `CLAUDE_HANDOFF` — not self-declared accepted; pending independent code review and
+  a dashboard click-through QA pass. FIN-2 remains not authorized. Recommended next package:
+  FIN-1F-3 (live inline edit form in the detail panel, Add Same-Level/Sub-Level Account,
+  hierarchy-aware Parent Account selector).

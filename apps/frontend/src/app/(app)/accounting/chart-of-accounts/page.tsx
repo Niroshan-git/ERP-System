@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
-import { AccountDrawerNav } from "@/components/AccountDrawerNav";
+import { AccountDetailPanel, type AccountDetailDoc } from "@/components/AccountDetailPanel";
+import { AccountDrawerRail } from "@/components/AccountDrawerRail";
+import { AccountLevelControl } from "@/components/AccountLevelControl";
 import { ChartOfAccountsTree, type AccountTreeRow } from "@/components/ChartOfAccountsTree";
-import { buildAccountPresentation, summarizeDrawers } from "@/lib/accountHierarchy";
-import { getDoc, listDocs } from "@/lib/erpnext";
+import { buildAccountPresentation, maxLevel, summarizeDrawers } from "@/lib/accountHierarchy";
+import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
 import { getCompanyOptions } from "@/lib/financeDefaults";
 
 /**
@@ -15,27 +17,34 @@ import { getCompanyOptions } from "@/lib/financeDefaults";
  *
  * FIN-1 (2026-09-24) shipped this read-only. FIN-1E (same day) adds real maintenance —
  * Create/Edit/Disable/Delete via `/accounting/chart-of-accounts/[name]` and
- * `/accounting/chart-of-accounts/new` — while this page itself stays the read-oriented tree
- * view, now with a "New account" entry point and each row linking to its own detail page.
+ * `/accounting/chart-of-accounts/new`.
  *
  * Fetches the full per-company Account set in one call (a page size of 200 comfortably covers
  * the live 96/company count with real headroom) rather than paginating — a tree view can't be
- * split across pages without breaking parent/child continuity, the same reasoning
- * `ChartOfAccountsTree`'s own doc comment gives for rendering everything server-side.
+ * split across pages without breaking parent/child continuity.
  *
- * FIN-1F-1 adds the SAP B1-inspired drawer navigation (`AccountDrawerNav`) above the tree —
- * `?drawer=<root account>` filters the same in-memory fetch to one root's subtree, a display
- * concern only (no new API call, no accounting data touched). See
- * `docs/backend/06-accounting/chart-of-accounts-sap-b1-architecture.md` for the full Drawer/
- * Title/Active/Level concept mapping; the tree row redesign, detail inspector, contextual
- * same/sub-level creation, search, and level filtering are later FIN-1F sub-packages.
+ * FIN-1F-2 reworks this into a three-pane SAP B1-style layout, per Niroshan's reference
+ * screenshot: an inline account detail panel (left), the tree with a "Display Level" control
+ * (middle), and a vertical drawer rail (right) — superseding FIN-1F-1's horizontal drawer cards
+ * (unreviewed, so replacing rather than layering was safe). `?account=`, `?level=`, and
+ * `?drawer=` are independent display filters over the one Account fetch above — no new API
+ * calls, no accounting data touched. See
+ * `docs/backend/06-accounting/chart-of-accounts-sap-b1-architecture.md` for the Drawer/Title/
+ * Active/Control/Level concept mapping. Editing still happens on the existing full-page
+ * `[name]` route via the panel's [Edit] link — FIN-1F-3 turns the panel itself into a live
+ * inline edit form.
  */
 export default async function ChartOfAccountsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ company?: string; drawer?: string }>;
+  searchParams: Promise<{ company?: string; drawer?: string; level?: string; account?: string }>;
 }) {
-  const { company: requestedCompany, drawer: requestedDrawer } = await searchParams;
+  const {
+    company: requestedCompany,
+    drawer: requestedDrawer,
+    level: requestedLevel,
+    account: requestedAccount,
+  } = await searchParams;
   const { companies, company } = await getCompanyOptions(requestedCompany);
 
   const [accounts, companyDoc] = await Promise.all([
@@ -60,16 +69,46 @@ export default async function ChartOfAccountsPage({
   ]);
 
   const presentation = buildAccountPresentation(accounts);
+  const presentationByName = new Map(presentation.map((p) => [p.name, p]));
   const drawerSummaries = summarizeDrawers(presentation);
-  const validDrawer = requestedDrawer && drawerSummaries.some((s) => s.drawer === requestedDrawer) ? requestedDrawer : null;
-  const visibleNames = validDrawer
-    ? new Set(presentation.filter((p) => p.drawer === validDrawer).map((p) => p.name))
-    : null;
-  const visibleAccounts = visibleNames ? accounts.filter((a) => visibleNames.has(a.name)) : accounts;
 
-  const buildDrawerHref = (drawer: string | null) => {
+  const validDrawer = requestedDrawer && drawerSummaries.some((s) => s.drawer === requestedDrawer) ? requestedDrawer : null;
+  // Scoped to the active drawer (not the whole tenant) so the Level control never offers pills
+  // deeper than what that drawer's own subtree actually has.
+  const treeMaxLevel = maxLevel(validDrawer ? presentation.filter((p) => p.drawer === validDrawer) : presentation);
+  const parsedLevel = requestedLevel ? Number.parseInt(requestedLevel, 10) : NaN;
+  const validLevel = Number.isFinite(parsedLevel) && parsedLevel >= 1 ? parsedLevel : null;
+  const validAccount = requestedAccount && presentationByName.has(requestedAccount) ? requestedAccount : null;
+
+  const visiblePresentation = presentation.filter(
+    (p) => (!validDrawer || p.drawer === validDrawer) && (!validLevel || p.level <= validLevel),
+  );
+  const visibleNames = new Set(visiblePresentation.map((p) => p.name));
+  const treeRows: AccountTreeRow[] = accounts
+    .filter((a) => visibleNames.has(a.name))
+    .map((a) => {
+      const p = presentationByName.get(a.name)!;
+      return { ...a, classification: p.classification, level: p.level };
+    });
+
+  let selectedDoc: AccountDetailDoc | null = null;
+  if (validAccount) {
+    try {
+      selectedDoc = await getDoc<AccountDetailDoc>("Account", validAccount);
+    } catch (e) {
+      if (!(e instanceof ErpNextError && e.status === 404)) throw e;
+    }
+  }
+  const selectedPresentation = validAccount ? presentationByName.get(validAccount) : undefined;
+
+  const buildHref = (overrides: { drawer?: string | null; level?: number | null; account?: string | null }) => {
     const params = new URLSearchParams({ company });
+    const drawer = "drawer" in overrides ? overrides.drawer : validDrawer;
+    const level = "level" in overrides ? overrides.level : validLevel;
+    const account = "account" in overrides ? overrides.account : validAccount;
     if (drawer) params.set("drawer", drawer);
+    if (level) params.set("level", String(level));
+    if (account) params.set("account", account);
     return `/accounting/chart-of-accounts?${params.toString()}`;
   };
 
@@ -81,9 +120,9 @@ export default async function ChartOfAccountsPage({
         <div>
           <h1 className="text-2xl font-medium text-graphite-900">Chart of Accounts</h1>
           <p className="mt-1 text-sm text-graphite-500">
-            {visibleAccounts.length} of {accounts.length} accounts for {company}
+            {treeRows.length} of {accounts.length} accounts for {company}
             {validDrawer ? ` in ${drawerSummaries.find((s) => s.drawer === validDrawer)?.drawerLabel}` : ""}.
-            Click an account to view, edit, disable, or delete it.
+            Click an account to view its details.
           </p>
         </div>
 
@@ -124,9 +163,42 @@ export default async function ChartOfAccountsPage({
         </div>
       </div>
 
-      <AccountDrawerNav summaries={drawerSummaries} activeDrawer={validDrawer} buildHref={buildDrawerHref} />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+        <div className="lg:order-1">
+          <AccountDetailPanel
+            account={selectedDoc}
+            classification={selectedPresentation?.classification ?? "ACTIVE"}
+            level={selectedPresentation?.level ?? 1}
+            drawerLabel={selectedPresentation?.drawerLabel ?? ""}
+            companyCurrency={companyDoc.default_currency ?? ""}
+          />
+        </div>
 
-      <ChartOfAccountsTree accounts={visibleAccounts} companyCurrency={companyDoc.default_currency ?? ""} company={company} />
+        <div className="min-w-0 flex-1 lg:order-2">
+          <div className="mb-3">
+            <AccountLevelControl
+              maxLevel={treeMaxLevel}
+              activeLevel={validLevel}
+              buildHref={(level) => buildHref({ level, account: null })}
+            />
+          </div>
+          <ChartOfAccountsTree
+            accounts={treeRows}
+            companyCurrency={companyDoc.default_currency ?? ""}
+            company={company}
+            buildAccountHref={(name) => buildHref({ account: name })}
+            selectedAccount={validAccount}
+          />
+        </div>
+
+        <div className="lg:order-3">
+          <AccountDrawerRail
+            summaries={drawerSummaries}
+            activeDrawer={validDrawer}
+            buildHref={(drawer) => buildHref({ drawer, level: null, account: null })}
+          />
+        </div>
+      </div>
 
       <p className="mt-3 text-xs text-graphite-500">
         Need Cost Centers, Journal Entries, or financial statements?{" "}

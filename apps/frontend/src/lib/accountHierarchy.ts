@@ -5,8 +5,19 @@ export type AccountHierarchyRow = {
   is_group: 0 | 1;
   root_type?: string | null;
   report_type?: string | null;
+  account_type?: string | null;
   disabled?: 0 | 1;
 };
+
+/**
+ * `Account.account_type` values ERPNext's own Customer/Supplier records point to
+ * (`default_receivable_account`/`default_payable_account`) and post against automatically via
+ * Sales/Purchase Invoices and Payment Entries — the same role SAP B1's "Control Account" plays
+ * (a G/L account that consolidates Business Partner sub-ledger balances, normally closed to
+ * manual posting). ERPNext does **not** hard-block manual Journal Entries against these accounts
+ * the way SAP B1 does — documented as an intentional difference, not re-implemented here.
+ */
+const CONTROL_ACCOUNT_TYPES = new Set(["Receivable", "Payable"]);
 
 export type AccountOption = AccountHierarchyRow & { depth: number };
 
@@ -47,16 +58,35 @@ export function indentedLabel(option: AccountOption): string {
 }
 
 /**
- * FIN-1F: SAP Business One-inspired presentation concepts (Drawer / Title / Active / Level),
- * derived entirely from existing ERPNext Account fields — `is_group`, `parent_account`, the
- * root account itself — never persisted as new fields, per the FIN-1F owner brief's "Data
- * Model Rule" (`docs/backend/06-accounting/chart-of-accounts-sap-b1-architecture.md`).
+ * FIN-1F: SAP Business One-inspired presentation concepts (Drawer / Title / Active / Control /
+ * Level), derived entirely from existing ERPNext Account fields — `is_group`, `account_type`,
+ * `parent_account`, the root account itself — never persisted as new fields, per the FIN-1F
+ * owner brief's "Data Model Rule" (`docs/backend/06-accounting/chart-of-accounts-sap-b1-architecture.md`).
  *
  * `level` is 1-indexed (root/drawer = Level 1) to match SAP B1's own "Level 1..N" convention,
  * unlike `AccountOption.depth` above (0-indexed, indent-only, pre-existing FIN-1E contract —
  * left alone rather than renumbered, to avoid touching the working Parent Account selector).
  */
-export type AccountClassification = "TITLE" | "ACTIVE";
+export type AccountClassification = "TITLE" | "ACTIVE" | "CONTROL";
+
+function classify(account: Pick<AccountHierarchyRow, "is_group" | "account_type">): AccountClassification {
+  if (account.is_group) return "TITLE";
+  if (account.account_type && CONTROL_ACCOUNT_TYPES.has(account.account_type)) return "CONTROL";
+  return "ACTIVE";
+}
+
+/** Shared badge styling so Title/Active/Control render identically in the tree and the detail panel. */
+export const CLASSIFICATION_BADGE_CLASS: Record<AccountClassification, string> = {
+  TITLE: "bg-graphite-500/10 text-graphite-500",
+  ACTIVE: "bg-signal/10 text-signal",
+  CONTROL: "bg-success/10 text-success",
+};
+
+export const CLASSIFICATION_LABEL: Record<AccountClassification, string> = {
+  TITLE: "Title Account",
+  ACTIVE: "Active Account",
+  CONTROL: "Control Account",
+};
 
 export type AccountPresentation = AccountHierarchyRow & {
   depth: number;
@@ -91,7 +121,7 @@ export function buildAccountPresentation(accounts: AccountHierarchyRow[]): Accou
     return {
       ...option,
       level: option.depth + 1,
-      classification: option.is_group ? "TITLE" : "ACTIVE",
+      classification: classify(option),
       drawer,
       drawerLabel: drawerLabelByName.get(drawer) ?? drawer,
     };
@@ -105,6 +135,7 @@ export type DrawerSummary = {
   total: number;
   titles: number;
   actives: number;
+  controls: number;
   disabled: number;
 };
 
@@ -121,14 +152,21 @@ export function summarizeDrawers(presentation: AccountPresentation[]): DrawerSum
         total: 0,
         titles: 0,
         actives: 0,
+        controls: 0,
         disabled: 0,
       };
       summaries.set(account.drawer, summary);
     }
     summary.total += 1;
     if (account.classification === "TITLE") summary.titles += 1;
+    else if (account.classification === "CONTROL") summary.controls += 1;
     else summary.actives += 1;
     if (account.disabled) summary.disabled += 1;
   }
   return Array.from(summaries.values()).sort((a, b) => a.drawerLabel.localeCompare(b.drawerLabel));
+}
+
+/** Max `level` present, for building a bounded "Display Level" control (1..max, capped display at 5+). */
+export function maxLevel(presentation: AccountPresentation[]): number {
+  return presentation.reduce((max, p) => Math.max(max, p.level), 1);
 }
