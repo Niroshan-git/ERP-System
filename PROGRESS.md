@@ -5478,3 +5478,29 @@ form + adds Same-Level/Sub-Level creation; FIN-1F-4 stays search/responsive/fina
   a dashboard click-through QA pass. FIN-2 remains not authorized. Recommended next package:
   FIN-1F-3 (live inline edit form in the detail panel, Add Same-Level/Sub-Level Account,
   hierarchy-aware Parent Account selector).
+
+## FIN-1F account coding structure — design decision, no code shipped (2026-09-24)
+
+Niroshan asked for a SAP B1-style account coding structure to organize the CoA. Settled by
+decision, not yet code (targets FIN-1F-3's Add Same-Level/Sub-Level Account):
+
+- **Scheme**: classic 4-digit block convention — thousands digit = drawer (1=Asset, 2=Liability,
+  3=Equity, 4=Income, 5=Expense, fixed forever since ERPNext's `root_type` is a permanent 5-value
+  enum), hundreds/tens/ones = Level 2/3/4 sibling ordinal. Chosen over SAP B1's literal fixed-width
+  segment mechanics (which lock at first-account-creation and need upfront segment-width setup) —
+  recognizable across ERPs, no setup step needed.
+- **Scope: new accounts only, no retrofit** — Niroshan's explicit choice. None of the 192 existing
+  Account records (96/company) get `account_number` touched; renumbering them would route through
+  ERPNext's rename mechanism (`update_account_number`) and touch every GL Entry reference — a real
+  live-data migration that deserves its own reviewed package if ever wanted, not a side effect of
+  a numbering convention.
+- **Auto-suggestion design**: since existing (uncoded) accounts can still be a new account's
+  parent, the algorithm derives a virtual base code from `buildAccountPresentation()`'s existing
+  drawer/level/sibling data (never written back onto the uncoded parent) rather than requiring
+  `parent.account_number` to already exist. Sibling ordinal prefers the highest already-assigned
+  code among true siblings, falling back to existing-sibling-count + 1. Overflow (>9 children at
+  one digit position) extends with an extra digit rather than colliding.
+- Documented in full: `docs/backend/06-accounting/chart-of-accounts-sap-b1-architecture.md` §8
+  (scheme + table), §8.1 (retrofit-scope decision + reasoning), §8.2 (auto-suggestion algorithm).
+- No application code changed in this pass — pure design/documentation, confirmed via
+  `git status` before commit.

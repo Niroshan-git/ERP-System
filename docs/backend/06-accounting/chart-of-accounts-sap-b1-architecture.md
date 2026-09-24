@@ -25,7 +25,8 @@ actions"; the two are now split by editing-risk instead):
   (right, supersedes FIN-1F-1's horizontal cards) — plus the Title/Active/**Control** three-way
   classification and its color coding.
 - FIN-1F-3: converts the detail panel into a live inline edit form (SAP B1-style — the actual
-  re-sequencing driver above), Add Same-Level Account, Add Sub-Level Account, hierarchy-aware
+  re-sequencing driver above), Add Same-Level Account, Add Sub-Level Account (which implement
+  §8's account coding structure via auto-suggested `account_number` values), hierarchy-aware
   Parent Account selector.
 - FIN-1F-4: search with hierarchy context, responsive rework, `is_group` conversion-safety
   verification writeup, final live QA, release-tracker sync.
@@ -225,3 +226,77 @@ classification badge keeps its short enum text deliberately (a comment now says 
 panel's full `CLASSIFICATION_LABEL`), and the Display Level control's max-level pill count is now
 scoped to the active drawer's own subtree rather than the whole tenant (`treeMaxLevel` filters by
 `validDrawer` before calling `maxLevel()`).
+
+## 8. Account coding structure (design, not yet implemented — targets FIN-1F-3)
+
+Niroshan asked for a SAP B1-style **account coding structure** to organize the CoA well. SAP B1's
+own equivalent is **Account Segmentation**: an account code is built from up to 10 fixed-width
+segments (a leading "natural account segment" identifying the type, then sub-segments per
+level), configured once at Company setup and locked once the first G/L account exists — a
+one-time, irreversible-after-first-use structural decision, not something to copy literally into
+a live ERPNext tenant that already has 96 posted-against accounts per company.
+
+Ceylon Stack instead adopts the **classic 4-digit block convention** (thousands/hundreds/tens/
+ones per level — the same numbering style QuickBooks/Xero/Acumatica-style charts use, chosen
+over SAP B1's exact segment mechanics for recognizability and because it needs no upfront
+"segment width" configuration step):
+
+| Digit position | Level | Meaning |
+|---|---|---|
+| Thousands (1 digit, 1–5) | Level 1 (Drawer) | `1`=Asset, `2`=Liability, `3`=Equity, `4`=Income, `5`=Expense — fixed 1 digit forever, since ERPNext's `root_type` is a permanent 5-value enum on the `Account` doctype itself, not tenant data that could grow. |
+| Hundreds (1 digit, 0–9) | Level 2 | `0` = unassigned/this account stops at Level 1 scope; `1`–`9` = sibling ordinal under the drawer. |
+| Tens (1 digit, 0–9) | Level 3 | Same pattern, one level down. |
+| Ones (1 digit, 0–9) | Level 4 | Same pattern; the account's own `classification` (Title/Active/Control) still comes from `is_group`/`account_type` as documented in §2 — a nonzero ones digit does not by itself imply "Active." |
+
+Example (matches the preview Niroshan approved): `1000` Assets (drawer) → `1100` Current Assets
+(L2 title) → `1110` Cash and Bank (L3 title) → `1111` Main Bank (L4 active), `1112` Petty Cash (L4
+active) → `1120` Accounts Receivable (L3 title) → `1121` Trade Debtors (L4 control).
+
+**Overflow rule** (a title with more than 9 direct children at one digit position): append an
+extra digit rather than colliding two accounts on the same code, e.g. a 10th child under `1100`
+becomes `11010` instead of wrapping back to a used single digit. Documented now as a known edge
+case for FIN-1F-3 to implement, not resolved further here since it isn't exercised until real
+create traffic hits it.
+
+### 8.1 Scope: new accounts only, no retrofit (Niroshan's explicit decision, 2026-09-24)
+
+None of the 192 existing Account records (96 per company) have `account_number` set today (§5 of
+`chart-of-accounts-bank-account.md`). Niroshan explicitly chose **not** to retrofit them — this
+convention applies going forward, to accounts created after FIN-1F-3 ships Add Same-Level/
+Sub-Level Account, not as a live-data migration folded into a UX package. Reasoning recorded for
+future sessions: an `account_number` change routes through ERPNext's rename mechanism
+(`update_account_number`, per FIN-1E), touching the account's own `name` and every GL Entry that
+references it — a real accounting-data migration across the whole live tenant, which deserves its
+own reviewed, QA'd package (or an explicit decision to skip it forever) if it's ever wanted, not a
+silent side effect of a numbering-convention rollout.
+
+### 8.2 Auto-suggestion algorithm (for FIN-1F-3 to implement)
+
+Because existing accounts stay uncoded, a new account's **parent** usually has no
+`account_number` either — there's no numeric base to build the child's suggested code from by
+reading `parent.account_number` alone. The algorithm therefore derives a **virtual** base code for
+any parent (coded or not) from the same drawer/level/sibling-position data `buildAccountPresentation()`
+already computes, and never writes that virtual code back onto the (uncoded) parent:
+
+1. Take the parent's `drawer` (already resolved) → the thousands digit (1–5) is fixed regardless
+   of whether the parent itself has a real code.
+2. Walk the parent's own ancestor chain (already available via `parent_account`) to determine
+   which digit position (hundreds/tens/ones) the new child's own sibling-ordinal digit occupies —
+   this is exactly `level` from `buildAccountPresentation`, needing no new derivation.
+3. Sibling ordinal: prefer the highest **already-assigned** `account_number` among true siblings
+   (children of the same parent) at that digit position, +1, if any sibling was created under
+   this convention already; otherwise fall back to `(existing sibling count, coded or not) + 1` —
+   i.e., a brand-new numbered sibling under an old uncoded title still gets a sensible next slot
+   rather than colliding with `0` or with an uncoded sibling that will never get a real code.
+4. Add Same-Level Account reuses the **parent's** own suggestion (same digit position, next
+   ordinal after the selected account, not the selected account's own children).
+5. Add Sub-Level Account uses the **selected account** as the new parent (one digit position
+   deeper, ordinal starts at 1 unless the selected account already has children).
+6. The suggested code always prefills the form field — it is never silently auto-submitted;
+   the create form's existing validation (uniqueness, etc.) still governs the final save, same as
+   every other field `AccountForm.tsx` already handles.
+
+This design is deliberately buildable without touching any existing Account record — it only
+ever writes `account_number` on the newly-created account itself, going through the same
+`createDoc`/`update_account_number` path FIN-1E already established, with no new
+`lib/erpnext.ts` surface required.
