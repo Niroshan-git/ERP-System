@@ -2444,3 +2444,70 @@ integration monitoring) landed mid-session and was left untouched.
 **Sign-off**: `CLAUDE_HANDOFF` — code review and live QA both complete with no blocking findings.
 Not self-declared `ACCEPTED` — pending Niroshan's review and independent cross-review per
 `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
+## 2026-09-24 — `FIN-1` — Chart of Accounts (read) + Bank Account CRUD — code review + live QA
+
+**Package**: first Finance V1 implementation package, per `FIN-GOV-1`'s governance authorization
+(commit `366ba29`) and `docs/backend/06-accounting/finance-architecture.md`'s FIN-1..FIN-6
+sequence. Implementation commit: `58760a0`. Closes `FIN-GAP-05` (zero Bank Account records, no
+CRUD) and `FIN-GAP-06` (Chart of Accounts has no read view).
+
+**Code changes**: new `/accounting` module — read-only Chart of Accounts tree
+(`accounting/chart-of-accounts/page.tsx` + `components/ChartOfAccountsTree.tsx`), full Bank
+Account CRUD (`accounting/bank-accounts/{page.tsx,new/page.tsx,[name]/page.tsx,actions.ts}` +
+`components/BankAccountForm.tsx`), a get-or-create helper for the mandatory `Bank` link field
+(`resolveBankName`, since the tenant had zero `Bank` records), `lib/financeDefaults.ts`
+(`getCompanyOptions`, mirrors the existing `stockDefaults.ts` pattern), and a new `maskSensitive()`
+helper appended to the pre-existing `lib/format.ts`. Zero changes to `lib/erpnext.ts` — every call
+reuses its existing exports. `Sidebar.tsx` edited via `git add -p` to add Finance nav while
+preserving one pre-existing foreign hunk (Sales Returns link) untouched.
+
+**Code review** (`code-reviewer`, independent fresh subagent, worked from `git show`/current file
+contents, not the implementer's summary): **PASS, no blocking findings.** Scope boundary clean (no
+Payment Entry/Journal Entry/AR-AP/GL-report territory touched, no ERPNext core/`smart_factory`
+edits); API-layer discipline confirmed (`git diff` on `lib/erpnext.ts` empty, no raw `fetch()` in
+new files); sensitive-field masking verified structurally correct (raw `bank_account_no`/`iban`
+never attached to the row object passed to `MasterTable`, `reportBusinessActivity()` never sends
+raw field payloads); server-side validation confirmed independent of client constraints; delete
+flow surfaces ERPNext link-check errors via `humanizeError`, not a raw stack trace. Two
+non-blocking notes: a narrow TOCTOU race in `resolveBankName` (low-concurrency internal tool,
+acceptable), and a slightly imprecise 403 message when the failure originates from the Bank
+lookup rather than the Bank Account write.
+
+**Live QA** (`qa-tester`, fresh subagent, independent SSH queries against site `frontend`, not
+copy-pasted from the implementer's report): **PASS.** Re-verified schema/data from scratch —96
+Account records for company "Ceylon Stack" (96 for "Ceylon Stack (Demo)"), 5 roots, zero orphan
+`parent_account` references; `Bank Account.bank` confirmed `reqd: 1`; `Bank`/`Bank Account` counts
+were 0 before testing. Drove the actual `buildBankAccountFields`/`resolveBankName` payload shape
+through Frappe's document API under the impersonated production service-account identity (not by
+reading/regenerating its real secret, per the standing `.env` rule): Bank get-before-create → 404;
+Bank/Bank Account create → autoname resolved exactly as documented; read-back and update
+persisted correctly; duplicate create → rejected (`DuplicateEntryError`, 409); invalid IBAN →
+rejected; `is_company_account: 1` without `company` → rejected with the exact "Company Account is
+mandatory" message the canonical doc predicted (independent reproduction, not copied); delete of
+both test records confirmed via 404 re-fetch; tenant counts back to 0 afterward — **all disposable
+`QA-FIN1-TEST-*` fixtures cleaned up, no pre-existing data touched.** Masking re-verified at the
+code level (`BankAccountRow` has no `bank_account_no`/`iban` field at all — structurally cannot
+leak). `npm run lint`/`npm run build` clean for this package's files (one pre-existing, unrelated
+lint error confirmed to belong to untouched foreign WIP). One **LOW** finding: the canonical doc's
+claimed duplicate-entry error text ("Bank Account `<name>` already exists") didn't reproduce
+verbatim via the document-API path tested (got a raw `DuplicateEntryError`/MySQL `IntegrityError`
+instead) — functionally identical (still rejected, still 409), wording discrepancy only, flagged
+for a literal-REST spot-check whenever FIN-2 next touches this path. `FIN-UNV-001`/`FIN-UNV-002`
+remain genuinely unexercised (no linked Payment Entry or second Bank Account exists yet to test
+against) — disclosed, not worked around.
+
+**Concurrent work note**: heavy foreign WIP was active throughout (Sales lifecycle actions,
+Observability, login/auth rework) — both the review and QA subagents independently cross-checked
+`git show --stat 58760a0` against fresh `git status` and confirmed none of it appears in this
+commit.
+
+**Sign-off**: `ACCEPTED` — code review and live QA both independently PASS with no HIGH/MEDIUM
+findings (two LOW/non-blocking notes only, neither requiring remediation before acceptance).
+**Governance disclosure**, consistent with this log's prior entries under the same constraint: no
+genuinely separate Claude account/session exists in this environment — review and QA were
+performed by fresh subagents with no memory of the implementation, independently re-deriving
+evidence (live SSH queries, direct file reads, disposable test fixtures) rather than grading the
+implementer's own claims, which is the compensating control this repo has used throughout
+`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`'s effective window — flagged as a candidate for Codex's
+eventual §16 reconciliation audit, same as every prior instance in this log.

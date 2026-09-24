@@ -1,9 +1,10 @@
 # Accounting / Finance — Backend Knowledge Baseline
 
-Domain status: `FIN-1 IMPLEMENTED — CLAUDE_HANDOFF, pending independent review` (FIN-0 discovery
-closed + `FIN-GOV-1` governance authorization, both 2026-09-24; `FIN-1` implementation same day).
-Chart of Accounts (read-only) and Bank Account (full CRUD) are now real, live-verified frontend
-screens — see `docs/backend/15-migration/migration-status.md` for the canonical status row.
+Domain status: `FIN-1 ACCEPTED` (FIN-0 discovery closed + `FIN-GOV-1` governance authorization,
+both 2026-09-24; `FIN-1` implemented same day, commit `58760a0`; independent code review + live QA
+both PASS same day — see `QA_LOG.md`'s 2026-09-24 `FIN-1` entry). Chart of Accounts (read-only) and
+Bank Account (full CRUD) are real, live-verified, accepted frontend screens — see
+`docs/backend/15-migration/migration-status.md` for the canonical status row.
 
 This folder now holds three documents, per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` §4:
 
