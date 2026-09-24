@@ -5504,3 +5504,57 @@ decision, not yet code (targets FIN-1F-3's Add Same-Level/Sub-Level Account):
   (scheme + table), §8.1 (retrofit-scope decision + reasoning), §8.2 (auto-suggestion algorithm).
 - No application code changed in this pass — pure design/documentation, confirmed via
   `git status` before commit.
+
+## CRM-0 — Backend & Architecture Discovery (2026-09-24)
+
+Niroshan started the CRM functional stream with a discovery-only mission (mirroring FIN-0's own
+precedent). **No CRM frontend exists and none was built.** Full deliverable:
+`docs/backend/16-crm/crm-architecture.md` (new domain folder — `16-crm/`, since `01-08` never
+reserved a CRM slot; see that folder's `README.md` for the numbering rationale).
+
+- **Evidence base:** live schema/data (`mcp__ceylon-stack__list_doctypes`/`get_doctype_fields`/
+  `list_documents` against the real Hetzner instance) for `Lead`, `Opportunity`, `Prospect`, `CRM
+  Settings`, `Prospect Lead`, `Sales Stage`, plus every doctype `list_doctypes(module="CRM")`
+  enumerates. **Zero live Lead/Opportunity/Prospect records exist on this instance** — every finding
+  is schema- and source-verified, not runtime-behavior-verified (flagged explicitly in the doc's §21).
+- **GitHub source reads** (`frappe/erpnext` `develop` branch, `SOURCE VERIFIED` tier): `lead.py`,
+  `opportunity.py`, `crm/utils.py`, `lead.js`, `opportunity.js`, and — the key discovery —
+  `erpnext/crm/doctype/lead/mapper.py`, which contains the real `make_customer`/`make_opportunity`/
+  `make_quotation` conversion functions (quoted and analyzed in full). Confirmed: ERPNext's native
+  Lead conversion **creates new documents but never touches `Lead.status`**, and **never creates a
+  new Contact/Address — only links an existing one via Dynamic Link if one is already attached to the
+  Lead**. Both are concrete, actionable requirements for a future `CRM-1`/`CRM-2` package.
+- **Key architectural findings:** (1) `Customer.lead_name`/`opportunity_name`/`prospect_name` — Link
+  fields already live-schema-verified in Master Data's own `customer-supplier.md`, confirmed
+  unpopulated by this frontend — are exactly the conversion-provenance pointers ERPNext's native
+  mapper writes; a future `CRM-1` needs one small additive parameter added to Master Data's
+  `createCustomerAction`, not a new screen. (2) Lead/Prospect's Contact/Address relationship reuses
+  the exact Dynamic Link mechanism `party-contact-address-architecture.md` already designed for
+  Customer/Supplier — `CRM-1` extends the same `createContactAction`/`createAddressAction`
+  allowlist to include `"Lead"`, no new pattern. (3) `Opportunity.amended_from`'s presence is new
+  evidence Opportunity is likely submittable (Draft/Submit/Cancel/Amend), unlike Lead/Customer/
+  Supplier — flagged `CRM-UNV-004`, blocks `CRM-2`'s exact lifecycle scope. (4) The existing Sales
+  Quotation frontend hardcodes `quotation_to = "Customer"`; ERPNext natively also supports
+  `quotation_to = "Lead"` (a direct Lead→Quotation shortcut bypassing Opportunity) — recommended
+  `POST-V1`, so `CRM-5`'s handoff needs zero changes to Sales' frozen, hardened core.
+- **Roadmap:** `CRM-1` (Leads) → `CRM-2` (Opportunities) → `CRM-3` (Activities, reusing native
+  `ToDo`/`Event`/`Communication`/`CRM Note` — no new Ceylon Stack activity doctype justified) →
+  `CRM-4` (Pipeline Workspace, design only) → `CRM-5` (CRM→Sales handoff, navigates to Sales'
+  existing Quotation create flow, forks nothing). `Prospect` recommended `POST-V1` (Lead's own
+  organization fields cover the common one-lead-one-deal SME case; Prospect's 3-child-table
+  aggregation model adds complexity without a demonstrated need yet).
+- **7 new `NEEDS_VERIFICATION` items** (`CRM-UNV-001`..`007`) logged in
+  `docs/backend/99-unverified/unverified-behaviours.md`'s new `## CRM` section — most significant is
+  `CRM-UNV-004` (Opportunity submittability), which should resolve before `CRM-2` scopes its
+  lifecycle actions.
+- Cross-references updated: `docs/backend/11-relationships/master-erd.md` (new CRM ERD),
+  `docs/backend/15-migration/migration-status.md` (new CRM row, `DOCUMENTED`/discovery-only),
+  `docs/backend/README.md`, `docs/master-data-architecture.md` §12 (confirmation note, not a
+  rewrite — the existing CRM dependency map held up unchanged).
+- **Git:** started at `956982d` (branch `frontend`); a concurrent Finance session committed
+  `bd77a5e` (`docs(finance): FIN-1F account coding structure + FIN-1F-2 release sync`) mid-session —
+  preserved untouched, not read or staged by this package. This package's own changes are
+  documentation-only (no route, Sidebar entry, form, server action, or ERPNext write).
+- **Status:** `CLAUDE_HANDOFF` — discovery complete, **not self-declared `ACCEPTED`**. Needs
+  Niroshan's sign-off before `CRM-1` starts, per the same posture `party-contact-address-architecture.md`
+  already takes for `MD-REL-1`. Per governance, this session does not begin `CRM-1` automatically.

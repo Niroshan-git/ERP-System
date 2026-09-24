@@ -178,3 +178,61 @@ erDiagram
   not exposed anywhere in this frontend's `ItemForm.tsx`, so modeling them here would overstate what
   this frontend actually does. See `docs/backend/01-master-data/item.md`'s field table for the full
   live-schema list.
+
+---
+
+## CRM ERD (added 2026-09-24, `CRM-0`)
+
+Discovery/architecture only — **no CRM frontend exists.** See `docs/backend/16-crm/crm-architecture.md`
+for full detail, evidence tiering, and the `NEEDS_VERIFICATION` register this diagram's dashed/uncertain
+edges correspond to.
+
+```mermaid
+erDiagram
+    LEAD }o--o| INDUSTRY_TYPE : "N:1 optional (lead.industry)"
+    LEAD }o--o| TERRITORY : "N:1 optional (lead.territory) — canonical, Master Data-owned"
+    LEAD }o--o| CUSTOMER : "N:1 optional, reverse direction (lead.customer, 'From Customer' — lead created FROM an existing customer)"
+    LEAD ||--o{ CRM_NOTE : "notes (1:N)"
+    LEAD ||--o{ DYNAMIC_LINK : "Contact/Address link via link_doctype=Lead (no direct FK on Lead itself)"
+    OPPORTUNITY }o--|| DOCTYPE_POLYMORPHIC : "opportunity_from + party_name (Dynamic Link) — practical values {Lead, Customer, Prospect}, not schema-enforced (CRM-UNV-003)"
+    OPPORTUNITY }o--o| CONTACT : "N:1 optional, direct pointer (opportunity.contact_person) — not via Dynamic Link"
+    OPPORTUNITY }o--o| ADDRESS : "N:1 optional, direct pointer (opportunity.customer_address)"
+    OPPORTUNITY }o--o| OPPORTUNITY_TYPE : "N:1 optional"
+    OPPORTUNITY }o--o| SALES_STAGE : "N:1 optional"
+    OPPORTUNITY }o--o| CUSTOMER_GROUP : "N:1 optional — canonical, Master Data-owned"
+    OPPORTUNITY ||--o{ OPPORTUNITY_ITEM : "items (1:N)"
+    OPPORTUNITY ||--o{ OPPORTUNITY_LOST_REASON_DETAIL : "lost_reasons (1:N, Table MultiSelect)"
+    OPPORTUNITY ||--o{ COMPETITOR_DETAIL : "competitors (1:N, Table MultiSelect)"
+    OPPORTUNITY ||--o{ CRM_NOTE : "notes (1:N)"
+    PROSPECT ||--o{ PROSPECT_LEAD : "leads (1:N) — denormalized roster"
+    PROSPECT ||--o{ PROSPECT_OPPORTUNITY : "opportunities (1:N) — denormalized roster"
+    PROSPECT }o--o| CUSTOMER_GROUP : "N:1 optional"
+    PROSPECT }o--o| INDUSTRY_TYPE : "N:1 optional"
+    PROSPECT ||--o{ CRM_NOTE : "notes (1:N)"
+    PROSPECT_LEAD }o--|| LEAD : "N:1 (lead)"
+    PROSPECT_OPPORTUNITY }o--|| OPPORTUNITY : "N:1 (opportunity)"
+    CUSTOMER }o--o| LEAD : "N:1 optional, conversion provenance (customer.lead_name) — schema exists, unpopulated by any frontend today"
+    CUSTOMER }o--o| OPPORTUNITY : "N:1 optional, conversion provenance (customer.opportunity_name)"
+    CUSTOMER }o--o| PROSPECT : "N:1 optional, conversion provenance (customer.prospect_name)"
+```
+
+### Notes
+
+- **Neither Lead nor Prospect has a direct Contact/Address Link field** — both rely on the same
+  `Dynamic Link` polymorphic child-table mechanism already fully modeled in the Master Data ERD above
+  (`Contact.links`/`Address.links`, `link_doctype`/`link_name`), just with `link_doctype = "Lead"` or
+  `"Prospect"` instead of `"Customer"`/`"Supplier"`. **Opportunity is the one exception** — its
+  `contact_person`/`customer_address` are plain `Link` fields, not a Dynamic Link lookup, confirmed
+  live schema.
+- **`Opportunity.opportunity_from`/`party_name` is a polymorphic Dynamic-Link-style parent field**
+  (not a child table like Contact/Address's `links`) — `opportunity_from` names the target doctype,
+  `party_name` (fieldtype `Dynamic Link`) resolves against it. Practical values are `{Lead, Customer,
+  Prospect}`, inferred from source usage (`mapper.py`) and the existence of `Prospect Opportunity`,
+  not schema-enforced (`CRM-UNV-003`).
+- **`Customer.lead_name`/`opportunity_name`/`prospect_name`** (already `VERIFIED` live schema in the
+  Master Data ERD's own Customer row, confirmed unpopulated by this frontend in
+  `docs/backend/01-master-data/customer-supplier.md`) are exactly the conversion-provenance pointer
+  fields ERPNext's native `Lead → Customer` mapper (`erpnext.crm.doctype.lead.mapper._make_customer`,
+  `SOURCE VERIFIED`) writes on conversion — see `docs/backend/16-crm/crm-architecture.md` §6/§10.
+- **Zero live Lead/Opportunity/Prospect records exist on this instance** — every relationship above is
+  schema- and source-verified, not runtime-behavior-verified. See `crm-architecture.md` §21.

@@ -5186,3 +5186,95 @@ project's standing, unrelated Notion connector issue, not something this package
 **Final state:** `CLAUDE_HANDOFF` — code review and live QA both complete with no blocking findings.
 Not self-declared `ACCEPTED`. Per the brief's own final control gate: `SAFE FOR INDEPENDENT
 REVIEW: YES`.
+
+## Package: CRM-0 — Backend & Architecture Discovery (2026-09-24)
+
+### Objective
+
+Start the CRM functional stream with discovery/architecture only (mirroring `FIN-0`'s precedent) —
+establish the canonical Lead/Opportunity/Prospect model, lead-conversion mechanism, activity
+architecture, and CRM/Sales/Master Data/Finance boundaries, and produce an implementation-ready
+`CRM-1` scope. No CRM frontend page was to be built, and none was.
+
+### Claude
+
+Started: 2026-09-24, branch `frontend`, HEAD `956982d0b479ba77fabc4cdde2985c1978b68a39`.
+Completed: 2026-09-24.
+Implementation Summary: Discovery only — no route, Sidebar entry, form, server action, or ERPNext
+write. Live schema/data reads (`mcp__ceylon-stack__list_doctypes`/`get_doctype_fields`/
+`list_documents`) against `Lead`, `Opportunity`, `Prospect`, `CRM Settings`, `Prospect Lead`,
+`Sales Stage`, and the full `CRM`-module doctype inventory — all read-only, confirmed zero live
+Lead/Opportunity/Prospect records exist on this instance. GitHub source reads (`frappe/erpnext`
+`develop`) of `lead.py`, `opportunity.py`, `crm/utils.py`, `lead.js`, `opportunity.js`, and —
+the key discovery — `erpnext/crm/doctype/lead/mapper.py` (the real `make_customer`/
+`make_opportunity`/`make_quotation` conversion functions, quoted and analyzed in full). Produced
+`docs/backend/16-crm/crm-architecture.md` (new domain folder, `16-crm/`, since the original `01-08`
+sequence in `BACKEND_KNOWLEDGE_POLICY.md` §4 never reserved a CRM slot) covering all 20 required
+sections of the mission brief, plus a `CRM-1`–`CRM-5` package roadmap.
+Files: `docs/backend/16-crm/crm-architecture.md` (new), `docs/backend/16-crm/README.md` (new),
+`docs/backend/11-relationships/master-erd.md` (CRM ERD appended), `docs/backend/15-migration/
+migration-status.md` (new CRM row), `docs/backend/99-unverified/unverified-behaviours.md` (new
+`## CRM` section, `CRM-UNV-001`..`007`), `docs/backend/README.md` (folder-numbering note),
+`docs/master-data-architecture.md` (§12 confirmation note), `PROGRESS.md`, this file.
+Tests: Not applicable — documentation-only package, no application code changed.
+Handoff: `CLAUDE_HANDOFF`. Not self-declared `ACCEPTED` — needs Niroshan's sign-off before `CRM-1`
+starts, same posture `party-contact-address-architecture.md` already takes for `MD-REL-1`.
+Commit/Boundary: This package's changes are the documentation files listed above only. A concurrent
+Finance session committed `bd77a5eecc28bf16eb4f7f851108a41b25ab01bf`
+(`docs(finance): FIN-1F account coding structure + FIN-1F-2 release sync`) mid-session, moving HEAD
+— preserved untouched, not read or staged by this package, consistent with the mission's concurrent-
+work-safety instructions.
+
+### Codex
+
+Review Started: Not yet.
+Review Completed: Not yet.
+Review State: `NOT_STARTED`.
+Tests Independently Executed: `NOT_APPLICABLE` (docs-only package).
+Documentation Updated: `NOT_APPLICABLE` (Codex has not yet reviewed).
+
+### Findings
+
+| ID | Severity | Area | Finding | Owner | Status |
+|---|---|---|---|---|---|
+| `CRM-UNV-001` | LOW | CRM | `CRM Settings.enable_frappe_crm_data_synchronization` actual value not confirmed (Single doctype, no `getDoc`-equivalent tool available this session) | Claude | `NEEDS_VERIFICATION` |
+| `CRM-UNV-002` | LOW | CRM | Lead/Prospect naming mode not empirically confirmed — zero live records to sample | Claude | `NEEDS_VERIFICATION` |
+| `CRM-UNV-003` | MEDIUM | CRM | `Opportunity.opportunity_from`'s valid-value set not confirmed server-side-enforced; must be allowlisted by Ceylon Stack regardless (§9.3) | Claude | `NEEDS_VERIFICATION` |
+| `CRM-UNV-004` | MEDIUM | CRM | Whether Opportunity is genuinely submittable — blocks `CRM-2`'s exact lifecycle-action scope | Claude | `NEEDS_VERIFICATION` |
+| `CRM-UNV-005` | LOW | CRM | Exact field mapping for `opportunity/mapper.py`'s `make_customer`/`make_quotation` not fetched (button existence only confirmed) | Claude | `NEEDS_VERIFICATION` |
+| `CRM-UNV-006` | LOW | CRM | Exact trigger for `Opportunity.status` `Open → Replied` not traced to source | Claude | `NEEDS_VERIFICATION` |
+| `CRM-UNV-007` | LOW | CRM | Exact trigger for `Opportunity.status` `→ Converted` not confirmed | Claude | `NEEDS_VERIFICATION` |
+
+### Documentation Checklist
+
+Backend: `UPDATED` — `docs/backend/16-crm/` (new).
+Frontend: `NOT_REQUIRED` — no frontend built.
+ERD: `UPDATED` — `docs/backend/11-relationships/master-erd.md`.
+Business Rules: `UPDATED` — captured within `crm-architecture.md` §6/§7 (conversion mechanism,
+Opportunity lifecycle).
+QA_LOG: `NOT_REQUIRED` — no testable frontend flow exists yet.
+PROGRESS: `UPDATED`.
+Architecture Decision: `NOT_REQUIRED` — no durable cross-cutting decision made beyond what
+`docs/master-data-architecture.md` §11/§12 already established; this package confirms, does not
+change, that decision.
+Migration Status: `UPDATED` — new CRM row in `docs/backend/15-migration/migration-status.md`.
+Release Documentation: `NOT_REQUIRED` — nothing shipped to reflect in
+`docs/ceylon-stack-documentation.html` or Notion; no `release-tracker` pass performed (discovery-only
+package, nothing "Live"/"Building" changed).
+
+### Final State
+
+Implementation: `NOT_APPLICABLE` — discovery/architecture only, by design.
+Independent Review: `PENDING` — Codex review not yet started.
+Documentation: `UPDATED`, per the checklist above.
+Release: `NOT_APPLICABLE`.
+
+### Notes
+
+`CRM-1` is not authorized to start by this package. Recommended `CRM-1` scope: Leads
+List/Detail/Create/Edit/Status/Search/Assignment, the Contact/Address create-with-link extension to
+`createContactAction`/`createAddressAction` (allowlisting `"Lead"`), an explicit `Lead.status`
+transition on conversion (ERPNext does not do this automatically — source-verified), and "Convert to
+Opportunity"/"Convert to Customer" entry points writing `Customer.lead_name` via one new optional
+parameter on Master Data's `createCustomerAction`. Full detail, evidence tiers, and the complete
+`CRM-1`–`CRM-5` roadmap: `docs/backend/16-crm/crm-architecture.md`.

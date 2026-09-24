@@ -29,6 +29,18 @@ Per §4 of the policy, domain subfolders (`01-master-data/`, `02-sales/`, `03-pu
 - `99-unverified/unverified-behaviours.md` — 5 more `NEEDS_VERIFICATION` items logged
   (`MD-UNV-001` through `MD-UNV-005`).
 
+**Added 2026-09-24 (package `CRM-0`):**
+
+- `16-crm/` — CRM domain discovery/architecture (Lead, Opportunity, Prospect), live-schema- and
+  GitHub-source-verified. **Discovery only — no CRM frontend exists.** See `16-crm/README.md`.
+  Numbered `16` rather than fitted into the original `01-08` domain-folder sequence, since CRM was not
+  among the domains `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` §4 enumerated when that structure was
+  written (2026-09-17); renumbering existing folders to insert it earlier would break every existing
+  cross-reference in already-committed docs.
+- `11-relationships/master-erd.md` — extended with a CRM ERD.
+- `15-migration/migration-status.md` — new CRM row (`DOCUMENTED`, discovery-only).
+- `99-unverified/unverified-behaviours.md` — new `## CRM` section, `CRM-UNV-001` through `CRM-UNV-007`.
+
 Sales, Buying, Inventory, Purchasing, Accounting, and Tax are all real, shipped functionality in the frontend already (see `PROGRESS.md`) but still have **no backend documentation** — they remain the next candidates for a baseline pass, in that rough order (per the Current Mission priority lock and `docs/ceylon-stack-master-backlog.md` §4/§6), not because Manufacturing or Master Data are commercially ahead of them.
 
 ## Full structure reference

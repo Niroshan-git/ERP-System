@@ -430,6 +430,19 @@ guarantees this implies are now spelled out in
 `docs/backend/11-relationships/party-contact-address-architecture.md` §9 — read that section before
 CRM discovery starts, in addition to the checks already listed just above.
 
+**2026-09-24 addition (`CRM-0`, discovery complete — not authorized to start `CRM-1`):** CRM discovery
+has now happened. The binding principle above is confirmed, not relitigated:
+`docs/backend/16-crm/crm-architecture.md` is the canonical CRM architecture document, and it reuses
+Master Data's already-shipped Customer/Contact/Address routes exactly as this section anticipated — no
+`/crm/customers`, `/crm/contacts`, or `/crm/addresses` is proposed. One concrete, additive dependency
+`CRM-1` will introduce on Master Data: `createContactAction`/`createAddressAction`'s optional
+`partyDoctype`/`partyName` extension (already designed in `party-contact-address-architecture.md` §5
+for Customer/Supplier) needs `"Lead"` added to its server-side allowlist, and `createCustomerAction`
+needs one new optional `lead_name` parameter to populate `Customer.lead_name` on conversion (see
+`crm-architecture.md` §10). Both are small, additive extensions to existing Master Data action files,
+not new Master Data screens or a competing implementation. This document's CRM dependency map (this
+section) remains accurate and does not need further revision as a result.
+
 ---
 
 ## 13. Implementation Readiness Gates

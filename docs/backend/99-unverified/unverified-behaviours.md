@@ -826,3 +826,82 @@ read from source, not reproduced against a real disposable account with real GL 
 **How to verify:** Post a real (disposable) GL Entry against a disposable test Account (e.g. via a
 throwaway Stock Entry or Journal Entry once FIN-3 exists), then attempt an Is Group toggle on it
 through this app's Edit form and confirm the exact surfaced message.
+
+## CRM
+
+Logged during the `CRM-0` architecture/discovery package (2026-09-24), covering Lead, Opportunity,
+Prospect. Full context in `docs/backend/16-crm/crm-architecture.md`. **Zero live Lead/Opportunity/
+Prospect records exist on this instance** — every item below sits on top of an already schema- and
+GitHub-source-verified foundation (`SOURCE VERIFIED (GitHub develop)`), not a runtime-behavior gap in
+the underlying mechanism's existence.
+
+### CRM-UNV-001 — Is `CRM Settings.enable_frappe_crm_data_synchronization` actually enabled?
+**Status:** `NEEDS_VERIFICATION`, non-blocking, low priority.
+**What's uncertain:** `CRM Settings` is a Single doctype; `mcp__ceylon-stack__list_documents` cannot
+fetch a Single's stored value the way it lists normal doctype rows. Whether this tenant has native
+Frappe CRM data-sync turned on was not confirmed. Irrelevant to `CRM-1`..`CRM-5`'s own design either
+way — Ceylon Stack builds directly against ERPNext's REST API regardless.
+**How to verify:** A `getDoc`-equivalent call against `CRM Settings`, or SSH/`bench console` read of
+`frappe.db.get_single_value("CRM Settings", "enable_frappe_crm_data_synchronization")`.
+
+### CRM-UNV-002 — Lead/Prospect naming mode not empirically confirmed
+**Status:** `NEEDS_VERIFICATION`, non-blocking, low priority (same tier as `MD-UNV-001`).
+**What's uncertain:** No live Lead or Prospect records exist to sample `name` against `naming_series`
+vs. a human-readable field, the way Master Data's baseline did for Item/Customer/Supplier/etc.
+**How to verify:** Once `CRM-1` creates real Lead records (even disposable test ones), confirm the
+actual `name` pattern the same way MD-R2 did — or read the DocType JSON's `autoname` directly.
+
+### CRM-UNV-003 — Is `Opportunity.opportunity_from`'s valid-value set enforced server-side?
+**Status:** `NEEDS_VERIFICATION`, non-blocking for `CRM-1`; must be treated as unenforced (i.e.
+Ceylon Stack must allowlist it itself) regardless of the answer, per `crm-architecture.md` §9.3's
+rule — same class of finding as `MD-UNV-*`'s `link_doctype` allowlist requirement in
+`party-contact-address-architecture.md` §2.5.
+**What's uncertain:** The live schema shows `opportunity_from` as an unrestricted `Link → DocType`.
+Practical values `{Lead, Customer, Prospect}` are inferred from `mapper.py`'s usage and the
+`Prospect Opportunity` child table's existence, not confirmed via a server-side validation hook read.
+**How to verify:** Read `Opportunity.validate()`'s full body (only `map_fields`/`set_opportunity_type`/
+`set_exchange_rate`/`calculate_totals`/etc. were enumerated this session, not each one's full body) or
+attempt a live write with an out-of-set `opportunity_from` value and observe whether it's rejected.
+
+### CRM-UNV-004 — Is Opportunity genuinely a submittable (Draft/Submit/Cancel/Amend) doctype?
+**Status:** `NEEDS_VERIFICATION`. **Blocks `CRM-2`'s exact lifecycle-action scope** — resolve before
+that package starts.
+**What's uncertain:** `get_doctype_fields("Opportunity")` returned an `amended_from` field (Link →
+Opportunity) but, like every other doctype investigated in this codebase, did not directly return
+`is_submittable`/`docstatus` metadata (the tool only exposes declared fields). `amended_from`'s
+presence is stronger evidence than a mere absence-of-`docstatus` test (it's a field that only appears
+on submittable doctypes), making `DOCUMENTATION-INFERRED: yes, submittable` the working assumption,
+but not independently confirmed via a direct DocType JSON read.
+**How to verify:** Read `Opportunity`'s DocType JSON definition directly (SSH/`bench console`) for
+`is_submittable: 1`, or attempt a live `submitDoc("Opportunity", ...)` call against a disposable test
+record and confirm it succeeds (vs. the generic "not submittable" rejection Customer/Supplier/Lead
+would return).
+
+### CRM-UNV-005 — Exact field mapping for Opportunity's own outbound mapper functions
+**Status:** `NEEDS_VERIFICATION`, non-blocking for `CRM-1`/`CRM-2`; relevant before `CRM-5`.
+**What's uncertain:** `erpnext.crm.doctype.opportunity.mapper.make_customer`/`make_quotation`/
+`make_supplier_quotation`/`make_request_for_quotation` are `SOURCE VERIFIED` **to exist** (confirmed
+via `opportunity.js`'s "Create" button dotted-paths) but their exact field-mapping bodies were not
+fetched and quoted this session, unlike the Lead-side equivalents in `lead/mapper.py` (§6 of
+`crm-architecture.md`, fully quoted).
+**How to verify:** Fetch and quote `erpnext/crm/doctype/opportunity/mapper.py` in full, the same way
+`lead/mapper.py` was this session, before `CRM-5` implements the Opportunity→Quotation handoff.
+
+### CRM-UNV-006 — Exact trigger for `Opportunity.status` `Open → Replied`
+**Status:** `NEEDS_VERIFICATION`, non-blocking.
+**What's uncertain:** Plausibly a Communication-received hook (consistent with `crm/utils.py`'s
+`link_communications`/`update_modified_timestamp` helpers, source-confirmed to exist this session),
+not traced to a specific code path that writes `status = "Replied"`.
+**How to verify:** Read the full `Communication` `doc_events` wiring in `hooks.py` for the `Opportunity`
+(and `Lead`) doctype, or observe a real inbound email against a disposable test Opportunity.
+
+### CRM-UNV-007 — Exact trigger for `Opportunity.status` `→ Converted`
+**Status:** `NEEDS_VERIFICATION`, non-blocking for `CRM-1`/`CRM-2`; relevant before `CRM-5` if that
+package wants to reflect this state automatically rather than requiring an explicit Ceylon Stack-side
+update (the same explicit-update requirement already confirmed necessary for `Lead.status`, §6).
+**What's uncertain:** Not confirmed whether any native ERPNext code sets this automatically (e.g. on
+Sales Order creation against the Opportunity) or whether, like Lead's own conversion methods, it is
+left entirely to the caller.
+**How to verify:** Grep `erpnext/crm/doctype/opportunity/opportunity.py` and any Sales Order hook for
+a `status = "Converted"` write, or observe live behavior once a disposable Opportunity → Quotation →
+Sales Order chain is run end to end.
