@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
 export type AccountTreeRow = {
@@ -18,13 +19,15 @@ const MAX_INDENT_DEPTH = 6;
 const INDENT_PX = 16;
 
 /**
- * Read-only Chart of Accounts tree — FIN-1. Server-rendered, no client JS: expand/collapse
- * uses the native `<details>/<summary>` element plus Tailwind's `group-open:` CSS variant
- * (an attribute selector on `[open]`, not a JS listener), so it works before hydration and on
- * very narrow widths without a bundled interaction library. No per-account detail route or
- * edit affordance exists here — FIN-1 is read-only per its authorized scope (see
- * `docs/backend/06-accounting/chart-of-accounts-bank-account.md`); every field a user might
- * want is already shown inline on each row instead of behind a click-through.
+ * Chart of Accounts tree. Server-rendered, no client JS for the tree itself: expand/collapse
+ * uses the native `<details>/<summary>` element plus Tailwind's `group-open:` CSS variant (an
+ * attribute selector on `[open]`, not a JS listener), so it works before hydration and on
+ * very narrow widths without a bundled interaction library. Each row links to the account's
+ * own detail/edit page (`FIN-1E`, `/accounting/chart-of-accounts/[name]`) — FIN-1 originally
+ * shipped this read-only with every field inline instead of a click-through; FIN-1E adds real
+ * maintenance, so a detail route now exists and every account name is a link to it. Group
+ * rows additionally carry a small "+" to `.../new?parent=<name>` for contextual child-account
+ * creation directly from the tree, per the FIN-1E brief.
  *
  * Root groups (Asset/Liability/Income/Expense/Equity, 5 on the live tenant) default open;
  * everything below stays collapsed by default given the tree is ~96 accounts deep on the real
@@ -33,9 +36,12 @@ const INDENT_PX = 16;
 export function ChartOfAccountsTree({
   accounts,
   companyCurrency,
+  company,
 }: {
   accounts: AccountTreeRow[];
   companyCurrency: string;
+  /** Carried into each "+ Add child account" link so the create form's Company stays locked to this tree's company. */
+  company: string;
 }) {
   const byParent = new Map<string, AccountTreeRow[]>();
   for (const account of accounts) {
@@ -61,6 +67,7 @@ export function ChartOfAccountsTree({
               account={account}
               byParent={byParent}
               companyCurrency={companyCurrency}
+              company={company}
               depth={0}
             />
           ))}
@@ -93,15 +100,40 @@ function AccountBadges({ account, companyCurrency }: { account: AccountTreeRow; 
   );
 }
 
+function AccountLink({ account }: { account: AccountTreeRow }) {
+  return (
+    <Link
+      href={`/accounting/chart-of-accounts/${encodeURIComponent(account.name)}`}
+      className="font-medium text-graphite-900 hover:text-signal hover:underline"
+    >
+      {account.account_name}
+    </Link>
+  );
+}
+
+function AddChildLink({ account, company }: { account: AccountTreeRow; company: string }) {
+  return (
+    <Link
+      href={`/accounting/chart-of-accounts/new?company=${encodeURIComponent(company)}&parent=${encodeURIComponent(account.name)}`}
+      className="rounded px-1.5 py-0.5 text-[11px] font-medium text-signal hover:bg-signal/10"
+      title={`Add a child account under ${account.account_name}`}
+    >
+      + Add
+    </Link>
+  );
+}
+
 function AccountNode({
   account,
   byParent,
   companyCurrency,
+  company,
   depth,
 }: {
   account: AccountTreeRow;
   byParent: Map<string, AccountTreeRow[]>;
   companyCurrency: string;
+  company: string;
   depth: number;
 }) {
   const children = byParent.get(account.name) ?? [];
@@ -117,8 +149,9 @@ function AccountNode({
           >
             <ChevronRight size={14} className="shrink-0 text-graphite-400 transition-transform group-open:rotate-90" />
             <span className="flex flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-              <span className="font-medium text-graphite-900">{account.account_name}</span>
+              <AccountLink account={account} />
               <AccountBadges account={account} companyCurrency={companyCurrency} />
+              <AddChildLink account={account} company={company} />
             </span>
           </summary>
           <ul className="space-y-0.5">
@@ -128,6 +161,7 @@ function AccountNode({
                 account={child}
                 byParent={byParent}
                 companyCurrency={companyCurrency}
+                company={company}
                 depth={depth + 1}
               />
             ))}
@@ -140,10 +174,11 @@ function AccountNode({
   return (
     <li
       className="flex flex-wrap items-center gap-x-2 gap-y-1 py-1.5 pr-2 text-sm"
-      style={{ paddingLeft: indent + 20 }}
+      style={{ paddingLeft: account.is_group ? indent : indent + 20 }}
     >
-      <span className="text-graphite-900">{account.account_name}</span>
+      <AccountLink account={account} />
       <AccountBadges account={account} companyCurrency={companyCurrency} />
+      {account.is_group && <AddChildLink account={account} company={company} />}
     </li>
   );
 }

@@ -13,6 +13,16 @@ exact `Bank`-record-must-exist-first mechanics, `Bank Account.mask` never actual
 computed anywhere in this ERPNext version). Everything else in this document (§6-§35, the FIN-2..
 FIN-6 sequence) is unchanged and still current.
 
+**Update, same day (`FIN-1E`):** Niroshan explicitly authorized extending Chart of Accounts from
+read-only to full operational maintenance (Create, Edit, contextual child-account creation,
+Enable/Disable, Delete-where-safe) — implemented and live-verified the same day, narrower in
+scope than FIN-2 (no Payment Entry/Journal Entry/AR-AP/GL reports). §5's "V1 recommendation: read-
+only tree view + leaf-account create/rename only" is now superseded — the shipped scope is
+broader than that original recommendation (full Group/Ledger create+edit+lifecycle, not just leaf
+create/rename), per Niroshan's explicit sign-off. See `chart-of-accounts-bank-account.md`'s
+"Account maintenance (`FIN-1E`)" section for the full rule-by-rule record, and the "Finance V1
+CRUD policy" section below for the updated per-doctype scope summary.
+
 No Finance UI, mutation API, or accounting calculation code was added by this package. This is a
 documentation-only discovery pass, evidence-gathered via three read-only agents (live-server SSH,
 frontend code audit, existing-docs cross-check) plus a repo-safety pass in the main session.
@@ -683,6 +693,31 @@ package's findings.
 
 ---
 
+## 37. Finance V1 CRUD policy (updated `FIN-1E`, 2026-09-24)
+
+Per-doctype scope summary — supersedes any earlier "read-only" framing for Chart of Accounts
+specifically (§5, historical as of `FIN-1E`). `Live` means shipped and reachable through Ceylon
+Stack today without ERPNext Desk; `Planned` means the doctype/report exists natively in ERPNext
+but this frontend has no screen for it yet.
+
+| Doctype / report | Scope | Status |
+|---|---|---|
+| **Account (Chart of Accounts)** | Read + Create + Edit + Enable/Disable + Delete-where-safe (root accounts and unsafe mutations blocked by this app regardless of what the raw API would accept) | **Live** (`FIN-1` read, `FIN-1E` maintenance) |
+| **Bank Account** | Full CRUD (Create/Read/Update/Delete-where-valid), including a `Bank` get-or-create helper | **Live** (`FIN-1`, unchanged by `FIN-1E`) |
+| Payment Entry | Create + Read + Edit-draft + Submit + Cancel | Planned — `FIN-2` |
+| Journal Entry | Create + Read + Edit-draft + Submit + Cancel | Planned — `FIN-3` |
+| Cost Center | Ownership/package TBD (assigned to Finance per `FIN-GOV-1` §30, not yet scheduled to a numbered package) | Planned |
+| Bank Transaction | Matches ERPNext's own reconciliation workflow once built (manual entry first, matching/reconciliation later) | Planned — `FIN-5` |
+| Financial Reports (General Ledger, Trial Balance, Profit & Loss, Balance Sheet, AR, AP ageing) | Read-only, via native `runReport` — no Ceylon Stack recalculation, ever | Planned — `FIN-4` |
+| **GL Entry** | **Never normal CRUD, in this package or any future one** — system-generated only, exposed exclusively through native reports (§8, §21) | Not applicable — permanent |
+
+Explicitly **not** authorized or implied by `FIN-1E`: Payment Entry, Journal Entry, AR/AP
+workspace, GL/Trial Balance/P&L/Balance Sheet, Bank Transaction/reconciliation. `FIN-1E` extended
+exactly one doctype's scope (Account) beyond what `FIN-1` shipped; every other row above is
+unchanged from the sequence in §32.
+
+---
+
 ## Control gate
 
 **Original finding (2026-09-24, FIN-0):** the two blockers below were identified and this gate was
@@ -725,3 +760,18 @@ then fully cleaned up). See `chart-of-accounts-bank-account.md` for the full imp
 record. This package's own independent-review request above (for `FIN-GOV-1`'s governance
 changes) remains open and is not satisfied by `FIN-1`'s own implementation review request — they
 are two separate review asks, both still pending as of this update.
+
+**Update (`FIN-1E`, same day, 2026-09-24):** Chart of Accounts extended from read-only to full
+maintenance (Create, Edit, contextual child-account creation, Enable/Disable, Delete-where-safe)
+per Niroshan's explicit authorization — `CLAUDE_HANDOFF`, not self-declared accepted. Live-verified
+via a full disposable-fixture lifecycle test against the real Hetzner tenant run through `bench
+console` (create Group → create child Ledger → confirm tree → edit permitted field → invalid
+hierarchy rejected → cross-company parent rejected → root-edit rejected → disable/re-enable →
+rename via `update_account_number` → Ledger→Group conversion correctly blocked by a set Account
+Type → delete child → delete parent → tenant account counts confirmed back to exactly 96/96 per
+company, zero leftover test records). See `chart-of-accounts-bank-account.md`'s "Account
+maintenance (`FIN-1E`)" section for the full rule-by-rule record and §37 above for the updated
+per-doctype CRUD policy summary. Bank Account (`FIN-1`) was not modified. No FIN-2+ functionality
+(Payment Entry, Journal Entry, AR/AP, GL/Trial Balance/P&L/Balance Sheet, Bank Transaction) was
+implemented. Same open independent-review status as `FIN-1` above — this update does not resolve
+it, and adds its own separate review ask for `FIN-1E`'s own changes.

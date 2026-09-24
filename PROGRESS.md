@@ -5316,3 +5316,60 @@ TypeScript equivalence with no ReDoS risk, no demo-data imports in either live p
 **Sign-off:** `CLAUDE_HANDOFF` — see the full handoff message for the structured 41-point
 account. Not self-declared `ACCEPTED` — pending Niroshan's review and independent
 cross-review per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
+## FIN-1E — Chart of Accounts maintenance (2026-09-24)
+
+Extends the already-`ACCEPTED` `FIN-1` package (commit `58760a0`) per Niroshan's explicit
+authorization: Chart of Accounts moves from read-only to full operational maintenance —
+Create, Edit, contextual child-account creation from the tree, Enable/Disable, and
+Delete-where-safe. Bank Account (`FIN-1`) untouched.
+
+- **New routes**: `/accounting/chart-of-accounts/new` (create, `?company=`/`?parent=`
+  prefill/lock when reached via the tree's "+ Add" link), `/accounting/chart-of-accounts/[name]`
+  (combined detail/edit/lifecycle — read-only summary only for root accounts, no edit/disable/
+  delete affordance ever rendered for one).
+- **New files**: `components/AccountForm.tsx` (bespoke, hierarchical Parent Account `<select>`
+  with a live Root/Report Type inheritance preview), `lib/accountHierarchy.ts` (flattens a
+  company's Account tree into depth-first indented options — no new tree-widget dependency),
+  `lib/accountConstants.ts` (hardcoded `account_type`/`balance_must_be` Select enums, live-
+  verified against ERPNext 16.34.2's own meta), `lib/accountDependencies.ts` (live GL Entry
+  count, child-Account count, referencing Bank Accounts, and Company default-account-field
+  matches — decides whether Delete/Disable render at all, and re-checked server-side by both
+  actions before writing). `ChartOfAccountsTree.tsx` and the CoA page updated: every row now
+  links to its detail page, group rows carry a "+ Add" contextual-create link, a page-level
+  "New account" entry point added.
+- **Rename handling**: `account_name`/`account_number` edits route through ERPNext's own
+  whitelisted `update_account_number` (via the pre-existing `callMethodWithResult`), not a
+  plain field PUT — live-verified that a plain save changes the field but leaves the document's
+  own `name` stale, since `Account.autoname()` only runs on insert.
+- **Root protection**: root accounts (`parent_account` unset, 5 per company) never get an edit
+  form, Disable button, or Delete button in this app — stricter than ERPNext's own server-side
+  guarantee in one respect (a source-read finding: `NestedSet.on_trash()`'s root-deletion guard
+  checks an instance attribute `Account` never sets, effectively making it a no-op for this
+  doctype specifically).
+- No `lib/erpnext.ts` changes — `update_account_number` reuses the pre-existing generic
+  `callMethodWithResult`.
+- Live verification method note: rather than raw REST calls (`FIN-1`'s method), this package
+  ran a full disposable-fixture lifecycle test through `bench --site frontend console`
+  (`frappe.get_doc(...).insert()/.save()/.delete()` — the same document lifecycle Frappe's REST
+  endpoints invoke) after this environment's own credential-materialization safeguard correctly
+  blocked extracting the service account's real API key/secret for direct REST testing.
+  Lifecycle covered: create Group → create child Ledger → tree reflects both → edit permitted
+  field → invalid parent-is-a-ledger rejected → cross-company parent rejected → root-edit
+  rejected ("Root cannot be edited.") → disable/re-enable → rename via `update_account_number`
+  → Ledger→Group conversion correctly blocked by a set Account Type → delete child → delete
+  parent → tenant Account counts confirmed unchanged (96/96 per company) with zero leftover
+  test records afterward.
+- `npx tsc --noEmit`, `npx eslint`, and `npx next build` all clean for this package's files
+  (build succeeds end-to-end including every pre-existing foreign WIP route).
+- Docs: `docs/backend/06-accounting/chart-of-accounts-bank-account.md` (new "Account maintenance
+  (`FIN-1E`)" section, root-protection section, dependency-checking section, updated frontend
+  routes/API list), `finance-architecture.md` (new §37 "Finance V1 CRUD policy" table, `FIN-1E`
+  update notes), `docs/backend/15-migration/migration-status.md`'s Accounting row, and
+  `docs/backend/99-unverified/unverified-behaviours.md` gained `FIN-UNV-004`/`FIN-UNV-005`
+  (generic link-delete exact message on Account, and the GL-entries branch of Group↔Ledger
+  conversion — neither exercised live against real GL-linked data, by design).
+- **Status:** `CLAUDE_HANDOFF` — not self-declared accepted; pending independent code review and
+  QA per this repo's standard closure process, same as `FIN-1` went through. Payment Entry
+  (FIN-2), Journal Entry (FIN-3), AR/AP visibility, and native financial reports (FIN-4) remain
+  unbuilt and out of this package's scope entirely.

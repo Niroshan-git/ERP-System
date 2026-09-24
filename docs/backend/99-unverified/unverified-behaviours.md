@@ -784,3 +784,45 @@ overriding everything below it — `FIN-GAP-08`).
 `permissions` list in its JSON definition — not independently read/quoted this session.
 **How to verify:** Read `Bank Account`'s DocType JSON `permissions` array directly, or test
 against a real non-System-Manager user holding only `Accounts Manager`/`Accounts User`.
+
+## Finance (FIN-1E, 2026-09-24)
+
+`FIN-1E` (Chart of Accounts maintenance — Create/Edit/Disable/Delete) live-verified almost every
+rule below via a full disposable-fixture lifecycle test run through `bench --site frontend
+console` (`frappe.get_doc(...).insert()/.save()/.delete()` — the exact document lifecycle Frappe's
+REST `/api/resource/Account` endpoints invoke under the hood, not a separate code path) rather
+than raw REST calls like `FIN-1` used. This session deliberately did not extract or materialize
+the service account's real API key/secret into any file (blocked by this environment's own
+credential-materialization safeguard, correctly) — the console-based method is evidence-equivalent
+for controller/validation behavior (same `Account`/`NestedSet` Python classes, same `validate()`/
+`on_trash()` methods run either way) but does not exercise Frappe's HTTP-layer permission/
+serialization wrapper itself. Full detail in
+`docs/backend/06-accounting/chart-of-accounts-bank-account.md`'s "Account maintenance" section.
+
+### FIN-UNV-004 — Generic `check_if_doc_is_linked` exact message when deleting an Account referenced by a non-GL-Entry document
+**Status:** `NEEDS_VERIFICATION`, non-blocking (the underlying mechanism is source-confirmed:
+`frappe/model/delete_doc.py::get_linked_docs()`, `method="Delete"`, blocks on *any* Link reference
+across the whole schema regardless of `docstatus` — stricter than the Cancel-guard pattern
+`lib/connections.ts` already documents elsewhere).
+**What's uncertain:** This session deliberately did not attempt a delete against any real,
+GL-linked production Account (even a safe, expected-to-fail attempt was correctly blocked by this
+environment's own write-safety guardrail) — so the exact `LinkExistsError` message/HTTP status
+Ceylon Stack's `humanizeError` would actually render for this specific doctype was not captured
+live. `Account.on_trash()`'s own `check_gle_exists()` guard (a narrower, Account-specific check)
+*was* source-read and is the one this app's own proactive `getAccountDependencies()` check mirrors
+directly.
+**How to verify:** Attempt deleting a disposable test Account that has been referenced by a
+disposable Bank Account or a disposable draft Sales Invoice line, on a future package with looser
+write-safety constraints or direct maintainer access, and confirm the exact surfaced message.
+
+### FIN-UNV-005 — `validate_group_or_ledger()`'s GL-entries branch, exact message/behavior when converting an account that actually has GL Entries
+**Status:** `NEEDS_VERIFICATION`, non-blocking (the code path is source-confirmed —
+`check_gle_exists()` is checked first, unconditionally, in both conversion directions).
+**What's uncertain:** The disposable test ledger used for FIN-1E's live lifecycle test never had
+any GL Entry posted against it, so only the *other* two `validate_group_or_ledger()` branches were
+exercised live (Ledger→Group blocked by a set `account_type`; a clean Group→Ledger conversion
+succeeding). The "Account with existing transaction cannot be converted to ledger" message was
+read from source, not reproduced against a real disposable account with real GL postings.
+**How to verify:** Post a real (disposable) GL Entry against a disposable test Account (e.g. via a
+throwaway Stock Entry or Journal Entry once FIN-3 exists), then attempt an Is Group toggle on it
+through this app's Edit form and confirm the exact surfaced message.
