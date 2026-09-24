@@ -5623,3 +5623,83 @@ this exact pattern, memory updated with sharpened guidance for future QA briefin
 (Opportunities) is **not started, not authorized by this package**, per the mission brief's explicit
 instruction not to auto-continue; Finance V1 remains the priority-lock stream for any session not
 specifically working CRM.
+
+## `CRM-2` — Opportunities (2026-09-25)
+
+Started: 2026-09-25, branch `frontend`, HEAD `4243cf2` (the `CRM-1` commit).
+
+**Authorization:** Niroshan issued a dedicated `CRM-2` mission brief, the same authorization pattern
+used for `CRM-1`/`FIN-1F` — explicitly ahead of full Finance V1 completion.
+
+**First gate (mission-required):** before designing any mutation, live-verified remaining
+Opportunity-specific behavior against the real Hetzner instance
+(`mcp__ceylon-stack__get_doctype_fields`/`list_documents`) — `Opportunity.company`/`transaction_date`
+are `reqd: true` (not previously called out explicitly); `Sales Stage` has exactly 8 live records in
+the real ERPNext seed-data pipeline order (no schema-level order field, confirmed — hardcoded client-side
+as `lib/salesStageOptions.ts`); `Opportunity Lost Reason` has zero live records (same empty-state UX
+as Quotation Lost Reason); **`Quotation.opportunity` (Link → Opportunity) is a real, live field** —
+resolves the mission's "preserve Opportunity reference" requirement definitively. No open `CRM-UNV-*`
+item blocked the package (`CRM-UNV-004`, the one that would have, was already resolved by `CRM-1`).
+
+**Implementation Summary:** Routes: `/crm/opportunities` (list), `/crm/opportunities/new` (direct
+creation — Lead- or Customer-partied), `/crm/opportunities/[name]` (detail — Overview/Linked
+Records/Activity tabs), `/crm/opportunities/[name]/lost` (Mark Lost via `declare_enquiry_lost`),
+`/crm/opportunities/[name]/create-quotation` (the Sales handoff). Server actions:
+`crm/opportunities/actions.ts` (create/update/mark-lost) and a new, deliberately separate
+`lib/actions/opportunityQuotation.ts` (`createQuotationFromOpportunityAction`) — same "kept out of
+the target module's own actions.ts" precedent `lib/actions/leadConversion.ts` already set. Sidebar's
+CRM module gained a second nav item (Opportunities); the existing Lead detail page's linked-Opportunity
+references now link to the new route instead of rendering plain text.
+
+**Design decisions requiring judgement, not resolved by `CRM-0`/`CRM-1`:** (1) the Opportunity →
+Quotation handoff only supports a Customer-partied Opportunity — the existing Sales Quotation frontend
+hardcodes `quotation_to: "Customer"` everywhere, and extending it to accept `"Lead"` was judged
+out of scope (Sales core stays frozen); a Lead-partied Opportunity's detail page hides the action and
+the handoff action itself rejects the attempt with a message pointing at Lead→Customer conversion.
+(2) After a successful handoff, `Opportunity.status` is explicitly set to `"Quotation"` by this app's
+own action — neither `CRM-UNV-005` nor `CRM-UNV-007` confirm ERPNext does this natively, same
+explicit-write precedent `CRM-1`'s conversion actions already established for `Lead.status`.
+(3) No "Won" mutation was invented, per the mission brief's explicit instruction — `Converted` is
+never written by this package. (4) Opportunity Items use a new, dedicated lightweight editor
+(`OpportunityItemsEditor.tsx`), not the shared `LineItemsEditor` (which is tightly coupled to
+batch/serial/pricing-rule machinery `Opportunity Item`'s schema doesn't have) — it emits the same
+hidden-JSON convention so the existing `parseLineRows` parser is reused unchanged.
+
+**Self-caught bug (pre-review):** an object-spread ordering bug in `createOpportunityAction` — `...fields`
+was originally spread *after* the derived-from-Lead `contact_email`/`contact_mobile` fallback keys,
+silently discarding the fallback whenever the form field was left blank. Fixed before code review by
+reordering the spread first.
+
+**Verification:** `npx tsc --noEmit`, `npx eslint` (scoped to changed files), and `npx next build`
+all run clean.
+
+**Code review** (fresh `code-reviewer` subagent): correctness/architecture/pattern-reuse pass found no
+bugs and no secrets — independently re-verified the pre-review spread-ordering fix above as correct,
+confirmed the deliberate `OpportunityItemsEditor` fork (not reusing `LineItemsEditor`) is justified by
+`Opportunity Item`'s genuinely simpler schema, and confirmed every shared component/helper is reused
+rather than duplicated. **One real process finding, treated as blocking until resolved**: `CLAUDE.md`'s
+Current Mission lock had a `CRM-1` authorization note but no matching dated `CRM-2` note — unlike
+`CRM-1`, which recorded its authorization *before* implementation began, this session proceeded
+straight from the mission brief into implementation without that write-back step. Resolved
+immediately: added the dated `CRM-2` authorization note to `CLAUDE.md` (mirroring `CRM-1`/`FIN-1F`'s
+pattern) and reconciled `crm-architecture.md` §24.4's now-superseded "not started" line to point at
+§25. The authorization itself was never actually missing — Niroshan's mission brief for `CRM-2` was
+as explicit and direct as `CRM-1`'s own — only the write-back to the binding control document was
+missed, and is now fixed. Logged as a `feedback`-type lesson for future CRM/Finance sub-packages:
+write the dated authorization note to `CLAUDE.md` **before** starting implementation, not after.
+
+**QA** (fresh `qa-tester` subagent): no bugs found, but a real access gap — no browser/devtools access
+and no write-capable ERPNext credentials at all this session, narrower than `CRM-1`'s own QA gap
+(which still had direct-REST write access). Correctly declined to touch any `.env` file or attempt an
+auth bypass (no repeat of `CRM-1`'s `SESSION_SECRET` incident). Substituted live read-only schema
+verification + code-path tracing against it — every path checked matches, including the
+Lead-derivation logic matching `CRM-1`'s own already-live-verified conversion mapping — but no
+Opportunity/Quotation/Lost Reason record was actually created, edited, or converted this session.
+Logged as `CRM-UNV-010`. Niroshan reviewed this gap directly and chose to ship with it disclosed
+rather than block on obtaining write-capable access this session.
+
+**Status:** implementation complete, code-reviewed (no findings, authorization-gap process finding
+resolved same session), QA'd to the extent this session's access allowed. **Not marked `ACCEPTED`** —
+`CRM-UNV-010`'s live-mutation gap remains open for a future session with real browser/write-credential
+access to close. `CRM-3` (Activities & Follow-ups) is **not started, not authorized by this package**;
+Finance V1 remains the priority-lock stream for any session not specifically working CRM.

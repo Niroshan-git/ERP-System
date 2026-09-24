@@ -834,8 +834,12 @@ Prospect. Full context in `docs/backend/16-crm/crm-architecture.md`. **Updated 2
 `CRM-UNV-002` and `CRM-UNV-004` resolved via `CRM-1`'s live fixture testing — Lead's `CRM-LEAD-.YYYY.-`
 naming confirmed, and, more significantly, **`Opportunity.is_submittable: 0`** confirmed (corrects
 `crm-architecture.md`'s prior "very likely submittable" inference). `CRM-UNV-008` newly logged (a
-scoping deferral, not a fresh unknown). `CRM-UNV-001`/`003`/`005`/`006`/`007` remain open, all
-non-blocking for `CRM-1`/`CRM-2`.
+scoping deferral, not a fresh unknown). **Updated 2026-09-25 (`CRM-2`):** `CRM-UNV-009` (Opportunity
+status-tone mapping) and `CRM-UNV-010` (mutation paths not live-exercised — QA access gap, disclosed
+and shipped anyway per Niroshan's explicit choice) newly logged, both non-blocking.
+`CRM-UNV-001`/`003`/`005`/`006`/`007` remain open, all still non-blocking for `CRM-2`'s shipped scope
+— none was required to resolve before this package started, per `CRM-2`'s own first-gate
+live-verification pass (`crm-architecture.md` §25.1).
 
 ### CRM-UNV-001 — Is `CRM Settings.enable_frappe_crm_data_synchronization` actually enabled?
 **Status:** `NEEDS_VERIFICATION`, non-blocking, low priority.
@@ -924,3 +928,34 @@ not shipped at all yet (`contacts/actions.ts`/`addresses/actions.ts` confirmed u
 **How to close:** Either as a small `CRM-1`-follow-up once `MD-REL-1` ships (reuse its allowlist
 mechanism, widen to include `"Lead"`), or explicitly folded into a future `CRM` package. Non-blocking
 for `CRM-2`+.
+
+### CRM-UNV-009 — Opportunity list-view status-indicator tone mapping not independently confirmed
+**Status:** `NEEDS_VERIFICATION`, non-blocking. **Logged 2026-09-25 (`CRM-2` package.)**
+**What's uncertain:** `lib/erpStatus.ts`'s `opportunityStatus()` (Open/Replied → alert, Quotation →
+signal, Converted → success, Lost/Closed → neutral) is this app's own reasonable mapping onto its
+three-tone system — same class of gap already logged for `leadStatus`/`bomStatus`/`stockEntryStatus`
+(`MFG-UNV-001`/`MFG-UNV-010`). No Desk `opportunity_list.js::get_indicator` source was read this
+session (no SSH/devops access).
+**How to verify:** SSH to the Hetzner instance, read
+`erpnext/crm/doctype/opportunity/opportunity_list.js`'s `get_indicator` function body directly (same
+method already used for every other status function in `erpStatus.ts`), then compare/update the tone
+map to match.
+
+### CRM-UNV-010 — `CRM-2` mutation paths not live-exercised (QA access gap, disclosed)
+**Status:** `NEEDS_VERIFICATION`, non-blocking (shipped with this gap disclosed per Niroshan's
+explicit choice — see `QA_LOG.md`'s `CRM-2` entry). **Logged 2026-09-25.**
+**What's uncertain:** `CRM-2`'s QA pass had no browser/devtools access and no write-capable ERPNext
+credentials at all, so it could only verify live schema state (read-only) and trace code paths
+against it — it correctly declined to touch any `.env` file or attempt an auth bypass, avoiding a
+repeat of `CRM-1`'s `SESSION_SECRET` incident, but as a result **no Opportunity/Quotation/Lost Reason
+record was ever actually created, edited, marked Lost, or converted to a Quotation this session.**
+Every code path traced matches the live-verified schema and (for the Lead-derivation logic)
+`CRM-1`'s own already-live-verified conversion mapping, but none of `CRM-2`'s own five create/edit/
+mark-lost/handoff scenarios has been runtime-observed.
+**How to verify:** A future session with real browser/login credentials or write-capable ERPNext API
+access should run the full test plan `QA_LOG.md`'s `CRM-2` entry describes: create both a Lead- and a
+Customer-partied Opportunity (confirming the contact-field derivation lands correctly, not just that
+the code looks correct), edit one, create one `Opportunity Lost Reason` fixture and exercise
+`declare_enquiry_lost` for real, and run the full Opportunity → Quotation handoff end to end
+(confirming the created Quotation's fields and the source Opportunity's `status → "Quotation"`
+follow-up write both land correctly) — then clean up every fixture and confirm via a fresh query.

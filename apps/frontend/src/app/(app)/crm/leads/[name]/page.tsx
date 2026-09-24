@@ -180,10 +180,9 @@ export default async function LeadDetailPage({
           <ul className="space-y-1 text-sm">
             {linkedOpportunities.map((o) => (
               <li key={o.name} className="flex items-center gap-2">
-                {/* No /crm/opportunities/[name] route exists yet (CRM-2 scope) — plain text,
-                    not a link to a page that doesn't exist, same rule the conversion banner
-                    below follows. */}
-                <span className="font-mono text-graphite-900">{o.name}</span>
+                <Link href={`/crm/opportunities/${encodeURIComponent(o.name)}`} className="font-mono text-signal hover:underline">
+                  {o.name}
+                </Link>
                 <StatusPill label={o.status} tone="neutral" />
               </li>
             ))}
@@ -234,7 +233,11 @@ export default async function LeadDetailPage({
       <SavedBanner show={saved === "1"} />
       {convertedOpportunity && (
         <div className="mb-4 rounded-md border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-success">
-          Opportunity {convertedOpportunity} created.
+          Opportunity{" "}
+          <Link href={`/crm/opportunities/${encodeURIComponent(convertedOpportunity)}`} className="underline">
+            {convertedOpportunity}
+          </Link>{" "}
+          created.
         </div>
       )}
       {header}

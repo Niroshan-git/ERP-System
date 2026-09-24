@@ -637,6 +637,30 @@ export function leadStatus(doc: { status: string }): StatusDisplay {
   return { label: doc.status, tone: LEAD_STATUS_TONE[doc.status] ?? "neutral" };
 }
 
+/**
+ * Opportunity's own `status` Select enum (`CRM-2` package, 2026-09-24, live-confirmed via
+ * `get_doctype_fields` against the real instance): Open / Quotation / Converted / Lost /
+ * Replied / Closed. Opportunity is draftless (`is_submittable: 0`, live-confirmed by
+ * `CRM-1`'s own testing, `CRM-UNV-004` resolved) — no `docstatus` branch here, same shape
+ * as `leadStatus` above. No Desk `opportunity_list.js` `get_indicator` source was read this
+ * session (no SSH/devops access) — same caveat already logged for `leadStatus`/
+ * `bomStatus`/`stockEntryStatus`: this app's own reasonable mapping onto the three-tone
+ * system, not a mirrored Desk indicator. Logged as `CRM-UNV-009` in
+ * `docs/backend/99-unverified/unverified-behaviours.md`.
+ */
+const OPPORTUNITY_STATUS_TONE: Record<string, StatusTone> = {
+  Open: "alert",
+  Replied: "alert",
+  Quotation: "signal",
+  Converted: "success",
+  Lost: "neutral",
+  Closed: "neutral",
+};
+
+export function opportunityStatus(doc: { status: string }): StatusDisplay {
+  return { label: doc.status, tone: OPPORTUNITY_STATUS_TONE[doc.status] ?? "neutral" };
+}
+
 export function purchaseInvoiceStatus(doc: {
   status: string;
   docstatus: DocStatus;

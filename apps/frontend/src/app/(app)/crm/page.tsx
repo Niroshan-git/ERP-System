@@ -2,13 +2,12 @@ import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
 
 /**
- * CRM module home page — first package (CRM-1, 2026-09-24), same minimal-home-page
- * precedent `manufacturing/page.tsx` set before its own core flow shipped. Explicitly
- * authorized ahead of full Finance V1 completion (see `CLAUDE.md`'s 2026-09-24 `CRM-1`
- * mission-lock update) — Leads (list/detail/create/edit/status/search/filter, Lead→
- * Opportunity and Lead→Customer conversion entry points) is the only screen this package
- * ships. Opportunities/Pipeline/Activities are `CRM-2`..`CRM-4` — future, separately
- * authorized packages, per `docs/backend/16-crm/crm-architecture.md`'s roadmap.
+ * CRM module home page — `CRM-1` (Leads, 2026-09-24) and `CRM-2` (Opportunities,
+ * 2026-09-24), same minimal-home-page precedent `manufacturing/page.tsx` set before its own
+ * core flow shipped. Both explicitly authorized ahead of full Finance V1 completion (see
+ * `CLAUDE.md`'s mission-lock updates). Pipeline (Kanban)/CRM-specific activity tracking are
+ * `CRM-3`/`CRM-4` — future, separately authorized packages, per
+ * `docs/backend/16-crm/crm-architecture.md`'s roadmap.
  */
 export default function CrmHomePage() {
   return (
@@ -21,10 +20,15 @@ export default function CrmHomePage() {
           <Link href="/crm/leads" className="text-signal hover:underline">
             Leads
           </Link>{" "}
-          are live — list, detail, create, edit, status changes, search/filter, and
-          Convert to Opportunity / Convert to Customer entry points from a Lead&apos;s own
-          detail page. Opportunities, the sales pipeline, and CRM-specific activity/follow-up
-          tracking remain future, separately scoped packages.
+          and{" "}
+          <Link href="/crm/opportunities" className="text-signal hover:underline">
+            Opportunities
+          </Link>{" "}
+          are live — list, detail, create, edit, Lead→Opportunity/Lead→Customer conversion,
+          stage/probability/expected-value tracking, Mark Lost, and Opportunity→Quotation
+          handoff into the existing canonical Sales Quotation flow. The Kanban pipeline
+          workspace and CRM-specific activity/follow-up tracking remain future, separately
+          scoped packages.
         </p>
       </div>
     </div>

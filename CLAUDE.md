@@ -58,6 +58,19 @@ behind Finance V1 foundations) and to `docs/ceylon-stack-master-backlog.md` §5 
 open) — it does not resolve that backlog decision or reopen CRM-2..5, and it does not change
 Finance V1's priority for any session not working CRM-1. FIN-2 remains **not authorized**.
 
+**Updated 2026-09-25 (package `CRM-2`):** Niroshan issued a dedicated `CRM-2` mission brief —
+Opportunity management (list/detail/create/edit, Lead- or Customer-partied direct creation, stage/
+status/probability/expected-value tracking, Mark Lost via `declare_enquiry_lost`, and the
+Opportunity → Quotation handoff into the existing canonical Sales Quotation flow), per `CRM-0`'s
+`docs/backend/16-crm/crm-architecture.md` roadmap and the `CRM-1` precedent for how a CRM package
+gets authorized. Same exception shape as `CRM-1`'s note above — does not resolve
+`docs/ceylon-stack-master-backlog.md` §5 decision #2, does not reopen `CRM-3`..`CRM-5`, and does not
+change Finance V1's priority for any session not working CRM. This note was written back to this
+file after the fact (implementation was already underway when the gap was caught by this package's
+own `code-reviewer` pass) — see `PROGRESS.md`'s `CRM-2` entry for the full sequence; future CRM
+packages should record their dated authorization note here **before** implementation starts, matching
+`CRM-1`'s own precedent, not after.
+
 1. **Finance V1 — primary stream.** FIN-0 (architecture/discovery) CLOSED 2026-09-24. Canonical
    sequence: FIN-1 (Chart of Accounts read + Bank Account CRUD) → FIN-2 (Payment Entry + AR/AP
    visibility) → FIN-3 (Journal Entry) → FIN-4 (General Ledger / Trial Balance / Profit & Loss /
@@ -80,8 +93,11 @@ Finance V1's priority for any session not working CRM-1. FIN-2 remains **not aut
      this freeze, except for: critical defects, integration/accounting-impact defects Finance
      discovers while tracing Manufacturing→GL flows, release blockers, or a package Niroshan
      explicitly authorizes.
-4. **CRM** — not started, not yet in this lock. Only after the preceding V1 foundations (Finance
-   included) are in place, per `docs/ceylon-stack-master-backlog.md` §5 decision #2 (still open).
+4. **CRM** — `CRM-1` (Leads) and `CRM-2` (Opportunities) have shipped as explicit, dated exceptions
+   (see the authorization notes above). Beyond those two, CRM otherwise remains gated behind the
+   preceding V1 foundations (Finance included) per `docs/ceylon-stack-master-backlog.md` §5
+   decision #2 (still open) — `CRM-3`+ needs its own separate authorization, the same way `CRM-2`
+   needed its own beyond `CRM-1`'s.
 5. **Later architecture programs** (e.g. tenant/module provisioning) — stay deferred unless
    separately unlocked.
 

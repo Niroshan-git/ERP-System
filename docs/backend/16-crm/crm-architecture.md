@@ -670,8 +670,147 @@ display without it.
 
 ### 24.4 Status
 
-`CRM-1` is **implemented, code-reviewed, and QA'd** (see `QA_LOG.md`'s `CRM-1` entry). `CRM-2`
-(Opportunities) is **not started, not authorized by this package** — per the mission brief's explicit
-instruction not to auto-continue. This package's own authorization does not reopen
-`docs/ceylon-stack-master-backlog.md` §5 decision #2, and Finance V1 remains the priority-lock stream
-for any session not specifically working CRM.
+`CRM-1` is **implemented, code-reviewed, and QA'd** (see `QA_LOG.md`'s `CRM-1` entry). At the time
+this section was written (2026-09-24), `CRM-2` (Opportunities) was **not started, not authorized by
+this package** — per the mission brief's explicit instruction not to auto-continue. `CRM-2` has since
+received its own separate authorization and shipped the next day — see §25 below, which supersedes
+this paragraph's "not started" status without invalidating the governance point it was making (each
+CRM package needs its own explicit authorization; `CRM-1`'s did not automatically cover `CRM-2`, and
+`CRM-2`'s does not automatically cover `CRM-3`).
+
+## 25. `CRM-2` Implementation Update (2026-09-25)
+
+Niroshan explicitly authorized `CRM-2` the same way `CRM-1` was authorized — a dedicated mission
+brief, ahead of full Finance V1 completion, per `CLAUDE.md`'s Current Mission lock. This section
+records what was actually built and what this session's live verification (the mission's required
+"First Gate" — resolving remaining `CRM-UNV-*` items before designing mutations) added or corrected
+versus §1–§24 above.
+
+### 25.1 First-gate live verification
+
+Direct `mcp__ceylon-stack__get_doctype_fields`/`list_documents` reads against the real Hetzner
+instance, before any code was written:
+
+- **`Opportunity`**: confirms every field §5.2 already listed, plus two facts that section didn't
+  call out explicitly — `company` (Link → Company) and `transaction_date` (Date) are both
+  `reqd: true`. Zero live Opportunity records exist (consistent with `CRM-1`'s own disposable-fixture
+  cleanup leaving none behind).
+- **`Opportunity Item`**: `item_code`, `item_name`, `uom`, `qty`, `rate`, `amount` (plus
+  `base_rate`/`base_amount`) — no tax/discount/pricing-rule fields at all, confirming §5.2's
+  characterization of Opportunity Items as simple interest lines, not a pricing-engine-driven table
+  like Quotation Item.
+- **`Sales Stage`**: exactly 8 live records — Prospecting, Qualification, Needs Analysis, Value
+  Proposition, Identifying Decision Makers, Perception Analysis, Proposal/Price Quote,
+  Negotiation/Review, in that order. This is the real, standard ERPNext CRM seed data and the order
+  used as `CRM-2`'s canonical client-side pipeline sequence (`lib/salesStageOptions.ts`) — §12's
+  finding that ERPNext's own schema carries no order field is confirmed correct (no `order`/`sequence`
+  field on the doctype), so this ordering is hardcoded, not derived from a live sort.
+- **`Opportunity Type`**: Sales, Support, Maintenance (matches §3's inventory).
+- **`Opportunity Lost Reason`**: **zero live records** — a real, load-bearing finding for the Mark
+  Lost UX (see §25.4).
+- **`Quotation`**: confirms `Quotation.opportunity` (Link → Opportunity) is a real, live field —
+  resolving the mission brief's "preserve Opportunity reference" requirement definitively. Also
+  confirms `quotation_to`/`company`/`currency`/`selling_price_list`/`price_list_currency`/
+  `conversion_rate`/`plc_conversion_rate` are all `reqd: true` (matching what the existing
+  `createQuotationAction` already sends) and, notably, `Quotation.party_name` itself is **not**
+  `reqd: true` at the schema level (a minor, non-actionable finding — this app always sends it
+  regardless).
+
+No `CRM-UNV-*` item blocked this package: `CRM-UNV-004` (Opportunity submittability) was already
+resolved by `CRM-1`; `CRM-UNV-003`/`005`/`006`/`007` remain open but were already logged non-blocking
+for `CRM-2`'s exact scope, and nothing in this session's testing changed that.
+
+### 25.2 What shipped
+
+Routes: `/crm/opportunities` (list — search by title, Status/Stage/Territory/Owner filters,
+sort by last-updated/expected-close/value/created, pagination), `/crm/opportunities/new` (direct
+creation — party type Lead or Customer, full Commercial/Classification/Organization/Contact field
+groups, optional product/service line items), `/crm/opportunities/[name]` (detail — Overview tab
+reusing the create form for inline edit plus a read-only commercial summary strip, Linked Records tab,
+Activity tab reusing the existing `getDocInfo`/`addComment` Comments/Activity pattern, no new timeline
+component — same reuse discipline `CRM-1` already established), `/crm/opportunities/[name]/lost`
+(Mark Lost, mirrors `sales/quotations/[name]/set-as-lost`), `/crm/opportunities/[name]/create-quotation`
+(the Sales handoff, a confirmation page in front of a bound zero-argument action, mirroring
+`ConvertButtonClient`'s existing shape).
+
+Server actions: `apps/frontend/src/app/(app)/crm/opportunities/actions.ts`
+(`createOpportunityAction`/`updateOpportunityAction`/`markOpportunityLostAction`) and a new
+`apps/frontend/src/lib/actions/opportunityQuotation.ts` (`createQuotationFromOpportunityAction`) —
+kept in `lib/actions/` rather than folded into `sales/quotations/actions.ts`, the same "separate,
+additive action file" precedent `lib/actions/leadConversion.ts` already set for the Lead→Opportunity/
+Lead→Customer conversions, so the existing Quotation create flow is untouched.
+
+Sidebar's CRM module gained a second nav item (`Opportunities`, existing `Leads` group relabeled
+"Leads & Opportunities"). The Lead detail page's own linked-Opportunity references (list + the
+post-conversion success banner) now link to the new `/crm/opportunities/[name]` route instead of
+rendering plain text, since that route now exists — a small, in-scope correction of a `CRM-1`-era
+"no route exists yet" comment, not a new feature.
+
+### 25.3 Design decisions this package had to make that `CRM-0`/`CRM-1` left open
+
+- **Opportunity → Quotation restricted to Customer-partied Opportunities only.** §9.2's own
+  recommendation (Lead → Opportunity → Customer conversion → Quotation as Customer, matching the
+  existing Sales Quotation frontend's hardcoded `quotation_to: "Customer"` assumption) is followed
+  exactly: `createQuotationFromOpportunityAction` rejects a Lead-partied Opportunity with a message
+  pointing at converting the Lead to a Customer first, and the detail page hides the "Create
+  Quotation" button in that case rather than showing an action that would fail. The native
+  `quotation_to: "Lead"` shortcut remains `POST-V1`, unchanged from §9.2's original recommendation —
+  nothing in Sales' own Quotation create flow was touched.
+- **Explicit `Opportunity.status = "Quotation"` write after a successful handoff.** Neither
+  `CRM-UNV-005` (Opportunity's own outbound mapper field mapping) nor `CRM-UNV-007` (what actually
+  triggers `status: "Converted"`) confirm ERPNext sets this automatically. Rather than leave a real
+  Quotation existing against a still-"Open" Opportunity, `createQuotationFromOpportunityAction` sets
+  this itself, explicitly — the same precedent `convertLeadToOpportunityAction`/
+  `convertLeadToCustomerAction` already established for `Lead.status` in `CRM-1` (§6: ERPNext's own
+  mapper never sets it either). A failure on this specific write surfaces plainly ("Quotation X was
+  created, but updating the Opportunity's status failed...") rather than as a generic error, same
+  pattern `CRM-1`'s conversion actions use.
+- **Won/Converted semantics: deliberately not implemented, per the mission brief's explicit
+  instruction not to invent an unsupported "Won" mutation.** `CRM-2` never writes
+  `status: "Converted"` anywhere. What actually constitutes a "won" Opportunity in this app today is
+  observable but not modeled: a Quotation exists (`status: "Quotation"`, linked via `Quotation.opportunity`)
+  and, once that Quotation is accepted and a Sales Order is raised against it (Sales' own existing,
+  unmodified flow), the deal has effectively closed — but nothing writes `Opportunity.status:
+  "Converted"` to reflect that, since `CRM-UNV-007`'s trigger was never confirmed and `CRM-2` stops at
+  the Quotation boundary per its own mission scope. A future `CRM-5`-equivalent package (or `CRM-UNV-007`'s
+  resolution) would need to either confirm ERPNext does this natively, or add an explicit write the
+  same way this package added one for `"Quotation"`.
+- **Prospect excluded from the create-form party picker**, consistent with §5.3's POST-V1
+  recommendation — `opportunity_from` is still server-side allowlisted to `{"Lead", "Customer"}`
+  (narrower than the schema-valid `{"Lead", "Customer", "Prospect"}` set `CRM-UNV-003` names, since
+  Prospect itself has no frontend to originate from).
+- **Opportunity Items use a dedicated, lightweight editor** (`OpportunityItemsEditor.tsx`), not the
+  shared `LineItemsEditor` Quotation/Sales Order/Sales Invoice/Delivery Note all use — that shared
+  editor is tightly coupled to batch/serial picking and live Pricing Rule resolution, neither of
+  which applies to `Opportunity Item`'s schema (§25.1: no tax/discount/pricing fields at all). The new
+  editor emits the same hidden-JSON-field convention, so `lib/lineRows.ts`'s existing `parseLineRows`
+  is reused server-side unchanged — no new parser was written.
+
+### 25.4 Mark Lost — empty state, same pattern as Quotation
+
+`Opportunity Lost Reason` has zero live records on this instance (§25.1). `SetOpportunityLostForm`
+mirrors `SetQuotationLostForm`'s existing empty-state message and disables the submit button rather
+than letting a user attempt `declare_enquiry_lost` with an empty `lost_reasons_list` (which the
+action itself also rejects server-side as a second layer of defense). At least one `Opportunity Lost
+Reason` record needs to exist in ERPNext before this action is usable end-to-end — the same
+precondition `CRM-1`'s reviewers already accepted for Quotation's identical Lost Reason gap.
+
+### 25.5 New `NEEDS_VERIFICATION` item
+
+`CRM-UNV-009` — Opportunity list-view status-indicator tone mapping (`opportunityStatus()` in
+`lib/erpStatus.ts`) is this app's own reasonable mapping, not read from Desk's real
+`opportunity_list.js::get_indicator` source (no SSH/devops access this session) — same class of gap
+already logged for `leadStatus`/`bomStatus`/`stockEntryStatus`. Logged in
+`docs/backend/99-unverified/unverified-behaviours.md`'s `## CRM` section.
+
+### 25.6 Status
+
+`CRM-2` is implemented and code-reviewed (no findings). QA found no bugs but disclosed a real access
+gap — no browser/write-credential access this session, so live-mutation scenarios (real create/edit/
+Mark Lost/Quotation handoff) were not exercised, only traced against live-verified schema and
+`CRM-1`'s own already-live-verified conversion logic. Logged as `CRM-UNV-010`. Niroshan reviewed this
+gap and chose to ship with it disclosed rather than block — see `QA_LOG.md`'s `CRM-2` entry for full
+detail. **Not self-declared `ACCEPTED`** pending that gap's closure by a future session with real
+access. `CRM-3` (Activities & Follow-ups) is **not started, not authorized by this package** — per the
+mission brief's explicit instruction to stop and wait for independent review before continuing.
+Finance V1 remains the priority-lock stream for any session not specifically working CRM.

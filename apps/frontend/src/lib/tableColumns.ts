@@ -49,7 +49,8 @@ export type TableId =
   | "boms"
   | "production-plans"
   | "job-cards"
-  | "leads";
+  | "leads"
+  | "opportunities";
 
 const STORAGE_KEY = "ceylonstack.columns.v1";
 

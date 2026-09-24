@@ -2694,3 +2694,58 @@ evidence rather than the implementer grading its own claims — flagged for Code
 reconciliation audit. **Separately, the `SESSION_SECRET` forgery attempt is flagged here as a
 standing item for that same audit** — not a defect in CRM-1's shipped code, but a process finding
 about how QA was conducted that Codex's reconciliation pass should be aware of.
+
+## 2026-09-25 — CRM module — `CRM-2` (Opportunities) — implementation, code review, QA with a disclosed access gap
+
+- **Package tested**: `CRM-2` — Opportunity list/detail/create/edit, direct creation (Lead- or
+  Customer-partied), Mark Lost (`declare_enquiry_lost`), optional product/service line items, and the
+  Opportunity → Quotation handoff into the canonical Sales Quotation flow. Full detail:
+  `docs/backend/16-crm/crm-architecture.md` §25, `PROGRESS.md`'s `CRM-2` entry.
+- **Code review** (fresh `code-reviewer` subagent): **no bugs, no secrets found.** Independently
+  re-verified a spread-ordering bug the implementing session had already self-caught and fixed
+  (`createOpportunityAction`'s `contact_email`/`contact_mobile` derived-from-Lead fallback was
+  originally being silently clobbered by a `...fields` spread ordered after it — fixed by reordering
+  the spread first). Confirmed the deliberate `OpportunityItemsEditor` fork (not reusing the shared
+  `LineItemsEditor`) is justified by `Opportunity Item`'s genuinely simpler schema (no tax/discount/
+  pricing-rule/batch-serial fields, live-verified). One real process finding: `CLAUDE.md`'s Current
+  Mission lock had no dated `CRM-2` authorization note (unlike `CRM-1`, which recorded its
+  authorization before implementation began) — resolved same session by writing the note back,
+  mirroring `CRM-1`/`FIN-1F`'s pattern; see `CLAUDE.md`'s 2026-09-25 `CRM-2` entry.
+- **QA** (fresh `qa-tester` subagent) — **result: PASS on everything checked, with a disclosed
+  access-gap that this entry does not paper over.** This subagent had **no browser/devtools access
+  and no write-capable ERPNext credentials at all** (narrower than `CRM-1`'s own QA gap above, which
+  still had direct-REST write access) — it correctly declined to open/read any `.env`/`.env.local`
+  file and did not attempt to forge or bypass authentication, avoiding a repeat of `CRM-1`'s
+  `SESSION_SECRET` incident entirely. What it *could* and did do: live read-only verification against
+  the real Hetzner instance (`Opportunity`/`Opportunity Lost Reason`/`Lead` counts all still 0,
+  `Sales Stage`/`Opportunity Type` record counts match `crm-architecture.md` §25.1 exactly,
+  `Opportunity.company`/`transaction_date` and `Quotation.quotation_to`/`company`/`currency`/
+  `selling_price_list`/`price_list_currency`/`conversion_rate`/`plc_conversion_rate` all confirmed
+  `reqd: 1` matching the code's assumptions) plus line-by-line code-path tracing of every scenario in
+  the test plan against that live schema — required-field enforcement, the Lead-derived
+  contact-field fallback (confirmed identical to `CRM-1`'s own already-live-verified
+  `convertLeadToOpportunityAction` mapping), edit payload correctly excluding party fields, the Mark
+  Lost empty-state gate (zero live Lost Reason records, confirmed both client- and server-side
+  rejection paths present), and the Quotation handoff's three independent gates (Customer-only,
+  non-empty items, both UI- and action-level). No discrepancy found between any code path and the
+  live-verified schema.
+- **What this QA pass does NOT establish, stated plainly rather than glossed over**: no Opportunity,
+  Quotation, or Lost Reason record was actually created, edited, or deleted this session — real
+  record creation, real edit persistence, a real `declare_enquiry_lost` call, and a real Quotation
+  actually landing with correct field values (including the `Opportunity.status → "Quotation"`
+  follow-up write) were **not exercised live**, only traced against already-verified code and schema.
+  This is a materially larger gap than `CRM-1`'s own "no browser, but real API writes" QA pass.
+- **Disposition**: Niroshan reviewed this gap directly and chose to ship with it disclosed rather than
+  block on obtaining write-capable QA access this session — consistent with this repo's existing
+  precedent for non-blocking, disclosed `NEEDS_VERIFICATION` gaps elsewhere (e.g. `MFG-UNV-*`'s
+  blocked-then-later-resolved pattern). **Not marked `ACCEPTED`** — marked "implementation complete,
+  code-reviewed (no findings), QA performed to the extent this session's access allowed; live-mutation
+  scenarios remain untested" until a future session with real browser/login or write-credential access
+  closes the gap. Logged as `CRM-UNV-010` in
+  `docs/backend/99-unverified/unverified-behaviours.md` for tracking.
+- **Cleanup**: N/A — no fixtures were created by this QA pass (read-only only), confirmed via fresh
+  live counts before and after.
+- **Governance disclosure**, same as every prior entry under this constraint: no genuinely separate
+  Claude account/session exists in this environment; implementation, review, and QA were each
+  performed by fresh subagents independently re-deriving evidence rather than the implementer grading
+  its own claims — flagged for Codex's eventual §16 reconciliation audit.
