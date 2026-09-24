@@ -509,6 +509,38 @@ export async function verifyErpNextLogin(
 }
 
 /**
+ * Triggers ERPNext's own password-reset email flow (Frappe's allow_guest
+ * `frappe.core.doctype.user.user.reset_password`, the same whitelisted method Desk's own
+ * "Forgot Password" link calls). Deliberately does not report whether `email` matched a real
+ * account: Frappe throws for an unknown user, and that failure is swallowed here (only
+ * logged) rather than rejecting, so api/auth/forgot-password can return one generic message
+ * either way — a password-reset endpoint that answers differently for a real vs. fake email
+ * is a user-enumeration oracle. Only a genuine "couldn't even reach ERPNext" failure should
+ * propagate to the caller as a rejected promise.
+ */
+export async function requestPasswordReset(email: string): Promise<void> {
+  if (!BASE_URL) {
+    throw new Error("ERPNEXT_URL is not set — see apps/frontend/.env.local.example");
+  }
+
+  const res = await fetch(`${BASE_URL}/api/method/frappe.core.doctype.user.user.reset_password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ user: email }),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    logError({
+      source: "requestPasswordReset",
+      message: `ERPNext responded ${res.status}`,
+      status: res.status,
+      path: "/api/method/frappe.core.doctype.user.user.reset_password",
+    });
+  }
+}
+
+/**
  * Resolves the real ERPNext roles for a human who just passed verifyErpNextLogin(), via
  * smart_factory's resolve_actor_roles whitelisted method — the trusted source lib/session.ts's
  * `isSystemManager` flag is derived from at login time. Deliberately not derived from

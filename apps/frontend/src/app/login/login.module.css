@@ -1,0 +1,938 @@
+/*
+ * Ceylon Stack login page — reproduces docs/brand/package/ceylonstack-login.html exactly.
+ * Colors/spacing are copied verbatim from that approved reference file, not the app's
+ * internal dashboard tokens (globals.css) — the login screen is brand-facing chrome, same
+ * distinction DESIGN.md draws between brand/marketing tokens and app UI tokens.
+ *
+ * Everything is scoped under .page so none of this leaks into the rest of the app — the
+ * reference file was a standalone HTML document and used bare element selectors freely
+ * (body, input, a, label, ...) which would be unsafe left unscoped in a shared Next.js tree.
+ *
+ * Theme mechanism: reused from lib/theme.ts / globals.css (data-theme attribute set by the
+ * root layout's pre-hydration script, localStorage key ceylonstack.theme.v1), NOT the
+ * reference's own standalone inline script — same 3-tier pattern globals.css already uses
+ * (unconditional default, @media(prefers-color-scheme) fallback guarded against an explicit
+ * opposite choice, explicit [data-theme] override) so "no saved preference -> follow device
+ * scheme" and "saved preference always wins" work the same way here as everywhere else in
+ * the app. The reference is dark-by-default with light reachable only via an explicit
+ * attribute (because its own inline script always set one); here dark stays the unconditional
+ * base and light is reachable both by explicit attribute and by system preference.
+ */
+
+.page {
+  color-scheme: dark;
+  --cs-login-ink: #081b30;
+  --cs-login-panel: #101e30;
+  --cs-login-sapphire: #21407a;
+  --cs-login-cyan: #12b6d9;
+  --cs-login-muted: #a6b6c9;
+  --cs-login-line: #ffffff19;
+  margin: 0;
+  background: #081321;
+  color: #f5f8fc;
+  font: 15px/1.55 "Segoe UI", Arial, sans-serif;
+  /* Fits within the viewport instead of ever producing a page-level scrollbar — the shell
+     stretches to fill exactly what's available (justify-items centers it horizontally only);
+     if content still doesn't fit a very short window, .main scrolls internally instead (see
+     below), keeping the header/footer always visible rather than growing the page. */
+  height: 100dvh;
+  overflow: hidden;
+  padding: 42px;
+  display: grid;
+  justify-items: center;
+  align-items: stretch;
+}
+
+.page * {
+  box-sizing: border-box;
+}
+
+.page button,
+.page input,
+.page select {
+  font: inherit;
+}
+
+.page button,
+.page a,
+.page input,
+.page select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.page button,
+.page a {
+  touch-action: manipulation;
+}
+
+.page button {
+  cursor: pointer;
+}
+
+.page button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.page a {
+  color: #6bdef3;
+}
+
+.page button:focus-visible,
+.page a:focus-visible,
+.page select:focus-visible,
+.page input:focus-visible {
+  outline: 3px solid #6bdef3;
+  outline-offset: 4px;
+}
+
+.shell {
+  position: relative;
+  isolation: isolate;
+  width: min(1180px, 100%);
+  height: 100%;
+  background: var(--cs-login-panel);
+  border: 1px solid #ffffff14;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 35px 90px #0005;
+  display: flex;
+  flex-direction: column;
+}
+
+.scene {
+  position: absolute;
+  inset: 0 0 0 39%;
+  z-index: -2;
+  background:
+    radial-gradient(ellipse at 70% 10%, #215576 0, transparent 55%),
+    linear-gradient(150deg, #152b42, #081b30);
+}
+
+.scene svg {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  opacity: 0.5;
+}
+
+.scene::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, #101e30, transparent 70%),
+    linear-gradient(0deg, #081b30b0, transparent);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 36px 48px;
+  flex-shrink: 0;
+}
+
+.brand {
+  display: block;
+  flex-shrink: 0;
+  width: 225px;
+  height: 70px;
+}
+
+.logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: left;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.topNote {
+  font-size: 12px;
+  color: #c0d1df;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cs-login-cyan);
+}
+
+.themeToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #53657a;
+  border-radius: 8px;
+  background: #ffffff08;
+  color: #dbe9f5;
+  padding: 9px 12px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.themeToggle:hover {
+  background: #ffffff13;
+}
+
+.themeIcon {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.main {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  padding: 37px 66px 56px;
+  /* Fills the space left between header and footer; scrolls internally as a last resort on a
+     viewport too short for the full form + story column, instead of the whole page scrolling. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+.formSide {
+  max-width: 390px;
+}
+
+.eyebrow {
+  color: #6bdef3;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 13px;
+}
+
+.title {
+  font-size: 40px;
+  line-height: 1.15;
+  letter-spacing: -1.5px;
+  margin: 0 0 14px;
+  font-weight: 650;
+}
+
+.subtitle {
+  color: var(--cs-login-muted);
+  margin: 0 0 30px;
+}
+
+.page label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.field {
+  margin-bottom: 20px;
+}
+
+.page input:not([type="checkbox"]),
+.page select {
+  width: 100%;
+  height: 52px;
+  border: 1px solid #53657a;
+  background: #1c2c40;
+  border-radius: 9px;
+  padding: 0 15px;
+  color: #fff;
+}
+
+.page input::placeholder {
+  color: #8d9db0;
+}
+
+.page input:focus {
+  border-color: var(--cs-login-cyan);
+}
+
+.password {
+  position: relative;
+}
+
+.password input {
+  padding-right: 65px;
+}
+
+.show {
+  position: absolute;
+  right: 8px;
+  top: 9px;
+  height: 34px;
+  background: transparent;
+  border: 0;
+  color: #bcd0e4;
+  font-size: 12px;
+  padding: 0 9px;
+}
+
+.options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  margin: 2px 0 25px;
+}
+
+.check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0;
+  font-weight: 400;
+  font-size: 12px;
+  color: #c3cddb;
+}
+
+.page input[type="checkbox"] {
+  accent-color: var(--cs-login-cyan);
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: #70d8ed;
+  font-size: 12px;
+}
+
+.primary {
+  width: 100%;
+  border: 1px solid #5478b3;
+  border-radius: 9px;
+  background: var(--cs-login-sapphire);
+  color: white;
+  min-height: 51px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.primary:hover {
+  background: #2b5193;
+}
+
+.access {
+  font-size: 12px;
+  color: var(--cs-login-muted);
+  margin-top: 19px;
+  text-align: center;
+}
+
+.demo {
+  border-top: 1px solid var(--cs-login-line);
+  margin-top: 27px;
+  padding-top: 19px;
+}
+
+.demoHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.demoHead span {
+  font-size: 11px;
+  color: #96a9bc;
+}
+
+.demoHead strong {
+  font-size: 12px;
+  font-weight: 500;
+  color: #c7d3e0;
+}
+
+.demoRow {
+  display: flex;
+  gap: 8px;
+}
+
+.demoRow select {
+  height: 39px;
+  font-size: 12px;
+  padding: 0 9px;
+  flex: 1;
+  min-width: 0;
+}
+
+.secondary {
+  background: #ffffff08;
+  color: #dbe9f5;
+  border: 1px solid #ffffff30;
+  border-radius: 7px;
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+.secondary:hover {
+  background: #ffffff13;
+}
+
+.story {
+  padding: 31px 0 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.storyTitle {
+  font-size: 43px;
+  font-weight: 500;
+  line-height: 1.18;
+  letter-spacing: -1.5px;
+  margin: 0 0 20px;
+}
+
+.storyAccent {
+  color: #78d9e9;
+}
+
+.storyCopy {
+  max-width: 340px;
+  color: #b3c4d4;
+  line-height: 1.8;
+  font-size: 14px;
+}
+
+.workspace {
+  background: #0b1c30b8;
+  border: 1px solid #94c5dd33;
+  border-radius: 14px;
+  backdrop-filter: blur(12px);
+  padding: 23px;
+  margin-top: 44px;
+  box-shadow: 0 16px 40px #0002;
+}
+
+.workspaceTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--cs-login-line);
+  padding-bottom: 18px;
+}
+
+.workspaceTitle {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.badge {
+  font-size: 10px;
+  color: #92deed;
+  border: 1px solid #70d8ed38;
+  background: #12b6d90a;
+  padding: 3px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.workspaceDescription {
+  color: #a9bdcf;
+  font-size: 12px;
+  margin: 15px 0;
+}
+
+.modules {
+  display: grid;
+  gap: 12px;
+}
+
+.module {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: #cad9e6;
+}
+
+.moduleIcon {
+  font-style: normal;
+  color: #6bdef3;
+  width: 26px;
+  height: 26px;
+  background: #12b6d90d;
+  border: 1px solid #12b6d928;
+  border-radius: 6px;
+  text-align: center;
+  line-height: 25px;
+}
+
+.moduleIndex {
+  margin-left: auto;
+  color: #728ba3;
+}
+
+.footer {
+  padding: 21px 48px;
+  border-top: 1px solid var(--cs-login-line);
+  display: flex;
+  justify-content: space-between;
+  color: #8297ac;
+  font-size: 11px;
+  gap: 15px;
+  flex-shrink: 0;
+}
+
+.message {
+  font-size: 12px;
+  color: #ffb6a9;
+  margin: 12px 0;
+  min-height: 0;
+}
+
+.message:empty {
+  display: none;
+  margin: 0;
+}
+
+.messageInfo {
+  color: #9de4f0;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 18px 0;
+}
+
+.stat {
+  padding: 10px 0;
+}
+
+.stat b {
+  display: block;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.stat span {
+  font-size: 11px;
+  color: #a9bdcf;
+}
+
+.successIcon {
+  width: 50px;
+  height: 50px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #12b6d91a;
+  color: #6bdef3;
+  font-size: 23px;
+  margin-bottom: 22px;
+}
+
+.dialog {
+  width: min(430px, calc(100% - 32px));
+  color: #fff;
+  background: #15273b;
+  border: 1px solid #60778e;
+  border-radius: 15px;
+  padding: 27px;
+}
+
+.dialog::backdrop {
+  background: #030b16bb;
+}
+
+.dialogTitle {
+  margin-top: 0;
+  font-size: 23px;
+}
+
+.dialogText {
+  color: #bbcbda;
+  font-size: 14px;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.small {
+  font-size: 12px;
+  color: var(--cs-login-muted);
+}
+
+@media (min-width: 1400px) {
+  .page {
+    padding: 65px;
+  }
+  .main {
+    padding-top: 55px;
+    padding-bottom: 65px;
+  }
+}
+
+@media (max-width: 1000px) {
+  .page {
+    padding: 24px;
+  }
+  .main {
+    gap: 38px;
+    padding: 35px;
+  }
+  .storyTitle {
+    font-size: 35px;
+  }
+  .header {
+    padding: 30px 35px;
+  }
+  .title {
+    font-size: 35px;
+  }
+  .footer {
+    padding: 20px 35px;
+  }
+}
+
+@media (max-width: 900px) {
+  .headerActions {
+    gap: 12px;
+  }
+  .topNote {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 12px;
+  }
+  .shell {
+    border-radius: 16px;
+  }
+  .header {
+    padding: 25px;
+  }
+  .brand {
+    width: 190px;
+    height: 59px;
+  }
+  .topNote {
+    display: none;
+  }
+  .main {
+    grid-template-columns: 1fr;
+    gap: 38px;
+    padding: 20px 25px 30px;
+  }
+  .formSide {
+    max-width: none;
+  }
+  .story {
+    padding: 0;
+    border-top: 1px solid var(--cs-login-line);
+    padding-top: 27px;
+  }
+  .storyTitle {
+    font-size: 30px;
+  }
+  .storyCopy {
+    max-width: none;
+  }
+  .workspace {
+    margin-top: 23px;
+  }
+  .scene {
+    left: 0;
+    opacity: 0.6;
+  }
+  .footer {
+    padding: 20px 25px;
+    flex-wrap: wrap;
+  }
+  .themeToggle {
+    padding: 8px 10px;
+  }
+}
+
+@media (max-width: 390px) {
+  .header {
+    padding: 20px;
+  }
+  .brand {
+    width: 155px;
+    height: 49px;
+  }
+  .themeToggle {
+    font-size: 11px;
+    padding: 8px;
+  }
+  .headerActions {
+    gap: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .page button {
+    transition: background 0.15s ease;
+  }
+}
+
+/* ---- Light theme: system preference, no explicit dark override ---- */
+@media (prefers-color-scheme: light) {
+  html:not([data-theme="dark"]) .page {
+    color-scheme: light;
+    --cs-login-panel: #ffffff;
+    --cs-login-muted: #526579;
+    --cs-login-line: #18385420;
+    background: #eaf0f6;
+    color: #10243c;
+  }
+  html:not([data-theme="dark"]) .shell {
+    border-color: #cbd9e6;
+    box-shadow: 0 30px 80px #193c621a;
+  }
+  html:not([data-theme="dark"]) .scene {
+    background:
+      radial-gradient(ellipse at 70% 10%, #c9e8ee, transparent 55%),
+      linear-gradient(150deg, #eaf2f8, #dceaf2);
+  }
+  html:not([data-theme="dark"]) .scene svg {
+    opacity: 0.12;
+  }
+  html:not([data-theme="dark"]) .scene::after {
+    background:
+      linear-gradient(90deg, #fff, transparent 70%),
+      linear-gradient(0deg, #eaf3f899, transparent);
+  }
+  html:not([data-theme="dark"]) .topNote {
+    color: #4f6579;
+  }
+  html:not([data-theme="dark"]) .eyebrow,
+  html:not([data-theme="dark"]) .storyAccent {
+    color: #006f88;
+  }
+  html:not([data-theme="dark"]) .page input:not([type="checkbox"]),
+  html:not([data-theme="dark"]) .page select {
+    background: #f5f8fb;
+    border-color: #8a9eb3;
+    color: #10243c;
+  }
+  html:not([data-theme="dark"]) .page input::placeholder {
+    color: #65778a;
+  }
+  html:not([data-theme="dark"]) .show {
+    color: #435d77;
+  }
+  html:not([data-theme="dark"]) .check {
+    color: #455f76;
+  }
+  html:not([data-theme="dark"]) .link,
+  html:not([data-theme="dark"]) .page a {
+    color: #005e91;
+  }
+  html:not([data-theme="dark"]) .demoHead span {
+    color: #607388;
+  }
+  html:not([data-theme="dark"]) .demoHead strong {
+    color: #3b526a;
+  }
+  html:not([data-theme="dark"]) .secondary,
+  html:not([data-theme="dark"]) .themeToggle {
+    background: #f4f8fc;
+    color: #21407a;
+    border-color: #9cafc2;
+  }
+  html:not([data-theme="dark"]) .secondary:hover,
+  html:not([data-theme="dark"]) .themeToggle:hover {
+    background: #e4eef8;
+  }
+  html:not([data-theme="dark"]) .storyCopy {
+    color: #486078;
+  }
+  html:not([data-theme="dark"]) .workspace {
+    background: #ffffffd9;
+    border-color: #b5cbdc;
+    box-shadow: 0 16px 40px #193c620a;
+  }
+  html:not([data-theme="dark"]) .badge {
+    color: #00677d;
+    border-color: #96c4cf;
+    background: #e9f7fa;
+  }
+  html:not([data-theme="dark"]) .workspaceDescription,
+  html:not([data-theme="dark"]) .stat span {
+    color: #496278;
+  }
+  html:not([data-theme="dark"]) .module {
+    color: #28445f;
+  }
+  html:not([data-theme="dark"]) .moduleIcon {
+    color: #006b83;
+    border-color: #b2d9e3;
+    background: #edf8fa;
+  }
+  html:not([data-theme="dark"]) .moduleIndex {
+    color: #49667f;
+  }
+  html:not([data-theme="dark"]) .footer {
+    color: #526b81;
+  }
+  html:not([data-theme="dark"]) .message {
+    color: #a12e20;
+  }
+  html:not([data-theme="dark"]) .messageInfo {
+    color: #00657b;
+  }
+  html:not([data-theme="dark"]) .successIcon {
+    background: #e0f4f7;
+    color: #006e82;
+  }
+  html:not([data-theme="dark"]) .dialog {
+    background: #fff;
+    color: #10243c;
+    border-color: #9cafc2;
+  }
+  html:not([data-theme="dark"]) .dialogText {
+    color: #496278;
+  }
+  html:not([data-theme="dark"]) .page *:focus-visible {
+    outline-color: #00728f;
+  }
+}
+
+/* ---- Light theme: explicit choice via the app's theme toggle ---- */
+html[data-theme="light"] .page {
+  color-scheme: light;
+  --cs-login-panel: #ffffff;
+  --cs-login-muted: #526579;
+  --cs-login-line: #18385420;
+  background: #eaf0f6;
+  color: #10243c;
+}
+html[data-theme="light"] .shell {
+  border-color: #cbd9e6;
+  box-shadow: 0 30px 80px #193c621a;
+}
+html[data-theme="light"] .scene {
+  background:
+    radial-gradient(ellipse at 70% 10%, #c9e8ee, transparent 55%),
+    linear-gradient(150deg, #eaf2f8, #dceaf2);
+}
+html[data-theme="light"] .scene svg {
+  opacity: 0.12;
+}
+html[data-theme="light"] .scene::after {
+  background:
+    linear-gradient(90deg, #fff, transparent 70%),
+    linear-gradient(0deg, #eaf3f899, transparent);
+}
+html[data-theme="light"] .topNote {
+  color: #4f6579;
+}
+html[data-theme="light"] .eyebrow,
+html[data-theme="light"] .storyAccent {
+  color: #006f88;
+}
+html[data-theme="light"] .page input:not([type="checkbox"]),
+html[data-theme="light"] .page select {
+  background: #f5f8fb;
+  border-color: #8a9eb3;
+  color: #10243c;
+}
+html[data-theme="light"] .page input::placeholder {
+  color: #65778a;
+}
+html[data-theme="light"] .show {
+  color: #435d77;
+}
+html[data-theme="light"] .check {
+  color: #455f76;
+}
+html[data-theme="light"] .link,
+html[data-theme="light"] .page a {
+  color: #005e91;
+}
+html[data-theme="light"] .demoHead span {
+  color: #607388;
+}
+html[data-theme="light"] .demoHead strong {
+  color: #3b526a;
+}
+html[data-theme="light"] .secondary,
+html[data-theme="light"] .themeToggle {
+  background: #f4f8fc;
+  color: #21407a;
+  border-color: #9cafc2;
+}
+html[data-theme="light"] .secondary:hover,
+html[data-theme="light"] .themeToggle:hover {
+  background: #e4eef8;
+}
+html[data-theme="light"] .storyCopy {
+  color: #486078;
+}
+html[data-theme="light"] .workspace {
+  background: #ffffffd9;
+  border-color: #b5cbdc;
+  box-shadow: 0 16px 40px #193c620a;
+}
+html[data-theme="light"] .badge {
+  color: #00677d;
+  border-color: #96c4cf;
+  background: #e9f7fa;
+}
+html[data-theme="light"] .workspaceDescription,
+html[data-theme="light"] .stat span {
+  color: #496278;
+}
+html[data-theme="light"] .module {
+  color: #28445f;
+}
+html[data-theme="light"] .moduleIcon {
+  color: #006b83;
+  border-color: #b2d9e3;
+  background: #edf8fa;
+}
+html[data-theme="light"] .moduleIndex {
+  color: #49667f;
+}
+html[data-theme="light"] .footer {
+  color: #526b81;
+}
+html[data-theme="light"] .message {
+  color: #a12e20;
+}
+html[data-theme="light"] .messageInfo {
+  color: #00657b;
+}
+html[data-theme="light"] .successIcon {
+  background: #e0f4f7;
+  color: #006e82;
+}
+html[data-theme="light"] .dialog {
+  background: #fff;
+  color: #10243c;
+  border-color: #9cafc2;
+}
+html[data-theme="light"] .dialogText {
+  color: #496278;
+}
+html[data-theme="light"] .page *:focus-visible {
+  outline-color: #00728f;
+}
