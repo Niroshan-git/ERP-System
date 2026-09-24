@@ -43,16 +43,36 @@ function humanizeError(e: unknown): string {
  * effect of an unrelated save (the bug that would exist if this form both rendered and
  * omitted a checkbox for it).
  */
+/**
+ * `account_type`/`account_category`/`account_currency`/`balance_must_be` are Select/Link fields
+ * AccountForm.tsx always renders (whenever relevant), whether or not the account already has a
+ * value — so an empty submission is ambiguous between "user cleared this" and "field was never
+ * touched" only in the sense that both look like `""`. On `updateDoc`'s `PUT`, ERPNext does a
+ * partial merge (`doc.update(data)`): a key **omitted** from the JSON body leaves the existing
+ * stored value untouched, only a key **present with an empty value** actually clears it —
+ * live-verified via the real `Account` doctype meta (`account_type`/`balance_must_be` are
+ * `Select`, `account_currency`/`account_category` are `Link`; all four default to `""`, not
+ * `null`, when cleared). `JSON.stringify` drops `undefined`-valued keys entirely, so on Edit this
+ * function must send an explicit `""` for a cleared field, not `undefined` — otherwise the save
+ * silently no-ops for that field while the UI still reports success. On Create there's no prior
+ * value to preserve or clear, so an empty field is simply omitted, same as before.
+ */
+function optionalStringField(formData: FormData, key: string, isEdit: boolean): string | undefined {
+  const value = String(formData.get(key) ?? "").trim();
+  if (value) return value;
+  return isEdit ? "" : undefined;
+}
+
 function buildAccountFields(formData: FormData, opts: { isEdit: boolean }) {
   const account_name = String(formData.get("account_name") ?? "").trim();
   const account_number = String(formData.get("account_number") ?? "").trim() || undefined;
   const company = String(formData.get("company") ?? "").trim();
   const parent_account = String(formData.get("parent_account") ?? "").trim();
   const is_group = formData.get("is_group") ? 1 : 0;
-  const account_type = String(formData.get("account_type") ?? "").trim() || undefined;
-  const account_category = String(formData.get("account_category") ?? "").trim() || undefined;
-  const account_currency = String(formData.get("account_currency") ?? "").trim() || undefined;
-  const balance_must_be = String(formData.get("balance_must_be") ?? "").trim() || undefined;
+  const account_type = optionalStringField(formData, "account_type", opts.isEdit);
+  const account_category = optionalStringField(formData, "account_category", opts.isEdit);
+  const account_currency = optionalStringField(formData, "account_currency", opts.isEdit);
+  const balance_must_be = optionalStringField(formData, "balance_must_be", opts.isEdit);
   const tax_rate = formData.get("tax_rate") ? Number(formData.get("tax_rate")) : undefined;
   // Freeze Account: live-verified `validate_frozen_accounts_modifier()` throws "You are not
   // authorized to set Frozen value" on ANY change to this field once a document exists,
@@ -78,9 +98,13 @@ function buildAccountFields(formData: FormData, opts: { isEdit: boolean }) {
     // Account Type/Currency only mean anything for a ledger (`Account.account_currency`'s own
     // `depends_on: eval:doc.is_group==0`, live-verified) — stripped for a group so a later
     // Ledger->Group conversion never trips `validate_group_or_ledger()`'s "Cannot covert to
-    // Group because Account Type is selected" guard over a value this app itself set.
-    account_type: is_group ? undefined : account_type,
-    account_currency: is_group ? undefined : account_currency,
+    // Group because Account Type is selected" guard over a value this app itself set. On Edit
+    // this must be an explicit `""`, not `undefined` — `validate_group_or_ledger()` requires
+    // Account Type to be genuinely cleared server-side, not merely absent from the request (see
+    // `optionalStringField` above); omitting it here previously left a Ledger's existing Account
+    // Type in place and made Ledger->Group conversion fail for any account that ever had one set.
+    account_type: is_group ? (opts.isEdit ? "" : undefined) : account_type,
+    account_currency: is_group ? (opts.isEdit ? "" : undefined) : account_currency,
     account_category,
     balance_must_be,
     tax_rate,

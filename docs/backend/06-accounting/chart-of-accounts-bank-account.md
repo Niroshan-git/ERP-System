@@ -190,6 +190,22 @@ lifecycle test below where noted `VERIFIED (console)`)
   ledger"`, source: `NestedSet.validate_ledger()`/`Account.check_if_child_exists()`). The
   GL-entries branch itself is `NEEDS_VERIFICATION` (`FIN-UNV-005`) — the disposable test account
   never had real GL postings against it.
+  **Bug fixed post-ship, same day:** the app's Edit payload originally built `account_type`/
+  `account_currency`/`account_category`/`balance_must_be` with a `value || undefined` pattern —
+  `JSON.stringify` drops `undefined` keys, and ERPNext's `PUT` does a partial merge (an omitted
+  key leaves the stored value untouched, it does **not** clear it). This silently no-opped any
+  attempt to clear one of these fields on Edit (including the Ledger→Group path above — omitting
+  `account_type` reproduced the exact `"Cannot covert to Group..."` error above even when the
+  form's checkbox showed the field as blank), while the UI still reported "Saved". Fixed by
+  sending an explicit `""` for these four fields on the Edit path specifically (Create still omits
+  an unset optional field, since there's no prior value to preserve or clear) — `VERIFIED (live)`:
+  a disposable `QA-FIN1E-FIX-TEST-*` Ledger with `account_type: "Cash"` cleared to `""` via the
+  fixed payload shape, and a second disposable account reproduced the old omit-based failure
+  exactly before confirming the same Ledger→Group conversion succeeds once `account_type` is sent
+  as `""` instead of omitted. Note in passing: `account_currency` (a `Link` field) does *not*
+  stay empty after being cleared this way — `validate_account_currency()` immediately re-defaults
+  it to the Company's `default_currency`, live-confirmed as expected/unrelated ERPNext behavior,
+  not a gap in this fix.
 - **Disable is blocked if the account is set as one of the Company's own "default account" fields**
   (`validate_disabled()` → `validate_default_accounts_in_company()`, 19 fields — Default
   Receivable/Payable/Cash/Bank/Expense/Income Account, Stock Received But Not Billed, Stock
