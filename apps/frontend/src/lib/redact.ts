@@ -21,6 +21,14 @@ const PATTERNS: RegExp[] = [
   /\btoken\s+[A-Za-z0-9:_-]{8,}/gi,
   /\bBearer\s+[A-Za-z0-9._-]{8,}/gi,
   /\bceylon_session=[^;\s]+/gi,
+  // Cookie/Set-Cookie header values — live-caught gap (O-10C, 2026-09-24): neither header was
+  // covered by any prior pattern at all (ceylon_session= above only matches that one specific
+  // cookie name, not an arbitrary session/tracking cookie a framework-generated error string
+  // might echo back). A single `\S+` capture is enough: real cookie headers put the sensitive
+  // `name=value` pair immediately after the colon with no internal space before the first `;`,
+  // so this redacts exactly that pair and leaves harmless trailing attributes (`; Path=/;
+  // HttpOnly`) untouched — mirroring `ceylon_session=`'s own scope, just for any cookie name.
+  /\b(?:Set-)?Cookie:\s*\S+/gi,
   // access_token/refresh_token in "bare word + value" shape (e.g. an OAuth response body
   // echoed verbatim into a diagnostic string: "access_token eyJhbGc..."), same shape as the
   // token/Bearer patterns above — a key=value form alone (below) would miss this, since there's

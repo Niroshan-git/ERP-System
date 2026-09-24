@@ -52,6 +52,9 @@ _REDACT_PATTERNS = [
 	re.compile(r"\btoken\s+[A-Za-z0-9:_-]{8,}", re.IGNORECASE),
 	re.compile(r"\bBearer\s+[A-Za-z0-9._-]{8,}", re.IGNORECASE),
 	re.compile(r"\bceylon_session=[^;\s]+", re.IGNORECASE),
+	# Cookie/Set-Cookie header values — live-caught gap (O-10C, 2026-09-24, both here and in the
+	# TypeScript mirror in lib/redact.ts): neither header was covered by any prior pattern.
+	re.compile(r"\b(?:Set-)?Cookie:\s*\S+", re.IGNORECASE),
 	re.compile(r"\b(?:access|refresh)[-_]?token\s+[A-Za-z0-9._-]{8,}", re.IGNORECASE),
 	re.compile(
 		r'\b(password|secret|api[-_]?key|api[-_]?secret|access[-_]?token|refresh[-_]?token)'

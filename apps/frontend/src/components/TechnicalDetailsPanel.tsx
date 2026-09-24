@@ -2,12 +2,14 @@ import { Lock } from "lucide-react";
 import type { TechnicalDetails } from "@/lib/observabilityCenter/types";
 
 /**
- * Gated technical-diagnostics container (mission §19/§20). The O-2 independent review
- * found a real redaction gap (access_token/refresh_token bypassing `lib/redact.ts`) —
- * until a backend package explicitly marks diagnostic fields safe for UI consumption,
- * this never renders anything from a live source. What it renders today is DEMO data
- * only, for the handful of fixtures that opted in (`demoProvider.ts`'s `technicalDetails`)
- * — labeled as such, never presented as if it came from a live ERPNext instance.
+ * Gated technical-diagnostics container (mission §19/§20). O-10B/O-10C closed the O-2
+ * independent review's redaction gap (`access_token`/`refresh_token` now covered by
+ * `lib/redact.ts`, applied twice — backend `_redact_text()` then this data's own
+ * `redactString()` pass in `serverProvider.ts`) and wired Trace Detail to the real
+ * provider, so this panel now renders genuine (redacted) `Error Log` diagnostic content
+ * when `available` — labeled "Live", not "Demo data". `available: false` (no `Error Log`
+ * row exists for this trace, or the trace itself is a demo/unknown one) still renders the
+ * honest "will become available" placeholder, unchanged from O-7.
  * Fields with no value are simply omitted (§14: "do not display meaningless empty
  * fields") rather than shown as an empty row. Never stringifies an arbitrary object —
  * only the fixed, named fields `TechnicalDetails` declares.
@@ -39,8 +41,8 @@ export function TechnicalDetailsPanel({ details }: { details: TechnicalDetails }
     <div className="rounded-xl border border-border bg-surface p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold text-graphite-900">Technical Details</h2>
-        <span className="rounded-full bg-graphite-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-graphite-500">
-          Demo data
+        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+          Live
         </span>
       </div>
       <dl className="space-y-3">

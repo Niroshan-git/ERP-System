@@ -653,7 +653,26 @@ export function getServerObservabilityProvider(): ObservabilityProvider {
       };
     },
 
+    /**
+     * O-10C wiring note — `module`/`source`/`status` are NOT sent to the backend, on
+     * purpose, not by oversight:
+     * - `module`/`source` have no native backend filter (both are DERIVED_SAFELY at
+     *   normalization time from `reference_doctype`/the URL path — see `deriveModule()`/
+     *   `deriveSource()` above). Silently accepting these params without filtering by them
+     *   would return every row regardless of the caller's selection — exactly the
+     *   misleading "filter is a no-op" behavior the O-10C mission (§6) forbids. The
+     *   corresponding filter fields were removed from Error Explorer's UI
+     *   (`errors/page.tsx`) for the same reason, rather than left in place doing nothing.
+     * - `status` IS handled, but truthfully: every real `ErrorEvent.status` is currently
+     *   hardcoded `"Open"` (`normalizeErrorEvent()` — Error Log has no native workflow-
+     *   state field at all). A request for any other status can be answered correctly
+     *   without even querying the backend: no real row will ever match. Requesting
+     *   `"Open"` (or no status filter) is answered normally.
+     */
     async getErrors(filters: ObservabilityFilters, page: number, pageSize: number): Promise<ErrorListResult> {
+      if (filters.status && filters.status !== "Open") {
+        return { items: [], pagination: { page: clampPage(page), pageSize: clampPageSize(pageSize), total: 0 } };
+      }
       const native = await callObservabilityRead<NativeListResult<NativeErrorRow>>("list_errors", {
         page: clampPage(page),
         page_size: clampPageSize(pageSize),

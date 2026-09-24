@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft, History } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { TraceIdBadge } from "@/components/TraceIdBadge";
@@ -9,22 +9,81 @@ import { RelatedDocumentLink } from "@/components/RelatedDocumentLink";
 import { CopyTextButton } from "@/components/CopyTextButton";
 import { buildSupportSummary } from "@/lib/observabilityCenter/format";
 import { getObservabilityProvider } from "@/lib/observabilityCenter/provider";
+import type { Trace } from "@/lib/observabilityCenter/types";
 
 /**
- * Trace Detail (package O-7) — the core support-investigation screen. Reads exclusively
- * through `getObservabilityProvider()` (still DEMO; see
- * `docs/observability-frontend-architecture.md`). Authorization is inherited from
+ * Trace Detail (package O-7, converted to LIVE in O-10C) — the core support-investigation
+ * screen. Reads exclusively through `getObservabilityProvider()`, which as of O-10C routes
+ * `getTrace()`/`getTechnicalDetails()` to the real `ServerObservabilityProvider` (a join of
+ * native `Error Log` + `Activity Log` sharing one correlation ID — see
+ * `serverProvider.ts`'s `normalizeTrace()`). Authorization is inherited from
  * `app/(app)/admin/observability/layout.tsx`.
  *
  * Deliberately does NOT use `notFound()`/Next's generic not-found boundary — mission §24
  * specifies exact "Trace not found" copy and a "Back to Error Explorer" action, which
  * needs to be this page's own content, not the framework's default 404 page.
+ *
+ * **O-10C cross-link trust boundary (mission §21):** the "View Audit" action that used to
+ * appear whenever a trace had a `referenceDoctype`/`referenceName` is suppressed — Audit
+ * Trail stays on `demoProvider.ts` (a future package), so a real trace navigating into it
+ * would let a support consultant mistake demo audit history for evidence about *this* real
+ * trace. `RelatedDocumentLink` ("Open Document") is kept — it never touches Observability
+ * data at all, only this app's own real document routes (`documentRoutes.ts`), so it stays
+ * fully trustworthy regardless of Audit Trail's status. No "Trace → Activity" cross-link
+ * exists in this screen to begin with (checked before this package started — nothing to
+ * suppress there), and Integration Monitoring has no cross-link from this screen either.
+ *
+ * **O-10C independent-review fix:** `getTrace()`'s whole point (see `serverProvider.ts`'s
+ * own doc comment) is that a malformed ID or a real backend failure *throws*
+ * (`ObservabilityReadError`), while only a legitimately nonexistent trace returns `null` —
+ * so a caller can tell "your input was invalid / the backend failed" apart from "that trace
+ * doesn't exist." The original O-7 version of this page (`.catch(() => null)`, harmless
+ * while this call target was always the demo provider, which never throws) collapsed that
+ * distinction right back the moment O-10C made the call genuinely live — a real ERPNext
+ * outage would have rendered the identical "Trace not found... or you may not have
+ * permission to view it" copy as an actual missing trace, the wrong diagnosis at the worst
+ * possible moment (mid-incident). Fixed by distinguishing a thrown error (an honest "could
+ * not be loaded" state, the same pattern `errors/page.tsx` already uses) from a genuine
+ * `null` result — see the `try`/`catch` below. The same fix applies to
+ * `getTechnicalDetails()`, one section lower.
  */
 export default async function TraceDetailPage({ params }: { params: Promise<{ traceId: string }> }) {
   const { traceId } = await params;
 
   const provider = getObservabilityProvider();
-  const trace = await provider.getTrace(traceId).catch(() => null);
+  let trace: Trace | null = null;
+  let loadError = false;
+  try {
+    trace = await provider.getTrace(traceId);
+  } catch {
+    loadError = true;
+  }
+
+  if (loadError) {
+    return (
+      <div>
+        <Breadcrumb
+          items={[
+            { label: "Home", href: "/" },
+            { label: "Admin", href: "/admin/observability" },
+            { label: "Observability", href: "/admin/observability" },
+            { label: "Errors", href: "/admin/observability/errors" },
+          ]}
+        />
+        <div className="mx-auto max-w-lg rounded-xl border border-border bg-surface p-8 text-center">
+          <h1 className="text-base font-semibold text-graphite-900">Observability data could not be loaded</h1>
+          <p className="mt-2 text-sm text-graphite-500">Try again shortly.</p>
+          <Link
+            href="/admin/observability/errors"
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-signal hover:underline"
+          >
+            <ArrowLeft size={14} />
+            Back to Error Explorer
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (!trace) {
     return (
@@ -56,7 +115,15 @@ export default async function TraceDetailPage({ params }: { params: Promise<{ tr
     );
   }
 
-  const technicalDetails = await provider.getTechnicalDetails(trace.correlationId).catch(() => ({ available: false as const }));
+  let technicalDetails: { available: false } | Awaited<ReturnType<typeof provider.getTechnicalDetails>> = {
+    available: false,
+  };
+  let technicalDetailsLoadError = false;
+  try {
+    technicalDetails = await provider.getTechnicalDetails(trace.correlationId);
+  } catch {
+    technicalDetailsLoadError = true;
+  }
   const supportSummary = buildSupportSummary(trace);
 
   type SummaryRow = { label: string; value: React.ReactNode };
@@ -91,7 +158,12 @@ export default async function TraceDetailPage({ params }: { params: Promise<{ tr
 
       <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <SeverityBadge severity={trace.severity} />
+          <div className="flex items-center gap-2">
+            <SeverityBadge severity={trace.severity} />
+            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+              Live
+            </span>
+          </div>
           <h1 className="mt-2 text-xl font-semibold text-graphite-900">{trace.title}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <span className="text-xs font-medium text-graphite-500">Trace</span>
@@ -108,16 +180,7 @@ export default async function TraceDetailPage({ params }: { params: Promise<{ tr
           </Link>
           <CopyTextButton text={supportSummary} label="Copy Support Summary" />
           {trace.referenceDoctype && trace.referenceName && (
-            <>
-              <RelatedDocumentLink doctype={trace.referenceDoctype} name={trace.referenceName} />
-              <Link
-                href={`/admin/observability/audit?doctype=${encodeURIComponent(trace.referenceDoctype)}&document=${encodeURIComponent(trace.referenceName)}`}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-graphite-900 hover:bg-canvas"
-              >
-                <History size={14} />
-                View Audit
-              </Link>
-            </>
+            <RelatedDocumentLink doctype={trace.referenceDoctype} name={trace.referenceName} />
           )}
         </div>
       </div>
@@ -169,7 +232,14 @@ export default async function TraceDetailPage({ params }: { params: Promise<{ tr
         <TraceTimeline events={trace.events} />
       </div>
 
-      <TechnicalDetailsPanel details={technicalDetails} />
+      {technicalDetailsLoadError ? (
+        <div className="rounded-xl border border-border bg-surface p-4">
+          <h2 className="text-sm font-semibold text-graphite-900">Technical Details</h2>
+          <p className="mt-2 text-sm text-graphite-500">Technical details could not be loaded. Try again shortly.</p>
+        </div>
+      ) : (
+        <TechnicalDetailsPanel details={technicalDetails} />
+      )}
     </div>
   );
 }
