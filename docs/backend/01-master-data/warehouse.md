@@ -83,15 +83,41 @@ domain's own backend doc for the join details.
 `/master-data/warehouses` (list), `/master-data/warehouses/[name]` (detail/edit),
 `/master-data/warehouses/new` (create). `CODE-INFERRED`.
 
-## Frontend → canonical → Frappe mapping
+## Document Flow & Lifecycle
 
-| Frontend field (`MasterForm` FieldSpec) | Canonical entity.field | Frappe `Warehouse`.field |
-|---|---|---|
-| Warehouse Name | `warehouse.warehouse_name` | `warehouse_name` |
-| Company | `warehouse.company_id` | `company` (Link) |
-| Parent Warehouse | `warehouse.parent_warehouse_id` | `parent_warehouse` (Link, self) |
-| Is Group | `warehouse.is_group` | `is_group` |
-| Disabled | `warehouse.disabled` | `disabled` |
+The Warehouse document is draftless.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: createDoc()
+    Active --> Active: updateDoc()
+    Active --> Disabled: updateDoc(disabled=1)
+```
+
+## Entity Relationship Mapping
+
+```mermaid
+erDiagram
+    Warehouse }o--o| Warehouse : "parent_warehouse (Tree)"
+    Warehouse }o--|| Company : "belongs to"
+    
+    Warehouse {
+        string warehouse_name "Name part 1"
+        string company "FK / Name part 2"
+        string parent_warehouse "FK: Warehouse.name"
+        boolean is_group "Leaf vs Branch"
+    }
+```
+
+## Field Mapping & Translation Table
+
+| ERPNext Native Field | Frontend Usage (`MasterForm`) | Future Custom Backend (RDBMS) | Description & Notes |
+| :--- | :--- | :--- | :--- |
+| `warehouse_name` | `warehouse_name` | `warehouse_name` (String) | Used with Company to form PK. |
+| `company` | `company_id` | `company_id` (FK) | Used with Warehouse Name to form PK. |
+| `parent_warehouse` | `parent_warehouse_id` | `parent_id` (FK, self) | Adjacency list representation. |
+| `is_group` | `is_group` | `is_group` (Boolean) | Leaf vs Branch logic. |
+| `disabled` | `disabled` | `is_active` (Boolean) | Inverted logic (1 = Disabled). |
 
 Generic `MasterForm` exposes exactly these 5 fields (`CODE-INFERRED`,
 `warehouses/new/page.tsx:11-17`, `warehouses/[name]/page.tsx:32-38`, identical in both). Live-schema
@@ -131,3 +157,16 @@ Warehouse in this frontend.
 See `docs/backend/99-unverified/unverified-behaviours.md` `MD-UNV-002` (submittable-status
 confirmation method — resolved for Warehouse by direct schema absence, included for completeness
 across the domain) and the `account`/GL-role note above.
+
+
+## Error Handling & Admin Logging
+
+*   **User-Facing Errors**: Exceptions (e.g., missing fields, duplicate names, validation rules) are caught and surfaced via `humanizeError(e)`, which translates HTTP 403 / 409 and extracts Frappe's native `_server_messages` into readable UI alerts.
+*   **Admin Observability**: All network failures, HTTP non-200 responses, and ERPNext exceptions are wrapped in `ErpNextError` and forwarded asynchronously to the centralized Admin Observability center (`smart_factory.api.observability`).
+*   **Traceability**: Every error log is tagged with a `correlationId` that is safe to display to the user for support ticketing, ensuring backend exceptions can be traced exactly to the frontend action that caused them.
+
+## Cancellation Rules & Dependencies
+
+Master Data entities in ERPNext (like Item, Customer, Supplier, Warehouse) are Draftless. They do not have a `docstatus` field and cannot be "Cancelled" (`cancelDoc` does not apply).
+*   Instead of cancellation, these entities use a `disabled` flag (`disabled = 1` or `disabled = 0`) to deactivate them.
+*   The frontend exposes this `disabled` checkbox on the edit forms for these entities, allowing them to be soft-deleted or hidden from transactional dropdowns without breaking historical relational integrity.

@@ -115,15 +115,41 @@ on ERPNext's server-side check.
 read-only view, edit form renders directly), `/master-data/customers/new` (create).
 `CODE-INFERRED`.
 
-### Frontend → canonical → Frappe mapping
+### Document Flow & Lifecycle
 
-| Frontend field (`CustomerForm.tsx`) | Canonical entity.field | Frappe `Customer`.field |
-|---|---|---|
-| Customer Name | `customer.customer_name` | `customer_name` |
-| Customer Type | `customer.customer_type` | `customer_type` |
-| Customer Group | `customer.customer_group_id` | `customer_group` (Link) |
-| Territory | `customer.territory_id` | `territory` (Link) |
-| Disabled | `customer.disabled` | `disabled` |
+The Customer document is draftless.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: createDoc()
+    Active --> Active: updateDoc()
+    Active --> Disabled: updateDoc(disabled=1)
+```
+
+### Entity Relationship Mapping
+
+```mermaid
+erDiagram
+    Customer }o--o| CustomerGroup : "belongs to"
+    Customer }o--o| Territory : "located in"
+    
+    Customer {
+        string customer_name "Primary Key"
+        string customer_type
+        string customer_group "FK"
+        string territory "FK"
+    }
+```
+
+### Field Mapping & Translation Table
+
+| ERPNext Native Field | Frontend Usage (`CustomerForm.tsx`) | Future Custom Backend (RDBMS) | Description & Notes |
+| :--- | :--- | :--- | :--- |
+| `customer_name` | `customer_name` | `id` (UUID / PK) | Primary Key. |
+| `customer_type` | `customer_type` | `customer_type` (Enum) | |
+| `customer_group` | `customer_group_id` | `customer_group_id` (FK) | |
+| `territory` | `territory_id` | `territory_id` (FK) | |
+| `disabled` | `disabled` | `is_active` (Boolean) | Inverted logic (1 = Disabled). |
 
 Bespoke `CustomerForm.tsx` (not generic `MasterForm` — explicit comment,
 `apps/frontend/src/components/MasterForm.tsx:16-22`: "Customer stays hand-rolled since Customer has
@@ -231,15 +257,41 @@ confirmed against real records this session.
 ### Frontend route
 `/master-data/suppliers` (list/detail/create). `CODE-INFERRED`.
 
-### Frontend → canonical → Frappe mapping
+### Document Flow & Lifecycle
 
-| Frontend field (`SupplierForm.tsx`) | Canonical entity.field | Frappe `Supplier`.field |
-|---|---|---|
-| Supplier Name | `supplier.supplier_name` | `supplier_name` |
-| Supplier Type | `supplier.supplier_type` | `supplier_type` |
-| Supplier Group | `supplier.supplier_group_id` | `supplier_group` (Link) |
-| Country | `supplier.country_id` | `country` (Link) |
-| Disabled | `supplier.disabled` | `disabled` |
+The Supplier document is draftless.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: createDoc()
+    Active --> Active: updateDoc()
+    Active --> Disabled: updateDoc(disabled=1)
+```
+
+### Entity Relationship Mapping
+
+```mermaid
+erDiagram
+    Supplier }o--o| SupplierGroup : "belongs to"
+    Supplier }o--o| Country : "located in"
+    
+    Supplier {
+        string supplier_name "Primary Key"
+        string supplier_type
+        string supplier_group "FK"
+        string country "FK"
+    }
+```
+
+### Field Mapping & Translation Table
+
+| ERPNext Native Field | Frontend Usage (`SupplierForm.tsx`) | Future Custom Backend (RDBMS) | Description & Notes |
+| :--- | :--- | :--- | :--- |
+| `supplier_name` | `supplier_name` | `id` (UUID / PK) | Primary Key. |
+| `supplier_type` | `supplier_type` | `supplier_type` (Enum) | |
+| `supplier_group` | `supplier_group_id` | `supplier_group_id` (FK) | |
+| `country` | `country_id` | `country_id` (FK) | |
+| `disabled` | `disabled` | `is_active` (Boolean) | Inverted logic (1 = Disabled). |
 
 Bespoke `SupplierForm.tsx` (`apps/frontend/src/components/SupplierForm.tsx`) — structurally
 near-identical to `CustomerForm.tsx`; `disabled` edit-only.
@@ -282,3 +334,16 @@ It does not block this package (documentation only) but should inform any future
 CRM package touching Customer/Supplier↔Contact/Address linkage — including the CRM dependency map
 in `docs/master-data-architecture.md` §12, which assumes Customer/Contact/Address already
 interoperate correctly.
+
+
+## Error Handling & Admin Logging
+
+*   **User-Facing Errors**: Exceptions (e.g., missing fields, duplicate names, validation rules) are caught and surfaced via `humanizeError(e)`, which translates HTTP 403 / 409 and extracts Frappe's native `_server_messages` into readable UI alerts.
+*   **Admin Observability**: All network failures, HTTP non-200 responses, and ERPNext exceptions are wrapped in `ErpNextError` and forwarded asynchronously to the centralized Admin Observability center (`smart_factory.api.observability`).
+*   **Traceability**: Every error log is tagged with a `correlationId` that is safe to display to the user for support ticketing, ensuring backend exceptions can be traced exactly to the frontend action that caused them.
+
+## Cancellation Rules & Dependencies
+
+Master Data entities in ERPNext (like Item, Customer, Supplier, Warehouse) are Draftless. They do not have a `docstatus` field and cannot be "Cancelled" (`cancelDoc` does not apply).
+*   Instead of cancellation, these entities use a `disabled` flag (`disabled = 1` or `disabled = 0`) to deactivate them.
+*   The frontend exposes this `disabled` checkbox on the edit forms for these entities, allowing them to be soft-deleted or hidden from transactional dropdowns without breaking historical relational integrity.

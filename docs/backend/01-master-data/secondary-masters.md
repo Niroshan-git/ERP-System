@@ -101,17 +101,42 @@ stock-relevant.
 `CODE-INFERRED` `contacts/page.tsx:27-32`), `/master-data/contacts/[name]`,
 `/master-data/contacts/new`.
 
-### Frontend → canonical → Frappe mapping
+### Document Flow & Lifecycle
 
-| Frontend field (generic `MasterForm`) | Canonical entity.field | Frappe `Contact`.field |
-|---|---|---|
-| First Name | `contact.first_name` | `first_name` |
-| Last Name | `contact.last_name` | `last_name` |
-| Email | `contact.email` | `email_id` |
-| Phone | `contact.phone` | `phone` |
-| Mobile No | `contact.mobile_no` | `mobile_no` |
-| Company Name | `contact.company_name` | `company_name` |
-| Designation | `contact.designation` | `designation` |
+The Contact document is draftless.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: createDoc()
+    Active --> Active: updateDoc()
+```
+
+### Entity Relationship Mapping
+
+```mermaid
+erDiagram
+    Contact }o--o{ Customer : "Dynamic Link"
+    Contact }o--o{ Supplier : "Dynamic Link"
+    
+    Contact {
+        string first_name "Name part 1"
+        string last_name "Name part 2"
+        string email_id
+        string phone
+    }
+```
+
+### Field Mapping & Translation Table
+
+| ERPNext Native Field | Frontend Usage (`MasterForm`) | Future Custom Backend (RDBMS) | Description & Notes |
+| :--- | :--- | :--- | :--- |
+| `first_name` | `first_name` | `first_name` (String) | PK derived from this. |
+| `last_name` | `last_name` | `last_name` (String) | |
+| `email_id` | `email` | `email` (String) | |
+| `phone` | `phone` | `phone` (String) | |
+| `mobile_no` | `mobile_no` | `mobile_no` (String) | |
+| `company_name` | `company_name` | `company_name` (String) | |
+| `designation` | `designation` | `designation` (String) | |
 
 Generic `MasterForm` with a locally-defined `FieldSpec[]` (`contacts/new/page.tsx:4-12`,
 `contacts/[name]/page.tsx:17-25`), all plain text fields. Uses shared `humanizeError`/
@@ -212,18 +237,46 @@ anywhere in this repo.
 `/master-data/addresses` (list — global, unfiltered, `CODE-INFERRED` `addresses/page.tsx:26-31`),
 `/master-data/addresses/[name]`, `/master-data/addresses/new`.
 
-### Frontend → canonical → Frappe mapping
+### Document Flow & Lifecycle
 
-| Frontend field (generic `MasterForm`) | Canonical entity.field | Frappe `Address`.field |
-|---|---|---|
-| Address Title | `address.title` | `address_title` |
-| Address Type | `address.type` | `address_type` |
-| Address Line 1/2 | `address.line1` / `line2` | `address_line1` / `address_line2` |
-| City | `address.city` | `city` |
-| State | `address.state` | `state` |
-| Country | `address.country_id` | `country` (Link) |
-| Postal Code | `address.postal_code` | `pincode` |
-| Disabled | `address.disabled` | `disabled` |
+The Address document is draftless.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: createDoc()
+    Active --> Active: updateDoc()
+    Active --> Disabled: updateDoc(disabled=1)
+```
+
+### Entity Relationship Mapping
+
+```mermaid
+erDiagram
+    Address }o--o{ Customer : "Dynamic Link"
+    Address }o--o{ Supplier : "Dynamic Link"
+    Address }o--|| Country : "located in"
+    
+    Address {
+        string address_title "Name part"
+        string address_type "Name part"
+        string address_line1
+        string country "FK"
+    }
+```
+
+### Field Mapping & Translation Table
+
+| ERPNext Native Field | Frontend Usage (`MasterForm`) | Future Custom Backend (RDBMS) | Description & Notes |
+| :--- | :--- | :--- | :--- |
+| `address_title` | `title` | `title` (String) | |
+| `address_type` | `type` | `type` (Enum) | Billing, Shipping, etc. |
+| `address_line1` | `line1` | `line1` (String) | |
+| `address_line2` | `line2` | `line2` (String) | |
+| `city` | `city` | `city` (String) | |
+| `state` | `state` | `state` (String) | |
+| `country` | `country_id` | `country_id` (FK) | |
+| `pincode` | `postal_code` | `postal_code` (String) | |
+| `disabled` | `disabled` | `is_active` (Boolean) | Inverted logic (1 = Disabled). |
 
 `address_type` options are hardcoded in `addresses/addressTypes.ts:2-15` as a 12-item array —
 **confirmed to match the live schema's Select options exactly**, so the frontend constant is in
@@ -302,14 +355,37 @@ None directly — a sales-geography classification dimension only.
 `"modified desc"`, `CODE-INFERRED` `territories/page.tsx:24-29`), `/master-data/territories/[name]`,
 `/master-data/territories/new`.
 
-### Frontend → canonical → Frappe mapping
+### Document Flow & Lifecycle
 
-| Frontend field (generic `MasterForm`) | Canonical entity.field | Frappe `Territory`.field |
-|---|---|---|
-| Territory Name | `territory.territory_name` | `territory_name` |
-| Parent Territory | `territory.parent_territory_id` | `parent_territory` (Link, self) |
-| Is Group | `territory.is_group` | `is_group` |
-| Territory Manager | `territory.territory_manager_id` | `territory_manager` (Link → Sales Person) |
+The Territory document is draftless.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: createDoc()
+    Active --> Active: updateDoc()
+```
+
+### Entity Relationship Mapping
+
+```mermaid
+erDiagram
+    Territory }o--o| Territory : "parent_territory (Tree)"
+    
+    Territory {
+        string territory_name "Primary Key"
+        string parent_territory "FK: Territory.name"
+        boolean is_group "Leaf vs Branch"
+    }
+```
+
+### Field Mapping & Translation Table
+
+| ERPNext Native Field | Frontend Usage (`MasterForm`) | Future Custom Backend (RDBMS) | Description & Notes |
+| :--- | :--- | :--- | :--- |
+| `territory_name` | `territory_name` | `id` (UUID / PK) | Primary Key. |
+| `parent_territory` | `parent_territory_id` | `parent_id` (FK, self) | Adjacency list representation. |
+| `is_group` | `is_group` | `is_group` (Boolean) | Leaf vs Branch logic. |
+| `territory_manager` | `territory_manager_id` | `manager_id` (FK) | Maps to Sales Person. |
 
 ### Current API / actions used (`CODE-INFERRED`)
 `createTerritoryAction`/`updateTerritoryAction` → `createDoc`/`updateDoc("Territory", ...)`
@@ -330,3 +406,16 @@ See `docs/backend/99-unverified/unverified-behaviours.md`: `MD-UNV-002` (submitt
 confirmation method, shared across the domain), `MD-UNV-003` (Customer/Supplier↔Contact/Address
 Dynamic Link relationship not wired up in this frontend — the most significant finding in this
 document), `MD-UNV-005` (Address autoname pattern, zero live records to sample-verify against).
+
+
+## Error Handling & Admin Logging
+
+*   **User-Facing Errors**: Exceptions (e.g., missing fields, duplicate names, validation rules) are caught and surfaced via `humanizeError(e)`, which translates HTTP 403 / 409 and extracts Frappe's native `_server_messages` into readable UI alerts.
+*   **Admin Observability**: All network failures, HTTP non-200 responses, and ERPNext exceptions are wrapped in `ErpNextError` and forwarded asynchronously to the centralized Admin Observability center (`smart_factory.api.observability`).
+*   **Traceability**: Every error log is tagged with a `correlationId` that is safe to display to the user for support ticketing, ensuring backend exceptions can be traced exactly to the frontend action that caused them.
+
+## Cancellation Rules & Dependencies
+
+Master Data entities in ERPNext (like Item, Customer, Supplier, Warehouse, Contact, Address, Territory) are Draftless. They do not have a `docstatus` field and cannot be "Cancelled" (`cancelDoc` does not apply).
+*   Instead of cancellation, these entities typically use a `disabled` flag (`disabled = 1` or `disabled = 0`) to deactivate them, though Contact/Territory omit this in the current schema.
+*   The frontend exposes this `disabled` checkbox on the edit forms for entities that support it, allowing them to be soft-deleted or hidden from transactional dropdowns without breaking historical relational integrity.

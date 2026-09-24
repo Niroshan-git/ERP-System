@@ -119,18 +119,44 @@ everywhere. Not independently re-enumerated here; see each domain's own backend 
 `/master-data/items` (list), `/master-data/items/[name]` (detail/edit), `/master-data/items/new`
 (create). `CODE-INFERRED`.
 
-### Frontend → canonical → Frappe mapping (fields this frontend actually uses)
+### Document Flow & Lifecycle
 
-| Frontend field (`ItemForm.tsx`) | Canonical entity.field | Frappe `Item`.field |
-|---|---|---|
-| Item Code | `item.item_code` | `item_code` |
-| Item Name | `item.item_name` | `item_name` |
-| Item Group | `item.item_group_id` | `item_group` (Link) |
-| Stock UOM | `item.stock_uom_id` | `stock_uom` (Link) |
-| Standard Rate | `item.standard_rate` | `standard_rate` |
-| Maintain Stock | `item.is_stock_item` | `is_stock_item` |
-| Disabled | `item.disabled` | `disabled` |
-| Has Batch/Serial/Expiry No | `item.has_batch_no` / `has_serial_no` / `has_expiry_date` | same |
+The Item document is draftless. Once created, its `item_code` cannot be changed.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: createDoc()
+    Active --> Active: updateDoc() (Excludes item_code)
+    Active --> Disabled: updateDoc(disabled=1)
+```
+
+### Entity Relationship Mapping
+
+```mermaid
+erDiagram
+    Item }o--|| ItemGroup : "belongs to"
+    Item }o--|| UOM : "measured in"
+    
+    Item {
+        string item_code "Primary Key"
+        string item_name
+        string item_group "FK: ItemGroup.name"
+        string stock_uom "FK: UOM.name"
+    }
+```
+
+### Field Mapping & Translation Table
+
+| ERPNext Native Field | Frontend Usage (`ItemForm.tsx`) | Future Custom Backend (RDBMS) | Description & Notes |
+| :--- | :--- | :--- | :--- |
+| `item_code` | `item_code` | `id` (UUID / PK) | Immutable after creation. |
+| `item_name` | `item_name` | `item_name` | |
+| `item_group` | `item_group_id` | `item_group_id` (FK) | Link to Item Group. |
+| `stock_uom` | `stock_uom_id` | `uom_id` (FK) | Default unit of measure. |
+| `standard_rate` | `standard_rate` | `standard_rate` (Decimal) | |
+| `is_stock_item` | `is_stock_item` | `is_stock_item` (Boolean) | Governs inventory behavior. |
+| `disabled` | `disabled` | `is_active` (Boolean) | Inverted logic (1 = Disabled). |
+| `has_batch_no` / `has_serial_no` / `has_expiry_date` | same | same (Boolean flags) | Master data flags for tracking. |
 
 ### Current API / actions used (`CODE-INFERRED`)
 - `createItemAction` → `createDoc<{name:string}>("Item", {...})` (`items/actions.ts:31`).
@@ -193,12 +219,38 @@ Not applicable — not submittable.
 ### Frontend route
 `/master-data/item-groups` (list/detail/create). `CODE-INFERRED`.
 
-### Frontend → canonical → Frappe mapping
-Exactly 3 fields exposed via `MasterForm`'s `FieldSpec[]` (`item-groups/new/page.tsx:8-12`,
-`item-groups/[name]/page.tsx:27-31`, identical in both): `item_group_name` (text, required),
-`parent_item_group` (link dropdown via `fetchLinkOptions("Item Group")`), `is_group` (checkbox).
-`image`, `item_group_defaults`, `taxes` are live-schema fields **not** exposed anywhere in this
-frontend.
+### Document Flow & Lifecycle
+
+The Item Group is draftless.
+
+```mermaid
+stateDiagram-v2
+    [*] --> Active: createDoc()
+    Active --> Active: updateDoc()
+```
+
+### Entity Relationship Mapping
+
+```mermaid
+erDiagram
+    ItemGroup }o--o| ItemGroup : "parent_item_group (Tree)"
+    
+    ItemGroup {
+        string item_group_name "Primary Key"
+        string parent_item_group "FK: ItemGroup.name"
+        boolean is_group "Leaf vs Branch"
+    }
+```
+
+### Field Mapping & Translation Table
+
+| ERPNext Native Field | Frontend Usage (`MasterForm`) | Future Custom Backend (RDBMS) | Description & Notes |
+| :--- | :--- | :--- | :--- |
+| `item_group_name` | `item_group_name` | `id` (UUID / PK) | Primary Key. |
+| `parent_item_group` | `parent_item_group` | `parent_id` (FK, self) | Adjacency list representation. |
+| `is_group` | `is_group` | `is_group` (Boolean) | Leaf vs Branch logic. |
+
+`image`, `item_group_defaults`, `taxes` are live-schema fields **not** exposed anywhere in this frontend.
 
 ### Current API / actions used
 `createItemGroupAction`/`updateItemGroupAction` → `createDoc`/`updateDoc("Item Group", ...)` via
@@ -260,3 +312,16 @@ frontend CRUD exists to migrate yet, only a read dependency from Item.
 
 See `docs/backend/99-unverified/unverified-behaviours.md` `MD-UNV-001` and `MD-UNV-002` (shared
 across all Master Data doctypes in this package, not duplicated per-doctype here).
+
+
+## Error Handling & Admin Logging
+
+*   **User-Facing Errors**: Exceptions (e.g., missing fields, duplicate names, validation rules) are caught and surfaced via `humanizeError(e)`, which translates HTTP 403 / 409 and extracts Frappe's native `_server_messages` into readable UI alerts.
+*   **Admin Observability**: All network failures, HTTP non-200 responses, and ERPNext exceptions are wrapped in `ErpNextError` and forwarded asynchronously to the centralized Admin Observability center (`smart_factory.api.observability`).
+*   **Traceability**: Every error log is tagged with a `correlationId` that is safe to display to the user for support ticketing, ensuring backend exceptions can be traced exactly to the frontend action that caused them.
+
+## Cancellation Rules & Dependencies
+
+Master Data entities in ERPNext (like Item, Customer, Supplier, Warehouse) are Draftless. They do not have a `docstatus` field and cannot be "Cancelled" (`cancelDoc` does not apply).
+*   Instead of cancellation, these entities use a `disabled` flag (`disabled = 1` or `disabled = 0`) to deactivate them.
+*   The frontend exposes this `disabled` checkbox on the edit forms for these entities, allowing them to be soft-deleted or hidden from transactional dropdowns without breaking historical relational integrity.
