@@ -1,35 +1,41 @@
 # Accounting / Finance — Backend Knowledge Baseline
 
-Domain status: `DISCOVERY CLOSED, GOVERNANCE AUTHORIZED` (FIN-0 closed + `FIN-GOV-1` 2026-09-24) —
-Finance is now the primary implementation stream per Niroshan's explicit authorization; FIN-1 is
-cleared to start. See `docs/backend/15-migration/migration-status.md` for the canonical status row
-(not edited by either package to avoid colliding with concurrent uncommitted work on that file —
-see `finance-architecture.md` §"Documentation created/updated").
+Domain status: `FIN-1 IMPLEMENTED — CLAUDE_HANDOFF, pending independent review` (FIN-0 discovery
+closed + `FIN-GOV-1` governance authorization, both 2026-09-24; `FIN-1` implementation same day).
+Chart of Accounts (read-only) and Bank Account (full CRUD) are now real, live-verified frontend
+screens — see `docs/backend/15-migration/migration-status.md` for the canonical status row.
 
-**No Finance frontend exists yet.** This folder currently holds one document, produced by the
-FIN-0 discovery/architecture package, per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` §4
-(folder created only once the corresponding investigation is real, not ahead of time — this
-qualifies because FIN-0 is a live, evidence-backed discovery pass, not a placeholder).
+This folder now holds three documents, per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` §4:
 
 - [`finance-architecture.md`](finance-architecture.md) — FIN-0 discovery/architecture package
-  (2026-09-24): live ERPNext v16 Finance doctype inventory, existing frontend footprint audit
-  (zero — Sales/Purchase Invoice display is Sales/Buying-owned, not duplicated here), Chart of
-  Accounts / Journal Entry / GL Entry / Payment Entry / Bank / Tax / Cost Center models, native
-  financial report architecture (General Ledger, Trial Balance, P&L, Balance Sheet, AR, AP —
-  all confirmed live Script Reports), cross-module GL traceability (Sales/Buying/Stock/
-  Manufacturing → GL), new-tenant readiness matrix, ownership matrix, gap register, and the
-  recommended FIN-1..FIN-N build sequence. **No implementation authorized by this package** —
-  see that document's control gate.
+  (2026-09-24): live ERPNext v16 Finance doctype inventory, existing frontend footprint audit,
+  Chart of Accounts / Journal Entry / GL Entry / Payment Entry / Bank / Tax / Cost Center models,
+  native financial report architecture, cross-module GL traceability, new-tenant readiness
+  matrix, ownership matrix, gap register, and the FIN-1..FIN-6 build sequence. Historical —
+  describes the state *before* FIN-1 implemented Chart of Accounts/Bank Account; see
+  [`chart-of-accounts-bank-account.md`](chart-of-accounts-bank-account.md) for what was actually
+  built and any corrections to this document's assumptions.
+- [`chart-of-accounts-bank-account.md`](chart-of-accounts-bank-account.md) — **FIN-1
+  implementation package** (2026-09-24): canonical field mapping, live-verified validation rules
+  (IBAN format check, duplicate-name handling, `is_company_account` conditional requirement, the
+  Bank-record-must-exist-first blocker and its get-or-create resolution), permissions, and
+  `NEEDS_VERIFICATION` items for `Account` and `Bank Account`. Read this one first for anything
+  touching the live Chart of Accounts or Bank Account screens — it supersedes
+  `finance-architecture.md`'s §5/§12 where the two differ (this document re-verified those
+  sections live the same day and found them accurate, with additions noted inline).
 
-## Reading order for a future implementation package
+## Reading order for a future implementation package (FIN-2 onward)
 
 1. `finance-architecture.md` §"Accounting authority boundary" — the non-negotiable architecture
    rule (ERPNext remains the accounting engine; Ceylon Stack orchestrates/presents, never
    recalculates).
-2. Its "Gap register" and "Recommended Finance V1 build sequence" sections.
-3. Cross-reference `docs/backend/02-sales/sales-invoice.md` and
+2. `chart-of-accounts-bank-account.md` in full — what FIN-1 actually shipped, so FIN-2 doesn't
+   re-derive already-live-verified Account/Bank Account facts.
+3. `finance-architecture.md`'s "Gap register" and "Recommended Finance V1 build sequence"
+   sections for what's still ahead (FIN-2: Payment Entry + AR/AP visibility is next).
+4. Cross-reference `docs/backend/02-sales/sales-invoice.md` and
    `docs/backend/03-purchasing/purchase-invoice.md` for the GL posting fields already documented
    there (`debit_to`/`credit_to`, `income_account`/`expense_account`, `cost_center`) — do not
    re-document them here.
-4. Cross-reference `docs/backend/05-manufacturing/manufacture-completion.md` for the only
+5. Cross-reference `docs/backend/05-manufacturing/manufacture-completion.md` for the only
    live-verified Manufacturing→GL example (Manufacture Stock Entry, perpetual inventory).

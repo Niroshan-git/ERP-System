@@ -5032,3 +5032,50 @@ Implemented the Sales Return frontend flow (creating Sales Returns from existing
 - **Review:** Independent review PASS. No blocking or non-blocking findings. TypeScript verification passed.
 - **Status:** SALES-RETURN-1 � IMPLEMENTED / REVIEW PASS / CLOSED
 - **Scope note:** Sales Invoice Return, Credit Note, customer refund, payment reversal, Purchase Return, and accounting reversal workflows remain OUTSIDE this package.
+
+## 2026-09-24 — FIN-0 / FIN-GOV-1 / FIN-1 (Finance V1, first package shipped)
+
+Backfilling: `FIN-0` (Finance discovery/architecture, live ERPNext v16.34.2 Finance doctype
+inventory + gap register + FIN-1..FIN-6 build sequence) and `FIN-GOV-1` (governance — Niroshan
+authorized Finance as the primary implementation stream, resolved Chart of Accounts/Currency/
+Cost Center ownership in Finance's favor) both closed earlier the same day but were not
+previously logged here — see `docs/backend/06-accounting/finance-architecture.md` for the full
+discovery record and its "Control gate" section for the authorization chain.
+
+**FIN-1 implemented** (Chart of Accounts read + Bank Account CRUD), same day:
+
+- **Chart of Accounts** (`/accounting/chart-of-accounts`) — read-only tree view of ERPNext's own
+  `Account` records, company-selectable (both live companies, 96 accounts each). New
+  `components/ChartOfAccountsTree.tsx` (server-rendered, native `<details>/<summary>` expand/
+  collapse, no client JS). Live-verified: 96 accounts, 5 root groups, zero orphan
+  `parent_account` references. No create/edit/delete — explicitly out of FIN-1 scope.
+- **Bank Accounts** (`/accounting/bank-accounts`, full CRUD) — list (masked account number/IBAN),
+  detail/edit (full values, plus Delete), create. New `components/BankAccountForm.tsx` (bespoke,
+  `CustomerForm.tsx`-style), new `lib/financeDefaults.ts` (company selector, mirrors
+  `stockDefaults.ts`), new `maskSensitive()` helper in `lib/format.ts`. Live-verified: the tenant
+  had zero Bank Account and zero Bank records; `Bank Account.bank` is a mandatory Link to `Bank`,
+  confirmed to hard-block creation with zero `Bank` records existing — resolved via a get-or-create
+  helper (`resolveBankName()`) rather than building a separate Bank master CRUD screen. Full real
+  create → read → update → duplicate-name-rejected → delete → confirm-gone cycle run directly
+  against the live tenant via the same REST calls the app's server actions make, then fully
+  cleaned up (zero leftover test data). Native IBAN format validation and the
+  `is_company_account` conditional-requirement validation both live-confirmed working and
+  correctly surfaced through the existing `humanizeError`/`erpnextMessage` pipeline.
+- Sidebar: new "Finance" module (`Landmark` icon), route prefix `/accounting` (matching the
+  pre-existing `/accounting/payment-entries` dead link already wired into Sales Invoice's
+  Connections tab for a future FIN-2 package — left as-is, documented as FIN-2's problem, not
+  fixed here).
+- No `lib/erpnext.ts` changes — every call uses an existing exported function; `deleteDoc` is
+  used for the first time anywhere in this app (Bank Account delete).
+- `npm run lint` and `npm run build` both clean for every file this package touched (one
+  pre-existing, unrelated lint error in `sales/delivery-notes/actions.ts` — foreign code, not
+  touched by this package).
+- Docs: `docs/backend/06-accounting/README.md` and `finance-architecture.md` updated to point at
+  the new `docs/backend/06-accounting/chart-of-accounts-bank-account.md` implementation doc;
+  `99-unverified/unverified-behaviours.md` gained `FIN-UNV-001..003`;
+  `15-migration/migration-status.md`'s Accounting row updated to `DOCUMENTED` (Chart of
+  Accounts/Bank Account only).
+- **Status:** `CLAUDE_HANDOFF` — not self-declared accepted; pending independent review per
+  `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (still in its effective window through 2026-09-25).
+  Payment Entry (FIN-2), Journal Entry (FIN-3), and native financial reports (FIN-4) remain
+  unbuilt — see `finance-architecture.md`'s build sequence for what's next.

@@ -1,8 +1,17 @@
 # Finance / Accounting — FIN-0 Discovery & V1 Architecture
 
-**Package:** FIN-0 | **Type:** Discovery / Architecture / V1 Planning | **Implementation authorization:** NONE
+**Package:** FIN-0 | **Type:** Discovery / Architecture / V1 Planning | **Implementation authorization:** NONE (superseded — see update below)
 **Date:** 2026-09-24 | **Status:** `CLAUDE_HANDOFF` — pending independent review and pending a
 governance decision (see "Control gate" at the end of this document).
+
+**Update, same day (`FIN-1`):** governance was authorized (`FIN-GOV-1`, see the Control gate
+below) and `FIN-1` (Chart of Accounts read + Bank Account CRUD) was implemented and live-verified
+the same day. This document is now historical for §5 (Chart of Accounts) and §12 (Bank & Cash) —
+see `chart-of-accounts-bank-account.md` for the implementation, corrected/re-verified findings,
+and any live-tested detail this discovery pass didn't reach (e.g. IBAN format validation, the
+exact `Bank`-record-must-exist-first mechanics, `Bank Account.mask` never actually being
+computed anywhere in this ERPNext version). Everything else in this document (§6-§35, the FIN-2..
+FIN-6 sequence) is unchanged and still current.
 
 No Finance UI, mutation API, or accounting calculation code was added by this package. This is a
 documentation-only discovery pass, evidence-gathered via three read-only agents (live-server SSH,
@@ -705,3 +714,14 @@ TEMP_DUAL_CLAUDE_MODE.md` while it remains in effect) before FIN-1 implementatio
 unconditionally clear to start — no code was written by either FIN-0 or FIN-GOV-1, but the
 sequencing/ownership decisions recorded across six files are consequential enough to warrant a
 second read, per this repo's standing dual-agent review policy.
+
+**Update (`FIN-1`, same day, 2026-09-24):** implementation proceeded same-day per Niroshan's
+explicit authorization (see the CLAUDE_HANDOFF this package produced). Chart of Accounts
+(read-only tree, `/accounting/chart-of-accounts`) and Bank Account (full CRUD,
+`/accounting/bank-accounts`) both shipped, both live-verified against the real Hetzner tenant
+(96-account tree rendered correctly with zero orphan parent references; a real test Bank Account
+was created, read, updated, and deleted through the same REST calls the app's server actions make,
+then fully cleaned up). See `chart-of-accounts-bank-account.md` for the full implementation
+record. This package's own independent-review request above (for `FIN-GOV-1`'s governance
+changes) remains open and is not satisfied by `FIN-1`'s own implementation review request — they
+are two separate review asks, both still pending as of this update.

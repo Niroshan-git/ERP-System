@@ -642,6 +642,87 @@ package consumes these canonical entities, it does not fork competing `/crm/cust
 `/crm/contacts`, or `/crm/addresses` routes or introduce Business Partner unification as a side
 effect of closing this gap.
 
+**2026-09-22 update (relationship architecture/discovery package, `CLAUDE_HANDOFF`, not
+implemented):** the ERPNext relationship mechanism itself is now fully source-verified — full
+detail, design, and a proposed `MD-REL-1`–`MD-REL-5` implementation sequence in
+[`docs/backend/11-relationships/party-contact-address-architecture.md`](../11-relationships/party-contact-address-architecture.md).
+Key resolutions this pass added on top of the `CONFIRMED GAP`/`NEEDS PRODUCT DECISION` split above
+(does not change either): (a) Dynamic Link supports Customer and Supplier sharing the same Contact/
+Address, by design, not a defect (`SOURCE VERIFIED`, GitHub `develop`); (b) "primary" is genuinely
+two independent mechanisms — `is_primary_contact`/`is_primary_address` (a field on Contact/Address
+itself, unscoped per link) versus `customer_primary_contact`/`_primary_address` (a denormalized
+pointer field on the party) — whether they're kept in sync is unconfirmed, `MD-UNV-006`; (c) Frappe's
+generic `_validate_links()` checks only that a Dynamic Link target exists and isn't cancelled, never
+permission — meaning any future relationship-write action must allowlist `link_doctype` itself,
+since nothing in ERPNext's schema restricts it; (d) renaming a party auto-cascades to every
+`Dynamic Link.link_name` referencing it (`rename_dynamic_links`, `SOURCE VERIFIED`), so this is not
+a migration concern for the Dynamic Link layer itself, unlike the still-open `MD-UNV-004`; (e) a new
+finding — Buying has **no** Contact/Address selection UI of any kind today (`PurchaseOrderForm.tsx`
+grep-confirmed zero matches), so implementing this relationship carries zero Buying-side regression
+risk, unlike Sales' `AddressContactFields.tsx`. Six new `NEEDS_VERIFICATION` items opened by this
+pass: `MD-UNV-006` through `MD-UNV-011` (see the architecture doc's §17 for the full list — not
+duplicated here to avoid two sources of truth for the same six items). Still not implemented, not
+self-declared `ACCEPTED` — this is architecture/discovery only, requiring Niroshan's sign-off before
+`MD-REL-1` starts.
+
+### MD-UNV-006 — Do `customer_primary_contact`/`is_primary_contact` (and Address equivalents) auto-sync?
+**Status:** `NEEDS_VERIFICATION`. Blocks `MD-REL-4` (primary Contact/Address behavior package).
+**What's uncertain:** Whether writing `Customer.customer_primary_contact` (a plain Link field) also
+sets that Contact's own `is_primary_contact=1` server-side, or whether these are two entirely
+independent fields a caller must both maintain. Neither `customer.py` nor `supplier.py`'s controller
+source was read this session.
+**How to verify:** Read `erpnext/selling/doctype/customer/customer.py` and
+`erpnext/buying/doctype/supplier/supplier.py` directly, or set `customer_primary_contact` on a real
+test Customer via Desk and check whether the linked Contact's `is_primary_contact` flag changes.
+
+### MD-UNV-007 — Exact source location of stale-primary-pointer cleanup
+**Status:** `NEEDS_VERIFICATION`, non-blocking.
+**What's uncertain:** Frappe's own `contacts` module documentation this session referenced
+`get_primary_link_fields()`/`clear_stale_primary_link()`-shaped logic (clearing a party's primary
+pointer field when the underlying Dynamic Link is removed) but the exact defining file/function body
+was not independently re-read and quoted.
+**How to verify:** Grep the installed `frappe` app directly (SSH) for `clear_stale_primary_link` and
+read its full body and call sites.
+
+### MD-UNV-008 — `deduplicate_dynamic_links()` exact behavior on a duplicate link
+**Status:** `NEEDS_VERIFICATION`, non-blocking.
+**What's uncertain:** Whether attempting to link the same `(link_doctype, link_name)` pair to a
+Contact/Address twice is silently collapsed to one row or raises a validation error. Confirmed only
+that the function exists and runs on every save (`SOURCE VERIFIED`, GitHub `develop`).
+**How to verify:** Attempt to save a Contact/Address with a duplicate `links` row against a test
+record and observe the actual response.
+
+### MD-UNV-009 — Does rename refresh `customer_primary_contact`/`_primary_address` too?
+**Status:** `NEEDS_VERIFICATION`, non-blocking (this app doesn't expose rename today, `MD-UNV-004`).
+**What's uncertain:** `rename_dynamic_links()` is confirmed to update `Dynamic Link.link_name` on
+rename. Whether Frappe's broader `rename_doc()` sweep also updates plain `Link` fields like
+`customer_primary_contact` was inferred from the surrounding source structure, not independently
+read and quoted.
+**How to verify:** Read the plain-`Link`-field update code path in
+`frappe/model/rename_doc.py` directly, or rename a test record with a populated
+`customer_primary_contact` pointing at it and observe whether the pointer field updates.
+
+### MD-UNV-010 — Does ERPNext's REST create accept a nested `links` array for Contact/Address?
+**Status:** `NEEDS_VERIFICATION`. Blocks `MD-REL-1`'s exact implementation shape (not the
+architecture).
+**What's uncertain:** Whether `POST /api/resource/Contact` (or `Address`) with a `links` array in
+the JSON body creates the child rows in one request, the way this app's REST layer already relies on
+for other child tables (assumed by analogy, not tested against Contact/Address specifically).
+**How to verify:** A single test `createDoc("Contact", { first_name: "...", links: [{ link_doctype:
+"Customer", link_name: "<test customer>" }] })` call against the live instance, then confirm via
+`getDoc` that the row persisted.
+
+### MD-UNV-011 — Any role/permission restriction on writing Contact/Address `links`?
+**Status:** `NEEDS_VERIFICATION`, non-blocking (moot today — this app's writes all run under one
+shared service account with fixed permissions, see
+`docs/backend/11-relationships/party-contact-address-architecture.md` §2.5).
+**What's uncertain:** Whether Contact/Address's controller enforces anything beyond generic Frappe
+create/write permission on who may populate `links` (e.g. any role-based restriction on attaching to
+Customer vs. Supplier specifically). Not found in the source read this session; a full permission-hook
+investigation was out of scope.
+**How to verify:** Read Contact/Address's `permission` definitions in their DocType JSON, and any
+`has_permission`/`get_permission_query_conditions` hook registered against either in `hooks.py`.
+
 ### MD-UNV-004 — Item/Customer/Supplier rename-safety generalizes beyond Item
 **Status:** `NEEDS_VERIFICATION`
 **What's uncertain:** `docs/master-data-architecture.md` §10 item 2 already flags whether changing
@@ -670,3 +751,36 @@ For Contact, create two records with identical `first_name`/`last_name` and obse
 Add new entries here as they're discovered during other domain baselines (Sales, Inventory,
 Buying). Do not remove an entry until it's actually been verified — replace its `STATUS` line and
 note how/when it was resolved instead of deleting the record.
+
+## Finance (FIN-1, 2026-09-24)
+
+Full detail in `docs/backend/06-accounting/chart-of-accounts-bank-account.md`'s own
+`NEEDS_VERIFICATION` section — summarized here per this file's own convention of one canonical
+list across domains.
+
+### FIN-UNV-001 — Bank Account delete-blocked-by-link exact behavior
+**Status:** `NEEDS_VERIFICATION`, non-blocking (delete of an *unlinked* Bank Account was
+live-tested and works: HTTP 202, confirmed gone via a follow-up GET returning 404).
+**What's uncertain:** What Frappe's generic `LinkExistsError` message/status looks like when
+deleting a Bank Account that's actually referenced by a real Payment Entry or GL posting — no
+such linked record exists yet on the live tenant (Payment Entry UI is FIN-2 scope, not built).
+**How to verify:** Once FIN-2 ships and a real Payment Entry references a Bank Account, attempt
+`deleteBankAccountAction` against it and confirm `humanizeError`'s `erpnextMessage` fallback
+surfaces a sensible message.
+
+### FIN-UNV-002 — `Bank Account.validate_account()` duplicate-Account-link error wording
+**Status:** `NEEDS_VERIFICATION`, non-blocking.
+**What's uncertain:** The controller (`bank_account.py`) throws when the same `Account` Link is
+reused across two Bank Accounts, but this wasn't exercised live this session — no second Bank
+Account existed to collide with during FIN-1's REST test pass.
+**How to verify:** Create two Bank Accounts pointing at the same `account` value and confirm the
+exact live error text `humanizeError` would surface.
+
+### FIN-UNV-003 — Base (non-Custom) DocPerm grant on Bank Account for Accounts Manager/Accounts User
+**Status:** `NEEDS_VERIFICATION`, non-blocking today (service account has `System Manager`,
+overriding everything below it — `FIN-GAP-08`).
+**What's uncertain:** No `Custom DocPerm` rows exist for either role on `Bank Account`
+(confirmed empty), meaning whatever access they have comes from the doctype's own base
+`permissions` list in its JSON definition — not independently read/quoted this session.
+**How to verify:** Read `Bank Account`'s DocType JSON `permissions` array directly, or test
+against a real non-System-Manager user holding only `Accounts Manager`/`Accounts User`.

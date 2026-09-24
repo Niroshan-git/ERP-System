@@ -15,3 +15,21 @@ export function formatAmount(value: number | string | undefined | null): string 
   if (value === undefined || value === null || Number.isNaN(n)) return String(value ?? "");
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
+/**
+ * Masks a sensitive identifier (bank account number, IBAN) for list-view display — shows
+ * only the trailing 4 characters, capping the leading mask run at 8 asterisks so a long IBAN
+ * doesn't blow out a table cell. Added for FIN-1 (Bank Account) — see
+ * `docs/backend/06-accounting/chart-of-accounts-bank-account.md`: the full value is only ever
+ * shown on the detail/edit page, never in a list, and this function is the only place list
+ * views are allowed to derive a display string from the raw field. Returns "—" for an empty
+ * value so a masked-but-blank field doesn't render as a suspicious bare string of asterisks.
+ */
+export function maskSensitive(value: string | null | undefined): string {
+  if (!value) return "—";
+  const trimmed = value.trim();
+  if (!trimmed) return "—";
+  if (trimmed.length <= 4) return "*".repeat(trimmed.length);
+  const starCount = Math.min(trimmed.length - 4, 8);
+  return `${"*".repeat(starCount)}${trimmed.slice(-4)}`;
+}

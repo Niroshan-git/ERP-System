@@ -7,6 +7,7 @@ import { useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   Activity,
   ArrowLeftRight,
+  Banknote,
   Bug,
   Box,
   Boxes,
@@ -26,12 +27,14 @@ import {
   FilePenLine,
   Handshake,
   History,
+  Landmark,
   Layers,
   LayoutDashboard,
   ListTree,
   Map,
   MapPin,
   Megaphone,
+  Network,
   Package,
   PackageCheck,
   PackageOpen,
@@ -270,6 +273,29 @@ const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
+// Finance module — first package FIN-1 (2026-09-24), per the Current Mission priority lock's
+// `FIN-GOV-1` update (Finance is now the primary implementation stream). Route prefix is
+// `/accounting`, not `/finance` — matching the `hrefBase: "/accounting/payment-entries"`
+// already wired into `lib/connections.ts`'s Sales Invoice Connections tab (a dead link today,
+// since Payment Entry itself is FIN-2 scope, not this package's). Chart of Accounts (read-only
+// tree) and Bank Accounts (full CRUD) are FIN-1's only two screens; Payments, Journal Entries,
+// and the native financial reports are each a later, separately authorized package — see
+// `docs/backend/06-accounting/finance-architecture.md`'s FIN-1..FIN-6 sequence. Entities with
+// no screen yet (Cost Center, Payment Entry, Journal Entry, General Ledger/Trial Balance/P&L/
+// Balance Sheet/AR/AP) are deliberately omitted rather than padded with "Soon" placeholders —
+// same precedent Manufacturing/Master Data set for their own not-yet-built entities.
+const FINANCE_NAV_GROUPS: NavGroupDef[] = [
+  {
+    id: "accounting",
+    label: "Accounting",
+    icon: Landmark,
+    items: [
+      { href: "/accounting/chart-of-accounts", label: "Chart of Accounts", icon: Network },
+      { href: "/accounting/bank-accounts", label: "Bank Accounts", icon: Banknote },
+    ],
+  },
+];
+
 // Master Data module. Started as a navigation-foundation-only package (MD-1) where every
 // item here linked OUT to a route still owned by Sales/Buying/Stock. The Master Data
 // Canonicalization package (2026-09-18) moved Items/Item Groups/Price Lists to their own
@@ -370,6 +396,7 @@ const MODULES: ModuleDef[] = [
   { id: "buying", label: "Buying", homeHref: "/buying", icon: ShoppingBag, groups: BUYING_NAV_GROUPS },
   { id: "stock", label: "Inventory", homeHref: "/stock", icon: Boxes, groups: STOCK_NAV_GROUPS },
   { id: "manufacturing", label: "Manufacturing", homeHref: "/manufacturing", icon: Factory, groups: MANUFACTURING_NAV_GROUPS },
+  { id: "finance", label: "Finance", homeHref: "/accounting", icon: Landmark, groups: FINANCE_NAV_GROUPS },
   { id: "master-data", label: "Master Data", homeHref: "/master-data", icon: Database, groups: MASTER_DATA_NAV_GROUPS },
   {
     id: "admin",
