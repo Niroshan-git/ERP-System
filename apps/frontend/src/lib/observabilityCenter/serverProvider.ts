@@ -351,6 +351,19 @@ function stringifyValue(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/** O-10D mission §29: Version diffs carry field name and value as separate array elements
+ * (`[field, previous, next]`), so `_redact_text`/`redactString`'s "key: value in one blob"
+ * pattern-matching (built for free-text like HTTP headers) never fires here — a field named
+ * `api_key` with a bare secret value has no `api_key:` prefix *inside* the value string
+ * itself. This is a dedicated field-NAME-based check instead: reused/mirrored from the same
+ * sensitive-word list `lib/redact.ts`/`observability.py`'s `_REDACT_PATTERNS` use. */
+const SENSITIVE_FIELD_RE = /(password|secret|api[-_]?key|api[-_]?secret|access[-_]?token|refresh[-_]?token|\btoken\b|authorization)/i;
+
+function redactAuditValue(field: string, value: string): string {
+  if (value === "—") return value;
+  return SENSITIVE_FIELD_RE.test(field) ? "[REDACTED]" : value;
+}
+
 /** Native `Version.data` shape, live-verified 2026-09-24 against real Work Order versions:
  * `{added, changed, removed, row_changed, data_import, updater_reference}` where `changed`
  * is `[[field, previousValue, newValue], ...]` and `row_changed` is `[[tableField, rowIdx,
@@ -379,11 +392,12 @@ function normalizeVersionData(raw: string): AuditChange[] {
     let changeType: AuditChangeType = "field_changed";
     if (previous === null || previous === undefined) changeType = "field_added";
     else if (next === null || next === undefined) changeType = "field_cleared";
+    const fieldName = String(field);
     changes.push({
-      field: String(field),
-      fieldLabel: String(field),
-      previousValue: stringifyValue(previous),
-      newValue: stringifyValue(next),
+      field: fieldName,
+      fieldLabel: fieldName,
+      previousValue: redactAuditValue(fieldName, stringifyValue(previous)),
+      newValue: redactAuditValue(fieldName, stringifyValue(next)),
       changeType,
     });
   }

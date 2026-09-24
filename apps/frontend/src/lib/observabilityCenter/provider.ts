@@ -1,7 +1,5 @@
 import "server-only";
 import {
-  getDemoActivity,
-  getDemoAuditRecords,
   getDemoIntegrationEvents,
   getDemoIntegrationSummary,
   getDemoObservabilitySummary,
@@ -51,12 +49,13 @@ export type ObservabilityProvider = {
    * The real adapter enforces read-time redaction here, not `getTrace()`'s general summary
    * data. */
   getTechnicalDetails(correlationId: string): Promise<TechnicalDetails>;
-  /** DEMO as of O-10C — User Activity is not in this package's scope (a future O-10D+
-   * package); still `demoProvider.ts`. */
+  /** LIVE as of O-10D (User Activity). Same real page-by-page contract as `getErrors()` —
+   * see `serverProvider.ts`'s `getActivity()`. */
   getActivity(filters: ObservabilityFilters, page: number, pageSize: number): Promise<UserActivityListResult>;
-  /** DEMO as of O-10C — Audit Trail is not in this package's scope; still
-   * `demoProvider.ts`. Trace Detail's "View Audit" cross-link is suppressed while this
-   * remains demo (mission §21) so a real trace never routes into demo audit history. */
+  /** LIVE as of O-10D (Audit Trail / Document History). Backed by native `Version` — see
+   * `serverProvider.ts`'s `getAuditRecords()`. Document History mode (both `doctype` and
+   * `docname` set) returns a real database-level oldest-first order, not a per-page
+   * client reversal. */
   getAuditRecords(filters: ObservabilityFilters, page: number, pageSize: number): Promise<AuditListResult>;
   /** DEMO/WAITING_FOR_BACKEND as of O-10C — no real integration-event source exists yet
    * (confirmed live in O-10B: `Integration Request` has zero rows); still
@@ -67,23 +66,20 @@ export type ObservabilityProvider = {
 };
 
 /**
- * O-10C: a deliberate HYBRID of the real adapter (`serverProvider.ts`) and the demo one
- * (`demoProvider.ts`) — not an all-or-nothing swap. Per the O-10C mission brief, exactly
- * two surfaces go LIVE this package: Error Explorer (`getErrors`) and Trace Detail
- * (`getTrace`/`getTechnicalDetails`). `getSummary` (Overview), `getActivity` (User
- * Activity), `getAuditRecords` (Audit Trail), and `getIntegrationSummary`/
- * `getIntegrationEvents` (Integration Monitoring) stay on `demoProvider.ts` — those are
- * each their own future package (O-10D onward), not swapped early just because the real
- * adapter happens to already implement all eight methods.
+ * O-10D: extends O-10C's HYBRID one step further. Error Explorer, Trace Detail, User
+ * Activity, and Audit Trail are now all LIVE (`getErrors`/`getTrace`/`getTechnicalDetails`/
+ * `getActivity`/`getAuditRecords`). `getSummary` (Overview) and `getIntegrationSummary`/
+ * `getIntegrationEvents` (Integration Monitoring) stay on `demoProvider.ts` — Overview is
+ * explicitly out of this package's scope (mission §39/§48), and no real integration-event
+ * source exists yet.
  *
- * No silent fallback: `getErrors`/`getTrace`/`getTechnicalDetails` below call
- * `getServerObservabilityProvider()` directly and let a real failure throw
- * (`ObservabilityReadError`) all the way up to the calling page — this file does not catch
- * it and substitute demo data. A provider failure must render as "data unavailable," never
- * as fabricated zero-result or demo content (mission §27/§38's "no-demo-fallback"
- * requirement). See `errors/page.tsx`/`traces/[traceId]/page.tsx` for where that catch
- * actually lives (an honest "could not be loaded" / "Trace not found" state, not a silent
- * swallow).
+ * No silent fallback: every LIVE method below calls `getServerObservabilityProvider()`
+ * directly and lets a real failure throw (`ObservabilityReadError`) all the way up to the
+ * calling page — this file does not catch it and substitute demo data. A provider failure
+ * must render as "data unavailable," never as fabricated zero-result or demo content
+ * (mission §27/§38/§41's "no-demo-fallback" requirement). See each page under
+ * `admin/observability/*` for where that catch actually lives (an honest "could not be
+ * loaded" state, not a silent swallow).
  */
 export function getObservabilityProvider(): ObservabilityProvider {
   const live = getServerObservabilityProvider();
@@ -101,10 +97,10 @@ export function getObservabilityProvider(): ObservabilityProvider {
       return live.getTechnicalDetails(correlationId);
     },
     async getActivity(filters, page, pageSize) {
-      return getDemoActivity(filters, page, pageSize);
+      return live.getActivity(filters, page, pageSize);
     },
     async getAuditRecords(filters, page, pageSize) {
-      return getDemoAuditRecords(filters, page, pageSize);
+      return live.getAuditRecords(filters, page, pageSize);
     },
     async getIntegrationSummary() {
       return getDemoIntegrationSummary();

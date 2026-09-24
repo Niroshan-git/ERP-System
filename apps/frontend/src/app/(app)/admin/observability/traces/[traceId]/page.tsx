@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, History, ListChecks } from "lucide-react";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { SeverityBadge } from "@/components/SeverityBadge";
 import { TraceIdBadge } from "@/components/TraceIdBadge";
@@ -23,15 +23,18 @@ import type { Trace } from "@/lib/observabilityCenter/types";
  * specifies exact "Trace not found" copy and a "Back to Error Explorer" action, which
  * needs to be this page's own content, not the framework's default 404 page.
  *
- * **O-10C cross-link trust boundary (mission §21):** the "View Audit" action that used to
- * appear whenever a trace had a `referenceDoctype`/`referenceName` is suppressed — Audit
- * Trail stays on `demoProvider.ts` (a future package), so a real trace navigating into it
- * would let a support consultant mistake demo audit history for evidence about *this* real
- * trace. `RelatedDocumentLink` ("Open Document") is kept — it never touches Observability
- * data at all, only this app's own real document routes (`documentRoutes.ts`), so it stays
- * fully trustworthy regardless of Audit Trail's status. No "Trace → Activity" cross-link
- * exists in this screen to begin with (checked before this package started — nothing to
- * suppress there), and Integration Monitoring has no cross-link from this screen either.
+ * **O-10D cross-link restoration (mission §14/§31):** "View Activity" (filtered to this
+ * trace's `correlationId`) and "View Audit" (filtered to `referenceDoctype`/
+ * `referenceName`, when present) are restored now that both Activity and Audit are LIVE —
+ * O-10C suppressed both while Activity/Audit still read `demoProvider.ts`, since a real
+ * trace navigating into demo data would let a support consultant mistake fixtures for
+ * evidence about *this* real trace. "View Audit" only renders when the trace actually
+ * carries a reference document (mission §31: "do not enable the link if the trace lacks a
+ * reliable document reference") — "View Activity" always renders, since every trace has a
+ * real `correlationId` by construction. `RelatedDocumentLink` ("Open Document") never
+ * touched Observability data at all, only this app's own real document routes
+ * (`documentRoutes.ts`), so it was never gated. Integration Monitoring has no cross-link
+ * from this screen (mission §39: stays out of scope).
  *
  * **O-10C independent-review fix:** `getTrace()`'s whole point (see `serverProvider.ts`'s
  * own doc comment) is that a malformed ID or a real backend failure *throws*
@@ -179,6 +182,22 @@ export default async function TraceDetailPage({ params }: { params: Promise<{ tr
             Back to Errors
           </Link>
           <CopyTextButton text={supportSummary} label="Copy Support Summary" />
+          <Link
+            href={`/admin/observability/activity?trace=${encodeURIComponent(trace.correlationId)}`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-graphite-900 hover:bg-canvas"
+          >
+            <ListChecks size={14} />
+            View Activity
+          </Link>
+          {trace.referenceDoctype && trace.referenceName && (
+            <Link
+              href={`/admin/observability/audit?doctype=${encodeURIComponent(trace.referenceDoctype)}&document=${encodeURIComponent(trace.referenceName)}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-sm font-medium text-graphite-900 hover:bg-canvas"
+            >
+              <History size={14} />
+              View Audit
+            </Link>
+          )}
           {trace.referenceDoctype && trace.referenceName && (
             <RelatedDocumentLink doctype={trace.referenceDoctype} name={trace.referenceName} />
           )}

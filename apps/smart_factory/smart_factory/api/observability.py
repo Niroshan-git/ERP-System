@@ -82,6 +82,23 @@ def _truncate(value, limit):
 	return value if len(value) <= limit else value[:limit]
 
 
+def _as_bool(value, default=True):
+	"""Defensive boolean coercion for a whitelisted-method kwarg — a JSON `true`/`false` body
+	arrives as a real Python bool, but defends against a string/int form too (e.g. `"0"`,
+	`"false"`) the same conservative way `_clamp_page`/`_clamp_page_size` handle numeric
+	kwargs elsewhere in this module, rather than assuming the caller's exact wire format.
+	"""
+	if value is None:
+		return default
+	if isinstance(value, bool):
+		return value
+	if isinstance(value, (int, float)):
+		return bool(value)
+	if isinstance(value, str):
+		return value.strip().lower() not in ("0", "false", "")
+	return default
+
+
 def _redact_text(value):
 	"""Defense-in-depth scrub applied to every diagnostic string before it leaves this module —
 	see `_REDACT_PATTERNS` above. Mirrors `lib/redact.ts`'s replacement shape (keep the matched
@@ -268,21 +285,34 @@ def log_operation(
 	reference_name=None,
 	message=None,
 	detail=None,
+	record_activity=True,
 ):
 	"""Record one observability event under a correlation ID, reusing native Frappe stores.
 
 	ERROR/CRITICAL severities write to Error Log (trace_id = correlation_id) — Frappe's own
 	native error store, already schema-equipped for this. Any call that names a business
-	`operation` also writes an Activity Log entry attributed to the real actor (when their
-	email resolves to a real ERPNext User) rather than the calling service account, so
-	"who did this" survives the shared-service-account boundary. Never raises for expected
-	failure modes — a broken write here must not break the caller's business transaction.
+	`operation` *and* leaves `record_activity` truthy also writes an Activity Log entry
+	attributed to the real actor (when their email resolves to a real ERPNext User) rather
+	than the calling service account, so "who did this" survives the shared-service-account
+	boundary. Never raises for expected failure modes — a broken write here must not break
+	the caller's business transaction.
+
+	`record_activity` (O-10D fix, mission §5/§6): live-confirmed on the real instance that
+	every failed `erpnextFetch()` call — including routine list/read failures with no
+	associated business action — was writing an Activity Log entry, since this method
+	previously gated that write on `operation` alone (always truthy for a failure report,
+	since `operation` also supplies Error Log's `method` label). Defaults to `True` so every
+	existing caller keeps its exact current behavior; `apps/frontend/src/lib/erpnext.ts`'s
+	read-only helpers now explicitly pass `false` for their failure reports. Error Log is
+	entirely unaffected by this flag — a routine read failure still gets full Error Log
+	diagnostics, it just no longer also masquerades as a User Activity business event.
 	"""
 	_check_caller()
 
 	severity = (severity or "INFO").upper()
 	if severity not in VALID_SEVERITIES:
 		severity = "INFO"
+	record_activity = _as_bool(record_activity, default=True)
 
 	if not correlation_id or not CORRELATION_ID_RE.match(correlation_id):
 		correlation_id = _generate_correlation_id()
@@ -324,7 +354,7 @@ def log_operation(
 			# replacement — record the meta-failure and move on.
 			frappe.log_error(title="Ceylon Stack observability: Error Log write failed")
 
-	if operation:
+	if operation and record_activity:
 		try:
 			ref_doctype, ref_name = _resolve_reference(reference_doctype, reference_name)
 			resolved_user = (

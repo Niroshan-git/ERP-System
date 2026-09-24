@@ -20,6 +20,14 @@ export type ReportOperationArgs = {
   referenceName?: string;
   message?: string;
   detail?: string;
+  /** O-10D fix (mission §5/§6, live-confirmed on the real instance): whether a truthy
+   * `operation` should also produce an Activity Log entry (User Activity), independent of
+   * whether Error Log gets one. Defaults to `true` (unchanged behavior for every existing
+   * caller). `erpnext.ts`'s read-only helpers (`listDocs`/`getCount`/`getDoc`/`runReport`/
+   * `getDocInfo`) pass `false` for their failure reports — a routine list/read failure still
+   * needs Error Log for diagnosis, but is not itself "what did this person do?" the way a
+   * failed create/update/submit genuinely is. */
+  recordActivity?: boolean;
 };
 
 export type ReportOperationResult = { correlationId: string; recorded: boolean };
@@ -57,6 +65,7 @@ export async function reportOperation(args: ReportOperationArgs): Promise<Report
         reference_name: args.referenceName,
         message: args.message ? redactString(args.message) : undefined,
         detail: args.detail ? redactString(args.detail) : undefined,
+        record_activity: args.recordActivity ?? true,
       }),
     });
     return { correlationId, recorded: res.ok };

@@ -61,7 +61,7 @@ export function ActivityExplorerTable({ rows }: { rows: UserActivityEvent[] }) {
                     {row.actor.fullName}
                   </Link>
                 ) : (
-                  <span className="text-graphite-500/50">System</span>
+                  <span className="text-graphite-500/50">Actor unavailable</span>
                 )}
               </td>
               <td className="px-4 py-2.5">

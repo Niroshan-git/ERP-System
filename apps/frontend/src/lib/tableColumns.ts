@@ -32,6 +32,7 @@ export type TableId =
   | "orders"
   | "pick-lists"
   | "delivery-notes"
+  | "sales-returns"
   | "invoices"
   | "customers"
   | "items"

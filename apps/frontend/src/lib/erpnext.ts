@@ -41,6 +41,17 @@ export class ErpNextError extends Error {
  *
  * Swallows any scheduling error (e.g. after() called outside a request scope) rather than
  * letting a telemetry-plumbing problem surface as the request's actual error.
+ *
+ * `recordActivity` (O-10D fix, mission §5/§6): live-confirmed on the real instance that
+ * every erpnextFetch() failure — including routine read failures from a page's own list/get
+ * calls — was writing an Activity Log entry, flooding User Activity with technical noise
+ * ("ERPNext 417 on /api/resource/Stock Entry?...") rather than meaningful business actions.
+ * Error Log still always gets this failure (via `severity: "ERROR"`, independent of this
+ * flag) — only the User Activity write is conditional. Read-only call sites
+ * (`listDocs`/`getCount`/`getDoc`/`runReport`/`getDocInfo`) pass `false`; every write path
+ * (`createDoc`/`updateDoc`/`deleteDoc`/`callMethod*`/etc.) keeps the pre-existing behavior
+ * (`true`) unchanged, since a failed business write is itself a meaningful activity per the
+ * mission's own "meaningful failed business operation" category.
  */
 function scheduleFailureReport(
   path: string,
@@ -48,11 +59,12 @@ function scheduleFailureReport(
   actor: Awaited<ReturnType<typeof getActorContext>>,
   operation: string,
   detail: string,
+  recordActivity: boolean,
 ) {
   if (path.includes("smart_factory.api.observability.")) return;
   try {
     after(async () => {
-      await reportOperation({ correlationId, actor, severity: "ERROR", operation, detail });
+      await reportOperation({ correlationId, actor, severity: "ERROR", operation, detail, recordActivity });
     });
   } catch {
     // Telemetry scheduling must never break the request that triggered it.
@@ -95,8 +107,18 @@ function extractErpNextMessage(body: string): string | undefined {
  * logical operation (or that wants its success report to share the ID with a possible failure)
  * supply one instead of getting a fresh one generated per call — see createDoc/updateDoc below
  * for the pattern.
+ *
+ * `opts.isRead` (O-10D, mission §5/§6): marks this call as a routine read with no associated
+ * business action, so a failure reports to Error Log only, never Activity Log — see
+ * `scheduleFailureReport()`'s doc comment above. Defaults to `false` (write/business-relevant
+ * behavior, matching every call site before this flag existed) — only the handful of read-only
+ * helpers below explicitly opt in.
  */
-async function erpnextFetch(path: string, init: RequestInit = {}, opts: { correlationId?: string } = {}) {
+async function erpnextFetch(
+  path: string,
+  init: RequestInit = {},
+  opts: { correlationId?: string; isRead?: boolean } = {},
+) {
   let res: Response;
   try {
     res = await fetch(`${BASE_URL}${path}`, {
@@ -113,7 +135,7 @@ async function erpnextFetch(path: string, init: RequestInit = {}, opts: { correl
     const correlationId = opts.correlationId ?? generateCorrelationId();
     const actor = await getActorContext();
     logError({ source: "erpnextFetch", message: `network error calling ${path}`, path, detail: message, correlationId });
-    scheduleFailureReport(path, correlationId, actor, `network error calling ${path}`, message);
+    scheduleFailureReport(path, correlationId, actor, `network error calling ${path}`, message, !opts.isRead);
     throw new ErpNextError(message, 0, correlationId);
   }
 
@@ -136,6 +158,7 @@ async function erpnextFetch(path: string, init: RequestInit = {}, opts: { correl
       actor,
       `ERPNext ${res.status} on ${path}`,
       erpnextMessage ?? body.slice(0, 500),
+      !opts.isRead,
     );
     throw new ErpNextError(
       `ERPNext ${res.status} on ${path}: ${body.slice(0, 300)}`,
@@ -168,7 +191,7 @@ export async function listDocs<T = Record<string, unknown>>(
   if (filters) params.set("filters", JSON.stringify(filters));
   if (orderBy) params.set("order_by", orderBy);
 
-  const data = await erpnextFetch(`/api/resource/${encodeURIComponent(doctype)}?${params.toString()}`);
+  const data = await erpnextFetch(`/api/resource/${encodeURIComponent(doctype)}?${params.toString()}`, {}, { isRead: true });
   return data.data as T[];
 }
 
@@ -180,15 +203,20 @@ export async function listDocs<T = Record<string, unknown>>(
  * request per list page load, not per page turn.
  */
 export async function getCount(doctype: string, filters?: unknown[]): Promise<number> {
-  const data = await erpnextFetch("/api/method/frappe.client.get_count", {
-    method: "POST",
-    body: JSON.stringify({ doctype, filters }),
-  });
+  const data = await erpnextFetch(
+    "/api/method/frappe.client.get_count",
+    { method: "POST", body: JSON.stringify({ doctype, filters }) },
+    { isRead: true },
+  );
   return data.message as number;
 }
 
 export async function getDoc<T = Record<string, unknown>>(doctype: string, name: string): Promise<T> {
-  const data = await erpnextFetch(`/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`);
+  const data = await erpnextFetch(
+    `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`,
+    {},
+    { isRead: true },
+  );
   return data.data as T;
 }
 
@@ -384,10 +412,11 @@ export async function runReport(
   reportName: string,
   filters: Record<string, unknown>,
 ): Promise<{ columns: ReportColumn[]; result: ReportRow[]; chart?: ReportChart }> {
-  const data = await erpnextFetch("/api/method/frappe.desk.query_report.run", {
-    method: "POST",
-    body: JSON.stringify({ report_name: reportName, filters }),
-  });
+  const data = await erpnextFetch(
+    "/api/method/frappe.desk.query_report.run",
+    { method: "POST", body: JSON.stringify({ report_name: reportName, filters }) },
+    { isRead: true },
+  );
   const message = data.message as { columns?: ReportColumn[]; result?: ReportRow[]; chart?: ReportChart };
   return { columns: message.columns ?? [], result: message.result ?? [], chart: message.chart };
 }
@@ -414,10 +443,11 @@ export async function getDocInfo(
   infoLogs: DocInfoLabel[];
   userInfo: Record<string, { fullname: string }>;
 }> {
-  const data = await erpnextFetch("/api/method/frappe.desk.form.load.get_docinfo", {
-    method: "POST",
-    body: JSON.stringify({ doctype, name }),
-  });
+  const data = await erpnextFetch(
+    "/api/method/frappe.desk.form.load.get_docinfo",
+    { method: "POST", body: JSON.stringify({ doctype, name }) },
+    { isRead: true },
+  );
   const info = data.docinfo as {
     comments?: DocInfoComment[];
     versions?: DocInfoVersion[];

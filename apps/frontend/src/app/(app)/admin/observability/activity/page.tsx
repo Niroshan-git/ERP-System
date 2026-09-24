@@ -6,9 +6,8 @@ import { parsePage, parsePageSize } from "@/lib/pagination";
 import { getObservabilityProvider } from "@/lib/observabilityCenter/provider";
 import type { ObservabilityFilters } from "@/lib/observabilityCenter/types";
 
-const MODULE_OPTIONS = ["Manufacturing", "Sales", "Buying", "Stock", "Master Data", "System"];
 /** Curated suggestions only (mission §7: "Do not hard-code the UI so tightly that only
- * these values can ever exist") — `UserActivityEvent.action` is free text; a fixture with
+ * these values can ever exist") — `UserActivityEvent.action` is free text; a real row with
  * any other verb still renders correctly, it just won't match this select's options. */
 const ACTION_OPTIONS = [
   "Login",
@@ -25,17 +24,14 @@ const ACTION_OPTIONS = [
   "Workflow Action",
   "Integration Action",
 ];
-const STATUS_OPTIONS = ["Success", "Failed", "Pending", "Warning"];
 const SORT_OPTIONS = [{ value: "recent", label: "Most recent" }];
 
 type SearchParams = {
   search?: string;
   user?: string;
   action?: string;
-  module?: string;
   doctype?: string;
   document?: string;
-  status?: string;
   trace?: string;
   dateFrom?: string;
   dateTo?: string;
@@ -44,10 +40,18 @@ type SearchParams = {
 };
 
 /**
- * User Activity (package O-8) — "what did this person do?" Reads exclusively through
- * `getObservabilityProvider()` (still the DEMO adapter; see
- * `docs/observability-frontend-architecture.md`). Authorization is inherited from
+ * User Activity (package O-8, converted to LIVE in O-10D) — "what did this person do?"
+ * Reads exclusively through `getObservabilityProvider()`, which as of O-10D routes
+ * `getActivity()` to the real `ServerObservabilityProvider` (native `Activity Log` — see
+ * `serverProvider.ts`). Authorization is inherited from
  * `app/(app)/admin/observability/layout.tsx` — this route needs no auth logic of its own.
+ *
+ * **Module/Status filters removed in O-10D**, same rationale as O-10C's Error Explorer
+ * Module/Source removal: `module` has no native `Activity Log` column (it's a display-only
+ * derivation from `reference_doctype` — see `serverProvider.ts`'s `deriveModule()`), and
+ * `status`, while a real native column, is not yet forwarded by `serverProvider.ts`'s
+ * `getActivity()`. Offering either filter here would silently do nothing when live — the
+ * exact misleading behavior mission §10 forbids. Both still render as table columns.
  *
  * Follows the exact same `ListFilterBar` + table + `PaginationControls` GET-form
  * convention O-7's Error Explorer established — filters live entirely in the URL, so a
@@ -62,10 +66,8 @@ export default async function UserActivityPage({ searchParams }: { searchParams:
     search: params.search || undefined,
     actorEmail: params.user || undefined,
     action: params.action || undefined,
-    module: params.module || undefined,
     doctype: params.doctype || undefined,
     docname: params.document || undefined,
-    status: isStatus(params.status) ? params.status : undefined,
     correlationId: params.trace || undefined,
     dateFrom: params.dateFrom || undefined,
     dateTo: params.dateTo || undefined,
@@ -83,10 +85,8 @@ export default async function UserActivityPage({ searchParams }: { searchParams:
     { type: "text", name: "search", label: "Search" },
     { type: "text", name: "user", label: "User" },
     { type: "select", name: "action", label: "Action", options: ACTION_OPTIONS },
-    { type: "select", name: "module", label: "Module", options: MODULE_OPTIONS },
     { type: "text", name: "doctype", label: "DocType" },
     { type: "text", name: "document", label: "Document" },
-    { type: "select", name: "status", label: "Status", options: STATUS_OPTIONS },
     { type: "text", name: "trace", label: "Trace ID" },
     { type: "date", name: "dateFrom", label: "From" },
     { type: "date", name: "dateTo", label: "To" },
@@ -106,8 +106,8 @@ export default async function UserActivityPage({ searchParams }: { searchParams:
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <h1 className="text-xl font-semibold text-graphite-900">User Activity</h1>
-          <span className="rounded-full bg-graphite-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-graphite-500">
-            Demo data
+          <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+            Live
           </span>
         </div>
         <p className="mt-1 text-sm text-graphite-500">
@@ -140,8 +140,4 @@ export default async function UserActivityPage({ searchParams }: { searchParams:
       )}
     </div>
   );
-}
-
-function isStatus(value: string | undefined): value is string {
-  return !!value && STATUS_OPTIONS.includes(value);
 }
