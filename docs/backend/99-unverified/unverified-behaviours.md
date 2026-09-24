@@ -830,10 +830,12 @@ through this app's Edit form and confirm the exact surfaced message.
 ## CRM
 
 Logged during the `CRM-0` architecture/discovery package (2026-09-24), covering Lead, Opportunity,
-Prospect. Full context in `docs/backend/16-crm/crm-architecture.md`. **Zero live Lead/Opportunity/
-Prospect records exist on this instance** — every item below sits on top of an already schema- and
-GitHub-source-verified foundation (`SOURCE VERIFIED (GitHub develop)`), not a runtime-behavior gap in
-the underlying mechanism's existence.
+Prospect. Full context in `docs/backend/16-crm/crm-architecture.md`. **Updated 2026-09-24 (`CRM-1`):**
+`CRM-UNV-002` and `CRM-UNV-004` resolved via `CRM-1`'s live fixture testing — Lead's `CRM-LEAD-.YYYY.-`
+naming confirmed, and, more significantly, **`Opportunity.is_submittable: 0`** confirmed (corrects
+`crm-architecture.md`'s prior "very likely submittable" inference). `CRM-UNV-008` newly logged (a
+scoping deferral, not a fresh unknown). `CRM-UNV-001`/`003`/`005`/`006`/`007` remain open, all
+non-blocking for `CRM-1`/`CRM-2`.
 
 ### CRM-UNV-001 — Is `CRM Settings.enable_frappe_crm_data_synchronization` actually enabled?
 **Status:** `NEEDS_VERIFICATION`, non-blocking, low priority.
@@ -845,11 +847,12 @@ way — Ceylon Stack builds directly against ERPNext's REST API regardless.
 `frappe.db.get_single_value("CRM Settings", "enable_frappe_crm_data_synchronization")`.
 
 ### CRM-UNV-002 — Lead/Prospect naming mode not empirically confirmed
-**Status:** `NEEDS_VERIFICATION`, non-blocking, low priority (same tier as `MD-UNV-001`).
-**What's uncertain:** No live Lead or Prospect records exist to sample `name` against `naming_series`
-vs. a human-readable field, the way Master Data's baseline did for Item/Customer/Supplier/etc.
-**How to verify:** Once `CRM-1` creates real Lead records (even disposable test ones), confirm the
-actual `name` pattern the same way MD-R2 did — or read the DocType JSON's `autoname` directly.
+**Status:** `RESOLVED` (`CRM-1`, 2026-09-24) for Lead; Prospect remains unconfirmed (still
+`POST-V1`, no frontend exists to create one).
+**Resolution:** `CRM-1`'s own live-fixture testing (create → convert → cleanup, see
+`docs/backend/16-crm/crm-architecture.md`'s implementation update) created real Lead records and
+confirmed `naming_series: "CRM-LEAD-.YYYY.-"` produces `CRM-LEAD-2026-00001`-shaped names, exactly
+as the live schema declared — no surprises.
 
 ### CRM-UNV-003 — Is `Opportunity.opportunity_from`'s valid-value set enforced server-side?
 **Status:** `NEEDS_VERIFICATION`, non-blocking for `CRM-1`; must be treated as unenforced (i.e.
@@ -864,18 +867,18 @@ Practical values `{Lead, Customer, Prospect}` are inferred from `mapper.py`'s us
 attempt a live write with an out-of-set `opportunity_from` value and observe whether it's rejected.
 
 ### CRM-UNV-004 — Is Opportunity genuinely a submittable (Draft/Submit/Cancel/Amend) doctype?
-**Status:** `NEEDS_VERIFICATION`. **Blocks `CRM-2`'s exact lifecycle-action scope** — resolve before
-that package starts.
-**What's uncertain:** `get_doctype_fields("Opportunity")` returned an `amended_from` field (Link →
-Opportunity) but, like every other doctype investigated in this codebase, did not directly return
-`is_submittable`/`docstatus` metadata (the tool only exposes declared fields). `amended_from`'s
-presence is stronger evidence than a mere absence-of-`docstatus` test (it's a field that only appears
-on submittable doctypes), making `DOCUMENTATION-INFERRED: yes, submittable` the working assumption,
-but not independently confirmed via a direct DocType JSON read.
-**How to verify:** Read `Opportunity`'s DocType JSON definition directly (SSH/`bench console`) for
-`is_submittable: 1`, or attempt a live `submitDoc("Opportunity", ...)` call against a disposable test
-record and confirm it succeeds (vs. the generic "not submittable" rejection Customer/Supplier/Lead
-would return).
+**Status:** `RESOLVED` (`CRM-1`, 2026-09-24) — **`Opportunity.is_submittable: 0`**, confirmed via a
+direct live DocType metadata read against the real Hetzner instance. This **corrects**
+`crm-architecture.md`'s `DOCUMENTATION-INFERRED: yes, submittable` working assumption (§5.2/§6/§18),
+which had reasoned from `amended_from`'s field presence alone — that inference turned out wrong.
+Opportunity is draftless, exactly like Lead/Customer/Supplier: no Submit/Cancel/Amend UI is needed
+for `CRM-2`, only plain `createDoc`/`updateDoc`. `amended_from`'s presence on a non-submittable
+doctype is itself a minor, newly-noted oddity (harmless leftover/reserved field, not acted on
+further here).
+**Resolution note for future documents:** `amended_from`-field-presence is not a reliable
+`is_submittable` proxy on this ERPNext version — prefer a direct metadata/DocType JSON read over
+inferring from field presence when the distinction is load-bearing for a package's scope, as it was
+here for `CRM-2`.
 
 ### CRM-UNV-005 — Exact field mapping for Opportunity's own outbound mapper functions
 **Status:** `NEEDS_VERIFICATION`, non-blocking for `CRM-1`/`CRM-2`; relevant before `CRM-5`.
@@ -905,3 +908,19 @@ left entirely to the caller.
 **How to verify:** Grep `erpnext/crm/doctype/opportunity/opportunity.py` and any Sales Order hook for
 a `status = "Converted"` write, or observe live behavior once a disposable Opportunity → Quotation →
 Sales Order chain is run end to end.
+
+### CRM-UNV-008 — Lead's Contact/Address create-with-link extension, deferred out of `CRM-1`
+**Status:** `DEFERRED`, not `NEEDS_VERIFICATION` in the investigative sense — a scoping decision,
+recorded here so it isn't silently missing. **Logged 2026-09-24 (`CRM-1` code review).**
+**What's deferred:** `crm-architecture.md` §5.4/§18 named extending `createContactAction`/
+`createAddressAction` with an optional `link_doctype`/`link_name` pair (allowlisted to `"Lead"`) as
+part of `CRM-1`'s scope, so Lead create/edit could optionally create-and-link a Contact/Address via
+the Dynamic Link mechanism. `CRM-1` did not build this — Lead's own flat `email_id`/`mobile_no`/
+`phone`/`website` fields already satisfy the required "Contact Information" display on Lead Detail,
+and the master `MD-REL-1` relationship-action-layer package (`docs/backend/11-relationships/
+party-contact-address-architecture.md`) — which this extension point assumed already existed — has
+not shipped at all yet (`contacts/actions.ts`/`addresses/actions.ts` confirmed unmodified, no
+`partyDoctype`/`partyName` parameter exists on either action today).
+**How to close:** Either as a small `CRM-1`-follow-up once `MD-REL-1` ships (reuse its allowlist
+mechanism, widen to include `"Lead"`), or explicitly folded into a future `CRM` package. Non-blocking
+for `CRM-2`+.

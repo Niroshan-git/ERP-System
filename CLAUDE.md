@@ -49,6 +49,15 @@ as sub-packages FIN-1F-1..4 (see `docs/backend/06-accounting/chart-of-accounts-s
 for the split and the SAP B1 concept mapping; `PROGRESS.md`'s `FIN-1F-1` entry for what's shipped
 so far).
 
+**Updated 2026-09-24 (package `CRM-1`):** Niroshan explicitly authorized starting the CRM stream
+ahead of full Finance V1 completion — specifically `CRM-1` (Lead management: list/detail/create/
+edit/status/search/filter, Lead→Opportunity and Lead→Customer conversion entry points, Contact/
+Address reuse), per CRM-0's `docs/backend/16-crm/crm-architecture.md` roadmap and the `CRM-1`
+mission brief. This is an explicit exception to item 4 below (which otherwise still gates CRM
+behind Finance V1 foundations) and to `docs/ceylon-stack-master-backlog.md` §5 decision #2 (still
+open) — it does not resolve that backlog decision or reopen CRM-2..5, and it does not change
+Finance V1's priority for any session not working CRM-1. FIN-2 remains **not authorized**.
+
 1. **Finance V1 — primary stream.** FIN-0 (architecture/discovery) CLOSED 2026-09-24. Canonical
    sequence: FIN-1 (Chart of Accounts read + Bank Account CRUD) → FIN-2 (Payment Entry + AR/AP
    visibility) → FIN-3 (Journal Entry) → FIN-4 (General Ledger / Trial Balance / Profit & Loss /

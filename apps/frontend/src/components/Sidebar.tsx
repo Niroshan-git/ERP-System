@@ -52,6 +52,7 @@ import {
   Undo2,
   UserRound,
   Users,
+  Users2,
   UsersRound,
   Wallet,
   Warehouse,
@@ -296,6 +297,23 @@ const FINANCE_NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
+// CRM module — first package CRM-1 (2026-09-24), explicitly authorized ahead of full
+// Finance V1 completion (see CLAUDE.md's 2026-09-24 `CRM-1` mission-lock update). Leads is
+// the only entity with a real route so far — Opportunities/Pipeline/Activities are CRM-2..
+// CRM-4, each its own future, separately authorized package (see
+// docs/backend/16-crm/crm-architecture.md's roadmap). Per that document's §10/§22, CRM does
+// NOT introduce its own Customer/Contact/Address/Territory routes — Lead's own detail page
+// links out to the canonical /master-data/customers/[name] once converted, same "modules
+// own process, Master Data owns entities" boundary every other module already follows.
+const CRM_NAV_GROUPS: NavGroupDef[] = [
+  {
+    id: "leads",
+    label: "Leads",
+    icon: Workflow,
+    items: [{ href: "/crm/leads", label: "Leads", icon: Users2 }],
+  },
+];
+
 // Master Data module. Started as a navigation-foundation-only package (MD-1) where every
 // item here linked OUT to a route still owned by Sales/Buying/Stock. The Master Data
 // Canonicalization package (2026-09-18) moved Items/Item Groups/Price Lists to their own
@@ -397,6 +415,7 @@ const MODULES: ModuleDef[] = [
   { id: "stock", label: "Inventory", homeHref: "/stock", icon: Boxes, groups: STOCK_NAV_GROUPS },
   { id: "manufacturing", label: "Manufacturing", homeHref: "/manufacturing", icon: Factory, groups: MANUFACTURING_NAV_GROUPS },
   { id: "finance", label: "Finance", homeHref: "/accounting", icon: Landmark, groups: FINANCE_NAV_GROUPS },
+  { id: "crm", label: "CRM", homeHref: "/crm", icon: Users2, groups: CRM_NAV_GROUPS },
   { id: "master-data", label: "Master Data", homeHref: "/master-data", icon: Database, groups: MASTER_DATA_NAV_GROUPS },
   {
     id: "admin",

@@ -605,6 +605,38 @@ export function productionPlanStatus(doc: { status: string }): StatusDisplay {
   return { label: doc.status, tone: PRODUCTION_PLAN_STATUS_TONE[doc.status] ?? "neutral" };
 }
 
+/**
+ * Lead's own `status` Select field enum (live-verified via a direct DocType JSON read,
+ * CRM-1 package, 2026-09-24): Lead / Open / Replied / Opportunity / Quotation / Lost
+ * Quotation / Interested / Converted / Do Not Contact — the only `reqd: 1` field on the
+ * whole doctype (live-confirmed), always present. Lead is draftless (`is_submittable: 0`,
+ * live-confirmed) — there is no `docstatus` branch here at all, unlike every submittable
+ * doctype elsewhere in this file. No Desk `lead_list.js` `get_indicator` source was read
+ * this session (no SSH/devops access) — same caveat as `stockEntryStatus`/`bomStatus`
+ * above: this is this app's own reasonable mapping onto the three-tone system (plus the
+ * unused-here `signal` tone for "actively progressing"), not a mirrored Desk indicator.
+ * `Opportunity`/`Quotation`/`Converted` are reachable values but, per `CRM-1`'s own
+ * conversion actions, only ever set by this app's own `convertLeadToOpportunityAction`/
+ * `convertLeadToCustomerAction` — see `lib/actions/leadConversion.ts` — never offered as
+ * manual choices in the status-change control (`docs/backend/16-crm/crm-architecture.md`
+ * §6 confirms ERPNext itself never sets these automatically either).
+ */
+const LEAD_STATUS_TONE: Record<string, StatusTone> = {
+  Lead: "neutral",
+  Open: "alert",
+  Replied: "alert",
+  Interested: "signal",
+  Opportunity: "signal",
+  Quotation: "signal",
+  "Lost Quotation": "neutral",
+  Converted: "success",
+  "Do Not Contact": "neutral",
+};
+
+export function leadStatus(doc: { status: string }): StatusDisplay {
+  return { label: doc.status, tone: LEAD_STATUS_TONE[doc.status] ?? "neutral" };
+}
+
 export function purchaseInvoiceStatus(doc: {
   status: string;
   docstatus: DocStatus;

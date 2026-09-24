@@ -620,3 +620,58 @@ by this CRM-0 package.
   unverified-behaviours.md` (new `## CRM` section, `CRM-UNV-001..007`), `docs/master-data-architecture.md`
   §12 (confirmation note, not a rewrite), `docs/backend/README.md` (folder-numbering note), `PROGRESS.md`,
   `docs/operations/AI_WORK_LOG.md`.
+
+---
+
+## 24. `CRM-1` Implementation Update (2026-09-24)
+
+**Niroshan explicitly authorized `CRM-1` the same day**, ahead of full Finance V1 completion — see
+`CLAUDE.md`'s Current Mission lock (updated with a dated `CRM-1` authorization note, the same pattern
+used for `FIN-1F`). This section records what was actually built and what this session's live testing
+corrected or resolved versus §1–§23's discovery-only findings above.
+
+### 24.1 What shipped
+
+Routes: `/crm` (module home), `/crm/leads` (list — search, Status/Territory/Industry/Lead Type
+filters, pagination), `/crm/leads/new` (create), `/crm/leads/[name]` (detail — Overview tab with
+inline edit form + a status-change control, Linked Records tab, Activity tab reusing the existing
+`getDocInfo`/`addComment` Comments/Activity pattern, no new timeline component). Server actions:
+`apps/frontend/src/app/(app)/crm/leads/actions.ts` (`createLeadAction`/`updateLeadAction`/
+`updateLeadStatusAction`) and a new, deliberately separate `apps/frontend/src/lib/actions/
+leadConversion.ts` (`convertLeadToOpportunityAction`/`convertLeadToCustomerAction`) — kept out of
+`master-data/customers/actions.ts` so the shared Customer-create action stays untouched. Sidebar
+gained a `CRM` module (`Leads` nav item only, per §17's recommendation not to expose unbuilt
+Opportunities/Pipeline/Campaigns).
+
+### 24.2 Corrections to this document's own discovery-phase findings
+
+- **`CRM-UNV-004` resolved, and the answer is the opposite of §5.2/§6/§18's working assumption:**
+  a direct live DocType metadata read confirms **`Opportunity.is_submittable: 0`**. Opportunity is
+  draftless, exactly like Lead/Customer/Supplier — not the "very likely submittable" `amended_from`-
+  based inference this document made. **`CRM-2` needs no Submit/Cancel/Amend UI**, only plain
+  `createDoc`/`updateDoc`, simplifying that package's scope versus what §18's roadmap table assumed.
+- **`CRM-UNV-002` resolved:** Lead naming confirmed live as `CRM-LEAD-.YYYY.-` → `CRM-LEAD-2026-00001`-
+  shaped, via `CRM-1`'s own disposable-fixture testing (create → convert to Opportunity → convert to
+  Customer → verify both conversion-provenance pointers populated correctly → delete all three,
+  confirmed clean). This is the runtime-behavior verification §21 flagged as still needed before
+  `CRM-1` ships — it has now happened.
+- **Lead has no `source`/`lead_source` field** (live-verified, not previously called out explicitly
+  in §5.1's field table beyond the `utm_source` mention) — `CRM-1`'s list page substitutes `type`
+  ("Lead Type": Client/Channel Partner/Consultant) as its closest real, filterable classification
+  field instead of a "Source" filter the original mission brief assumed existed.
+
+### 24.3 Deferred, not silently dropped
+
+Lead's optional Contact/Address create-with-link extension (§5.4/§18) was not built — logged as
+`CRM-UNV-008` (`docs/backend/99-unverified/unverified-behaviours.md`), a scoping deferral rather than
+a gap: it depends on `MD-REL-1` (Master Data's own relationship-action layer), which has not shipped
+at all yet, and Lead's flat contact fields already satisfy `CRM-1`'s required Contact Information
+display without it.
+
+### 24.4 Status
+
+`CRM-1` is **implemented, code-reviewed, and QA'd** (see `QA_LOG.md`'s `CRM-1` entry). `CRM-2`
+(Opportunities) is **not started, not authorized by this package** — per the mission brief's explicit
+instruction not to auto-continue. This package's own authorization does not reopen
+`docs/ceylon-stack-master-backlog.md` §5 decision #2, and Finance V1 remains the priority-lock stream
+for any session not specifically working CRM.
