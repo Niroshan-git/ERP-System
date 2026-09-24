@@ -5373,3 +5373,52 @@ Delete-where-safe. Bank Account (`FIN-1`) untouched.
   QA per this repo's standard closure process, same as `FIN-1` went through. Payment Entry
   (FIN-2), Journal Entry (FIN-3), AR/AP visibility, and native financial reports (FIN-4) remain
   unbuilt and out of this package's scope entirely.
+
+## FIN-1F-1 — SAP B1-inspired Chart of Accounts, Drawer/Title/Active/Level mapping (2026-09-24)
+
+First sub-package of `FIN-1F` (owner-authorized SAP Business One-inspired CoA UX enhancement,
+layered on top of the already-`ACCEPTED` `FIN-1`/`FIN-1E`, which this package does not reopen).
+The full FIN-1F brief was too broad for one package (drawer nav, tree redesign, detail inspector,
+contextual same/sub-level creation, search, level filtering, responsive rework) — split into
+FIN-1F-1..4; this is FIN-1F-1 only: SAP B1 research + a derived Drawer/Title/Active/Level
+presentation model + drawer navigation cards on the existing list page.
+
+- **`lib/accountHierarchy.ts`**: added `buildAccountPresentation()` (extends the FIN-1E
+  `buildAccountOptions()` depth-first walk with 1-indexed `level`, `classification`
+  (`is_group` → `"TITLE"`/`"ACTIVE"`), and `drawer`/`drawerLabel` resolved by walking
+  `parent_account` to the root) and `summarizeDrawers()` (per-drawer total/title/active/disabled
+  counts from the already-loaded Account list — no report/GL call). Purely additive — existing
+  `AccountOption`/`buildAccountOptions` and their 0-indexed `depth` contract (used by
+  `AccountForm.tsx`'s Parent Account selector) are untouched.
+- **New component `AccountDrawerNav.tsx`**: one card per drawer (root account) plus an "All
+  Drawers" reset, as links carrying `?company=&drawer=`.
+- **`chart-of-accounts/page.tsx`**: renders the drawer nav above the tree; filters the same
+  in-memory Account fetch to the selected drawer's subtree (never orphans a node — every account
+  in a subtree shares its root's drawer by construction); an unrecognized `?drawer=` value falls
+  back to "All Drawers". No new API calls, no accounting data touched.
+- No `lib/erpnext.ts` changes. `ChartOfAccountsTree.tsx`, `AccountForm.tsx`, and the `[name]`/
+  `new` routes are untouched — tree row redesign, detail inspector, contextual actions, and
+  search/level filtering are FIN-1F-2/3.
+- `npx tsc --noEmit`, `npx eslint`, and `npx next build` all clean.
+- **Live verification method note**: a dev server was already running on this app's usual port
+  and its authenticated dashboard session wasn't reachable from this environment, so rather than
+  skip verification, the exact `buildAccountPresentation`/`summarizeDrawers` logic was run
+  standalone against a live `frappe.client.get_list` fetch of `Account` for company "Ceylon
+  Stack" using the existing service-account credentials read from `.env.local` (never printed to
+  any command output) — same data the page itself fetches, same filter/order. Result: 96 accounts
+  → exactly 5 drawers (Application of Funds (Assets) 30, Source of Funds (Liabilities) 20, Equity
+  6, Income 7, Expenses 33), drawer totals sum to 96/96, level range 1–4, zero
+  classification/root-level/orphan-drawer mismatches. **Not yet click-tested through the actual
+  authenticated UI** (drawer filter round-trip, "All Drawers" reset, invalid-`?drawer=`
+  fallback) — flagged in `docs/backend/06-accounting/chart-of-accounts-sap-b1-architecture.md`'s
+  Live QA section for whoever reviews this with dashboard access.
+- Docs: new `docs/backend/06-accounting/chart-of-accounts-sap-b1-architecture.md` (SAP B1
+  research findings with sources, the Drawer/Title/Active/Level → ERPNext mapping table, and
+  where Ceylon Stack intentionally differs from SAP B1 — no fixed level cap, no segmentation-
+  account toggle, no color-only classification, explicit "Classification" vs. "Status"
+  terminology rule for the word "Active"); `docs/backend/06-accounting/README.md` updated with
+  the new file and domain-status line.
+- **Status:** `CLAUDE_HANDOFF` — not self-declared accepted; pending independent code review and
+  a dashboard click-through QA pass. FIN-2 remains not authorized. Recommended next package:
+  FIN-1F-2 (tree row redesign — classification/level columns, level-through-N filtering, search
+  with hierarchy context).

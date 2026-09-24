@@ -39,6 +39,16 @@ primary implementation stream, superseding the module-first framing below wherev
 Evidence/reasoning: `docs/backend/06-accounting/finance-architecture.md` (FIN-0 discovery, closed
 2026-09-24) and `docs/ceylon-stack-master-backlog.md` §5 decision #1 (now resolved).
 
+**Updated 2026-09-24 (package `FIN-1F`):** Niroshan explicitly authorized enhancing the already-
+`ACCEPTED` Chart of Accounts (`FIN-1`/`FIN-1E`) into a SAP Business One-inspired hierarchy UX
+(Drawer/Title Account/Active Account/Level concepts, presentation-only — no new DocType fields,
+ERPNext remains canonical). This is an extension layered on top of the Finance V1 sequence below,
+not a reordering of it — FIN-2 (Payment Entry + AR/AP visibility) remains **not authorized** and
+FIN-1F does not unblock it. Because the full FIN-1F brief was too broad for one package, it runs
+as sub-packages FIN-1F-1..4 (see `docs/backend/06-accounting/chart-of-accounts-sap-b1-architecture.md`
+for the split and the SAP B1 concept mapping; `PROGRESS.md`'s `FIN-1F-1` entry for what's shipped
+so far).
+
 1. **Finance V1 — primary stream.** FIN-0 (architecture/discovery) CLOSED 2026-09-24. Canonical
    sequence: FIN-1 (Chart of Accounts read + Bank Account CRUD) → FIN-2 (Payment Entry + AR/AP
    visibility) → FIN-3 (Journal Entry) → FIN-4 (General Ledger / Trial Balance / Profit & Loss /

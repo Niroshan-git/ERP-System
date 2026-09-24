@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { AccountDrawerNav } from "@/components/AccountDrawerNav";
 import { ChartOfAccountsTree, type AccountTreeRow } from "@/components/ChartOfAccountsTree";
+import { buildAccountPresentation, summarizeDrawers } from "@/lib/accountHierarchy";
 import { getDoc, listDocs } from "@/lib/erpnext";
 import { getCompanyOptions } from "@/lib/financeDefaults";
 
@@ -20,13 +22,20 @@ import { getCompanyOptions } from "@/lib/financeDefaults";
  * the live 96/company count with real headroom) rather than paginating — a tree view can't be
  * split across pages without breaking parent/child continuity, the same reasoning
  * `ChartOfAccountsTree`'s own doc comment gives for rendering everything server-side.
+ *
+ * FIN-1F-1 adds the SAP B1-inspired drawer navigation (`AccountDrawerNav`) above the tree —
+ * `?drawer=<root account>` filters the same in-memory fetch to one root's subtree, a display
+ * concern only (no new API call, no accounting data touched). See
+ * `docs/backend/06-accounting/chart-of-accounts-sap-b1-architecture.md` for the full Drawer/
+ * Title/Active/Level concept mapping; the tree row redesign, detail inspector, contextual
+ * same/sub-level creation, search, and level filtering are later FIN-1F sub-packages.
  */
 export default async function ChartOfAccountsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ company?: string }>;
+  searchParams: Promise<{ company?: string; drawer?: string }>;
 }) {
-  const { company: requestedCompany } = await searchParams;
+  const { company: requestedCompany, drawer: requestedDrawer } = await searchParams;
   const { companies, company } = await getCompanyOptions(requestedCompany);
 
   const [accounts, companyDoc] = await Promise.all([
@@ -50,6 +59,20 @@ export default async function ChartOfAccountsPage({
     getDoc<{ default_currency?: string }>("Company", company),
   ]);
 
+  const presentation = buildAccountPresentation(accounts);
+  const drawerSummaries = summarizeDrawers(presentation);
+  const validDrawer = requestedDrawer && drawerSummaries.some((s) => s.drawer === requestedDrawer) ? requestedDrawer : null;
+  const visibleNames = validDrawer
+    ? new Set(presentation.filter((p) => p.drawer === validDrawer).map((p) => p.name))
+    : null;
+  const visibleAccounts = visibleNames ? accounts.filter((a) => visibleNames.has(a.name)) : accounts;
+
+  const buildDrawerHref = (drawer: string | null) => {
+    const params = new URLSearchParams({ company });
+    if (drawer) params.set("drawer", drawer);
+    return `/accounting/chart-of-accounts?${params.toString()}`;
+  };
+
   return (
     <div>
       <Breadcrumb items={[{ label: "Home", href: "/" }, { label: "Finance", href: "/accounting" }, { label: "Chart of Accounts" }]} />
@@ -58,7 +81,9 @@ export default async function ChartOfAccountsPage({
         <div>
           <h1 className="text-2xl font-medium text-graphite-900">Chart of Accounts</h1>
           <p className="mt-1 text-sm text-graphite-500">
-            {accounts.length} accounts for {company}. Click an account to view, edit, disable, or delete it.
+            {visibleAccounts.length} of {accounts.length} accounts for {company}
+            {validDrawer ? ` in ${drawerSummaries.find((s) => s.drawer === validDrawer)?.drawerLabel}` : ""}.
+            Click an account to view, edit, disable, or delete it.
           </p>
         </div>
 
@@ -99,7 +124,9 @@ export default async function ChartOfAccountsPage({
         </div>
       </div>
 
-      <ChartOfAccountsTree accounts={accounts} companyCurrency={companyDoc.default_currency ?? ""} company={company} />
+      <AccountDrawerNav summaries={drawerSummaries} activeDrawer={validDrawer} buildHref={buildDrawerHref} />
+
+      <ChartOfAccountsTree accounts={visibleAccounts} companyCurrency={companyDoc.default_currency ?? ""} company={company} />
 
       <p className="mt-3 text-xs text-graphite-500">
         Need Cost Centers, Journal Entries, or financial statements?{" "}

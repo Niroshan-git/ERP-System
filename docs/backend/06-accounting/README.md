@@ -1,13 +1,15 @@
 # Accounting / Finance — Backend Knowledge Baseline
 
-Domain status: `FIN-1 + FIN-1E ACCEPTED` (FIN-0 discovery closed + `FIN-GOV-1` governance
-authorization, both 2026-09-24; `FIN-1` implemented same day, commit `58760a0`; `FIN-1E` extended
-Chart of Accounts to full create/edit/disable/delete maintenance same day, commits `3c50478` +
-fix `387590a` — see `QA_LOG.md`'s 2026-09-24 `FIN-1E` entry). Chart of Accounts (full maintenance)
-and Bank Account (full CRUD) are real, live-verified, accepted frontend screens — see
-`docs/backend/15-migration/migration-status.md` for the canonical status row.
+Domain status: `FIN-1 + FIN-1E ACCEPTED`, `FIN-1F-1 IN PROGRESS` (FIN-0 discovery closed +
+`FIN-GOV-1` governance authorization, both 2026-09-24; `FIN-1` implemented same day, commit
+`58760a0`; `FIN-1E` extended Chart of Accounts to full create/edit/disable/delete maintenance same
+day, commits `3c50478` + fix `387590a` — see `QA_LOG.md`'s 2026-09-24 `FIN-1E` entry). Chart of
+Accounts (full maintenance) and Bank Account (full CRUD) are real, live-verified, accepted
+frontend screens — see `docs/backend/15-migration/migration-status.md` for the canonical status
+row. `FIN-1F` (owner-authorized SAP Business One-inspired CoA UX enhancement, split into
+sub-packages FIN-1F-1..4) is layered on top without reopening FIN-1/FIN-1E.
 
-This folder now holds three documents, per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` §4:
+This folder now holds four documents, per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` §4:
 
 - [`finance-architecture.md`](finance-architecture.md) — FIN-0 discovery/architecture package
   (2026-09-24): live ERPNext v16 Finance doctype inventory, existing frontend footprint audit,
@@ -25,6 +27,11 @@ This folder now holds three documents, per `docs/controls/BACKEND_KNOWLEDGE_POLI
   touching the live Chart of Accounts or Bank Account screens — it supersedes
   `finance-architecture.md`'s §5/§12 where the two differ (this document re-verified those
   sections live the same day and found them accurate, with additions noted inline).
+- [`chart-of-accounts-sap-b1-architecture.md`](chart-of-accounts-sap-b1-architecture.md) —
+  **FIN-1F package** (2026-09-24 onward): SAP Business One research findings, the Drawer/Title/
+  Active/Level concept mapping onto ERPNext's `Account` doctype (derived only, no new fields),
+  and where Ceylon Stack intentionally differs from SAP B1. Read this before touching the Chart
+  of Accounts page for any FIN-1F sub-package.
 
 ## Reading order for a future implementation package (FIN-2 onward)
 
