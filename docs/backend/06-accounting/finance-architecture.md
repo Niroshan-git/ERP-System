@@ -569,12 +569,18 @@ since that's a real open conflict, not a documentation oversight.
 | Bank Account / Bank Transaction | **Finance** (new) | Owned master + transaction |
 | Mode of Payment | **Finance** (new, or Master Data — same open-question pattern as Cost Center) | Consumed by Payment Entry |
 
-**Recommendation:** resolve Chart of Accounts and Currency ownership explicitly before FIN-1
-starts — propose **Finance owns Chart of Accounts** (it's accounting-specific, not a shared
-cross-module entity the way Customer/Item are) and **Master Data owns Currency** (it's a shared
-primitive referenced by Sales, Buying, and Finance alike, consistent with how Cost Center was
-already resolved). This is a recommendation for Niroshan to confirm, not a decision this
-discovery package is authorized to make unilaterally.
+**RESOLVED 2026-09-24 (package `FIN-GOV-1`), per Niroshan's explicit authorization:** Finance owns
+Chart of Accounts/Account, Journal Entry, Payment Entry, Bank Account/Transaction, Cost Center,
+and other accounting dimensions/financial controls. Currency stays a shared, non-duplicated
+ERPNext reference — no module builds Currency CRUD; Finance owns only the accounting-specific
+configuration/behavior built on top of it (account currency, exchange-rate handling, multi-currency
+statements). Cost Center specifically moved from Master Data's "once built" list to Finance
+ownership — a change from this document's original recommendation below, which proposed Master
+Data keep it; the owner's explicit decision supersedes that proposal. `docs/master-data-
+architecture.md` §11/§14 updated to match. Original recommendation, preserved for audit trail: this
+section had proposed Finance own Chart of Accounts and Master Data keep Currency and Cost Center,
+as a recommendation pending Niroshan's confirmation — the confirmed decision differs only on Cost
+Center, which the owner assigned to Finance instead.
 
 ---
 
@@ -586,12 +592,12 @@ discovery package is authorized to make unilaterally.
 | FIN-GAP-02 | No Journal Entry UI | Zero live JEs, zero frontend code | Manual corrections require Desk | V1 IMPORTANT | FIN-3 | — |
 | FIN-GAP-03 | No AR/AP visibility | Native reports exist, unconsumed | Can't see who owes/is owed without Desk | V1 BLOCKER | FIN-2 (paired with Payment Entry) | — |
 | FIN-GAP-04 | No General Ledger/Trial Balance/P&L/Balance Sheet UI | Native reports exist, unconsumed | Can't see financial statements without Desk | V1 IMPORTANT | FIN-4 | `runReport` infra (already exists) |
-| FIN-GAP-05 | Zero Bank Account records; no CRUD | Live-verified empty | Payment Entry unusable in bank mode | V1 BLOCKER | FIN-1b (bundled with Payment Entry prep) | — |
+| FIN-GAP-05 | Zero Bank Account records; no CRUD | Live-verified empty | Payment Entry unusable in bank mode | V1 BLOCKER | FIN-1 (bundled — see §32) | — |
 | FIN-GAP-06 | Chart of Accounts has no read view | 96 live accounts, no frontend | Can't see account structure without Desk | V1 BLOCKER | FIN-1 | Ownership decision (§30) |
-| FIN-GAP-07 | Chart of Accounts / Currency ownership unresolved | Conflicting docs (§30) | Blocks correct module placement | DOCUMENTATION / UX ONLY | Pre-FIN-1 governance step | Niroshan decision |
+| FIN-GAP-07 | Chart of Accounts / Currency ownership unresolved | Conflicting docs (§30) | Blocks correct module placement | DOCUMENTATION / UX ONLY | **RESOLVED 2026-09-24 (`FIN-GOV-1`)** — Finance owns CoA/Cost Center, Currency stays shared | Niroshan decision — given |
 | FIN-GAP-08 | Service account over-provisioned (System Manager + all business roles) | Live DocPerm/role audit | Security posture, not a Finance feature gap | OPTIONAL / cross-cutting | security-specialist review | Independent of Finance sequencing |
 | FIN-GAP-09 | Stock Entry → GL not documented at the Stock layer | `04-inventory/stock-entry.md` silent on GL despite live GL Entries existing | Documentation gap only | DOCUMENTATION / UX ONLY | Stock-domain doc fix, not Finance | — |
-| FIN-GAP-10 | Manufacturing→Finance sequencing itself unresolved in priority lock | `CLAUDE.md` Current Mission lock excludes Finance entirely | Governance, not technical | DOCUMENTATION / UX ONLY | Pre-FIN-1 governance step | Niroshan decision |
+| FIN-GAP-10 | Manufacturing→Finance sequencing itself unresolved in priority lock | `CLAUDE.md` Current Mission lock excludes Finance entirely | Governance, not technical | DOCUMENTATION / UX ONLY | **RESOLVED 2026-09-24 (`FIN-GOV-1`)** — Finance is now the primary stream, Manufacturing frozen at its V1 boundary | Niroshan decision — given |
 | FIN-GAP-11 | Bank reconciliation / statement import | Zero Bank Transactions live | No reconciliation workflow | POST-V1 | Deferred | Bank Account must exist first |
 | FIN-GAP-12 | Multi-currency transaction UI | Native fields exist, unexercised | Foreign-currency SMEs can't transact via Ceylon Stack | POST-V1 (re-assess after FIN-1) | Deferred pending evidence | — |
 
@@ -670,35 +676,32 @@ package's findings.
 
 ## Control gate
 
-**Governance conflict identified (per `CLAUDE.md`'s Enforcement clause):** the FIN-0 package
-brief states "Manufacturing development is now frozen... Finance is now the primary
-module-development phase." This is **not corroborated by any binding document in this repo**:
+**Original finding (2026-09-24, FIN-0):** the two blockers below were identified and this gate was
+set to NO pending Niroshan's explicit decisions:
 
-- `CLAUDE.md`'s Current Mission priority lock (binding, "do not reorder without explicit approval
-  from Niroshan") lists only Sales → Inventory MVP → Buying → Manufacturing, and Manufacturing
-  itself still has gated future packages (OEE, Workstations, further Job Card execution). It does
-  not mention Finance at all.
-- `docs/controls/DEVELOPMENT_SYSTEM_RULES.md` §3 ranks "Light Accounting + Dashboards" as
-  **priority 5 — after** Manufacturing, not concurrent with or ahead of it.
-- `docs/ceylon-stack-master-backlog.md` §5 already records this exact question as **open decision
-  #1, explicitly unresolved**: "does Finance get a slot in the priority lock after Manufacturing
-  closes, or does it stay implicit?"
+1. `CLAUDE.md`'s Current Mission priority lock didn't mention Finance at all, and
+   `docs/controls/DEVELOPMENT_SYSTEM_RULES.md` §3 ranked it priority 5, after Manufacturing.
+2. Chart of Accounts/Currency/Cost Center ownership conflicted between `master-data-
+   architecture.md` and `ceylon-stack-master-plan.md`.
 
-This FIN-0 discovery package itself is safe and was completed as documentation-only, per its own
-`NONE` implementation authorization, and does not conflict with anything (no code was written, no
-foreign WIP touched). But starting **FIN-1 or any build package** without first updating
-`CLAUDE.md`'s Current Mission lock would be a policy violation, not a shortcut.
+**RESOLVED same day, package `FIN-GOV-1` (2026-09-24):** Niroshan explicitly authorized Finance as
+the primary implementation stream (Manufacturing frozen at its V1 boundary, narrow exceptions
+only) and resolved the ownership boundary (Finance owns Chart of Accounts/Account, Journal Entry,
+Payment Entry, Bank Account/Transaction, Cost Center; Currency stays a shared, non-duplicated
+reference). `CLAUDE.md`, `docs/controls/DEVELOPMENT_SYSTEM_RULES.md` §3/§10, `docs/controls/
+FRONTEND_GUIDE.md` §4, `docs/master-data-architecture.md` §5/§11/§14, and `docs/ceylon-stack-
+master-backlog.md` §5 were all updated to match — see each file's own 2026-09-24/`FIN-GOV-1`
+annotation. See §30 above for the ownership resolution in full.
 
-**SAFE TO START RECOMMENDED FINANCE PACKAGE: NO**
+**SAFE TO START FIN-1: YES**
 
-Blocked pending: (1) Niroshan's explicit decision to add Finance to the Current Mission priority
-lock (and update `CLAUDE.md` accordingly), and (2) the Chart of Accounts/Currency ownership
-decision in §30. Once both are resolved, FIN-1 (Accounting masters, read-only CoA + Bank Account
-CRUD) is the recommended immediate next package — it is low-risk, unblocks everything else, and
-touches no existing live document type.
+FIN-1 (Chart of Accounts read + Bank Account CRUD) is the recommended immediate next package — low
+risk, unblocks FIN-2 (Bank Account is a prerequisite for bank-mode Payment Entry), touches no
+existing live document type, and both governance blockers above are now resolved.
 
-**Independent review request:** this document should get an independent read (Codex, or
-CLAUDE-B under the temporary dual-Claude mode per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if
-still active) before Niroshan acts on its recommendations, per this repo's standing dual-agent
-review policy — no code was written, but the ownership and sequencing recommendations are
-consequential enough to warrant a second read.
+**Independent review request:** `FIN-GOV-1`'s governance/documentation changes should still get an
+independent read (Codex, or CLAUDE-B under the temporary dual-Claude mode per `docs/controls/
+TEMP_DUAL_CLAUDE_MODE.md` while it remains in effect) before FIN-1 implementation is treated as
+unconditionally clear to start — no code was written by either FIN-0 or FIN-GOV-1, but the
+sequencing/ownership decisions recorded across six files are consequential enough to warrant a
+second read, per this repo's standing dual-agent review policy.

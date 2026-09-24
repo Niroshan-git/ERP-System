@@ -51,15 +51,18 @@ Manufacturing, Finance, Master Data.** Mapped against what actually exists in
 | **Inventory** | Warehouses, Batches, Serial Nos, Stock Entry (Receipt/Issue/Transfer), Stock Balance, Stock Reports hub (Stock Balance live, rest "coming soon"). Shipped, reviewed, QA'd 2026-09-16 (QA caught a real `s_warehouse` bug review missed). | Stage 01 — **MVP complete**. |
 | **Purchasing/Procurement** | Purchase Order → Purchase Receipt → Purchase Invoice core cycle shipped and accepted 2026-09-16. Buying Reports hub: 13 of native reports live. The master plan's full procurement chain (Purchase Request → RFQ → Supplier Quotation → PO → GRN → Supplier Invoice → three-way match) is **not** fully built — only the PO→Receipt→Invoice core cycle exists, which is a deliberate scope cut ("keep reports light", Current Mission item 3), not an oversight. | Stage 01 — **core cycle only**, by design. Requisition/RFQ/Supplier Quotation stages are a documented gap, not yet scoped. |
 | **Manufacturing** | **UPDATED 2026-09-22 — no longer blocked.** The `CX-MFG-001`/`CX-MFG-002` block described below in §3 was resolved after this audit's original 2026-09-18 pass; Production Plan PP-1 through PP-8 (planning, Draft create, Submit, Sub-Assembly/Material Requirements, Work Order Generation + PP-5R remediation, Material Request Generation, Multi-Level BOM runtime qualification PP-7/PP-7R, Cancel) are all independently **ACCEPTED (SHIPPED)** per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md`'s session log, with no unresolved HIGH/CRITICAL findings. Work Order — Submit (`MFG-WF-004`) is implemented and QA-passed but **PARTIAL** — still `CLAUDE_HANDOFF`, awaiting independent review. BOM (`/master-data/boms`) is **independently ACCEPTED as of 2026-09-22** — see Master Data row below, no longer PARTIAL. Job Card list/detail, Workstations, and OEE are **PLANNED** — native ERPNext capability exists for all three, but no Ceylon Stack frontend has been built for any of them. | Stage 01 — **substantially shipped**; PP track and BOM both ACCEPTED, one item (Work Order Submit) still awaiting independent review. §3 below is historical, not current — see its correction note. |
-| **Finance** | No dedicated Finance/Accounting module or routes exist in `apps/frontend`. The only verified accounting behavior is incidental: installing the whitelabeled HR app and running payroll produced a real, balanced Journal Entry against ERPNext's GL (`PROGRESS.md`, 2026-09-13) — this proves ERPNext's own GL works, not that Ceylon Stack has a Finance module. `docs/controls/DEVELOPMENT_SYSTEM_RULES.md` §3 lists "Light Accounting + Dashboards" as sequencing priority 5, but the **Current Mission priority lock in `CLAUDE.md` does not include Finance at all** — it stops at Manufacturing. | Stage 01 — **not started, and not currently in the priority lock.** See §5, open decision #1. |
+| **Finance** | No dedicated Finance/Accounting module or routes exist in `apps/frontend` yet. The only verified accounting behavior remains incidental: installing the whitelabeled HR app and running payroll produced a real, balanced Journal Entry against ERPNext's GL (`PROGRESS.md`, 2026-09-13). **Updated 2026-09-24 (`FIN-GOV-1`):** FIN-0 discovery/architecture package closed the same day, live-verifying ERPNext v16's Finance doctype surface and the existing (zero) frontend footprint — see `docs/backend/06-accounting/finance-architecture.md`. Niroshan then explicitly authorized Finance as the primary implementation stream; `CLAUDE.md` and `DEVELOPMENT_SYSTEM_RULES.md` §3/§10 updated accordingly. | Stage 01 — **discovery closed, now the active priority.** FIN-1 is the next package. See §5, open decision #1 (resolved). |
 | **CRM** | No CRM routes or module exist in `apps/frontend`. "CRM" appears in the repo only as a *future whitelabel product* candidate (Frappe's separate CRM app, alongside Helpdesk/Insights — a product-portfolio idea, not Ceylon Stack's own Lead→Opportunity→Quotation pipeline). The master plan's CRM section (Leads, Opportunities, Pipeline, lead conversion) has **no corresponding entry anywhere in the Current Mission priority lock.** | Stage 01 — **not started, and not currently in the priority lock.** See §5, open decision #2. |
 | **Master Data** | **UPDATED 2026-09-22 — SHIPPED, not a pending proposal.** This audit's original 2026-09-18 entry (below, struck through in spirit not in text) described Master Data as "investigated, not yet implemented" based on `docs/master-data-architecture.md`'s original 2026-09-17 draft. That draft was stale even at the time of this backlog's original writing: a separate session had already shipped the Item domain, Business Partner domain, and Inventory Structure (Warehouse) domain to canonical `/master-data/*` routes on 2026-09-18/19, each independently reviewed and **ACCEPTED**, plus BOM (Package 4A/4B). BOM's own review history: Package 4A never independently reviewed before `MD-R1`; Package 4B independently reviewed by Codex, `CHANGES REQUIRED`, partially remediated by `6c38f7b`; `MD-R1` (2026-09-22) then independently reviewed the complete shipped BOM surface, also `CHANGES REQUIRED`; `23886ac` remediated those findings; a separate-account/session governance confirmation subsequently accepted that remediation. **BOM is now independently ACCEPTED.** Supplier Group, Operations, Workstations, and Financial/Organizational masters (Company, Cost Center, Project, UOM) remain **PLANNED** — no dedicated screens exist. `docs/backend/01-master-data/` — required by `BACKEND_KNOWLEDGE_POLICY.md` for the four shipped domains — **now exists** (package MD-R2, `5d291db`, 2026-09-22, independently reviewed and ACCEPTED; see `docs/master-data-architecture.md` §8/§9); it surfaced one confirmed frontend gap, not resolved by that package (Customer/Supplier ↔ Contact/Address linkage, `MD-UNV-003`). | Stage 01 — **fully shipped and independently accepted** (Item/Business Partner/Warehouse/BOM domains all ACCEPTED, backend-knowledge baseline ACCEPTED); `MD-UNV-003` relationship architecture is the one concrete remaining gap, not a new architecture decision. |
 
-**Bottom line (corrected 2026-09-22):** five of the master plan's seven Stage-01 modules (Sales,
-Inventory, Buying-core, Manufacturing, Master Data) are real, shipped, working code, each with at
-least one domain/package independently accepted. Two (CRM, Finance) don't exist at all and aren't
-currently scheduled. No module in this table is "architecture done, implementation not started" any
-longer — that framing described a stale document, not repository reality.
+**Bottom line (corrected 2026-09-22, sequencing updated 2026-09-24 `FIN-GOV-1`):** five of the
+master plan's seven Stage-01 modules (Sales, Inventory, Buying-core, Manufacturing, Master Data)
+are real, shipped, working code, each with at least one domain/package independently accepted.
+Finance does not exist as code yet, but **is now scheduled and is the active primary stream**
+(§5 decision #1, resolved) — FIN-0 discovery closed 2026-09-24, FIN-1 is the next package pending
+its own readiness gate. CRM remains the one module genuinely unscheduled (§5 decision #2, still
+open). No module in this table is "architecture done, implementation not started" any longer —
+that framing described a stale document, not repository reality.
 
 ---
 
@@ -129,12 +132,15 @@ understood?").
 Per master plan §25 and `DEVELOPMENT_SYSTEM_RULES.md` §9 ("Architecture & sequencing decisions →
 Founder/product owner"), these are flagged, not resolved:
 
-1. **Finance/Accounting sequencing.** `DEVELOPMENT_SYSTEM_RULES.md`'s own table ranks it priority
-   5, but the live Current Mission lock in `CLAUDE.md` doesn't mention it at all after
-   Manufacturing. The master plan treats Finance as core to Stage 01, "deeply integrated rather
-   than a separate isolated module." Decide: does Finance get a slot in the priority lock after
-   Manufacturing closes, or does it stay implicit (ERPNext's own GL, no dedicated Ceylon Stack UI)
-   for longer?
+1. **Finance/Accounting sequencing — RESOLVED 2026-09-24 (`FIN-GOV-1`).** Niroshan explicitly
+   authorized Finance as the new primary implementation stream, ahead of remaining Manufacturing
+   expansion (Manufacturing freezes at its current V1 boundary, with narrow defect/accounting-
+   impact exceptions — see `CLAUDE.md` Current Mission). `CLAUDE.md` and
+   `docs/controls/DEVELOPMENT_SYSTEM_RULES.md` §3/§10 were updated to make this the binding
+   sequence; canonical Finance build order is FIN-1..FIN-6, per
+   `docs/backend/06-accounting/finance-architecture.md` (the FIN-0 discovery package that preceded
+   this decision, closed 2026-09-24). Historical framing below (originally written 2026-09-18,
+   corrected 2026-09-22) is preserved for audit trail, not current guidance.
 2. **CRM's place in the sequence.** The master plan puts CRM at the very start of the customer
    lifecycle diagram (Lead → Opportunity → Quotation → ... ) and lists it first among Stage 01
    modules, ahead of Sales in the diagram even though Sales was built first in practice. The

@@ -104,7 +104,8 @@ See §8 for the current state.
 | Supplier Group | *(none — dropdown only)* | **Not built** | `Supplier Group` | Buying | §10 open question unchanged |
 | Sales Person, Sales Partner, Campaign | `/sales/*` | **Deliberately stayed Sales-owned** | various | Sales | Internal-team/marketing, not shared masters |
 | Operation, Workstation | *(none)* | **Not built** | `Operation`, `Workstation` | Manufacturing | Gated by Manufacturing mission lock |
-| Company, Cost Center, Project, UOM | *(none — dropdown only)* | **Not built** | various | All | Net-new feature work, low urgency |
+| Company, Project, UOM | *(none — dropdown only)* | **Not built** | various | All | Net-new feature work, low urgency |
+| Cost Center | *(none — dropdown only)* | **Not built, Finance-owned (2026-09-24, `FIN-GOV-1`)** | `Cost Center` | Finance (Journal Entry/Payment Entry/reports); Sales/Buying reference it on transaction line items | See `docs/backend/06-accounting/finance-architecture.md` §14 |
 | Brand | *(unconfirmed)* | **`NEEDS_VERIFICATION`** | `Brand` | — | Not re-investigated this pass |
 
 ---
@@ -207,7 +208,20 @@ MASTER DATA                                               STATUS
 
 Sales Persons, Sales Partners, and Campaigns remain deliberately Sales-owned (internal-team/
 marketing constructs, not cross-module shared masters) — unchanged from the original analysis.
-Chart of Accounts/Account remains explicitly out of v1 scope per `FRONTEND_GUIDE.md` §4.
+
+**Finance/Master Data boundary — resolved 2026-09-24 (`FIN-GOV-1`, per Niroshan's explicit
+authorization), superseding the "out of v1 scope" framing this line previously carried:** Chart of
+Accounts/Account is **not** a Master Data-owned functional area, even though ERPNext technically
+represents it as a DocType tree the way Item or Warehouse is. It is Finance's core accounting
+master, alongside Journal Entry, Payment Entry, Bank Account/Transaction, Fiscal Year, Cost
+Center, and other accounting dimensions/financial controls — see §11's updated ownership table and
+`docs/backend/06-accounting/finance-architecture.md` for the full Finance domain map. **Currency**
+is referenced throughout the ERP (Sales, Buying, Finance all consume it) — the underlying ERPNext
+`Currency` records stay a shared, canonical, non-duplicated reference; Master Data does not build
+Currency CRUD, and Finance does not duplicate a Ceylon Stack-specific currency master either. What
+Finance owns is the accounting-specific configuration and behavior built on top of that shared
+reference (account currency assignment, exchange-rate handling in Journal Entry/Payment Entry,
+multi-currency financial statements) — not the currency list itself.
 
 ---
 
@@ -308,6 +322,14 @@ below, which pointed at this as the next actionable package, is resolved as a re
    packaging.
 4. **`FRONTEND_GUIDE.md`'s Sidebar/route documentation for the still-unbuilt domains** — not
    urgent; nothing to document until something ships.
+5. **`MD-UNV-003` — Customer/Supplier ↔ Contact/Address relationship — architecture now defined,
+   not yet implemented (2026-09-22).** Full ERPNext relationship model (Dynamic Link mechanism,
+   primary Contact/Address semantics, permission model, migration classification), a proposed
+   `MD-REL-1`–`MD-REL-5` package sequence, and a Product Owner decision table are in
+   [`docs/backend/11-relationships/party-contact-address-architecture.md`](backend/11-relationships/party-contact-address-architecture.md).
+   `CLAUDE_HANDOFF` — not self-declared `ACCEPTED`, needs Niroshan's sign-off before `MD-REL-1`
+   starts. Does not unify Customer/Supplier into a Business Partner entity (§10 item 1 below stays
+   open and unaffected).
 
 ### REMAINING PACKAGE SEQUENCE (renumbered against what's actually left, not the original MD-1–MD-10)
 
@@ -319,6 +341,7 @@ below, which pointed at this as the next actionable package, is resolved as a re
 | MD-R4 | Manufacturing masters — Operations/Workstations | Not started, gated | Net-new screens under `/master-data/*` | New feature | Manufacturing Current Mission sequencing — do not start out of turn |
 | MD-R5 | Financial/organizational masters | Not started, low urgency | First-ever screens for Company, Cost Center, Project, UOM | New feature | Product prioritization |
 | MD-R6 | Ongoing migration/backend readiness | Ongoing | Keep `docs/backend/01-master-data/` and `master-erd.md` current as MD-R3–MD-R5 ship | None (docs only) | Runs alongside all of the above |
+| MD-R7 | `MD-UNV-003` relationship architecture/discovery | **DONE (2026-09-22)** — `CLAUDE_HANDOFF`, not implemented | Full ERPNext Dynamic Link/primary-contact/permission/migration investigation + `MD-REL-1`–`MD-REL-5` proposed sequence + decision table, in `docs/backend/11-relationships/party-contact-address-architecture.md` | Docs only, no code/route/data touched | None | Product Owner sign-off before `MD-REL-1` starts (not a code review — no implementation exists yet) |
 
 The original MD-1 through MD-10 sequence in this document's earlier draft is **superseded** — most
 of what it described as "MD-1 through MD-7" already shipped under different names before that draft
@@ -361,7 +384,8 @@ A rule this document formalizes, consistent with everything shipped so far and w
 | Buying | Material Request, RFQ, Supplier Quotation, Purchase Order, Purchase Receipt, Purchase Invoice | Supplier, Item, Contact, Address — consumes them via `/master-data/*` |
 | Stock | Stock Entry, Stock Balance | Warehouse, Item — consumes them via `/master-data/*`; owns Batch/Serial No (hybrid, transaction-originated, deliberately not moved) |
 | Manufacturing | Production Plan, Work Order, Job Card | BOM — consumes/renders it via `/master-data/boms`, does not fork its own BOM view; owns Work Order/Job Card process state |
-| Master Data | Nothing transactional | Item, Item Group, Price List, Customer, Customer Group, Supplier, Contact, Address, Territory, Warehouse, BOM, and (once built) Supplier Group, Operation, Workstation, Company, Cost Center, Project, UOM |
+| **Finance** (2026-09-24, `FIN-GOV-1`) | Chart of Accounts/Account, Journal Entry, Payment Entry, Bank Account/Transaction, Cost Center, accounting dimensions, GL-rooted financial reports (General Ledger, Trial Balance, P&L, Balance Sheet, AR/AP) | Customer, Supplier, Item, Warehouse — consumes them via `/master-data/*` for AR/AP context; does not fork Sales Invoice/Purchase Invoice screens (see `docs/backend/06-accounting/finance-architecture.md` §3) |
+| Master Data | Nothing transactional | Item, Item Group, Price List, Customer, Customer Group, Supplier, Contact, Address, Territory, Warehouse, BOM, and (once built) Supplier Group, Operation, Workstation, Company, Project, UOM — **Cost Center moved to Finance ownership 2026-09-24** (previously listed here as "once built") |
 | CRM (not built) | Lead, Opportunity, Activities (once built) | Customer, Contact, Address — must consume `/master-data/*`, not fork them (§12) |
 
 A module may **link to** a Master Data entity's canonical route. It must not **render its own
@@ -398,6 +422,13 @@ home; they would be CRM-owned (per §11's table) unless a future decision says o
 This section documents a dependency, not a schedule. It does not add CRM to the Current Mission
 priority lock, and it does not authorize CRM discovery — see §13's readiness gates and
 `docs/ceylon-stack-master-backlog.md` §5 decision #2.
+
+**2026-09-22 addition:** the Contact/Address relationship this diagram assumes (Customer "having"
+Contacts/Addresses) is not yet wired up in the frontend (`MD-UNV-003`, §9 item 5) — a future CRM's
+`convertLeadToCustomer()` cannot yet rely on it. The CRM prerequisites/assumptions/Master Data
+guarantees this implies are now spelled out in
+`docs/backend/11-relationships/party-contact-address-architecture.md` §9 — read that section before
+CRM discovery starts, in addition to the checks already listed just above.
 
 ---
 
@@ -442,3 +473,11 @@ not itself authorize CRM discovery to begin.
 - This document does not authorize MD-R3 through MD-R6, Business Partner unification, or any other
   undecided item above. It is the corrected record of what already happened, plus what's actually
   left — not a new implementation authorization.
+- **2026-09-24 (`FIN-GOV-1`) correction, documentation only:** resolved the Chart of Accounts/
+  Currency ownership ambiguity FIN-0 flagged (§5, §11), per Niroshan's explicit authorization.
+  Chart of Accounts/Account, Journal Entry, Payment Entry, Bank Account/Transaction, and Cost
+  Center are now explicitly Finance-owned (Cost Center moves out of Master Data's "once built"
+  list); Currency stays a shared, non-duplicated ERPNext reference that neither module forks. No
+  route, `Sidebar.tsx`, or application code was touched by this pass — see
+  `docs/backend/06-accounting/finance-architecture.md` for the full Finance domain map this
+  correction is based on.

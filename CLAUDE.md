@@ -30,14 +30,41 @@ OpenAI Codex is a second, independent engineering agent used for review only —
 
 **TEMPORARY (2026-09-20 through 2026-09-25):** Codex independent-review capacity is unavailable. During this window only, [`docs/controls/TEMP_DUAL_CLAUDE_MODE.md`](docs/controls/TEMP_DUAL_CLAUDE_MODE.md) stands in for Codex's reviewer role using two independent Claude accounts (CLAUDE-A / CLAUDE-B) with mandatory cross-review — no account may review or accept its own package. This does not replace or relax any other binding document. Expected reversion to normal Claude→Codex governance: 2026-09-26, with a Codex reconciliation audit of everything accepted under this mode.
 
-### Current Mission (priority lock, as of Sep 2026)
+### Current Mission (priority lock, as of 2026-09-24)
 
-Do not reorder without explicit approval from Niroshan:
+Do not reorder without explicit approval from Niroshan.
 
-1. **Harden Sales core** — Quotation → Sales Order → Delivery Note → Sales Invoice — then freeze major new Sales features
-2. **Inventory MVP next** — Items (shared/clean), Warehouses, Stock Balance, basic Stock Entry (Receipt/Issue/Transfer)
-3. **Buying — core cycle only** — Purchase Order → Purchase Receipt → Purchase Invoice; keep reports light
-4. **Manufacturing frontend unlocked 2026-09-17** — Inventory MVP + Buying core cycle both accepted 2026-09-16, satisfying the unlock condition. Read-only module shell, Work Orders list, and Work Order detail shipped (packages 1-2). Still gated: create/submit/cancel actions, Job Card list/detail, BOM, Workstations, and OEE are each their own future scoped package, not an open door to full Manufacturing implementation
+**Updated 2026-09-24 (package `FIN-GOV-1`):** Niroshan explicitly authorized Finance as the new
+primary implementation stream, superseding the module-first framing below wherever it conflicts.
+Evidence/reasoning: `docs/backend/06-accounting/finance-architecture.md` (FIN-0 discovery, closed
+2026-09-24) and `docs/ceylon-stack-master-backlog.md` §5 decision #1 (now resolved).
+
+1. **Finance V1 — primary stream.** FIN-0 (architecture/discovery) CLOSED 2026-09-24. Canonical
+   sequence: FIN-1 (Chart of Accounts read + Bank Account CRUD) → FIN-2 (Payment Entry + AR/AP
+   visibility) → FIN-3 (Journal Entry) → FIN-4 (General Ledger / Trial Balance / Profit & Loss /
+   Balance Sheet, via native ERPNext reports) → FIN-5 (Bank Transactions) → FIN-6 (cross-module
+   accounting verification + Finance V1 closure). Do not resurrect the older, superseded FIN-1..
+   FIN-9 numbering. See `docs/backend/06-accounting/finance-architecture.md` for full detail, the
+   gap register (`FIN-GAP-01..12`), and the Finance/Master Data ownership boundary.
+2. **Critical integration/release fixes** affecting already-built modules (Sales, Inventory,
+   Buying, Manufacturing) — always in scope regardless of the freezes below.
+3. **Remaining approved V1 module work** — lower priority than Finance V1 while it's active:
+   - **Sales core** — hardened, frozen. Quotation → Sales Order → Delivery Note → Sales Invoice;
+     bug fixes/critical polish only unless explicitly re-opened.
+   - **Inventory MVP** — accepted. Items (shared/clean), Warehouses, Stock Balance, basic Stock
+     Entry (Receipt/Issue/Transfer).
+   - **Buying core cycle** — accepted. Purchase Order → Purchase Receipt → Purchase Invoice.
+   - **Manufacturing — frozen at its current V1 boundary (2026-09-24) while Finance is the active
+     primary stream.** Work Orders (list/detail/create/submit/cancel), Material Transfer, Complete
+     Production, Job Card (read-only + cancel), and BOM (full lifecycle) have all shipped and been
+     accepted. Do not expand Manufacturing (Workstations, OEE, Job Card execution/time-log) during
+     this freeze, except for: critical defects, integration/accounting-impact defects Finance
+     discovers while tracing Manufacturing→GL flows, release blockers, or a package Niroshan
+     explicitly authorizes.
+4. **CRM** — not started, not yet in this lock. Only after the preceding V1 foundations (Finance
+   included) are in place, per `docs/ceylon-stack-master-backlog.md` §5 decision #2 (still open).
+5. **Later architecture programs** (e.g. tenant/module provisioning) — stay deferred unless
+   separately unlocked.
 
 ### Operating Mode
 

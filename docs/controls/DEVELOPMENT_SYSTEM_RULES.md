@@ -60,13 +60,22 @@ We follow a strict order. Do not jump ahead.
 
 ### Current Official Order
 
-| Priority | Module              | Status Intent                          |
-|----------|---------------------|----------------------------------------|
-| 1        | Sales               | Harden core flow, then freeze          |
-| 2        | Inventory / Stock   | Build proper foundation next           |
-| 3        | Buying              | Complete core cycle after Inventory    |
-| 4        | Manufacturing       | Only after Inventory is usable         |
-| 5        | Light Accounting + Dashboards | After operational flows are stable |
+**Updated 2026-09-24 (`FIN-GOV-1`):** Finance is now priority 1, per Niroshan's explicit
+authorization. `CLAUDE.md`'s Current Mission lock is the single source of truth for sequencing —
+this table is corrected in place to match it. The original 2026-09 order is preserved below the
+table for historical record, not as a currently valid sequence.
+
+| Priority | Module | Status Intent |
+|----------|--------|----------------|
+| 1 | **Finance / Accounting** | **Primary implementation stream (2026-09-24).** FIN-0 discovery closed; canonical FIN-1..FIN-6 sequence — see `docs/backend/06-accounting/finance-architecture.md`. |
+| accepted | Sales | Core flow hardened — frozen for new features |
+| accepted | Inventory / Stock | MVP built and accepted |
+| accepted | Buying | Core cycle complete and accepted |
+| accepted, frozen | Manufacturing | Shipped to its V1 boundary; frozen while Finance is the active primary stream — critical defects, Finance-discovered integration/accounting-impact defects, release blockers, and explicitly authorized packages remain in scope |
+| 2 | CRM | Not started — after Finance V1 and remaining approved V1 module work, per `docs/ceylon-stack-master-backlog.md` §5 decision #2 |
+
+Original 2026-09 order (superseded, kept for history): Sales(1) → Inventory/Stock(2) → Buying(3) →
+Manufacturing(4) → Light Accounting + Dashboards(5).
 
 ### Sequencing Rules
 
@@ -174,12 +183,17 @@ If a proposed change conflicts with these rules, the rules win unless deliberate
 
 ---
 
-## 10. Current Working Priorities (as of Sep 2026)
+## 10. Current Working Priorities (updated 2026-09-24, `FIN-GOV-1`)
 
-1. Harden Sales core flow and freeze major new Sales features
-2. Build Inventory MVP (Items, Warehouses, Stock Balance, basic Stock Entry)
-3. Complete Buying core cycle against real stock behaviour
-4. Only then begin Manufacturing
+1. **Finance V1 is the active priority.** FIN-1 (Chart of Accounts read + Bank Account CRUD) is
+   the next package once its own readiness gate clears — see `docs/backend/06-accounting/
+   finance-architecture.md`.
+2. Sales core, Inventory MVP, and Buying core cycle are already hardened/accepted — maintain,
+   don't expand.
+3. Manufacturing is frozen at its current V1 boundary while Finance is active — see `CLAUDE.md`
+   Current Mission for the narrow exceptions (critical/integration/accounting-impact defects,
+   release blockers, explicitly authorized packages).
+4. CRM remains unscheduled.
 
 ---
 

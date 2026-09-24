@@ -1,8 +1,10 @@
 # Accounting / Finance — Backend Knowledge Baseline
 
-Domain status: `DISCOVERY` (FIN-0, 2026-09-24) — see `docs/backend/15-migration/migration-status.md`
-for the canonical status row (not edited by this package to avoid colliding with concurrent
-uncommitted work on that file — see `finance-architecture.md` §"Documentation created/updated").
+Domain status: `DISCOVERY CLOSED, GOVERNANCE AUTHORIZED` (FIN-0 closed + `FIN-GOV-1` 2026-09-24) —
+Finance is now the primary implementation stream per Niroshan's explicit authorization; FIN-1 is
+cleared to start. See `docs/backend/15-migration/migration-status.md` for the canonical status row
+(not edited by either package to avoid colliding with concurrent uncommitted work on that file —
+see `finance-architecture.md` §"Documentation created/updated").
 
 **No Finance frontend exists yet.** This folder currently holds one document, produced by the
 FIN-0 discovery/architecture package, per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` §4

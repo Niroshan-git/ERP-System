@@ -135,15 +135,19 @@ Build strictly in this order. Do not jump ahead.
 | 2        | **Buying**          | Material Request → Request for Quotation → Supplier Quotation → Purchase Order → Purchase Receipt → Purchase Invoice + Suppliers | Core flow (Material Request → ... → Purchase Invoice) + Suppliers shipped and live-verified |
 | 3        | **Stock**           | Stock balance (live, Bin-backed), Warehouses (simplified/flat), Stock Entry (Material Issue/Receipt/Transfer only) with Batch/Serial No tracking on lines | **Reordered ahead of Manufacturing 2026-09-16** — same precedent as Buying's own reorder; building now, see §10a |
 | 4        | **Manufacturing**   | Work Order, Job Card, simple BOM, downtime logging, live status / basic OEE | Unlocked 2026-09-17 (Inventory MVP + Buying core cycle both accepted 2026-09-16). Packages 1-2 shipped: module shell, read-only Work Orders list, read-only Work Order detail (Materials/Operations/Job Cards/Quality Readiness) with list navigation wired. Read-only only — no create/submit/cancel; Job Card detail, BOM pages, Workstations, and OEE (M1-M4) not started |
-| 5        | **Accounting (Light)** | Payment Entry, outstanding invoices, simple receivables/payables | Not started |
+| 5        | **Finance / Accounting** | **Updated 2026-09-24 (`FIN-GOV-1`) — primary implementation stream, superseding this table's ordering.** Chart of Accounts (read) + Bank Account CRUD, Payment Entry, Journal Entry, AR/AP visibility, native General Ledger/Trial Balance/P&L/Balance Sheet reports — canonical FIN-1..FIN-6 sequence in `docs/backend/06-accounting/finance-architecture.md`. | Not started — FIN-1 is the next package |
 | 6        | **Dashboard**       | Operational KPIs, sales & production summary                    | Ahead of schedule — Sales Flow scene map, Reports hub, and Selling workspace home already shipped in parallel (guide explicitly allows this) |
 
 ### Explicitly out of scope for v1
-- Full Journal Entry / Period Closing screens
+- **Updated 2026-09-24 (`FIN-GOV-1`):** a minimal Journal Entry create/submit/cancel screen (Bank/
+  Cash/Journal voucher types) is now in scope, as Finance V1's FIN-3 package — see
+  `docs/backend/06-accounting/finance-architecture.md` §7/§32. Full **Period Closing** screens
+  (fiscal-year-end close workflows, account freezing UI) remain out of scope.
 - Complex stock valuation screens
 - Deep HR / Payroll
 - Full Quality Management
-- Every ERPNext report
+- Every ERPNext report — Finance V1 is a narrow, named exception (General Ledger, Trial Balance,
+  Profit & Loss, Balance Sheet, Accounts Receivable, Accounts Payable only, via native `runReport`)
 - Trying to make the frontend 100% feature-equal with Desk
 
 ---
