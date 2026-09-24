@@ -118,7 +118,7 @@ const SALES_NAV_GROUPS: NavGroupDef[] = [
     label: "Returns & credits",
     icon: Undo2,
     items: [
-      { label: "Sales Returns", icon: PackageOpen, soon: true },
+      { href: "/sales/returns", label: "Sales Returns", icon: PackageOpen },
       { label: "Credit Notes", icon: FileMinus, soon: true },
     ],
   },

@@ -105,6 +105,7 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
       parentDoctype: "Payment Entry",
       childDoctype: "Payment Entry Reference",
       filterField: "reference_name",
+      extraFilters: [["Payment Entry Reference", "reference_doctype", "=", "Sales Invoice"]],
       hrefBase: "/accounting/payment-entries",
     },
   ],
@@ -134,7 +135,7 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
       parentDoctype: "Delivery Note",
       filterField: "return_against",
       extraFilters: [["Delivery Note", "is_return", "=", 1]],
-      hrefBase: "/sales/delivery-notes",
+      hrefBase: "/sales/returns",
     },
     {
       label: "Stock Entry",

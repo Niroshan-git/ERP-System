@@ -10,7 +10,7 @@ export type LineItemRow = {
 };
 
 /** Read-only items table for Submitted/Cancelled document views — LineItemsEditor.tsx's counterpart. */
-export function LineItemsTable({ items, currency }: { items: LineItemRow[]; currency: string }) {
+export function LineItemsTable({ items, currency, isReturn }: { items: LineItemRow[]; currency: string; isReturn?: boolean }) {
   const total = items.reduce((sum, row) => sum + row.amount, 0);
 
   return (
@@ -31,10 +31,10 @@ export function LineItemsTable({ items, currency }: { items: LineItemRow[]; curr
               <td className="px-3 py-2 text-graphite-900">
                 {row.item_code} — {row.item_name}
               </td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums">{row.qty}</td>
+              <td className="px-3 py-2 text-right font-mono tabular-nums">{isReturn ? Math.abs(row.qty) : row.qty}</td>
               <td className="px-3 py-2 font-mono text-graphite-500">{row.uom}</td>
               <td className="px-3 py-2 text-right font-mono tabular-nums">{formatAmount(row.rate)}</td>
-              <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-900">{formatAmount(row.amount)}</td>
+              <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-900">{formatAmount(isReturn ? Math.abs(row.amount) : row.amount)}</td>
             </tr>
           ))}
         </tbody>
@@ -44,7 +44,7 @@ export function LineItemsTable({ items, currency }: { items: LineItemRow[]; curr
               Total
             </td>
             <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-900">
-              {formatAmount(total)} {currency}
+              {formatAmount(isReturn ? Math.abs(total) : total)} {currency}
             </td>
           </tr>
         </tfoot>

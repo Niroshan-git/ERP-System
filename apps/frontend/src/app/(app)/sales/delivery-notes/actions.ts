@@ -200,6 +200,7 @@ export async function createDeliveryNoteAction(_prevState: FormState, formData: 
   }
 
   revalidatePath("/sales/delivery-notes");
+  revalidatePath("/sales/returns");
   redirect(`/sales/delivery-notes/${encodeURIComponent(name)}`);
 }
 
@@ -228,6 +229,7 @@ export async function updateDeliveryNoteAction(
   }
 
   revalidatePath("/sales/delivery-notes");
+  revalidatePath("/sales/returns");
   revalidatePath(`/sales/delivery-notes/${encodeURIComponent(name)}`);
   redirect(`/sales/delivery-notes/${encodeURIComponent(name)}?saved=1`);
 }
@@ -241,6 +243,7 @@ export async function submitDeliveryNoteAction(name: string): Promise<FormState>
   }
 
   revalidatePath("/sales/delivery-notes");
+  revalidatePath("/sales/returns");
   revalidatePath(`/sales/delivery-notes/${encodeURIComponent(name)}`);
   redirect(`/sales/delivery-notes/${encodeURIComponent(name)}`);
 }
@@ -271,6 +274,7 @@ export async function cancelDeliveryNoteAction(name: string): Promise<FormState>
   }
 
   revalidatePath("/sales/delivery-notes");
+  revalidatePath("/sales/returns");
   revalidatePath(`/sales/delivery-notes/${encodeURIComponent(name)}`);
   redirect(`/sales/delivery-notes/${encodeURIComponent(name)}`);
 }
@@ -460,6 +464,7 @@ export async function createDeliveryNoteFromSalesOrderAction(
   }
 
   revalidatePath("/sales/delivery-notes");
+  revalidatePath("/sales/returns");
   revalidatePath(`/sales/orders/${encodeURIComponent(salesOrderName)}`);
   redirect(`/sales/delivery-notes/${encodeURIComponent(name)}`);
 }
@@ -516,7 +521,7 @@ export async function createSalesReturnAction(
   };
   
   try {
-    sourceDn = await getDoc<any>("Delivery Note", deliveryNoteName);
+    sourceDn = await getDoc<typeof sourceDn>("Delivery Note", deliveryNoteName);
   } catch {
     return { error: "Could not load the source delivery note." };
   }
@@ -601,6 +606,7 @@ export async function createSalesReturnAction(
   }
 
   revalidatePath("/sales/delivery-notes");
+  revalidatePath("/sales/returns");
   revalidatePath(`/sales/delivery-notes/${encodeURIComponent(deliveryNoteName)}`);
-  redirect(`/sales/delivery-notes/${encodeURIComponent(name)}`);
+  redirect(`/sales/returns/${encodeURIComponent(name)}`);
 }
