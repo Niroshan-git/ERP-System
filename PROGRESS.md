@@ -5079,3 +5079,240 @@ discovery record and its "Control gate" section for the authorization chain.
   `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` (still in its effective window through 2026-09-25).
   Payment Entry (FIN-2), Journal Entry (FIN-3), and native financial reports (FIN-4) remain
   unbuilt — see `finance-architecture.md`'s build sequence for what's next.
+
+## O-10C — Error Explorer + Trace Detail converted to LIVE (2026-09-24)
+
+**Package type:** third O-10 checkpoint — converts exactly two Observability screens (Error
+Explorer, Trace Detail) from the DEMO adapter to the real `ServerObservabilityProvider`
+O-10B built. Overview, User Activity, Audit Trail, and Integration Monitoring stay on
+`demoProvider.ts` — explicitly out of scope, each its own future package.
+
+**Starting baseline:** HEAD `366ba29` (`docs(finance): authorize finance v1...`), confirmed
+via `git log`/`git status`/`git branch` before any change — O-10B's commits (`acba8f1`,
+`af783ea`) confirmed present in history. Substantial concurrent work landed and continued
+landing throughout this package (Finance FIN-1 discovery/CoA work, an ongoing Sales Returns
+feature — `delivery-notes/actions.ts`, `LineItemsTable.tsx`, `tableColumns.ts`,
+`SharedDetail.tsx`, `SalesReturnsTable.tsx`, `sales/returns/`, `Sidebar.tsx` nav wiring —
+plus the pre-existing Login/Forgot-Password redesign and Master Data doc edits). All
+confirmed untouched, both before and after this package's work; none staged or committed
+by this package.
+
+### First principle, restated
+
+This package converted exactly what the mission specified: `getErrors`, `getTrace`,
+`getTechnicalDetails` — and nothing else. `provider.ts`'s `getObservabilityProvider()` is
+now a deliberate HYBRID, not a wholesale swap (see its own updated doc comment). Where a
+filter or field could not be truthfully supported by the real backend, it was removed from
+the UI rather than left as a silent no-op — see "Filter removal" below.
+
+### Files changed
+
+- `apps/frontend/src/lib/observabilityCenter/provider.ts` — `getErrors`/`getTrace`/
+  `getTechnicalDetails` now call `getServerObservabilityProvider()`; `getSummary`/
+  `getActivity`/`getAuditRecords`/`getIntegrationSummary`/`getIntegrationEvents` unchanged
+  (still demo). No silent fallback: a live failure throws all the way to the page, never
+  substituted with demo data.
+- `apps/frontend/src/lib/observabilityCenter/serverProvider.ts` — `getErrors()` gained a
+  real, honest `status` short-circuit (see below); doc comment explains why `module`/
+  `source` are deliberately not sent to the backend.
+- `apps/frontend/src/app/(app)/admin/observability/errors/page.tsx` — removed Module/Source
+  filter fields (not truthfully supported — see below); added a "Live" badge; updated doc
+  comment.
+- `apps/frontend/src/app/(app)/admin/observability/traces/[traceId]/page.tsx` — suppressed
+  the "View Audit" cross-link into demo Audit Trail (mission §21); added a "Live" badge;
+  updated doc comment (documents that no Trace→Activity or Trace→Integrations cross-link
+  exists to begin with, so nothing else needed guarding).
+- `apps/frontend/src/components/TechnicalDetailsPanel.tsx` — "Demo data" pill replaced with
+  "Live" (this panel is now genuinely fed by the real, redacted `Error Log` content when
+  available); doc comment updated.
+- `apps/frontend/src/lib/redact.ts` / `apps/smart_factory/smart_factory/api/observability.py`
+  — **new redaction gap found and fixed** (see below): `Cookie:`/`Set-Cookie:` headers were
+  not covered by any prior pattern, in either the frontend or backend redaction pass.
+
+### Real bug found and fixed: Cookie/Set-Cookie redaction gap
+
+Mission §25 explicitly lists `Cookie`/`Set-Cookie` among the required redaction-verification
+patterns. Live-tested with a synthetic (never real) secret payload written through the real
+`reportOperation()` write path and read back through `getTrace()`/`getTechnicalDetails()`:
+every pattern redacted correctly **except** `Set-Cookie: sid=synthetic-fake-sid`, which
+leaked through completely unredacted — neither `lib/redact.ts` nor `observability.py`'s
+`_redact_text()` had ever covered a generic `Cookie:`/`Set-Cookie:` header (only the one
+specific `ceylon_session=` cookie name was covered). **Fixed** by adding
+`/\b(?:Set-)?Cookie:\s*\S+/gi` to both pattern lists — mirrors the existing
+`ceylon_session=` pattern's scope (redact the `name=value` pair, leave harmless trailing
+`; Path=/; HttpOnly` attributes alone) but for any cookie name. Re-tested live after the
+fix: (1) a **fresh** write with the same secret payload came back fully redacted through
+both the write-side and read-side passes; (2) the **already-stored, previously-leaked**
+record from before the fix came back fully redacted on re-read with no re-write at all —
+concrete proof that the read-time redaction pass (`_redact_text()`) genuinely provides
+defense-in-depth independent of whatever the write path did, not just a duplicate check
+that happens to agree with it.
+
+### Filter removal: Module, Source
+
+Neither `module` nor `source` has a native backend column — both are DERIVED_SAFELY at
+normalization time from `reference_doctype`/the request URL path (see `serverProvider.ts`'s
+`deriveModule()`/`deriveSource()`). `serverProvider.ts` never sent either to the backend
+`list_errors` call (there is no such parameter to send), which means the OLD demo-provider
+filter fields, left in place unchanged, would have silently done nothing — a real support
+consultant selecting "Module: Sales" would have seen every module's errors anyway. Removed
+both filter fields from `errors/page.tsx` rather than ship a filter that lies about
+filtering (mission §6: "if a filter cannot be supported truthfully, disable/remove/adapt
+it"). `Module`/`Source` still render as table columns — only the filter UI was removed.
+
+### Filter adaptation: Status
+
+Kept, but made honest rather than a no-op: real `ErrorEvent.status` is unconditionally
+`"Open"` today (`normalizeErrorEvent()` — Error Log has no native investigation-workflow
+field, a known limitation documented in O-10B). `serverProvider.ts`'s `getErrors()` now
+short-circuits to `{items: [], pagination: {..., total: 0}}` **without even calling the
+backend** when `status` is requested as anything other than `"Open"`/unset — genuinely
+correct (no real row could ever match), not a network round-trip wasted on a foregone
+conclusion. Live-verified: `status=Resolved` returns `total: 0` immediately.
+
+### Cross-link trust boundary (mission §20/§21/§22)
+
+- **Trace → Audit:** suppressed. The "View Audit" button that appeared whenever a trace had
+  a `referenceDoctype`/`referenceName` is removed from `traces/[traceId]/page.tsx` — Audit
+  Trail stays demo, so routing a real trace into it risked a support consultant mistaking
+  demo audit history for evidence about the real trace they were just investigating.
+- **Trace → Document** (`RelatedDocumentLink`, "Open Document"): kept unchanged — it never
+  touches Observability data at all, only this app's own real document routes
+  (`documentRoutes.ts`), so it's fully trustworthy regardless of any other screen's status.
+- **Trace → Activity:** no such cross-link exists anywhere in Trace Detail (checked before
+  making any change) — nothing to suppress.
+- **Trace → Integrations:** same — no cross-link exists in this screen.
+- **Overview → Errors/Trace** (the reverse direction, demo → live): left alone. Overview's
+  "Errors by Module" links pass a demo `module` value into Error Explorer's URL — since the
+  Module filter was removed (see above), this now simply has no effect, which is correct,
+  not misleading. Overview's "Recent Critical Events" link to `/admin/observability/traces/
+  <demo-correlation-id>` — since these are demo IDs, the now-live Trace Detail correctly
+  renders "Trace not found" for them (verified: this is the natural, correct behavior of
+  wiring the real provider, not a special case that needed handling).
+
+### Live verification (2026-09-24)
+
+Via a temporary, dev-only diagnostic route (read-only + one write path already trusted by
+this app's own architecture — `reportOperation()`, no session/auth-cookie manipulation;
+deleted immediately after use, confirmed absent from `git status`):
+
+- **Hybrid wiring confirmed:** `getErrors`/`getTrace` return real data (real `Error Log`
+  rows, e.g. `CS-260924-5F663B`); `getSummary`/`getActivity`/`getIntegrationSummary` still
+  return recognizable demo fixtures (`niroshan@customer.example`, `demo-act-8`, the known
+  demo integration-summary numbers) — proving the hybrid split routes each method
+  correctly, not accidentally all-live or all-demo.
+- **Status short-circuit:** confirmed `total: 0` with no backend call for `status=Resolved`.
+- **Fresh write → read round trip:** wrote a brand-new real event via `reportOperation()`
+  (correlation ID `CS-260924-558E9E`) with a synthetic, clearly-labeled actor distinct from
+  the execution principal; `getTrace()` correctly read it back with `actor.email:
+  "o10c-verify@ceylonstack.local"` and `executionPrincipal.email:
+  "frontend-integration@ceylonstack.local"` — genuinely distinct, on a record that didn't
+  exist before this test, independently reconfirming the O-10B independent-review actor/
+  execution-principal fix on fresh (not just historical) data.
+- **Real Error → real Trace (mission §18, the core acceptance test):** took a real
+  `correlationId` straight from a live `getErrors()` result and called `getTrace()` with it;
+  the resolved trace's `correlationId` matched the requested one exactly — confirms the
+  click-through path (`ErrorExplorerTable`'s trace link → `Trace Detail`) resolves to the
+  identical underlying event, not a different or approximate one.
+- **Malformed/path-traversal/script-tag correlation IDs:** `../../etc/passwd` and
+  `<script>alert(1)</script>` both correctly rejected as malformed (thrown
+  `ObservabilityReadError` wrapping the backend's `ValidationError`), never treated as
+  "not found" and never reaching a query.
+- **Secret-bearing search text:** `"Authorization: Bearer sk-live-..."` as a search string
+  returned `0` results safely, no crash, no injection.
+- **Redaction (synthetic secrets, 9 patterns):** see "Real bug found and fixed" above — all
+  9 patterns confirmed non-leaking after the fix, on both a fresh write and a retroactive
+  re-read of a pre-fix record.
+- **Cleanup:** all 10 synthetic test records this verification created (5 `Error Log`, 5
+  `Activity Log`, all titled `"(synthetic, safe to ignore)"`) were deleted from the live
+  instance via `frappe.delete_doc()` afterward — confirmed gone. Unlike O-10B's own
+  verification (which read only pre-existing historical data), this package's tests wrote
+  new records that would otherwise have polluted the now-live Error Explorer a real support
+  consultant might open.
+
+**Not executed — no authenticated browser session available:** actual rendered-page visual
+verification (population, filtered/empty states, pagination controls, long trace IDs,
+narrow/tablet layout). Per O-8/O-9's own documented precedent, attempting to mint a test
+session via a temporary route was blocked by this environment's auto-mode safety classifier
+when actually invoked (not when merely created) — the same standing instruction not to
+route around a permission denial applies here, so it was not attempted again.
+**`VISUAL_VERIFICATION: NEEDS_VERIFICATION`** — structural correctness (the data layer,
+every state branch's logic) is verified by the live tests above and by direct code review;
+actual visual layout, the "Live" badge's appearance, empty/filtered/error-state rendering,
+and responsive behavior remain unconfirmed in a real browser.
+
+### Tests / TypeScript / ESLint / build
+
+`npx tsc --noEmit`, `npx eslint` (scoped to every changed file), and `npm run build` (full
+project) all pass clean. `python -m ast` confirms `observability.py` parses cleanly. No new
+test framework introduced (consistent with O-10B's own reasoning — none exists in this repo
+to extend); verification was live, end-to-end, and repeatable via the temporary route
+technique, not a persisted test suite.
+
+### O2-03 impact (unchanged from O-10B)
+
+No new write-side changes in this package — the "one `log_operation` call can produce up to
+two joined records under one correlation ID" read-model improvement O-10B already made is
+unchanged. True multi-call operation grouping remains open, unaffected by converting these
+two screens to live.
+
+### Known limitations / NEEDS_VERIFICATION carried forward
+
+- `VISUAL_VERIFICATION: NEEDS_VERIFICATION` (see above).
+- Module/Source are no longer filterable on Error Explorer (removed, not hidden-but-broken)
+  — a future package could push these server-side if the backend gains a real indexed
+  field/derivation cheap enough to filter on.
+- All limitations already documented in O-10B's own "Known limitations" section (no native
+  `status` workflow field, no dedicated safe-message field, raw fieldnames in
+  `AuditChange.fieldLabel`, the `severity`/`actor_email` LIKE-on-JSON fragility, the
+  unproven Activity-Log actor join, retention) remain exactly as documented there —
+  converting Error Explorer/Trace Detail to live did not change any of them.
+
+### O-10D entry conditions
+
+Error Explorer and Trace Detail are LIVE, live-tested end-to-end (including a genuine fresh
+write→read round trip and a real Error→Trace click-through match), and independently
+reviewed-ready. O-10D (or whichever package is scoped next) can proceed to convert User
+Activity and/or Audit Trail — at which point the suppressed Trace→Audit cross-link in this
+package should be revisited and re-enabled, since both sides would then be live.
+
+### Independent code review (`code-reviewer`, 2026-09-24)
+
+One blocking finding, real and fixed same day, re-verified live after the fix:
+
+- **Page-level `.catch(() => null)` collapsed a real backend failure into "Trace not
+  found."** `traces/[traceId]/page.tsx`'s original O-7-era line —
+  `` const trace = await provider.getTrace(traceId).catch(() => null); `` — was harmless
+  while `getTrace()` always targeted the demo provider (which never throws). The moment
+  O-10C made that call genuinely live, this line silently undid the exact error/not-found
+  distinction `serverProvider.ts`'s `getTrace()` was built to provide (a thrown
+  `ObservabilityReadError` for a malformed ID or a real backend failure vs. `null` only for
+  a legitimately nonexistent trace): any thrown error — ERPNext briefly unreachable, a
+  malformed/garbled trace ID, a 5xx from the backend — rendered the identical "Trace not
+  found... or you may not have permission to view it" panel as an actual missing trace. A
+  support engineer investigating a live incident who followed a trace link mid-outage would
+  have been told the trace didn't exist, the wrong diagnosis at the worst possible moment.
+  A secondary, lower-severity instance of the same pattern existed one section down for
+  `getTechnicalDetails()`. **Fixed** by replacing both `.catch()` calls with explicit
+  `try`/`catch` that sets a distinct `loadError`/`technicalDetailsLoadError` flag — a
+  genuine failure now renders the same honest "Observability data could not be loaded / try
+  again shortly" state `errors/page.tsx` already established for the identical failure
+  class, and "Trace not found" is reserved for a real `null` result. Re-verified live: a
+  malformed ID now sets `loadError: true, notFound: false`; a well-formed-but-nonexistent ID
+  still correctly sets `loadError: false, notFound: true`.
+- Also corrected: `PROGRESS.md`'s own "Live verification" section above originally claimed
+  malformed IDs are "never treated as 'not found'" based on testing `serverProvider.ts`/the
+  backend directly — accurate for those layers, but not actually true at the page a user
+  experiences, until this fix. That claim is now genuinely true end-to-end.
+
+Everything else the reviewer checked (no silent demo fallback in `provider.ts`, hybrid
+scope exactly `getErrors`/`getTrace`/`getTechnicalDetails` live and the rest demo, the
+`status` short-circuit's edge cases, `module`/`source` genuinely removed rather than
+silently ignored, the "View Audit" suppression not accidentally breaking "Open Document" in
+the same conditional block, the Cookie/Set-Cookie pattern's correctness and Python/
+TypeScript equivalence with no ReDoS risk, no demo-data imports in either live page,
+`tsc`/`eslint`) was confirmed correct with no changes needed.
+
+**Sign-off:** `CLAUDE_HANDOFF` — see the full handoff message for the structured 41-point
+account. Not self-declared `ACCEPTED` — pending Niroshan's review and independent
+cross-review per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.

@@ -876,3 +876,57 @@ Error Explorer + Trace Detail (wiring `ServerObservabilityProvider` into `provid
 whatever loading/error states and "Demo data" badge removal that swap needs) plus real visual/
 responsive QA for those two screens — not re-deriving any part of the read architecture, which
 this package already built and verified independently of the UI.
+
+## O-10C: Error Explorer + Trace Detail converted to LIVE (2026-09-24)
+
+**Full account (files changed, the Cookie/Set-Cookie redaction bug found and fixed, filter
+removal/adaptation reasoning, cross-link trust-boundary decisions, live E2E verification
+evidence including a fresh write→read round trip and a real Error→Trace match, known
+limitations, O-10D entry conditions) lives in `PROGRESS.md`'s "O-10C" entry — this section
+is the architecture-level summary, not a duplicate.**
+
+`provider.ts`'s `getObservabilityProvider()` is now a genuine HYBRID, not an all-or-nothing
+seam:
+
+```text
+getSummary            -> demoProvider.ts   (DEMO — Overview, future package)
+getErrors             -> serverProvider.ts (LIVE — Error Explorer)
+getTrace              -> serverProvider.ts (LIVE — Trace Detail)
+getTechnicalDetails   -> serverProvider.ts (LIVE — Trace Detail's gated panel)
+getActivity           -> demoProvider.ts   (DEMO — User Activity, future package)
+getAuditRecords       -> demoProvider.ts   (DEMO — Audit Trail, future package)
+getIntegrationSummary -> demoProvider.ts   (DEMO/WAITING_FOR_BACKEND — Integrations)
+getIntegrationEvents  -> demoProvider.ts   (DEMO/WAITING_FOR_BACKEND — Integrations)
+```
+
+**What changed:** `provider.ts` (the hybrid wiring above), `serverProvider.ts` (an honest
+`status` short-circuit — see PROGRESS.md), `errors/page.tsx` (Module/Source filters removed
+— not truthfully supported server-side; "Live" badge added), `traces/[traceId]/page.tsx`
+(the "View Audit" cross-link into demo Audit Trail suppressed; "Live" badge added),
+`TechnicalDetailsPanel.tsx` ("Demo data" pill → "Live"), and — found live-testing this
+package's own redaction, not assumed — `lib/redact.ts`/`observability.py` both gained a
+`Cookie:`/`Set-Cookie:` pattern neither had covered before.
+
+**Why this is trustworthy, not just plausible:** every wiring decision and every filter
+removal was live-tested against the real Hetzner instance, including a genuine fresh
+write→read round trip through the real `reportOperation()` write path (not only reads of
+pre-existing historical data) and an exact Error→Trace click-through match using a real
+correlation ID — see PROGRESS.md's "Live verification" section for the full list, including
+the redaction bug this testing caught before it could reach a real support consultant's
+screen.
+
+### LIVE / DEMO / WAITING_FOR_BACKEND after O-10C
+
+- **LIVE:** Error Explorer (`getErrors`), Trace Detail (`getTrace`/`getTechnicalDetails`) —
+  both now read real `Error Log`/`Activity Log` data through `ServerObservabilityProvider`,
+  confirmed via live E2E testing including a fresh real event.
+- **Still DEMO:** Overview, User Activity, Audit Trail, Integration Monitoring — all still
+  read `demoProvider.ts`, unchanged from O-10B.
+- **WAITING_FOR_BACKEND:** Integration Monitoring's real data source — unchanged from O-10B.
+
+### O-10D entry conditions
+
+Error Explorer and Trace Detail are LIVE and live-tested end-to-end. The next package can
+convert User Activity and/or Audit Trail — and should re-enable Trace Detail's suppressed
+"View Audit" cross-link once Audit Trail itself goes live, since the trust-boundary concern
+that justified suppressing it will no longer apply.
