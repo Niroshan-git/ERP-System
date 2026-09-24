@@ -24,7 +24,7 @@ import { deliveryNoteStatus } from "@/lib/erpStatus";
 import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
-import { getInvoicedQtyByDnDetail } from "@/lib/fulfillment";
+import { getInvoicedQtyByDnDetail, getReturnedQtyByDnDetail } from "@/lib/fulfillment";
 import { formatAmount } from "@/lib/format";
 import { cancelDeliveryNoteAction, submitDeliveryNoteAction, updateDeliveryNoteAction } from "../actions";
 
@@ -103,11 +103,12 @@ export default async function DeliveryNoteDetailPage({
   const sourceSalesOrders = Array.from(
     new Set(doc.items.map((item) => item.against_sales_order).filter((v): v is string => Boolean(v))),
   );
-  const [downstreamConnections, timeline, session, invoicedByRef, relationshipMap] = await Promise.all([
+  const [downstreamConnections, timeline, session, invoicedByRef, returnedByRef, relationshipMap] = await Promise.all([
     getConnections("Delivery Note", doc.name),
     buildTimeline("Delivery Note", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
     getInvoicedQtyByDnDetail(doc.name),
+    getReturnedQtyByDnDetail(doc.name),
     getRelationshipMap("Delivery Note", doc.name),
   ]);
   const connections: Connection[] = [
@@ -119,6 +120,8 @@ export default async function DeliveryNoteDetailPage({
   // lib/fulfillment.ts's getInvoicedQtyByDnDetail for why this is a live computed query,
   // not a stored field read (Delivery Note Item has no stored billed-qty field at all).
   const hasRemainingToInvoice = doc.items.some((item) => item.qty - (invoicedByRef[item.name] ?? 0) > 1e-6);
+  // Same logic for Sales Return, but referencing returned quantities
+  const hasRemainingToReturn = doc.items.some((item) => item.qty - (returnedByRef[item.name] ?? 0) > 1e-6);
   // Same cancel-blocking rule as Sales Order/Quotation: ERPNext only refuses to cancel over
   // a *submitted* linked Sales Invoice. The server action re-checks this for real; this is
   // just so the user sees why up front instead of hitting a rejection after clicking Cancel.
@@ -165,14 +168,26 @@ export default async function DeliveryNoteDetailPage({
     </div>
   );
 
+  const createActions = [];
+  if (doc.docstatus === 1) {
+    if (!doc.is_return && hasRemainingToInvoice) {
+      createActions.push({
+        label: "Create Sales Invoice",
+        href: `/sales/delivery-notes/${encodeURIComponent(doc.name)}/create-invoice`,
+      });
+    }
+    if (!doc.is_return && hasRemainingToReturn) {
+      createActions.push({
+        label: "Create Sales Return",
+        href: `/sales/delivery-notes/${encodeURIComponent(doc.name)}/create-return`,
+      });
+    }
+  }
+
   const connectionsTab = (
     <ConnectionsPanel
       connections={connections}
-      createAction={
-        doc.docstatus === 1 && hasRemainingToInvoice
-          ? { label: "Create Sales Invoice", href: `/sales/delivery-notes/${encodeURIComponent(doc.name)}/create-invoice` }
-          : undefined
-      }
+      createActions={createActions}
       relationshipMap={relationshipMap}
     />
   );
@@ -324,6 +339,11 @@ export default async function DeliveryNoteDetailPage({
   } else {
     detailsTab = (
       <div>
+        {doc.is_return === 1 && (
+          <div className="mb-4 inline-flex items-center gap-2 rounded-md bg-alert/10 px-3 py-1.5 text-sm font-medium text-alert">
+            Sales Return
+          </div>
+        )}
         <dl className="mb-4 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
           <DocField label="Customer" value={doc.customer} />
           <DocField label="Posting date" value={doc.posting_date} mono />

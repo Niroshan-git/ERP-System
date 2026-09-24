@@ -197,3 +197,38 @@ export async function getBilledQtyByPrDetail(purchaseReceiptName: string): Promi
   }
   return billed;
 }
+
+type DnReturnItemRow = { dn_detail?: string; qty: number };
+type SalesReturnForDnBilling = { name: string; items: DnReturnItemRow[] };
+
+/**
+ * How much of each Delivery Note line has actually been returned.
+ * Queries Submitted Delivery Notes where `is_return = 1` and `return_against = deliveryNoteName`,
+ * summing the absolute value of `qty` grouped by `dn_detail`.
+ */
+export async function getReturnedQtyByDnDetail(deliveryNoteName: string): Promise<Record<string, number>> {
+  const returns = await listDocs<{ name: string; docstatus: number }>("Delivery Note", {
+    fields: ["name", "docstatus"],
+    filters: [
+      ["is_return", "=", 1],
+      ["return_against", "=", deliveryNoteName],
+    ],
+    limit: 500,
+  });
+  const submittedNames = Array.from(new Set(returns.filter((d) => d.docstatus === 1).map((d) => d.name)));
+
+  const docs = await Promise.all(
+    submittedNames.map((retName) => getDoc<SalesReturnForDnBilling>("Delivery Note", retName).catch(() => null)),
+  );
+
+  const returned: Record<string, number> = {};
+  for (const doc of docs) {
+    if (!doc) continue;
+    for (const item of doc.items) {
+      if (!item.dn_detail) continue;
+      // Returns use negative quantities in Frappe, so we take the absolute value.
+      returned[item.dn_detail] = (returned[item.dn_detail] ?? 0) + Math.abs(Number(item.qty || 0));
+    }
+  }
+  return returned;
+}

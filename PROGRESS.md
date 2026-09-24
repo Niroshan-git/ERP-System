@@ -4658,3 +4658,338 @@ nothing sensitive behind it yet.
 self-declared `ACCEPTED`. `SAFE FOR INDEPENDENT REVIEW: YES`. `SAFE TO START O-10B: YES`
 (this checkpoint's own scope is closed; O-10B — the real read-API/provider foundation — is
 the next unstarted piece per the mission's suggested checkpoint breakdown).
+
+## O-10B — Real Observability read foundation (2026-09-24)
+
+**Package type:** second O-10 checkpoint — "real read foundation," per the mission's own
+boundary: builds the trusted server-side read architecture (backend read API + normalization
++ safe DTOs + server provider) but does **not** convert any Observability screen from DEMO to
+LIVE. O-10C onward connects screens to this foundation.
+
+**Starting baseline:** HEAD `86c5218` (O-10A documentation checkpoint), confirmed via `git
+log`/`git status`/`git branch` before any change. Substantial foreign uncommitted work was
+present and confirmed untouched throughout and after: the in-flight Login/Forgot-Password
+redesign (`apps/frontend/src/app/login/*`, `apps/frontend/src/lib/erpnext.ts`,
+`apps/frontend/src/app/api/auth/forgot-password/`), Master Data/relationship doc edits, a
+dirty `docs/operations/AI_WORK_LOG.md` (never touched — this package's own record lives here
+in `PROGRESS.md` instead, per the mission's explicit instruction), and the Sales
+`connections.ts`/four `actions.ts` cancellation-blocker fix. None of these were staged,
+committed, or depended on by this package — `serverProvider.ts` deliberately calls
+`smart_factory.api.observability.*` directly rather than through `lib/erpnext.ts` specifically
+to avoid any dependency on that file's uncommitted state (see that file's own doc comment).
+
+### Phase 0/1 reconciliation (O2-01 through O2-07, re-verified against current code, not
+trusted from prior doc claims)
+
+- **O2-01 (secret redaction):** re-verified `lib/redact.ts` at HEAD — the `Authorization:`/
+  `Bearer`/`token`/`ceylon_session`/`password|secret|api-key` patterns O-10A confirmed intact
+  are still intact. **New finding this package caught by literally testing the mission's own
+  §20 checklist against the code** (not assumed from the prior "already resolved" note):
+  `access_token`/`refresh_token` (both bare-word-plus-value and `key=value` shapes) were
+  **not** covered by any existing pattern — live-tested with `node -e` before touching
+  anything, confirmed the gap, then fixed by widening the `password|secret|api-key`
+  alternation to include `access[-_]?token|refresh[-_]?token` and adding a bare-word pattern
+  mirroring the existing `Bearer`/`token` ones. Re-tested after the fix: all of
+  `access_token=...`, `access_token: ...`, `refresh_token=...`, and a bare
+  `access_token eyJ...` embedded mid-sentence now redact correctly; every previously-passing
+  case (`Authorization:`, `Bearer`, `token`, `ceylon_session=`, `password:`) still passes
+  unchanged. The identical pattern set was also added to `observability.py`'s new
+  `_redact_text()` (see below) — read-time defense-in-depth per mission §20, since native
+  Error Log/Activity Log rows written by Frappe's own framework code were never redacted by
+  `redact.ts` in the first place (that only runs on Ceylon Stack's own write path).
+- **O2-02 (read failures ≠ business activity):** unchanged from O-10A's re-verification —
+  `list_errors`/`get_trace`/`list_activity`/`list_audit` are all pure reads; none of them
+  write to Error Log/Activity Log. **Still satisfies the mission's semantic rule by design.**
+- **O2-03 (per-operation vs per-write correlation IDs):** **investigated for its impact on
+  the read model specifically, per the mission's instruction not to solve it casually.**
+  Finding: the backend write-side model is unchanged (still "one `log_operation` call = one
+  correlation ID"), but that one call can itself produce *two* native records sharing that ID
+  — an `Error Log` row (`trace_id`) and an `Activity Log` row (a `"Correlation: <id>"` line in
+  `content`) — when severity is ERROR/CRITICAL *and* an `operation` label was given.
+  `get_trace()` queries both and returns whichever exist, so a trace can honestly show up to
+  two real recorded events today (not fabricated — both were written by the same original
+  call), a genuine improvement over "always exactly one event" without changing anything
+  write-side. **What's still open, unchanged:** a single *logical business operation* that
+  makes several `erpnextFetch()` calls still gets a separate correlation ID per call unless
+  the caller explicitly passes `opts.correlationId` through (no call site does today) — true
+  multi-call operation grouping is still O2-03's real remaining gap, deferred to O-10C/O-10F
+  as the mission directs.
+- **O2-04/O2-05 (defense-in-depth redaction):** now genuinely applicable and implemented —
+  O-10A noted these weren't applicable yet since no real read path existed. This package adds
+  read-time redaction at *two* layers: `observability.py`'s `_redact_text()` (backend, first
+  line of defense, the only redaction framework-native rows ever receive) and
+  `serverProvider.ts`'s reuse of `lib/redact.ts`'s `redactString()` (frontend server layer,
+  second pass) — genuinely independent implementations in two languages, not one check
+  duplicated for appearance.
+- **O2-06/O2-07 (safe low-risk robustness):** the carried-forward `actor_full_name`/
+  `actor_email` truncation gap in `log_operation` is **fixed** in this package (see below) —
+  this was the first package since O-2 to touch `observability.py` again, closing the
+  follow-up O-10A explicitly deferred for exactly that reason.
+
+### Verified source matrix
+
+| Frontend concept | Native/real source | Verified fields | Derived fields | Missing fields | Notes |
+|---|---|---|---|---|---|
+| Error | `Error Log` | `name`, `creation`, `method`, `trace_id`, `reference_doctype`, `reference_name`, `owner`, `metadata` (JSON), `error` | `severity`/`actor` (from `metadata`, DERIVED_SAFELY via JSON-text `LIKE`), `module`/`httpStatus`/`route` (from `method`'s known `erpnextFetch()` string shape or the URL path) | `status` (Open/Investigating/Resolved — no native workflow-state field at all), a dedicated safe-message field distinct from `method` | Live-verified 2026-09-24: `Error Log` is a mix of Ceylon Stack telemetry (`trace_id` set) and unrelated native Frappe exceptions (`trace_id` null, e.g. a `wkhtmltopdf` failure) — Error Explorer is scoped to `trace_id is set` rows only (see `list_errors`'s own doc comment) |
+| Trace | `Error Log` + `Activity Log` (joined on `trace_id` / `"Correlation: <id>"` in `content`) | as above, plus `Activity Log`'s `subject`/`status`/`user` | `actor` (from `metadata` or the `"Actor: Name <email>"` content line), `durationMs` (real, when both an Error Log and Activity Log row exist for the same ID) | multi-step timelines beyond what one `log_operation` call produced | See O2-03 reconciliation above |
+| Activity | `Activity Log` | `name`, `creation`, `subject`, `operation`, `status`, `user`, `full_name`, `reference_doctype`, `reference_name`, `content` | `actor` (parsed `"Actor: Name <email>"` line — returns `null` honestly when absent, live-observed on real data, see below), `correlationId` (parsed `"Correlation: <id>"` line), `module` (from `reference_doctype`/route) | a `systemGenerated` flag (O-9's documented gap, still not backported) | — |
+| Audit | `Version` | `name`, `creation`, `owner`, `ref_doctype`, `docname`, `data` (JSON: `added`/`changed`/`removed`/`row_changed`) | `actor` (batched join against nearby `Activity Log` rows for the *same document*, ±3s window, never `Version.owner`), `action` (from `data`'s `docstatus` transition or all-`field_added` heuristic), field-level `AuditChange[]` | field labels (raw fieldname used — no DocField metadata lookup performed), per-row child-table diffs (conservative summary only, per mission §29) | `list_audit`'s actor join only runs when both `reference_doctype`+`reference_name` narrow to one document — never across a multi-document Explorer page (N+1 avoidance, mission §37) |
+| Integration | none | — | — | everything | `Integration Request` confirmed live 2026-09-24 to have **zero rows**; no other backend surface records this app's outbound calls. Classified `NOT_CURRENTLY_AVAILABLE` per mission §11 — `getIntegrationSummary()`/`getIntegrationEvents()` return honest zero/empty results, never fabricated figures |
+| Overview | aggregates of the above | — | `errorsToday`/`errorsYesterday`/`criticalErrors`/`recentActivityCount` (real filtered `pagination.total` counts, no row download), `errorTrend`/`errorsByModule` (bounded to 500 rows, in-memory bucketing) | — | `failedIntegrations` is honestly `0` (no source) |
+
+### Field provenance (selected)
+
+```text
+ErrorEvent.correlationId    -> Error Log.trace_id (non-null by construction — see matrix)
+ErrorEvent.actor            -> Error Log.metadata.actor_email/actor_full_name (JSON, written by log_operation)
+ErrorEvent.executionPrincipal -> Error Log.owner (native, always the real execution principal)
+ErrorEvent.severity          -> Error Log.metadata.severity, defaults to "ERROR" (Error Log only ever holds ERROR/CRITICAL)
+ErrorEvent.module            -> Error Log.reference_doctype, else parsed from the method's /api/resource/<DocType> path
+ErrorEvent.status             -> NOT_AVAILABLE, hardcoded "Open" (no native field — documented limitation)
+AuditRecord.actor            -> DERIVED_SAFELY: nearest Activity Log row (±3s, same reference) — NEVER Version.owner
+AuditChange.previousValue/newValue -> Version.data's `changed`/`row_changed` arrays (live-verified real shape)
+Trace.durationMs             -> DERIVED_SAFELY from real Error Log + Activity Log timestamps when both exist for one correlation ID
+IntegrationEvent.*           -> NOT_AVAILABLE (no source — see matrix)
+```
+
+### Backend read API (`apps/smart_factory/smart_factory/api/observability.py`, extended not replaced)
+
+Five new `@frappe.whitelist()` methods, every one starting with the same `_check_caller()`
+O-2's write methods already use (only `frontend-integration@ceylonstack.local` may call any
+of them — live-verified, see Testing below): `list_errors`, `get_trace`,
+`get_technical_details`, `list_activity`, `list_audit`. All native `frappe.get_all()`/
+`frappe.db.count()` reads (bypasses per-doctype ACL the same way `log_operation`'s
+`ignore_permissions=True` writes already do — the two-layer model in mission §15/§16: caller
+identity is checked once at the whitelisted-method boundary, not re-checked per-doctype
+internally). Return native-ish field names, not the frontend's DTO shape — normalization is
+the Next.js server layer's job (`serverProvider.ts`), keeping this module a thin, honest read
+surface. Full design rationale is in each method's own doc comment in the source file.
+
+**Real bugs caught by live-testing this against the actual server (not assumed from reading
+the Frappe docs):**
+- `fields=["count(name) as total"]` (the originally-written aggregate-count shape) is
+  rejected outright by this Frappe version ("SQL functions are not allowed as strings in
+  SELECT") — fixed by using `frappe.db.count()` for the common case and a bounded
+  `pluck="name"` count-via-length fallback for the one caller that needs `or_filters`
+  (`list_activity`'s free-text search), which `frappe.db.count()` doesn't support at all.
+- `Error Log` genuinely mixes Ceylon Stack telemetry with unrelated framework exceptions —
+  `list_errors` now hardcodes a `trace_id is set` filter (see matrix above).
+
+### Trusted-caller security
+
+Unchanged two-layer model from O-2, extended to five more methods: **(1) human
+authorization** — O-10A's fresh `resolveActorRoles()` check in `admin/observability/
+layout.tsx`, gates the Ceylon Stack admin UI, untouched by this package. **(2) backend caller
+authorization** — `_check_caller()` on every one of these five new methods, restricting them
+to the one trusted service account, live-verified via `bench execute` (Administrator ->
+`PermissionError: Not permitted`; service account -> succeeds). These are genuinely different
+identities per mission §15 — this package does not collapse them.
+
+### `ServerObservabilityProvider` (`apps/frontend/src/lib/observabilityCenter/serverProvider.ts`, new)
+
+Implements the exact `ObservabilityProvider` interface `provider.ts` already defines — a
+drop-in replacement for `demoProvider.ts`, **not wired into `getObservabilityProvider()` by
+this package** (see Provider Selection below). Calls the five backend methods directly via a
+small dedicated fetch helper (not `lib/erpnext.ts` — see the file's own doc comment for the
+two independent reasons: foreign-file isolation, and never risking the observability-read
+path calling back into the observability-write path). Normalizes every native row into the
+existing frontend DTO types with no type changes to `types.ts` — every provenance decision
+(what's DERIVED_SAFELY vs left `undefined`/`null`) is documented inline at its own function.
+
+**Real bugs caught by this package's own live end-to-end test** (a temporary, dev-only
+diagnostic route — read-only, no session/auth-cookie manipulation, deleted immediately after
+use, confirmed absent from `git status`):
+- Frappe's `creation`/`modified` are naive local-time strings in the site's configured
+  timezone (`Asia/Colombo`, UTC+05:30 — live-verified via `System Settings.time_zone`), not
+  UTC. `toIso()` applies the correct fixed offset; a naive `+"Z"` would have silently
+  misreported every timestamp by 5.5 hours.
+- The *inverse* of that same bug existed in `getSummary()`'s own date-range filters: a plain
+  `date.toISOString().slice(0,10)` computes the UTC calendar date, but the backend compares
+  `date_from`/`date_to` against site-local-time `creation` strings — sending a UTC date as a
+  naive local-time boundary silently shifts "today"/"yesterday" by up to 5.5 hours. Fixed via
+  `siteLocalDate()`, applying the same offset before extracting the calendar date.
+- Real errors from a plain `erpnextFetch()` failure (the majority of what exists in Error Log
+  today) never carry `reference_doctype` at all (`scheduleFailureReport()` doesn't pass one) —
+  every such row landed in the "System" module bucket even when its own URL plainly named a
+  real doctype (e.g. a failed `/api/resource/Stock%20Entry` call). Fixed by adding
+  `doctypeFromRoute()`, parsing the doctype straight out of `erpnext.ts`'s own
+  `/api/resource/<DocType>` URL convention — grounded in a real, known string shape, not a
+  guess. Confirmed live: the same real error rows now correctly bucket under "Stock" instead
+  of "System".
+
+### Safe DTO / redaction boundary
+
+Two independent redaction passes (see O2-04/O2-05 above): `observability.py`'s
+`_redact_text()` (first pass, the only one framework-native rows ever receive) and
+`serverProvider.ts`'s reuse of `redactString()` (second pass, applied again on every string
+field before it enters a DTO). Neither module ever returns a raw `Version` JSON blob, a full
+unbounded `error` traceback in a *list* response (`list_errors` truncates to a 500-char
+`error_excerpt`; only `get_technical_details` — the explicitly gated call — returns the full,
+still-redacted text), or anything resembling `Authorization`/`Cookie`/API keys/tokens (see
+O2-01 above for the exact patterns verified).
+
+### Pagination / filtering / sorting
+
+Every list method (`list_errors`/`list_activity`/`list_audit`, mirrored again in
+`serverProvider.ts` as defense-in-depth) clamps `page >= 1` and `page_size` to `[1, 100]`,
+computes a real filtered `total` (via `frappe.db.count()`/bounded `pluck`, never
+"fetch-everything-then-slice"), and pushes every supported filter to the database via
+`frappe.get_all()`'s parameterized filter tuples — never raw SQL string interpolation (search
+text is `%`/`_`-escaped for correctness, not injection, since Frappe's filter builder already
+parameterizes the query). Sorting is `creation desc, name desc` (deterministic tie-break) for
+operational lists, and DB-level `asc`/`desc` (never a per-page JS reversal) for
+`list_audit`'s Document History mode — a genuine improvement over the current DEMO provider's
+known per-page-reversal limitation (`docs/observability-frontend-architecture.md`'s O-8
+section). Unsupported filters (`module`/`source`/`status` on errors — no native column or
+reliable derivation exists) are simply not implemented, never faked.
+
+### Provider selection / no-demo-fallback
+
+`getObservabilityProvider()` in `provider.ts` is **unchanged** — every one of the six
+Observability screens keeps reading `demoProvider.ts` exactly as before this package. This is
+a deliberate reading of the O-10B package boundary (mission §47: "does NOT require ALL
+SCREENS ARE LIVE... O-10C will specifically connect Error Explorer + Trace Detail"), not an
+oversight — flipping the seam now would have made real (if foundation-stage) data appear on
+screens this package explicitly isn't scoped to redesign or fully verify visually. There is
+therefore no live "provider selection" branch to test yet for silent-demo-fallback behavior —
+`ServerObservabilityProvider` simply isn't reachable from the UI in this package. What *is*
+true today: `serverProvider.ts` never falls back to demo data internally on its own failures —
+every failure throws `ObservabilityReadError` (see Failure behavior below), the same "never
+silently substitute fake data for a real failure" principle mission §38 asks for, just not yet
+exercised by a page that could receive it.
+
+### Failure / degradation behavior
+
+`callObservabilityRead()` throws a typed `ObservabilityReadError` for network failures,
+non-2xx responses, or a missing `ERPNEXT_URL` — never returns a fake zero/empty result for an
+actual failure (only `getIntegrationSummary`/`getIntegrationEvents` return zero/empty, and
+only because that's a genuine "no data source exists" answer, not a failure — see the
+Integration row in the matrix). `get_trace`/`getTrace()` return `null` specifically for the
+"valid ID, no match" case, never for a failure. Backend-side, every new method's own
+`_check_caller()`/validation failures raise `frappe.ValidationError`/`PermissionError`, which
+propagate as non-2xx HTTP responses `callObservabilityRead()` turns into the same typed error
+— no raw backend traceback ever reaches this layer's caller.
+
+### Recursion protection
+
+`serverProvider.ts` never imports `lib/observability.ts` (the write-side emitter) or calls
+`reportOperation()` on its own failure path — a read failure here simply throws, it does not
+attempt to log itself, closing off the exact "logging failure logs another failure" loop
+mission §40 asks to guard against. `observability.py`'s new read methods never call
+`log_operation` either.
+
+### Performance / N+1 findings
+
+The one place this package could have introduced N+1 is `list_audit`'s actor join — avoided
+by design: one batched `Activity Log` query per *page* (never per `Version` row), and only
+attempted at all when `reference_doctype`+`reference_name` narrow the query to a single
+document (see `_join_actors_for_document()`'s own doc comment). No other N+1 shape exists in
+this package — every list method is exactly one `frappe.db.count()`/bounded-`pluck` call plus
+one `frappe.get_all()` call.
+
+### Live verification (2026-09-24)
+
+**Backend**, via `bench execute` against a temporary module (`_o10b_verify_tmp.py`, deployed
+via `docker cp`, deleted immediately after use):
+- Unauthorized caller (Administrator) -> `PermissionError: Not permitted` for every new method.
+- `list_errors`: basic pagination, exact `trace_id` filter, `severity=ERROR` filter (all
+  correct real counts against real data), `page=0`/`page=-5` both clamp to `page=1`,
+  `page_size=999999` clamps to `100`, malformed `date_from` -> `ValidationError`, an
+  HTML/script-like search string (`<script>alert(1)</script>`) -> `0` results, no error, no
+  injection.
+- `get_trace`: known real correlation ID -> found (both `Error Log` and `Activity Log`
+  rows), malformed ID -> `ValidationError`, well-formed-but-nonexistent ID -> `null`, `None`
+  argument -> `ValidationError`, a `Bearer <token>`-shaped string passed as a trace ID ->
+  correctly rejected as malformed (never reaches a query).
+- `get_technical_details`: known/missing both correct; incidentally surfaced the real root
+  cause of an unrelated live bug in the foreign Sales/`connections.ts` work in progress
+  (`"Field not permitted in query: delivery_note"`) — noted here for the record, **not
+  investigated or fixed**, out of this package's scope.
+- `list_activity`: unknown user -> `ValidationError`; free-text search returned real, correct
+  counts.
+- `list_audit`: real `Work Order` Document History (`order=asc`) returned the same two
+  `Version` rows independently confirmed earlier via direct MCP inspection, in the requested
+  chronological order; unknown doctype -> `ValidationError`.
+- **Notable honest finding, not a bug:** no real `Activity Log` row on the live instance
+  currently has a parseable `"Actor: Name <email>"` line (checked directly) — meaning the
+  actor-join mechanism, while correctly implemented and exercised without error, has not yet
+  been proven against a real "found" case. This is a live-data-availability gap (no
+  authenticated browser session has triggered a business write since O-2 shipped), not a
+  defect in the join logic — flagged honestly rather than claimed as fully proven.
+
+**Frontend**, via a temporary dev-only diagnostic route (read-only, no session manipulation,
+deleted after use): exercised all nine `ObservabilityProvider` methods end-to-end through the
+real Next.js server runtime against the live backend — caught and fixed the two timezone bugs
+and the module-derivation gap documented above. Re-verified clean after both fixes.
+
+### Tests / TypeScript / ESLint / build
+
+`npx tsc --noEmit` and `npx eslint` on every changed/new frontend file (`redact.ts`,
+`serverProvider.ts`) are clean. `npm run build`'s TypeScript phase fails — but only on two
+pre-existing errors in the foreign, uncommitted Sales `delivery-notes/[name]/page.tsx` (`git
+diff --stat` confirms that file already had 32 lines of uncommitted changes before this
+package started); confirmed neither error references any O-10B file. This package's own
+files compile and lint clean in isolation; the full-project `build` command cannot pass until
+that unrelated in-progress work is either fixed or reverted by its own author — not this
+package's responsibility per the foreign-work-isolation rule. `python -m ast` confirms
+`observability.py` parses cleanly; no Python test framework exists in this repo to extend
+(mission §43 — no new framework introduced solely for this package).
+
+### O2-03 status (restated)
+
+Read-model impact investigated and partially, honestly improved (a trace can now show up to
+two real recorded events instead of always exactly one) — see the Phase 0/1 reconciliation
+above. True multi-call operation grouping remains open, deferred to O-10C/O-10F.
+
+### Backend truncation follow-up (O2-06/O2-07) status
+
+Fixed in this package — `log_operation` now truncates `actor_email`/`actor_full_name` to 255
+chars before persisting, matching the truncation already applied to `message`/`detail`/
+`operation`.
+
+### Known limitations / NEEDS_VERIFICATION carried forward
+
+- `ErrorEvent.status`/`Trace.status` have no native backing field — hardcoded defaults
+  (`"Open"` when an error exists, `"Resolved"` otherwise) rather than a real workflow state.
+  A future package could add real state tracking (a Ceylon Stack custom field/doctype) if
+  this becomes a real support-workflow need.
+- No dedicated "safe message" field exists separately from the technical `method`/`error`
+  text on Error Log — `userSafeMessage`/`operation` currently mirror the same (redacted)
+  value. A cleaner UX would need `log_operation` itself to accept and persist a distinct
+  human-safe summary, a write-side change out of this read-foundation package's scope.
+- Field labels in `AuditChange.fieldLabel` are raw fieldnames, not resolved DocField labels
+  (e.g. `"qty"` not `"Quantity"`) — would need a per-doctype DocField metadata lookup, scoped
+  out for now (cosmetic, not a safety/correctness gap).
+- The `severity`/`actor_email` filters on `list_errors` are `LIKE`-on-JSON-text matches
+  (DERIVED_SAFELY, not a real indexed column) — correct today because `metadata` is always
+  produced by this same module's `json.dumps()` with a fixed key order, but fragile if that
+  ever changes; a real backend package should eventually promote `severity` to its own
+  indexed field.
+- Live-verified that no real `Activity Log` row currently has a resolvable actor via the
+  `"Actor: Name <email>"` content-line parse — the join mechanism is unproven against a real
+  positive match (see Live verification above).
+- Retention — unchanged from O-9's own carried-forward note; still not addressed by this
+  package (out of scope — this package reads existing data, doesn't manage its lifecycle).
+
+### O-10C entry conditions
+
+O-10B's own scope (real read foundation: backend API, normalization, safe DTOs,
+`ServerObservabilityProvider`, live verification) is closed. O-10C can proceed to wire
+`ServerObservabilityProvider` into `provider.ts`'s `getObservabilityProvider()` for Error
+Explorer + Trace Detail specifically (per the mission's own suggested next-checkpoint scope),
+starting from a foundation that has already been live-tested end-to-end independently of any
+UI change — O-10C's job is the UI-facing swap and whatever screen-level adjustments (loading/
+error states, the "Demo data" badge removal, visual QA) that swap requires, not re-deriving
+the read architecture itself.
+
+**Sign-off:** `CLAUDE_HANDOFF` — see the full handoff message for the structured 50-point
+account. Not self-declared `ACCEPTED` — pending Niroshan's review and independent cross-review
+per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
+
+## 2026-09-24 � SALES-RETURN-1 Package Closed
+
+Implemented the Sales Return frontend flow (creating Sales Returns from existing Delivery Notes).
+- **Major capabilities added:** Delivery Note -> Sales Return, partial returns, multiple returns, remaining-return quantity calculation, negative ERPNext quantity transformation, batch/serial return handling, inbound stock reversal through native ERPNext behavior, and Sales Return UI identification.
+- **Review:** Independent review PASS. No blocking or non-blocking findings. TypeScript verification passed.
+- **Status:** SALES-RETURN-1 � IMPLEMENTED / REVIEW PASS / CLOSED
+- **Scope note:** Sales Invoice Return, Credit Note, customer refund, payment reversal, Purchase Return, and accounting reversal workflows remain OUTSIDE this package.

@@ -7,6 +7,7 @@ import { getSellingDefaults } from "@/lib/salesDefaults";
 import { parseLineRows, parseLineSelectionRows, type BatchSerialEntryInput } from "@/lib/lineRows";
 import { getConnections } from "@/lib/connections";
 import { addSerialBatchLedgers } from "@/lib/actions/batchSerialLookup";
+import { getReturnedQtyByDnDetail } from "@/lib/fulfillment";
 
 export type FormState = { error?: string } | undefined;
 
@@ -159,7 +160,7 @@ export async function attachBatchSerialBundles(deliveryNoteName: string, lines: 
           name: doc.name,
           posting_date: doc.posting_date,
           company: doc.company,
-          is_return: 0,
+          is_return: doc.is_return ?? 0,
         },
         warehouse,
       });
@@ -257,11 +258,10 @@ export async function submitDeliveryNoteAction(name: string): Promise<FormState>
  */
 export async function cancelDeliveryNoteAction(name: string): Promise<FormState> {
   const connections = await getConnections("Delivery Note", name);
-  const blockingInvoices = connections.find((c) => c.label === "Sales Invoice")?.submittedDocs ?? [];
-  if (blockingInvoices.length > 0) {
-    return {
-      error: `Cannot cancel — linked with Sales Invoice ${blockingInvoices.join(", ")}. Cancel that first.`,
-    };
+  const blockers = connections.filter((c) => c.submittedDocs && c.submittedDocs.length > 0);
+  if (blockers.length > 0) {
+    const messages = blockers.map((c) => `${c.label} (${c.submittedDocs!.join(", ")})`);
+    return { error: `Cannot cancel — linked with ${messages.join(", ")}. Cancel those first.` };
   }
 
   try {
@@ -461,5 +461,146 @@ export async function createDeliveryNoteFromSalesOrderAction(
 
   revalidatePath("/sales/delivery-notes");
   revalidatePath(`/sales/orders/${encodeURIComponent(salesOrderName)}`);
+  redirect(`/sales/delivery-notes/${encodeURIComponent(name)}`);
+}
+
+/**
+ * "Create Sales Return" from a Submitted Delivery Note.
+ * 
+ * Re-derives the lines from the live Delivery Note, validates requested return quantities 
+ * against what's remaining to return, and sets the is_return flag.
+ */
+export async function createSalesReturnAction(
+  deliveryNoteName: string,
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const selection = parseLineSelectionRows(formData, "items");
+  if (selection.length === 0) {
+    return { error: "Select at least one item and quantity to return." };
+  }
+
+  // Use dynamic import or require to avoid circular dependency if needed, but getReturnedQtyByDnDetail is in fulfillment
+  // Wait, we need getReturnedQtyByDnDetail from fulfillment.ts. 
+  // Let's import it at the top of the file!
+  
+  // Wait, we can't easily add the import in the same chunk. I'll just use a separate replace_file_content for imports.
+  // I will add the logic here.
+  let sourceDn: {
+    name: string;
+    customer: string;
+    company: string;
+    docstatus: number;
+    currency: string;
+    is_return?: 0 | 1;
+    selling_price_list: string;
+    price_list_currency: string;
+    customer_address?: string;
+    contact_person?: string;
+    shipping_address_name?: string;
+    territory?: string;
+    customer_group?: string;
+    tc_name?: string;
+    terms?: string;
+    items: {
+      name: string;
+      item_code: string;
+      item_name: string;
+      qty: number;
+      uom: string;
+      rate: number;
+      warehouse?: string;
+      against_sales_order?: string;
+      so_detail?: string;
+    }[];
+  };
+  
+  try {
+    sourceDn = await getDoc<any>("Delivery Note", deliveryNoteName);
+  } catch {
+    return { error: "Could not load the source delivery note." };
+  }
+
+  if (sourceDn.docstatus !== 1 || sourceDn.is_return === 1) {
+    return { error: `${deliveryNoteName} cannot be returned.` };
+  }
+
+  const returnedByRef = await getReturnedQtyByDnDetail(deliveryNoteName);
+  const returnItems = [];
+  const batchSerialByIndex: (BatchSerialEntryInput[] | undefined)[] = [];
+
+  for (const sel of selection) {
+    const item = sourceDn.items.find((i) => i.name === sel.reference);
+    if (!item) {
+      return { error: "One of the selected lines no longer exists on this delivery note — reload and try again." };
+    }
+    const remaining = item.qty - (returnedByRef[item.name] ?? 0);
+    if (sel.qty > remaining + 1e-6) {
+      return { error: `${item.item_code}: requested to return ${sel.qty} but only ${remaining} is returnable.` };
+    }
+    returnItems.push({
+      item_code: item.item_code,
+      item_name: item.item_name,
+      // Frappe expects negative quantities for Sales Returns
+      qty: -Math.abs(sel.qty),
+      uom: item.uom,
+      rate: item.rate,
+      conversion_factor: 1,
+      warehouse: item.warehouse || undefined,
+      against_sales_order: item.against_sales_order,
+      so_detail: item.so_detail,
+      dn_detail: item.name,
+    });
+    
+    // Pass batch/serial quantities as negative to match the item quantity
+    const batchEntries = sel.batchSerialEntries?.map(e => ({ ...e, qty: -Math.abs(e.qty) }));
+    batchSerialByIndex.push(batchEntries);
+  }
+
+  const fields = {
+    naming_series: "MAT-DN-.YYYY.-",
+    customer: sourceDn.customer,
+    posting_date: new Date().toISOString().slice(0, 10),
+    company: sourceDn.company,
+    currency: sourceDn.currency,
+    conversion_rate: 1,
+    selling_price_list: sourceDn.selling_price_list,
+    price_list_currency: sourceDn.price_list_currency,
+    plc_conversion_rate: 1,
+    customer_address: sourceDn.customer_address,
+    contact_person: sourceDn.contact_person,
+    shipping_address_name: sourceDn.shipping_address_name,
+    territory: sourceDn.territory,
+    customer_group: sourceDn.customer_group,
+    tc_name: sourceDn.tc_name,
+    terms: sourceDn.terms,
+    is_return: 1,
+    return_against: deliveryNoteName,
+    items: returnItems,
+  };
+
+  let name: string;
+  try {
+    const doc = await createDoc<{ name: string }>("Delivery Note", fields);
+    name = doc.name;
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+
+  try {
+    await attachBatchSerialBundles(
+      name,
+      returnItems.map((item, idx) => ({
+        item_code: item.item_code,
+        warehouse: item.warehouse,
+        batchSerialEntries: batchSerialByIndex[idx],
+      })),
+    );
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Failed to attach the batch/serial selection." };
+  }
+
+  revalidatePath("/sales/delivery-notes");
+  revalidatePath(`/sales/delivery-notes/${encodeURIComponent(deliveryNoteName)}`);
   redirect(`/sales/delivery-notes/${encodeURIComponent(name)}`);
 }

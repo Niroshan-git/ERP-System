@@ -23,8 +23,8 @@ type ConnectionConfig = {
   label: string;
   /** The doctype we actually list — permission is checked against this, not the child table. */
   parentDoctype: string;
-  /** The child-table doctype carrying the back-reference field, used only inside the filter tuple. */
-  childDoctype: string;
+  /** The child-table doctype carrying the back-reference field, used only inside the filter tuple. Omit if the back-reference is on the parent. */
+  childDoctype?: string;
   filterField: string;
   hrefBase: string;
   /**
@@ -34,7 +34,7 @@ type ConnectionConfig = {
    * Material Transfer / Manufacture entries for a clearer blocking message — every entry that
    * doesn't need this simply omits it, unaffected.
    */
-  extraFilters?: [string, string, string, string][];
+  extraFilters?: [string, string, string, string | number][];
 };
 
 /**
@@ -84,8 +84,30 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
       filterField: "sales_order",
       hrefBase: "/sales/pick-lists",
     },
+    {
+      label: "Material Request",
+      parentDoctype: "Material Request",
+      childDoctype: "Material Request Item",
+      filterField: "sales_order",
+      hrefBase: "/buying/material-requests",
+    },
+    {
+      label: "Purchase Order",
+      parentDoctype: "Purchase Order",
+      childDoctype: "Purchase Order Item",
+      filterField: "sales_order",
+      hrefBase: "/buying/purchase-orders",
+    },
   ],
-  "Sales Invoice": [],
+  "Sales Invoice": [
+    {
+      label: "Payment Entry",
+      parentDoctype: "Payment Entry",
+      childDoctype: "Payment Entry Reference",
+      filterField: "reference_name",
+      hrefBase: "/accounting/payment-entries",
+    },
+  ],
   // No downstream entry here for Delivery Note: Delivery Note Item carries no stored
   // back-reference to the Pick List it was picked through (confirmed via the live DocType
   // JSON — only `against_sales_order`/`so_detail`, the same fields set whether or not a
@@ -106,6 +128,21 @@ const CONNECTION_CONFIG: Record<string, ConnectionConfig[]> = {
       // which already used the correct field).
       filterField: "delivery_note",
       hrefBase: "/sales/invoices",
+    },
+    {
+      label: "Sales Return",
+      parentDoctype: "Delivery Note",
+      filterField: "return_against",
+      extraFilters: [["Delivery Note", "is_return", "=", 1]],
+      hrefBase: "/sales/delivery-notes",
+    },
+    {
+      label: "Stock Entry",
+      parentDoctype: "Stock Entry",
+      childDoctype: "Stock Entry Detail",
+      filterField: "delivery_note",
+      extraFilters: [["Stock Entry", "purpose", "=", "Sales Return"]],
+      hrefBase: "/stock/stock-entries",
     },
   ],
   // Buying cycle, Phase 4 (Material Request -> Request for Quotation -> Supplier
@@ -302,9 +339,12 @@ export async function getConnections(doctype: string, name: string): Promise<Con
   const results = await Promise.all(
     configs.map(async (config): Promise<Connection | null> => {
       try {
+        const filterClause = config.childDoctype
+          ? [config.childDoctype, config.filterField, "=", name]
+          : [config.parentDoctype, config.filterField, "=", name];
         const rows = await listDocs<{ name: string; docstatus: number }>(config.parentDoctype, {
           fields: ["name", "docstatus"],
-          filters: [[config.childDoctype, config.filterField, "=", name], ...(config.extraFilters ?? [])],
+          filters: [filterClause, ...(config.extraFilters ?? [])],
           limit: 500,
         });
         const docs = Array.from(new Set(rows.map((r) => r.name))).sort();
