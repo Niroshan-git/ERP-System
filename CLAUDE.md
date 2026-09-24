@@ -86,6 +86,24 @@ sub-packages FIN-1G-A (ERPNext discovery) through FIN-1G-G (cross-module GL veri
 mission brief's own sequencing rule ("do not skip A/B and jump directly to UI") — see
 `docs/backend/06-accounting/account-determination.md` once FIN-1G-A/B land.
 
+**Updated 2026-09-25 (package `FIN-1G-C`):** FIN-1G-A/B discovery (commit `a64a6c0`) and its
+independent review (commit `bd860bf`) are both closed — gate result `SAFE TO START FIN-1G-C: YES`
+per `docs/backend/06-accounting/account-determination.md` §"Control gate". Niroshan's session brief
+for FIN-1G-C was scoped far wider than that gate's own definition of the package (it bundled in
+inheritance UX, the Effective Account/"Why This Account?" explainer, the configuration-health
+engine, Inventory Mode A/B, the Fixed Asset branch, Receivable/Payable posting-dependent handling,
+Tax UX, a reusable account selector, deep links, and a setup-assistant foundation — i.e. the scope
+`account-determination.md` §14 splits across `FIN-1G-C` through `FIN-1G-G`). Flagged as a conflict
+with `AGENT_USAGE_POLICY.md` §8 (same shape as its own "build the whole module" invalid-package
+example) and confirmed with Niroshan before implementation started: this session builds **only**
+the narrow `FIN-1G-C` scope `account-determination.md` §14 defines — the Company-level Account
+Determination workspace (navigation foundation + read/edit for the Company fields in §2, organized
+by domain, with a derived, non-hardcoded Simple Setup summary). `FIN-1G-D` (Item/Item
+Group/Brand/Customer/Supplier inheritance UX), `FIN-1G-E` (Effective Account + "Why This
+Account?"), `FIN-1G-F` (configuration health engine), and `FIN-1G-G` (cross-module GL
+verification) remain separate, not-yet-authorized future packages — this note does not authorize
+them. **FIN-2 remains not authorized** and FIN-1G-C does not unblock it.
+
 1. **Finance V1 — primary stream.** FIN-0 (architecture/discovery) CLOSED 2026-09-24. Canonical
    sequence: FIN-1 (Chart of Accounts read + Bank Account CRUD) → FIN-2 (Payment Entry + AR/AP
    visibility) → FIN-3 (Journal Entry) → FIN-4 (General Ledger / Trial Balance / Profit & Loss /
@@ -131,11 +149,12 @@ A package is not complete until all of the following happen — this is the proj
 3. **`QA_LOG.md`** updated with what was tested and its result.
 4. **`PROGRESS.md`** updated with what actually changed.
 5. **`docs/backend/`** updated per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` for any meaningful ERP frontend feature — canonical field mapping, relationships, business rules, stock/accounting impact, or an explicit `NEEDS_VERIFICATION` flag in `99-unverified/`.
-6. **`docs/ceylon-stack-documentation.html`** status labels/changelog updated when a feature or phase ships — via the `release-tracker` subagent, not by hand.
-7. **Notion "Smart Factory on ERPNext – Weekly Implementation Plan"** synced for remaining/newly-scoped tasks — also via `release-tracker`.
-8. **Committed to GitHub** with a clear commit message. Work isn't done while it only exists as uncommitted changes.
+6. **`docs/product/`** updated for any meaningful **user-facing** ERP feature (a new business document, a new lifecycle action, a changed prerequisite/configuration step) — per the schema in `docs/tools/generate-docs.js`'s `SECTION_MODES` table (frontmatter + `## Section` markdown, see any existing file under `docs/product/` for the pattern). Not every package needs this — a package that only changes something already covered by an existing `docs/product/` page, or that has no end-user-visible surface (internal refactor, review-only, ops), records **Documentation Impact: NONE** instead of skipping the question silently.
+7. **`docs/ceylon-stack-documentation.html`** regenerated (`node docs/tools/generate-docs.js`, then `node docs/tools/validate-docs.js`) whenever `docs/product/` changed, and its Release Log status labels/changelog (`docs/tools/templates/release-log-content.html`, `release-log-nav.html`, `last-updated.txt`) updated when a feature or phase ships — via the `release-tracker` subagent, not by hand. Never hand-edit the generated HTML file directly; it's a build artifact of the templates + `docs/product/` + `docs/backend/`, regenerated from source every time — see ADR-008 in `docs/architecture/decisions/README.md`.
+8. **Notion "Smart Factory on ERPNext – Weekly Implementation Plan"** synced for remaining/newly-scoped tasks — also via `release-tracker`.
+9. **Committed to GitHub** with a clear commit message. Work isn't done while it only exists as uncommitted changes.
 
-Skipping any of these for a package that touches a core flow is a policy violation, not a shortcut — see `docs/controls/AGENT_USAGE_POLICY.md` §6/§12.
+Skipping any of these for a package that touches a core flow is a policy violation, not a shortcut — see `docs/controls/AGENT_USAGE_POLICY.md` §6/§12. When closing a package, name the Documentation Impact explicitly (Module Overview / User Guide / Configuration / Process Flow / Lifecycle / Stock Impact / Accounting Impact / Technical Reference — each `UPDATED` or `N/A`, plus `HTML Regenerated: YES` and `Documentation Validation: PASS`) rather than a bare "documentation updated."
 
 ### Enforcement
 
@@ -202,7 +221,8 @@ finalized yet, so don't assume that URL is still current once that happens.
 - This is being built by one person (Niroshan) with a background in SAP B1/Odoo/Acumatica ERP consulting, Power BI, and Python/PySpark — technical explanations can assume real development literacy, but Frappe/ERPNext-specific concepts (DocTypes, bench, hooks) may still need to be explained since that framework is new territory.
 - **Any work on `apps/frontend` must follow `docs/controls/FRONTEND_GUIDE.md`.** It's the binding ruleset for the API layer (`lib/erpnext.ts` is the only place that calls ERPNext), the list/form/document pattern, component reuse (extend the existing 54 components, don't fork new ones), and the per-document Definition of Done. `frontend-dev`, `product-designer`, `code-reviewer`, and `qa-tester` should treat it as ground truth for anything touching the frontend. **The module build order is superseded by the Current Mission priority lock above** (Sales → Inventory MVP → Buying → Manufacturing) — treat that as current, not the order implied elsewhere in this or other docs.
 - **`docs/controls/DEVELOPMENT_SYSTEM_RULES.md` and `docs/controls/AGENT_USAGE_POLICY.md` are binding project-wide**, not just for frontend work — they govern architecture/sequencing and session/subagent discipline respectively for every part of the monorepo.
-- **Whenever a feature or plan phase is fully shipped and verified, invoke the `release-tracker` subagent before considering the task done.** It updates `docs/ceylon-stack-documentation.html`'s Live/Building/Planned status labels and changelog, and syncs the Notion "Smart Factory on ERPNext – Weekly Implementation Plan" page (checks off completed tasks, adds newly-scoped ones) — both documents are expected to stay current, not just checked back into every few days.
+- **Whenever a feature or plan phase is fully shipped and verified, invoke the `release-tracker` subagent before considering the task done.** It updates the Release Log templates (`docs/tools/templates/release-log-content.html`/`release-log-nav.html`/`last-updated.txt`) that feed `docs/ceylon-stack-documentation.html`'s Live/Building/Planned status labels and changelog, regenerates the HTML (`node docs/tools/generate-docs.js`), and syncs the Notion "Smart Factory on ERPNext – Weekly Implementation Plan" page (checks off completed tasks, adds newly-scoped ones) — both documents are expected to stay current, not just checked back into every few days.
+- **`docs/ceylon-stack-documentation.html` is a generated build artifact, not a source file** (since DOCS-HELP-1, 2026-09-25) — never hand-edit it directly. Its sources are `docs/tools/templates/` (Release Log, owned by `release-tracker`), `docs/product/` (Product/Implementation Guide markdown, owned by whichever package ships the user-facing feature), and `docs/backend/` (Technical Architecture, owned by `BACKEND_KNOWLEDGE_POLICY.md`). Regenerate with `node docs/tools/generate-docs.js` and check with `node docs/tools/validate-docs.js` after touching any of those three. See ADR-008 in `docs/architecture/decisions/README.md`.
 
 ## graphify — Codebase Knowledge Graph
 

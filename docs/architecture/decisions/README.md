@@ -99,6 +99,62 @@ not a documentation defect.
 `lib/erpnext.ts` remains doctype-parameterized; no master entity has been duplicated by any of the
 domain packages that shipped this ADR's ownership model.
 
+## ADR-008 — `docs/ceylon-stack-documentation.html` is a generated artifact, not a source file
+
+**Status:** Accepted, active. Recorded 2026-09-25 (package `DOCS-HELP-1`).
+
+**Decision:** `docs/ceylon-stack-documentation.html` moved from a single hand-edited HTML file to
+a markdown-driven pipeline (`node docs/tools/generate-docs.js`), with three source inputs:
+
+1. `docs/tools/templates/` — the pre-existing Release Log content (Live Today/Upcoming/Reference/
+   Changelog), migrated verbatim, unchanged in substance or editing pattern — still owned and
+   hand-edited by the `release-tracker` subagent the same way it always was, just at a different
+   file path. This preserves the one part of the old system that was already working well,
+   per the mission's explicit instruction not to build a second, disconnected documentation
+   system.
+2. `docs/product/` — new markdown source of truth for the Product Guide (how to use a business
+   document) and Implementation Guide (what must be configured first) layers, using a standard
+   schema (YAML frontmatter + `## Section` headers, parsed by `SECTION_MODES` in the generator).
+   Organized by module folder (`getting-started/`, `sales/`, `manufacturing/`, `crm/`, `finance/`,
+   etc.), matching the target navigation IA.
+3. `docs/backend/` — unchanged. Remains the sole Technical Architecture source (per
+   `BACKEND_KNOWLEDGE_POLICY.md`); the generator only indexes it (domain folder → files), it does
+   not parse or duplicate its content into the generated HTML.
+
+**Why this shape, not a bigger rewrite:** the alternative considered was fully migrating the
+Release Log's ~250 lines of dense, chronological engineering narrative into the new structured
+per-document schema. Rejected — that content is a changelog, not stable per-feature
+documentation; forcing it into `## Prerequisites`/`## Lifecycle`-shaped sections would have been
+busywork with real fabrication risk (dates, commit hashes, and caveats are exact and load-bearing)
+for no reader benefit. The two content types (living process documentation vs. dated release
+history) are allowed to stay structurally different; they're unified only by shared visual design
+and a shared page.
+
+**Why generated, not another hand-edited file:** `docs/product/` content needs mode-tab filtering
+(Product/Implementation/Technical), client-side search, and graceful empty-section hiding — all
+practical to do from structured markdown + a small deterministic generator, impractical to keep
+hand-consistent across dozens of future documents edited by different sessions over time. The
+generator is a zero-dependency Node script (`docs/tools/generate-docs.js` /
+`docs/tools/validate-docs.js`) — no build toolchain, no npm install, consistent with "lowest
+long-term maintenance cost" for a one-person project.
+
+**What this does not change:** `docs/backend/`'s structure, ownership, or `BACKEND_KNOWLEDGE_POLICY.md`
+itself; the Release Log's editing house-style; the Current Mission priority lock or any package's
+scope. `CLAUDE.md`'s Package Closure Rules gained one new item (`docs/product/` updated for
+user-facing features, or `Documentation Impact: NONE` recorded) and the existing HTML-update item
+now points at the generator instead of direct edits.
+
+**Known gap, not fabricated as complete:** `docs/product/` coverage is intentionally partial as of
+this ADR — Getting Started, Master Data (overview only), CRM (overview + Lead), Sales (overview +
+Quotation), Purchasing (overview only), Inventory (overview only), Manufacturing (overview + Work
+Order), and Finance (overview only). Most business documents (Sales Order, Delivery Note, Sales
+Invoice, BOM, Material Transfer, Complete Production, Job Card, Production Plan, Opportunity, Bank
+Account, Chart of Accounts, every Purchasing/Inventory document) do not yet have their own
+`docs/product/` page — they remain covered only by the Release Log and `docs/backend/`. Recommended
+`DOCS-HELP-2` scope: extend `docs/product/` coverage one shipped document at a time, ideally as
+part of each future package's own Documentation Impact step rather than a single large backfill
+pass.
+
 **Does not yet decide:** whether Customer and Supplier are unified into a single canonical
 "Business Partner" concept. The shipped "Business Partner domain" package only grouped Customer and
 Supplier under one Sidebar section and route prefix — it did not unify them at the data or

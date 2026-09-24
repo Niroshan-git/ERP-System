@@ -5761,3 +5761,123 @@ explicitly before starting `FIN-1G-C`. Two `NEEDS_VERIFICATION` items also remai
 (accounting-dimension interaction with account resolution; whether the single-Stock-account
 auto-fallback has ever fired on this tenant) — see the doc's §12. Recommended next package:
 `FIN-1G-C` (Company/predefined Account Determination workspace), pending that review.
+
+## `DOCS-HELP-1` — Product Documentation Architecture & Auto-Generation (2026-09-25)
+
+**Mission:** upgrade `docs/ceylon-stack-documentation.html` from a hand-edited architecture/
+progress page into the foundation of a real Ceylon Stack Product Guide / Help Center, without
+disconnecting from the existing, already-working documentation system — full brief given directly
+by Niroshan as a standalone documentation-infrastructure package, orthogonal to the Current
+Mission priority lock (not Finance, not CRM; a governance/tooling package in the "Later
+architecture programs" sense, authorized by being handed the brief directly).
+
+**Discovery (Phase A):** `docs/ceylon-stack-documentation.html` was a single 504-line hand-edited
+HTML file — no generator, no markdown source of truth. The `release-tracker` subagent edited it
+directly (find the matching `<li>`, flip its status class, append a changelog row). It functioned
+as an internal architecture/progress/changelog page (audience: Niroshan + agents), not an
+end-user product guide — no "how to create a Quotation"-style content existed anywhere in the
+repo. `docs/backend/` already served as a mature, real Technical Architecture layer (per
+`BACKEND_KNOWLEDGE_POLICY.md`) — not to be duplicated. No `docs/product/` layer existed.
+
+**Architecture decision (Phase B):** recorded as ADR-008 in `docs/architecture/decisions/README.md`.
+Summary: introduce `docs/product/` as markdown source of truth for a new Product Guide +
+Implementation Guide layer (schema: YAML frontmatter + `## Section` headers); leave `docs/backend/`
+untouched as the Technical Architecture source, indexed (not parsed/duplicated) by the generator;
+migrate the existing Release Log content (Live Today/Upcoming/Reference/Changelog) **verbatim**
+into `docs/tools/templates/release-log-{content,nav}.html` + `last-updated.txt` — still owned and
+hand-edited by `release-tracker` exactly as before, just relocated — rather than force ~250 lines
+of dated engineering changelog prose into the new structured per-document schema (real
+fabrication risk, no reader benefit). A new zero-dependency Node generator
+(`docs/tools/generate-docs.js`) combines all three sources into the final HTML; a companion
+validator (`docs/tools/validate-docs.js`) checks frontmatter completeness, `backend_doc` path
+existence, docId/anchor-id uniqueness, and internal link resolution.
+
+**Generator (Phase C):** `docs/tools/generate-docs.js` — parses `docs/product/**/*.md`
+(frontmatter + `## Section` bodies), renders each into a `<section>` with doc-meta pills
+(route/entity/backend-doc-link/last-verified), mode-tagged `.doc-section` blocks
+(`data-modes="product implementation technical"`, per a fixed `SECTION_MODES` table), special
+renderers for ` ```flow ` (process-flow diagrams) and ` ```config ` (Required/Conditional/
+Optional/Needs-Verification badge groups) fences, and a collapsible `<details>` wrapper for
+Technical Reference sections. Builds a client-side search index (title/module/section/stripped
+body text) embedded inline in the output HTML — no server, stays fully static/portable. Indexes
+every `docs/backend/` domain folder (with or without a `README.md`) into a generated Technical
+Architecture page rather than requiring one to exist first.
+
+**UI (Phase D):** preserved the existing visual design system (Fraunces/Archivo/IBM Plex, card/
+pill/callout/status components, light+dark theme) unchanged. Added: four mode tabs (All/Product
+Guide/Implementation/Technical) filtering `.doc-section` visibility site-wide via a `data-mode`
+attribute on `<body>`; legacy Release Log content has no `data-modes` attribute so it's unaffected
+by mode filtering and always visible; a client-side search box (substring match over the embedded
+index, dropdown results linking to section anchors); a restructured, module-grouped sidebar
+(Getting Started → Master Data → CRM → Sales → Purchasing → Inventory → Manufacturing → Finance →
+Release Log → Technical Architecture).
+
+**Governance (Phase E):** `CLAUDE.md`'s Package Closure Rules gained a new item 6 (`docs/product/`
+updated for meaningful user-facing features, or `Documentation Impact: NONE` recorded explicitly)
+and the former HTML-update item now points at the generator/validator instead of direct edits,
+with an explicit "never hand-edit the generated HTML" rule added to the Ground Rules section.
+`release-tracker.md` rewritten to edit the relocated template files and run
+`generate-docs.js`/`validate-docs.js` before reporting a package done, and to flag (not edit)
+`docs/product/` pages that may need a status update for the feature it's recording.
+
+**Migration (Phase F, deliberately partial — not fabricated as complete):** `docs/product/`
+authored for: Getting Started (Product Overview, Architecture — migrated from the old HTML's
+Overview/How-to-read/Architecture sections, not duplicated), Master Data (overview only), CRM
+(overview + Lead flagship), Sales (overview + **Quotation flagship**, the fullest schema example —
+grounded in `docs/backend/02-sales/quotation.md`'s real field mapping/lifecycle/conversion
+contract), Purchasing (overview only), Inventory (overview only), Manufacturing (overview +
+**Work Order flagship**, grounded in `docs/backend/05-manufacturing/work-order.md`, including its
+real `NEEDS_VERIFICATION` accounting-impact status carried through honestly rather than invented),
+Finance (overview only, careful not to imply Payment Entry/Journal Entry/GL reports exist — `FIN-2`
+still not authorized). 12 markdown files, 104 search index entries. Most individual business
+documents (Sales Order, Delivery Note, Sales Invoice, BOM, Material Transfer, Job Card, Production
+Plan, Opportunity, Bank Account, Chart of Accounts, every Purchasing/Inventory document) do not
+yet have their own `docs/product/` page — recommended `DOCS-HELP-2` scope, extending coverage one
+shipped document at a time as part of each future package's own Documentation Impact step.
+
+**Validation (Phase G):** `node docs/tools/validate-docs.js` — 0 errors, 0 warnings, both before
+and after generation (frontmatter completeness, `backend_doc` existence, docId uniqueness,
+generated-HTML duplicate-anchor-id check).
+
+**Code review:** `code-reviewer` ran against `generate-docs.js`/`validate-docs.js`, sanity-checked
+the parser against real `docs/product/` input rather than just reading the code, and returned
+**CHANGES REQUIRED** — two real, currently-visible rendering bugs and two genuine latent
+XSS-shaped gaps, all fixed same session before this package is treated as closed:
+1. Wrapped/soft-wrapped bullet-list continuation lines silently degraded to a plain paragraph
+   with literal `-` characters (`getting-started/overview.md`'s "Purpose" section, confirmed in
+   the actual generated output). Fixed: `mdToHtml()`'s list detector rewritten as a proper
+   `splitListItems()` grouping pass (a line starting with `-`/`N.` begins a new item; any
+   following non-matching line is a soft-wrap continuation of that item, not a separate line).
+2. `> [!INFO]`/`> [!WARN]` blockquote-admonition syntax (used in the same file) was never
+   implemented — only the fenced `` ```callout:type ``` `` form was, so those lines rendered as
+   literal escaped text. Fixed: added blockquote-admonition parsing to `mdToHtml()`, both syntaxes
+   now work.
+3. That same file's status-legend misused the `` ```config ``` `` fence (built for short
+   comma-separated Required/Conditional/Optional badge lists) for full sentences — one oversized
+   badge per line. Fixed at the source: replaced with a plain bullet list.
+4. `esc()` never escaped `"`/`'`, and a custom `slug:` frontmatter value was used verbatim (not
+   through `slugify()`) as an HTML `id` attribute — a latent attribute-breakout gap for a future
+   author, not triggered by any current content. Fixed: `esc()` now escapes quotes; `docId`
+   always runs through `slugify()` even when `slug:` is set; `validate-docs.js` gained a
+   `^[a-z0-9-]+$` format check on `slug:` to catch it at the source too.
+5. The client-side search index is `JSON.stringify`'d into an inline `<script>` tag (no
+   `</script>`-sequence neutralization) and rendered client-side via raw string-concatenated
+   `innerHTML` (no escaping) — a real, reachable XSS-shaped gap the first time a doc title/heading
+   contains `<`/`>` (not triggered by current content, but plausible for future pasted-snippet
+   headings). Fixed: added `jsonForScript()` (escapes `<` as `<` before embedding) and an
+   `escapeHtml()` helper in `shell.html`'s search-result renderer, plus a hrefs-are-anchors-only
+   sanitizer as defense in depth.
+
+Regenerated and re-validated after every fix (`node docs/tools/validate-docs.js` — 0 errors, 0
+warnings) and spot-checked the actual output confirms all five fixes render correctly (proper
+`<ul>`, proper `.callout info`/`.callout warn` divs, correctly quote-escaped text, unbroken script
+embed). `graphify --update --code-only` re-run after the fixes.
+
+**Status:** implementation-complete, code-reviewed with all findings fixed and verified against
+real generated output, generator/validator both passing (0 errors, 0 warnings). This is a
+documentation-infrastructure package with no ERPNext-facing behavior change — `qa-tester` in the
+usual live-ERPNext sense does not apply. Known disclosed gap: the 75 changed/new `docs/`/`.md`
+files were refreshed in graphify at the AST/structural level only (`--code-only`) — full semantic
+re-extraction of the new `docs/product/` content needs an LLM key or the full `/graphify` skill
+flow (multi-subagent dispatch), not run this session to control cost; graphify is advisory/
+non-binding per `CLAUDE.md` so this does not block closure, but a future session should run it.
