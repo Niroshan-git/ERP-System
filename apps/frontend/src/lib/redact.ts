@@ -21,7 +21,14 @@ const PATTERNS: RegExp[] = [
   /\btoken\s+[A-Za-z0-9:_-]{8,}/gi,
   /\bBearer\s+[A-Za-z0-9._-]{8,}/gi,
   /\bceylon_session=[^;\s]+/gi,
-  /\b(password|secret|api[-_]?key|api[-_]?secret)["']?\s*[:=]\s*["']?\S+/gi,
+  // access_token/refresh_token in "bare word + value" shape (e.g. an OAuth response body
+  // echoed verbatim into a diagnostic string: "access_token eyJhbGc..."), same shape as the
+  // token/Bearer patterns above — a key=value form alone (below) would miss this, since there's
+  // no `:`/`=` separator here. O-10B §20 explicitly names access_token/refresh_token; live-
+  // verified 2026-09-24 that the pre-existing password|secret|api-key alternation did not cover
+  // either word in any shape.
+  /\b(?:access|refresh)[-_]?token\s+[A-Za-z0-9._-]{8,}/gi,
+  /\b(password|secret|api[-_]?key|api[-_]?secret|access[-_]?token|refresh[-_]?token)["']?\s*[:=]\s*["']?\S+/gi,
 ];
 
 export function redactString(value: string): string {
