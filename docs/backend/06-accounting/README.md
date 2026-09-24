@@ -9,7 +9,7 @@ frontend screens — see `docs/backend/15-migration/migration-status.md` for the
 row. `FIN-1F` (owner-authorized SAP Business One-inspired CoA UX enhancement, split into
 sub-packages FIN-1F-1..4) is layered on top without reopening FIN-1/FIN-1E.
 
-This folder now holds four documents, per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` §4:
+This folder now holds five documents, per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md` §4:
 
 - [`finance-architecture.md`](finance-architecture.md) — FIN-0 discovery/architecture package
   (2026-09-24): live ERPNext v16 Finance doctype inventory, existing frontend footprint audit,
@@ -32,6 +32,16 @@ This folder now holds four documents, per `docs/controls/BACKEND_KNOWLEDGE_POLIC
   Active/Level concept mapping onto ERPNext's `Account` doctype (derived only, no new fields),
   and where Ceylon Stack intentionally differs from SAP B1. Read this before touching the Chart
   of Accounts page for any FIN-1F sub-package.
+- [`account-determination.md`](account-determination.md) — **`FIN-1G-A`/`FIN-1G-B` package**
+  (2026-09-25): the canonical G/L account-resolution reference — for every accounting role
+  (revenue, expense/COGS, receivable, payable, inventory, cost center, tax, manufacturing WIP/FG/
+  operating cost), the exact ERPNext 16.34.2 source-verified resolution order across Company →
+  Item/Item Group/Brand → Customer/Customer Group/Supplier/Supplier Group → Warehouse. Corrects
+  several of the `FIN-1G` brief's own working assumptions (e.g. Item Group/Customer Group have no
+  direct Account fields — they share per-company `Item Default`/`Party Account` child tables;
+  `default_cogs_account` is real and used, not vestigial). Read this before building any
+  `FIN-1G-C` onward UI (Account Determination workspace, Effective Account/"Why This Account?"
+  explainer) — it's the primary input, not something to re-derive.
 
 ## Reading order for a future implementation package (FIN-2 onward)
 

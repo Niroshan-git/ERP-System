@@ -71,6 +71,21 @@ own `code-reviewer` pass) — see `PROGRESS.md`'s `CRM-2` entry for the full seq
 packages should record their dated authorization note here **before** implementation starts, matching
 `CRM-1`'s own precedent, not after.
 
+**Updated 2026-09-25 (package `FIN-1G`):** Niroshan explicitly authorized `FIN-1G — Account
+Determination & Predefined Accounts` — the accounting configuration layer connecting Company,
+Item/Item Group, Customer/Customer Group, Supplier/Supplier Group, Warehouse, and Tax to the G/L
+accounts that Sales/Buying/Inventory/Manufacturing transactions post to, plus an "Effective
+Account" / "Why This Account?" explanation layer. This is an extension layered on top of the
+already-`ACCEPTED` Chart of Accounts (`FIN-1`/`FIN-1E`/`FIN-1F`) — same relationship FIN-1F had to
+FIN-1 — not a reordering of the Finance V1 sequence below. **FIN-2 (Payment Entry + AR/AP
+visibility) remains not authorized** and FIN-1G does not unblock it; FIN-1G explicitly excludes
+Payment Entry, Journal Entry, AR/AP workspace, financial statements, bank reconciliation, and any
+custom GL/posting engine (ERPNext stays the sole accounting authority — Ceylon Stack provides
+configuration UX/visibility/explanation only, never independent posting logic). Runs as internal
+sub-packages FIN-1G-A (ERPNext discovery) through FIN-1G-G (cross-module GL verification), per the
+mission brief's own sequencing rule ("do not skip A/B and jump directly to UI") — see
+`docs/backend/06-accounting/account-determination.md` once FIN-1G-A/B land.
+
 1. **Finance V1 — primary stream.** FIN-0 (architecture/discovery) CLOSED 2026-09-24. Canonical
    sequence: FIN-1 (Chart of Accounts read + Bank Account CRUD) → FIN-2 (Payment Entry + AR/AP
    visibility) → FIN-3 (Journal Entry) → FIN-4 (General Ledger / Trial Balance / Profit & Loss /

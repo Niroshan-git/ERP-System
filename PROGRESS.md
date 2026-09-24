@@ -5703,3 +5703,61 @@ resolved same session), QA'd to the extent this session's access allowed. **Not 
 `CRM-UNV-010`'s live-mutation gap remains open for a future session with real browser/write-credential
 access to close. `CRM-3` (Activities & Follow-ups) is **not started, not authorized by this package**;
 Finance V1 remains the priority-lock stream for any session not specifically working CRM.
+
+## `FIN-1G-A`/`FIN-1G-B` — Account Determination discovery + canonical matrix (2026-09-25)
+
+**Authorization:** Niroshan issued a dedicated `FIN-1G` mission brief (`Account Determination &
+Predefined Accounts`) — layered on top of the already-`ACCEPTED` Chart of Accounts (`FIN-1`/
+`FIN-1E`/`FIN-1F`), same relationship `FIN-1F` had to `FIN-1`. `CLAUDE.md`'s Current Mission lock
+was updated with the dated authorization note **before** any implementation started, per the
+`CRM-2` precedent/correction (see that entry's "First gate" and the standing `Authorization
+write-back timing` lesson). `FIN-2` (Payment Entry + AR/AP) remains explicitly not authorized and
+is unaffected.
+
+**Scope this session:** discovery only (`FIN-1G-A`) + the canonical determination matrix
+(`FIN-1G-B`), per the brief's own sequencing rule ("do not skip A/B and jump directly to UI") and
+this project's one-package-per-session discipline. No frontend code was written. `FIN-1G-C`
+onward (workspace UI, master-data inheritance UX, Effective Account/"Why This Account?" explainer,
+configuration health check, cross-module GL verification) are separate, not-yet-started
+sub-packages.
+
+**Method:** live DocType field schema for the full determination hierarchy (Company, Item, Item
+Group, `Item Default`, Customer, Customer Group, Supplier, Supplier Group, `Party Account`,
+Warehouse, tax templates, Mode of Payment, Work Order, BOM) queried directly via the `ceylon-stack`
+MCP server against the real Hetzner tenant. Resolution-order logic (which level wins when more
+than one is configured) verified by a dedicated `devops` subagent reading the actual ERPNext
+16.34.2 Python source live off the server (`erpnext/stock/get_item_details.py`,
+`erpnext/accounts/party.py`, `erpnext/stock/__init__.py`, `erpnext/controllers/stock_controller.py`,
+`erpnext/manufacturing/doctype/bom/bom.py`, etc. — exact file:line citations in the doc), plus a
+read-only `bench console` pass confirming live config/data counts. No files were written to the
+server, no live data was modified.
+
+**Output:** `docs/backend/06-accounting/account-determination.md` — the canonical G/L
+account-resolution reference for revenue, expense/COGS, receivable, payable, inventory/warehouse,
+cost center, tax, and manufacturing WIP/FG/operating-cost roles. Corrects several of the brief's
+own working assumptions once checked against this specific ERPNext version: Item Group/Customer
+Group/Supplier Group have **no direct Account fields** — Item Group/Item/Brand share one
+per-company `Item Default` child table, Customer Group/Customer/Supplier Group/Supplier share one
+per-company `Party Account` child table; `default_cogs_account` is genuinely used for Sales
+Invoice/Delivery Note COGS postings (not vestigial, as the Stock Entry GL evidence in
+`finance-architecture.md` §20 might have suggested); `expenses_added_to_stock_account` is
+Item-Default-overridable (not Company-only, as the brief assumed); Warehouse account resolution
+has two **entirely different** code paths depending on Company
+`enable_item_wise_inventory_account`, not just a different fallback order.
+
+**Real live-config gap found (flagged for Niroshan, not fixed in this package):** Company "Ceylon
+Stack" has `default_wip_warehouse` and `default_fg_warehouse` both unset — new Work Orders
+currently require manually picking WIP/FG warehouses each time or will error. This is exactly the
+kind of gap the future `FIN-1G-F` configuration health check should surface automatically.
+
+**Status:** `DOCUMENTED`, discovery/architecture only — no frontend/backend code changed, so no
+`code-reviewer`/`qa-tester` pass in the usual implementation sense. Per the brief's own §45/§46
+requirement (mirrors `FIN-0`'s own precedent), this package's resolution-order findings and
+determination matrix still need an **independent review** before `FIN-1G-C` onward UI work treats
+them as unconditionally settled — the findings are extensively source-cited (exact file:line per
+claim) but were gathered by a single subagent pass in this session, not cross-checked by a second
+independent agent/session. **Independent review: requested, not yet performed** — flag this
+explicitly before starting `FIN-1G-C`. Two `NEEDS_VERIFICATION` items also remain
+(accounting-dimension interaction with account resolution; whether the single-Stock-account
+auto-fallback has ever fired on this tenant) — see the doc's §12. Recommended next package:
+`FIN-1G-C` (Company/predefined Account Determination workspace), pending that review.
