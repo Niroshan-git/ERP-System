@@ -810,3 +810,69 @@ erpnext.ts`, `apps/frontend/src/app/api/auth/forgot-password/`, `docs/ceylon-sta
 documentation.html`, `docs/brand/package/ceylonstack-login.html` — and pre-existing Master
 Data/relationship doc edits) were re-confirmed present, untouched, and unstaged both before
 and after this package's implementation work, and are excluded from this package's commit.
+
+## O-10B: Real read foundation (implemented 2026-09-24)
+
+**Full account (verified source matrix, field provenance, live verification evidence,
+O2-01–O2-07 reconciliation, bugs caught by live testing, known limitations, O-10C entry
+conditions) lives in `PROGRESS.md`'s "O-10B" entry — this section is the architecture-level
+summary, not a duplicate.**
+
+Builds the trusted server-side Observability *read* architecture behind the existing
+`ObservabilityProvider` seam, per the target architecture the O-10B mission brief specified:
+
+```text
+Observability UI (unchanged)
+        v
+ObservabilityProvider (provider.ts, unchanged — still returns demoProvider.ts)
+        v
+ServerObservabilityProvider (NEW — lib/observabilityCenter/serverProvider.ts)
+        v
+smart_factory.api.observability.{list_errors,get_trace,get_technical_details,
+                                  list_activity,list_audit}  (NEW backend read methods)
+        v
+Error Log / Activity Log / Version (native Frappe stores)
+```
+
+**What changed:**
+- `apps/smart_factory/smart_factory/api/observability.py` — five new whitelisted read
+  methods, plus a fix for the O2-06/O2-07 `actor_full_name`/`actor_email` truncation gap
+  carried forward since O-2. Deployed live via the `deploy-smart-factory` skill.
+- `apps/frontend/src/lib/observabilityCenter/serverProvider.ts` (new) — the real
+  `ObservabilityProvider` implementation: normalization (native row -> typed DTO), safe-DTO
+  boundary, read-time redaction, pagination/filter validation, honest failure behavior.
+- `apps/frontend/src/lib/redact.ts` — widened to cover `access_token`/`refresh_token`, a real
+  gap found by re-verifying O2-01 against the mission's own checklist rather than trusting the
+  prior "already resolved" note.
+
+**What deliberately did not change:** `provider.ts`'s `getObservabilityProvider()` — every
+screen under `/admin/observability/*` still reads `demoProvider.ts`, unchanged. This is the
+O-10B/O-10C package boundary, not an oversight (see PROGRESS.md's "Provider selection"
+section for the full reasoning).
+
+**Why this is trustworthy, not just plausible:** every backend method and every frontend
+normalization function is live-tested against the real Hetzner instance (not assumed from
+reading Frappe's docs or this codebase's own prior claims) — see PROGRESS.md's "Live
+verification" section for the full test list, including two real bugs (a Frappe aggregate-
+query rejection, a site-timezone mismatch) this testing caught and fixed before they could
+reach a screen.
+
+### LIVE / DEMO / WAITING_FOR_BACKEND after O-10B
+
+- **LIVE (as backend/infrastructure, not yet UI-visible):** the five-method trusted read API,
+  `ServerObservabilityProvider`'s normalization and safe-DTO boundary, server-side pagination/
+  filtering/sorting, redaction (two independent passes), trace composition (Error Log +
+  Activity Log join).
+- **Still DEMO (unchanged):** every screen's actual displayed data — Overview, Errors, Trace
+  Detail, User Activity, Audit Trail, Integrations all still read `demoProvider.ts`.
+- **WAITING_FOR_BACKEND:** Integration Monitoring's real data source — confirmed live
+  2026-09-24 that `Integration Request` has zero rows and no other surface exists; classified
+  `NOT_CURRENTLY_AVAILABLE`, not fabricated.
+
+### O-10C entry conditions
+
+O-10B's foundation is closed and live-tested. O-10C's job is narrowly the UI-facing swap for
+Error Explorer + Trace Detail (wiring `ServerObservabilityProvider` into `provider.ts`, adding
+whatever loading/error states and "Demo data" badge removal that swap needs) plus real visual/
+responsive QA for those two screens — not re-deriving any part of the read architecture, which
+this package already built and verified independently of the UI.

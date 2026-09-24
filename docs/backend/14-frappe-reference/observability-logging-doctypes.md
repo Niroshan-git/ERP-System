@@ -1,10 +1,10 @@
 # Frappe Native Logging / Audit DocTypes — Reference
 
-**Status:** Reference, live-schema-verified 2026-09-23 against the running instance (`http://62.238.22.161:8080`, via the `ceylon-stack` MCP data connector, logged in as Administrator).
-**Package:** O-1 (Observability & Audit Center — discovery only, no code).
+**Status:** Reference, live-schema-verified 2026-09-23 against the running instance (`http://62.238.22.161:8080`, via the `ceylon-stack` MCP data connector, logged in as Administrator). **Updated 2026-09-24 (O-10B):** several O-1-era `NEEDS_VERIFICATION` items resolved against real data; `Version.data`'s real JSON shape and `Activity Log.content`'s real embedded-correlation/actor format documented for the first time.
+**Package:** O-1 (Observability & Audit Center — discovery only, no code); addenda from O-10B (real read foundation).
 **Purpose:** Per `docs/controls/BACKEND_KNOWLEDGE_POLICY.md`, this is the Frappe-plumbing reference (`14-frappe-reference/`) backing the cross-cutting design in `docs/observability-architecture.md`. It is not a business-domain canonical mapping (no `docs/backend/<domain>/` doc applies — Observability/Audit is platform infrastructure, not an ERP domain), so it lives here rather than under a numbered domain folder.
 
-All doctypes below are Frappe/ERPNext **core** (`module: Core`) — nothing here was added by `smart_factory` (verified: no `Error Log` / `trace_id` / `fingerprint` references anywhere in `apps/smart_factory`, and `smart_factory` currently exposes **zero** `@frappe.whitelist()` methods).
+All doctypes below are Frappe/ERPNext **core** (`module: Core`) — nothing here was added by `smart_factory` beyond the `api/observability.py` whitelisted methods that read/write them (O-2's writes, O-10B's reads).
 
 ## Error Log
 
@@ -21,9 +21,11 @@ All doctypes below are Frappe/ERPNext **core** (`module: Core`) — nothing here
 | `metadata` | Code | Free-form JSON |
 | `seen` | Check | Read/unread flag |
 
-**Implication for the mission:** the mission's proposed correlation-ID format (`CS-YYMMDD-XXXXXX`) has a native home to land in — `trace_id` — rather than needing a parallel error-storage doctype. Nothing currently writes to it from this project; `apps/frontend/src/lib/erpnext.ts`'s `erpnextFetch()` only sees the HTTP response Frappe already sent back, it never triggers a fresh `Error Log` write itself. Genuine server-side exceptions inside `smart_factory` (once it has any custom logic) would land here automatically via Frappe's own exception handling.
+**Implication for the mission:** the mission's proposed correlation-ID format (`CS-YYMMDD-XXXXXX`) has a native home to land in — `trace_id` — rather than needing a parallel error-storage doctype. `apps/smart_factory`'s O-2 package (`api/observability.py`'s `log_operation`) now writes it explicitly for every ERROR/CRITICAL Ceylon Stack telemetry event. Genuine server-side exceptions inside `smart_factory` (once it has any custom logic) land here automatically via Frappe's own exception handling.
 
-`NEEDS_VERIFICATION`: whether `trace_id` is populated automatically per-request by the framework, or only when explicit code passes it to `frappe.log_error(...)`. Determines whether reusing this field costs custom code or is close to free.
+**RESOLVED (O-10B, live-verified 2026-09-24):** `trace_id` is populated **only when explicit code sets it** — never automatically by the framework. Confirmed by direct inspection of real `Error Log` rows on the live instance: every framework-generated exception (a `wkhtmltopdf` PDF-rendering failure, a malformed `run_doc_method` call, an internal `'NoneType' object has no attribute...`) has `trace_id: null`; only rows written by this project's own `log_operation` have it set. Practical implication for O-10B's read API: `Error Log` is a genuine mix of Ceylon Stack telemetry and unrelated Frappe/framework noise — any read query over this table that means "Ceylon Stack's own correlated errors" must filter `trace_id is set` explicitly, never assume every row is relevant.
+
+**RESOLVED (O-10B, live-verified 2026-09-24):** direct `/api/resource/Error Log` REST reads were not re-tested (moot — see below), but a **privileged backend read** (a `smart_factory` whitelisted method using `frappe.get_all()`/`frappe.db.count()`, the same pattern `log_operation`'s writes already use via `ignore_permissions=True`) reads `Error Log` without any permission friction — the O-1-era assumption that reads would need the same `get_docinfo`-style workaround `Version` needed does not apply once the read happens through a whitelisted method rather than raw `/api/resource/...` REST.
 
 ## Activity Log
 
@@ -41,7 +43,9 @@ All doctypes below are Frappe/ERPNext **core** (`module: Core`) — nothing here
 
 **Implication:** native `operation` values don't cover the mission's "Create/Submit/Cancel/Material Transfer/workflow action" business-activity list — that's `CEYLON_STACK_REQUIRED` regardless (see main doc). More importantly: **every write this app makes to ERPNext runs under one shared service account** (`frontend-integration@...` — see `apps/frontend/README.md`'s "Auth model" section, and the `addComment()` doc comment in `lib/erpnext.ts`). Any native `Activity Log`/`Version` record Frappe creates as a result of our server actions will show the **service account**, not the real human — the real identity only exists in this app's own `ceylon_session` cookie. `user` is a plain `Link(User)` field though, not auto-populated only from the session — a whitelisted method could legitimately set it to the real human's `User` record (they have one; `verifyErpNextLogin()` already authenticates their real ERPNext credentials) if we choose to log activity that way. That makes `Activity Log` a `NATIVE_EXTEND` candidate rather than requiring a brand-new doctype for user activity, provided `smart_factory` gains a whitelisted method to write it.
 
-`NEEDS_VERIFICATION`: does `verifyErpNextLogin()`'s POST to `/api/method/login` (real human credentials, used only to verify — see docstring) itself create a native `Activity Log` "Login" entry under the real human's `User`? Plausible (it's Frappe's standard login endpoint) but unconfirmed.
+**Largely RESOLVED (O-10B, live-verified 2026-09-24):** real `Activity Log` rows confirm Frappe's `/api/method/login` endpoint does create native `Login`/`Logout` entries automatically — including a `status: "Failed"`, `user: "owner@gym-demo.test"`, `subject: "Invalid login credentials"` row that can only plausibly have come from an app-level login attempt (not a Desk browser session) against a non-Administrator account, i.e. exactly the shape `verifyErpNextLogin()`'s POST would produce. Not a controlled, this-app-specific test (the O-2 package that owns `verifyErpNextLogin()` did not run one), so treat this as strong observational evidence, not a direct confirmed test.
+
+**New finding (O-10B, live-verified 2026-09-24):** `Activity Log` rows written by `smart_factory.api.observability.log_operation` embed both the correlation ID and the real human actor as **plain text lines inside `content`**, not as dedicated fields — `content` is literally `"Correlation: <id>\nActor: <name> <<email>>\nExecution principal: <email>\n<message>"` (the `Actor:` line only present when `actor_email` was supplied). `operation` (the fixed Login/Logout/Impersonate Select) is **never** set by `log_operation` — the business-activity label lives entirely in `subject`. O-10B's read API recovers both the correlation ID and actor from `content` via regex against this exact format (`_extract_actor_from_activity_content`/`_extract_correlation_from_activity_content` in `api/observability.py`) rather than adding new dedicated fields — a live, deliberate design choice, not a workaround for a blocker. **Also observed live:** at least one real `Activity Log` row has `actor_email` present in its sibling `Error Log.metadata` but its own `content`'s `Actor:` line has no `<email>` bracket at all (`"Actor: Ceylon Stack \n"`) — the parser correctly returns no actor for this row rather than guessing; flagged as real-data messiness worth remembering, not a parser bug (see `PROGRESS.md`'s O-10B entry).
 
 ## Version
 
@@ -54,7 +58,25 @@ All doctypes below are Frappe/ERPNext **core** (`module: Core`) — nothing here
 | `data` | Code | JSON diff blob |
 | `table_html` | HTML | Render-only |
 
-Already consumed by this app: `getDocInfo()` in `lib/erpnext.ts` calls Frappe's `frappe.desk.form.load.get_docinfo` whitelisted method (the same one Desk's form sidebar uses) to fetch `comments` + `versions` + `infoLogs` for a document — direct `/api/resource/Version` REST reads 403 for the service account (documented in that function's comment), `get_docinfo` is the only viable path. This is the mechanism Phase 11 (Audit Trail) should extend, not replace.
+Already consumed by this app: `getDocInfo()` in `lib/erpnext.ts` calls Frappe's `frappe.desk.form.load.get_docinfo` whitelisted method (the same one Desk's form sidebar uses) to fetch `comments` + `versions` + `infoLogs` for a document — direct `/api/resource/Version` REST reads 403 for the service account (documented in that function's comment), `get_docinfo` is the only viable path **for a per-document lookup**.
+
+**O-10B addendum (live-verified 2026-09-24):** for a *general*, filterable, paginated Audit Trail (not scoped to one already-known document), `get_docinfo` is the wrong tool — it always returns comments+versions+infoLogs bundled for exactly one `doctype`+`name`, with no filter/pagination contract of its own. `smart_factory.api.observability.list_audit` instead reads `Version` directly via `frappe.get_all()` inside a whitelisted method (the same "privileged read bypasses the REST 403" pattern documented above for `Error Log`) — `get_docinfo`'s 403 workaround was a limitation of *unprivileged* REST access, not of `Version` itself.
+
+**`Version.data`'s real JSON shape, live-verified against real `Work Order` versions (not assumed from Frappe source):**
+```json
+{
+  "added": [],
+  "changed": [["fieldname", "previousValue", "newValue"], ...],
+  "removed": [],
+  "row_changed": [
+    ["child_table_fieldname", rowIndex, "childRowName",
+      [["child_fieldname", "previousValue", "newValue"], ...]]
+  ],
+  "data_import": null,
+  "updater_reference": null
+}
+```
+`changed` covers simple field-level diffs (a `null` `previousValue` means the field was newly set; a `null` `newValue` means it was cleared — used by O-10B's `AuditChangeType` derivation). `row_changed` covers per-row child-table field changes; `added`/`removed` (whole rows added/removed) were `[]` in every real sample observed so far — their exact populated shape remains `NEEDS_VERIFICATION` against a real add/remove-row edit, handled defensively (a conservative summary, never a guessed per-field diff) by O-10B's `normalizeVersionData()` until then. `docstatus` transitions inside `changed` (`0`->`1`, `1`->`2`) are the reliable, native signal for "this Version represents a Submit/Cancel," used by O-10B to derive a human-readable `action` label without inventing one.
 
 ## "Audit Trail" (Desk report/UI, not a stored table)
 
@@ -72,7 +94,9 @@ Already consumed by this app: `getDocInfo()` in `lib/erpnext.ts` calls Frappe's 
 | `response_headers`, `output`, `error` | Code | |
 | `reference_doctype` / `reference_docname` | Link / Dynamic Link | |
 
-**Implication:** this is built for calls **ERPNext itself** initiates outward, not for inbound calls from `apps/frontend`. It is not automatically populated by our `erpnextFetch()` traffic. It's a strong shape match for Phase 12 (Integration Monitoring) if `smart_factory` gains a whitelisted method that lets our Next.js layer create `Integration Request` records for its own outbound calls — `NATIVE_EXTEND`, not automatic reuse.
+**Implication:** this is built for calls **ERPNext itself** initiates outward, not for inbound calls from `apps/frontend`. It is not automatically populated by our `erpnextFetch()` traffic. It's a strong shape match for Integration Monitoring if `smart_factory` gains a whitelisted method that lets our Next.js layer create `Integration Request` records for its own outbound calls — `NATIVE_EXTEND`, not automatic reuse.
+
+**RESOLVED (O-10B, live-verified 2026-09-24):** confirmed **zero rows** exist in `Integration Request` on the live instance — the `NATIVE_EXTEND` path above has not been built, and no other backend surface records this app's own outbound calls as integration events either. Classified `NOT_CURRENTLY_AVAILABLE` per the O-10B mission's own classification scheme — Integration Monitoring's provider methods (`getIntegrationSummary`/`getIntegrationEvents`) honestly return zero/empty results rather than fabricating figures. Building the `NATIVE_EXTEND` write path (a `log_integration_event`-style whitelisted method, or extending `log_operation` itself with `integration`/`integrationType`/`durationMs` fields) remains a real, undone backend task for a future package, not something O-10B's read-only scope could close.
 
 ## Other native logs verified present (Core module)
 

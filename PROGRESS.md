@@ -4982,14 +4982,53 @@ UI change — O-10C's job is the UI-facing swap and whatever screen-level adjust
 error states, the "Demo data" badge removal, visual QA) that swap requires, not re-deriving
 the read architecture itself.
 
+### Independent code review (`code-reviewer`, 2026-09-24)
+
+Two blocking findings, both real and both fixed same day, re-verified live after each fix:
+
+- **Actor/execution-principal conflation.** `log_operation` sets `Activity Log.user` to
+  `resolved_user` — the *actor's own* email whenever it resolves to a real ERPNext User (the
+  common case), falling back to the execution principal only when it doesn't. `list_activity`
+  and `get_trace` were treating `row.user` as if it reliably held the execution principal,
+  which for most real business operations silently duplicated the Actor field into
+  `Trace.executionPrincipal` instead of showing `frontend-integration@ceylonstack.local` — the
+  exact actor/execution-principal misattribution mission §26/§30 forbids. **Fixed** by adding
+  `_extract_execution_principal_from_activity_content()` (mirroring the existing actor/
+  correlation extractors), reading the `"Execution principal: {execution_principal}"` line
+  `log_operation` always writes into `content` (unconditional, unlike the `Actor:` line) —
+  falling back to `row.user` only for rows with no Ceylon Stack content structure at all
+  (native Login/Logout entries, which have no separate execution-principal concept). Re-tested
+  live: the known real trace's `executionPrincipal.email` now correctly shows
+  `frontend-integration@ceylonstack.local`, distinct from `actor.email: "Administrator"`.
+- **Malformed correlation IDs silently collapsed into "not found."** `serverProvider.ts`'s
+  `getTrace()`/`getTechnicalDetails()` pre-validated the ID client-side and returned the same
+  `null`/`{available: false}` shape for both "malformed" and "well-formed but nonexistent" —
+  contradicting the documented contract (`provider.ts`: "never assume a malformed ID means not
+  found yet, try again") and never actually reaching the backend's own distinct
+  `ValidationError` for malformed input. **Fixed** by removing the client-side short-circuit
+  entirely — the backend's `_validate_correlation_id()` is now the single source of truth,
+  and its `ValidationError` propagates as a thrown `ObservabilityReadError`, making "your input
+  was invalid" (catch) distinguishable from "that trace doesn't exist" (`null`/
+  `{available: false}`). Re-tested live: a malformed ID now throws with the real validation
+  message; a well-formed-but-nonexistent ID still correctly returns `null`.
+
+Everything else the reviewer checked (caller authorization on all 5 methods, `_escape_like()`
+coverage, redaction coverage on every free-text field, `Version.owner`/`Error Log.owner`
+correctly never surfaced as actor, trace composition honesty, pagination/DTO bounds, N+1
+avoidance, provider-selection non-wiring, `tsc`/`eslint`) was confirmed correct with no
+changes needed. Non-blocking suggestions (an unbounded `or_filters` count fallback already
+documented in-code as an accepted tradeoff, `_validate_date()`'s shape-only validation, a
+slightly-misleading error-message prefix for a config-error edge case) were left as
+noted-but-not-blocking, consistent with their own low severity.
+
 **Sign-off:** `CLAUDE_HANDOFF` — see the full handoff message for the structured 50-point
 account. Not self-declared `ACCEPTED` — pending Niroshan's review and independent cross-review
 per `docs/controls/TEMP_DUAL_CLAUDE_MODE.md` if still in its window.
 
-## 2026-09-24 � SALES-RETURN-1 Package Closed
+## 2026-09-24 � SALES-RETURN-1 Package Closed
 
 Implemented the Sales Return frontend flow (creating Sales Returns from existing Delivery Notes).
 - **Major capabilities added:** Delivery Note -> Sales Return, partial returns, multiple returns, remaining-return quantity calculation, negative ERPNext quantity transformation, batch/serial return handling, inbound stock reversal through native ERPNext behavior, and Sales Return UI identification.
 - **Review:** Independent review PASS. No blocking or non-blocking findings. TypeScript verification passed.
-- **Status:** SALES-RETURN-1 � IMPLEMENTED / REVIEW PASS / CLOSED
+- **Status:** SALES-RETURN-1 � IMPLEMENTED / REVIEW PASS / CLOSED
 - **Scope note:** Sales Invoice Return, Credit Note, customer refund, payment reversal, Purchase Return, and accounting reversal workflows remain OUTSIDE this package.
