@@ -140,6 +140,18 @@ So a Purchase Invoice raised against an existing Purchase Receipt (no `update_st
 `update_stock=1`, falls to `stock_received_but_not_billed` (the liability-clearing account)
 instead. This is a real, verified branch, not an assumption.
 
+**Addition (independent review, 2026-09-25): Fixed Asset items bypass this entire chain.**
+`get_item_details.py` ~line 503-524 — if `item.is_fixed_asset`, the line's `expense_account` is
+resolved *before* any of the above ever runs, via Asset Category, not `Item Default`: if
+`is_cwip_accounting_enabled(item.asset_category)`, uses Asset Category's
+`capital_work_in_progress_account`; otherwise (Purchase Invoice/Receipt/Order/Material Request
+only) uses Asset Category's `fixed_asset_account`. Neither Item, Item Group, Brand, nor any of the
+Company fields in §2/§4 participate for a Fixed Asset line — this is a fully separate, parallel
+resolution path keyed on Asset Category, not covered anywhere in §4's chain or the §11 matrix's
+"Expense (general)" row. Worth a distinct matrix row (or an explicit exclusion note on the
+existing one) before `FIN-1G-C` — anyone building the expense-account explainer off the current
+§4/§11 text alone would get Fixed Asset purchase lines wrong.
+
 **Non-stock/service items** get an additional pre-check before the Company-level chain above even
 runs: `get_item_details.py` ~line 598-599 — if `not item.is_stock_item` and expense_account is
 still blank, use Company `service_expense_account` first, and only fall through to
@@ -271,9 +283,32 @@ other 5 inherit Company `default_inventory_account`.
 **Live config gap found (not a code finding — flag for Niroshan directly)**: on "Ceylon Stack",
 `default_wip_warehouse` and `default_fg_warehouse` are both currently **unset** at Company level,
 while `default_operating_cost_account` (`Stock Adjustment - CS`) and `default_inventory_account`
-(`Stock In Hand - CS`) are set. New Work Orders today require manually picking WIP/FG warehouses
-each time, or will error — this is exactly the kind of gap the `FIN-1G-F` configuration health
-check (not built in this package) should surface automatically once it exists.
+(`Stock In Hand - CS`) are set.
+
+**Correction (independent review, 2026-09-25): the "require manual picking or error" conclusion
+above is only accurate for WIP warehouse.** `set_default_warehouse()`
+(`work_order.py:589-596`) has two different fallback chains, not one:
+
+- `wip_warehouse`: Company `default_wip_warehouse` only (skipped entirely if `skip_transfer` is
+  set). No Item/Item Group fallback exists. With the Company field unset, this genuinely resolves
+  to blank and requires manual entry or errors downstream, as originally stated.
+- `fg_warehouse`: Company `default_fg_warehouse` **or**, if that's blank,
+  `get_production_item_warehouse()` — the production Item's own `Item Default.default_warehouse`,
+  falling back to the Item Group's `Item Default.default_warehouse`
+  (`work_order.py:598-604`). This fallback is **not** Company-only and was missed in the original
+  pass.
+
+  Live data makes this concretely relevant, not theoretical: all 21 `Item Default` rows on
+  "Ceylon Stack" set `default_warehouse` (verified live, 2026-09-25 — e.g. `RM-STEEL-SHEET-2MM` →
+  `Stores - CS`). So a new Work Order today will **not** error or require manual FG warehouse
+  entry — it will silently resolve `fg_warehouse` to the production item's general-purpose
+  `default_warehouse` (a Stores/procurement warehouse in the sampled rows, not a dedicated
+  finished-goods location). That is arguably a **worse** gap than "requires manual selection":
+  finished goods can land in a raw-material warehouse without any error or prompt.
+
+This changes the shape of the `FIN-1G-F` configuration-health check this finding was pointing at:
+it needs to flag "FG warehouse will resolve via Item default_warehouse, not a Company FG default"
+as its own distinct warning, not lump WIP and FG together as "both need a value or will error."
 
 ---
 
@@ -372,12 +407,18 @@ unaffected by this package.
 
 ## Control gate
 
-All findings above are extensively source-cited (exact file:line per claim, live `bench console`
-data counts) but were gathered by a single `devops` subagent pass in one session, not
-cross-checked by a second independent agent/session. Per the `FIN-1G` brief's own §45/§46
-requirement — mirroring `FIN-0`'s own precedent of flagging discovery/architecture findings for
-independent review before being treated as unconditionally settled — **independent review of this
-document is requested and not yet performed.**
+**Independent review completed 2026-09-25.** Every resolution-order claim in §3-§10 was
+independently re-traced against live ERPNext 16.34.2 source on the Hetzner container
+(`root@62.238.22.161`, `frappe_docker-backend-1`) and cross-checked against the public
+`frappe/erpnext` `v16.34.2` tag on GitHub to rule out core-file tampering — all core files
+reviewed carry an identical 2026-09-09 09:46:38 install timestamp and matched the public tag
+byte-for-byte on every function inspected. The §13 live data snapshot was independently
+re-queried the same day via `bench --site frontend console` and is unchanged. Two corrections were
+made directly to this document as a result (§4 Fixed Asset item exception, §9 FG-warehouse
+fallback correction) — both proven with source citations and live data before being written, not
+spot-guessed. See the full independent-review report for the complete finding list, severity
+ratings, and per-role Effective-Account classification.
 
-**SAFE TO START FIN-1G-C: PENDING** independent review of this document's resolution-order
-findings (§3-§10) and the determination matrix (§11).
+**SAFE TO START FIN-1G-C: YES**, on the corrected version of this document (Fixed Asset items need
+their own Expense role in `FIN-1G-C`'s data model; FG-warehouse resolution needs its own
+configuration-health warning distinct from WIP's, per the §9 correction above).
