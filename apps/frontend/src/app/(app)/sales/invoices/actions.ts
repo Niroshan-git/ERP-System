@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { cancelDoc, createDoc, ErpNextError, getDoc, submitDoc, updateDoc } from "@/lib/erpnext";
 import { getSellingDefaults, type SellingDefaults } from "@/lib/salesDefaults";
 import { parseLineRows, parseLineSelectionRows, type LineSelectionInput } from "@/lib/lineRows";
+import { getConnections } from "@/lib/connections";
 import { getBilledQtyBySoDetail, getInvoicedQtyByDnDetail } from "@/lib/fulfillment";
 
 export type FormState = { error?: string } | undefined;
@@ -582,6 +583,13 @@ export async function createSalesInvoiceFromDeliveryNoteAction(
 
 /** Bound to `(name)`; useActionState calls the bound function with (state, formData) which are unused here. */
 export async function cancelSalesInvoiceAction(name: string): Promise<FormState> {
+  const connections = await getConnections("Sales Invoice", name);
+  const blockers = connections.filter((c) => c.submittedDocs && c.submittedDocs.length > 0);
+  if (blockers.length > 0) {
+    const messages = blockers.map((c) => `${c.label} (${c.submittedDocs!.join(", ")})`);
+    return { error: `Cannot cancel — linked with ${messages.join(", ")}. Cancel those first.` };
+  }
+
   try {
     await cancelDoc("Sales Invoice", name);
   } catch (e) {
