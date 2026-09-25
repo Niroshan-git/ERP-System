@@ -1039,3 +1039,214 @@ genuinely open for a future session with real access to close, the same way `CRM
 open for `CRM-2`. `CRM-4` (Pipeline Workspace) is **not started, not authorized by this package** —
 per the mission brief's explicit instruction to stop and wait for independent review before
 continuing.
+
+## 27. `CRM-4` Implementation Update (2026-09-25)
+
+Niroshan issued a dedicated `CRM-4` mission brief the same authorization pattern `CRM-1`/`CRM-2`/
+`CRM-3` established — this time with the dated `CLAUDE.md` note written **before** implementation
+started (the standing instruction `CRM-2`'s and `CRM-3`'s own sections above disclosed missing).
+
+### 27.1 First-gate live verification
+
+This session had live **read-only** access to the real Hetzner instance via
+`mcp__ceylon-stack__*` tools (`ping` confirms `logged_in_as: "Administrator"`) — narrower than a
+full write-capable session, but broader than `CRM-3`'s QA pass (which had no schema/data read
+access at all, `CRM-UNV-011`) and on par with `CRM-2`'s own first-gate. Before writing code:
+
+- `Opportunity`'s live schema re-confirmed byte-for-byte against §5.2/§25.1's existing findings —
+  every field `lib/crmPipeline.ts` queries (`title`, `opportunity_from`, `party_name`,
+  `customer_name`, `status`, `sales_stage`, `opportunity_amount`, `probability`, `currency`,
+  `expected_closing`, `opportunity_owner`, `territory`, `modified`) exists exactly as documented.
+  Also reconfirms `base_opportunity_amount` (Company Currency) is a real field — **deliberately
+  not used** for KPI totals (§27.3).
+- `Sales Stage` reconfirmed: exactly the same 8 live records `CRM-2`'s own `lib/salesStageOptions.ts`
+  already hardcodes, still no order/sequence field on the doctype.
+- **Zero live `Opportunity`, `ToDo` (`reference_type: "Opportunity"`), `Event`, or `Communication`
+  records exist on the instance** (`list_documents`, this session) — the same clean state `CRM-2`'s
+  and `CRM-3`'s own first-gate checks found. This is the single largest verification gap this
+  package leaves open: every aggregation query in `lib/crmPipeline.ts` is schema-verified and
+  logically traced, but has never executed against a real Opportunity/follow-up row. No frontend
+  login credentials were available this session either, so the rendered page itself could not be
+  driven through a browser — confirmed instead via `npx tsc --noEmit`, `npx eslint`, and `npm run
+  build`, all clean, plus an unauthenticated `curl` of `/crm` correctly redirecting to `/login`
+  (proves the route/middleware wiring, not the data path). Logged as `CRM-UNV-012` (§27.6).
+
+### 27.2 What shipped
+
+**Aggregation service** (`apps/frontend/src/lib/crmPipeline.ts`, server-only, new): `getPipelineData()`
+bulk-fetches active Opportunities (`status not in ["Lost", "Converted", "Closed"]`, matching §7's
+lifecycle diagram) plus every open `ToDo`, and every `Event`/`Communication` *creation timestamp*,
+each in one request regardless of Opportunity count (mission brief §17's N+1 requirement) — grouped
+in JS by `reference_name`/`reference_docname` into per-Opportunity rows carrying weighted value,
+next-follow-up (reusing `CRM-3`'s exact selection rule, see §27.4), follow-up health, closing-soon/
+past-expected-close flags, and a "stale" signal, plus workspace-wide KPI totals. Five requests total
+for the whole workspace (Opportunity, open ToDo, all-status ToDo, Event, Communication — the
+all-status ToDo fetch is a dedicated request for the stale-activity signal, §27.3), the same
+bulk-then-group shape `lib/crmActivity.ts`'s existing `listCrmActivities()` already established for
+`/crm/activities`, not a new fetch pattern — still a fixed, small request count regardless of
+pipeline size, not one-per-row.
+
+**Routes/UI**: `/crm` (`apps/frontend/src/app/(app)/crm/page.tsx`, replacing the `CRM-1`/`CRM-2`-era
+minimal stub) — KPI tile row (Open Opportunities, Pipeline Value, Weighted Pipeline, Expected to
+Close within 30 days, Overdue Follow-ups, No Next Action), an Attention Queue (Overdue Follow-up /
+Due Today / No Next Action / Closing Soon / Past Expected Close / Stale, each a compact linked list
+capped at 8 rows with a "+N more" counter), filters (Stage/Status/Territory/Owner/Origin/Follow-up
+Health via the existing `ListFilterBar`), a "Show only my opportunities" toggle mirroring
+`/crm/activities`'s own convention (`opportunity_owner = session.email`, distinct from `ToDo.
+allocated_to` per §13's ownership-concepts table — not conflated), and `PipelineBoard` (new client
+component) — columns grouped by `sales_stage` in `lib/salesStageOptions.ts`'s hardcoded order plus a
+trailing "No Stage" bucket, rendered as full-width stacked sections on narrow screens and
+horizontally-scrollable columns from `md:` up (one component, one data path, a CSS flex-direction
+switch — not two separate board implementations for mobile vs. desktop).
+
+**Stage mutation**: `updateOpportunityStageAction` (`apps/frontend/src/app/(app)/crm/opportunities/
+actions.ts`, new export) — a plain `updateDoc("Opportunity", name, { sales_stage })`, allowlisted
+against `SALES_STAGE_OPTIONS`, called directly from `PipelineBoard`'s per-card `<select>` (not a
+`<form>`, no redirect — the board stays on `/crm`). Optimistic: the card's column membership updates
+immediately on change; a failed update reverts to the last known stage and shows the server's error
+inline on that card.
+
+**Sidebar**: no structural change. `/crm` was already reachable as "CRM Home" via the existing
+per-module `homeHref` dashboard-item pattern every other module (`Sales Home`, `Manufacturing Home`,
+etc.) already uses — adding a separate "Workspace" nav item would have been a redundant second path
+to the same route, so `Sidebar.tsx`'s CRM doc comment was updated to reflect `CRM-4` shipping without
+adding one.
+
+### 27.3 Design decisions this package had to make that §12/§17 left open
+
+- **Stage movement is an explicit `<select>`, not drag-and-drop.** The mission brief's own §8
+  explicitly permits either shape and prefers correctness over visual novelty; drag-and-drop's
+  optimistic-UI/rollback surface could not be live-verified this session (§27.1 — zero live records,
+  no live-mutation path), so the narrower, easier-to-reason-about control shipped instead.
+- **KPI value totals are NOT converted to company base currency**, even though `base_opportunity_amount`
+  exists on the live schema (§27.1) specifically for this. Raw `opportunity_amount` is summed across
+  the active/filtered row set; the KPI strip shows a currency code only when every row in that set
+  shares one currency, otherwise omits the suffix rather than showing a misleading number. This
+  matches `CRM-2`'s own existing precedent (`OpportunitiesTable.tsx`'s `weightedValue()` helper,
+  which does the same single-currency assumption) rather than introducing multi-currency conversion
+  logic nothing else in the CRM module has needed yet — revisit if a real multi-currency tenant
+  surfaces.
+- **Won/Lost/win-rate/conversion-rate KPIs are deliberately not implemented**, per the mission
+  brief's explicit §6 instruction. `CRM-UNV-010`/`CRM-UNV-011`'s open won/lost-semantics gap is
+  preserved, not silently closed — the workspace's own KPI strip carries a visible disclosure
+  sentence naming both IDs rather than omitting the metrics silently.
+- **"Stale" uses a documented, hardcoded 14-day default** (`STALE_THRESHOLD_DAYS` in
+  `lib/crmPipeline.ts`), per the mission brief's own §10 suggested V1 value — there is no live usage
+  data yet to tune it against (§27.1's zero-live-records finding applies here too). "Last activity"
+  is derived from **every** `ToDo` (any status) plus every `Event`/`Communication` creation
+  timestamp (bulk-queryable by `reference_type`/`reference_doctype`); `CRM Note` and `Comment` are
+  excluded — Note has no `reference_type` of its own to bulk-query by at all (§26.1/§26.5, same
+  structural reason `/crm/activities` already excludes it), and Comment would require a per-record
+  fetch, reintroducing the N+1 this package explicitly avoids. Falls back to `Opportunity.modified`
+  so a brand-new Opportunity with no activity yet isn't misreported as infinitely stale. **Fixed
+  during this package's own `code-reviewer` pass:** the first draft derived this signal from the
+  *open-only* `ToDo` fetch (reused from the next-follow-up query), which meant a Follow-up completed
+  today had already dropped out of that filter and stopped counting as recent activity — a
+  just-worked Opportunity could misreport as stale. Fixed with a dedicated all-status `ToDo` fetch
+  used only for this signal; the open-only fetch is still used, separately, for next-follow-up/
+  follow-up-health.
+- **"Today" is derived once, via a single shared definition** (`followupBucket.ts`'s
+  `todayMidnight()`, now exported for this reuse) for every date comparison in this package
+  (expected-close, staleness). **Fixed during this package's own `code-reviewer` pass:** the first
+  draft computed "today" via `toISOString().slice(0,10)` (UTC calendar date) for its own comparisons
+  while `followupBucket()` (driving next-follow-up/health) used local-timezone midnight — for a few
+  hours around the UTC day boundary, a single pipeline row could evaluate "today" two different ways
+  depending on which field derived it. Both now share `todayMidnight()` and the same
+  parse-then-floor technique (`dateFloor()` in `lib/crmPipeline.ts`, mirroring `followupBucket()`'s
+  own `new Date(dateStr)` + `setHours(0,0,0,0)`).
+- **"Expected to Close" (KPI) and "Closing Soon" (Attention Queue) use two different, both
+  documented, hardcoded windows** — 30 days and 7 days respectively (`EXPECTED_TO_CLOSE_DAYS`/
+  `CLOSING_SOON_DAYS` in `lib/crmPipeline.ts`) — the same class of Ceylon Stack-side V1 UX default
+  already established for the stale threshold and for `CRM-3`'s "follow-up due date required" rule,
+  not an ERPNext-derived value.
+- **KPIs, the Attention Queue, and the board all reflect the currently applied filters**, not the
+  whole module — a deliberate, disclosed choice (stated in the workspace's own KPI-strip caption) so
+  "my overdue follow-ups" and similar narrowed views stay internally consistent, rather than showing
+  KPIs for the unfiltered pipeline next to a queue/board that's already been filtered down.
+
+### 27.4 Follow-up derivation — reused, not reimplemented
+
+`getNextFollowup`'s original per-record selection rule (earliest dated open `ToDo` wins, else any
+undated one, else null) was extracted into a pure `pickNextFollowup(rows)` helper in
+`lib/crmActivity.ts` — `getNextFollowup` itself now just calls `listOpenFollowups` then
+`pickNextFollowup`, no behavior change for `CRM-3`'s existing callers (`CrmActivityPanel`, both
+detail pages). `lib/crmPipeline.ts` bulk-fetches every open `ToDo` referencing `Opportunity` in one
+request (`listOpenFollowupsBulk`, new export, same field list `TODO_FIELDS` already uses), groups by
+`reference_name` in JS, and calls the exact same `pickNextFollowup` per group — one shared selection
+rule, not a second reimplementation for the bulk case. `followupBucket()` itself is untouched.
+
+### 27.5 Regression posture
+
+This package's diff touches: `lib/crmPipeline.ts` (new), `components/PipelineBoard.tsx` (new),
+`app/(app)/crm/page.tsx` (full rewrite of the `CRM-1`/`CRM-2`-era stub — no other CRM route touched),
+`app/(app)/crm/opportunities/actions.ts` (one new exported action added, existing exports
+untouched), `lib/crmActivity.ts` (the `pickNextFollowup` extraction plus one new bulk-fetch export,
+both additive), and doc-comment-only edits to `Sidebar.tsx`/`lib/salesStageOptions.ts`. It does not
+touch `OpportunityForm`, `createOpportunityAction`/`updateOpportunityAction`/
+`markOpportunityLostAction`, `leadConversion.ts`, `opportunityQuotation.ts`, `crmActivity.ts`'s write
+layer, or any Lead/Quotation/Sales code.
+
+### 27.6 New `NEEDS_VERIFICATION` item
+
+`CRM-UNV-012` — `CRM-4`'s pipeline aggregation (`lib/crmPipeline.ts`) and stage-mutation action
+(`updateOpportunityStageAction`) have never executed against a live Opportunity/ToDo/Event/
+Communication record — zero exist on the instance (§27.1), and no frontend login credentials were
+available this session to drive the rendered page through a browser either. Verified instead by:
+live schema-field confirmation (`mcp__ceylon-stack__get_doctype_fields`), static analysis (`tsc`/
+`eslint`/`next build`, clean), an independent `code-reviewer` pass tracing the aggregation/join logic
+by hand, and an unauthenticated route/middleware sanity check. Same non-blocking, disclosed-gap
+posture as `CRM-UNV-010`/`CRM-UNV-011` — resolve via a future session with real write access and/or
+frontend login credentials, ideally with at least one disposable Opportunity + ToDo fixture created
+and cleaned up the way `CRM-1`'s own disposable-fixture testing did.
+
+### 27.7 Code review
+
+An independent `code-reviewer` pass found no blocking findings (no core edits, no secrets, no
+sequencing/scope violation, N+1 avoided, reuse discipline intact, `pickNextFollowup`'s extraction
+verified byte-for-byte behavior-preserving) and two real, non-blocking correctness bugs, both fixed
+same session — see §27.3's "Stale"/"Today" bullets above for what each was and how it was fixed.
+`npx tsc --noEmit`, `npx eslint`, and `npm run build` all re-confirmed clean after the fixes.
+
+### 27.8 QA
+
+An independent `qa-tester` pass verdict: **PASS-WITH-GAPS**. Re-ran `tsc`/`eslint`/`build` clean
+independently rather than trusting the implementer's claim; hand-traced both code-review fixes
+against concrete boundary cases (confirmed the UTC/local "today" mismatch is genuinely closed, not
+just moved, and that a completed ToDo now contributes to the staleness signal); confirmed zero diff
+on every `CRM-1`/`CRM-2`/`CRM-3` surface (`OpportunityForm`, both detail pages, `CrmActivityPanel`,
+`/crm/activities`). No `mcp__ceylon-stack__*` tools were available to this QA pass (narrower access
+than the implementing session had), so live schema re-verification fell back to cross-checking
+`crmPipeline.ts`'s field usage against `crmActivity.ts`'s already-live-verified field constants —
+consistency-checking, not independent live confirmation, disclosed as such rather than presented as
+equivalent. No live write access or frontend login credentials either, so `CRM-UNV-012` remains open
+exactly as before this QA pass, not newly introduced by it.
+
+Four new findings, all non-blocking, three fixed same session:
+
+- **Fixed:** `PipelineBoard`'s single board-wide `useTransition()` disabled every card's `<select>`
+  while any one card's stage change was in flight. Replaced with per-row pending state
+  (`pendingNames: Record<string, boolean>`) — each card's control now disables independently.
+- **Fixed:** the staleness signal's completed-ToDo fix (§27.3) keyed on `ToDo.creation` only, so
+  completing an old, long-open Follow-up *today* didn't refresh its Opportunity's recency signal —
+  only creating a brand-new activity record did. Fixed by also fetching and bumping on each
+  ToDo/Event/Communication's `modified` timestamp, which does update on completion.
+- **Fixed:** the Follow-up Health filter had no option for `no_due_date` (an open Follow-up with no
+  due date, reachable if created via Desk's native "Assign" rather than this app's own form, which
+  requires one) — such a row was visible in the unfiltered board but unreachable by this filter.
+  Added `"No Due Date"` to `HEALTH_FILTER_LABELS`.
+- **Disclosed, not fixed (matches an existing, already-accepted `CRM-3` pattern, not new to
+  `CRM-4`):** submitting `ListFilterBar`'s own filter form drops the "Show only my opportunities"
+  toggle back to off, since that plain GET form only carries its own named fields — QA confirmed
+  `/crm/activities`'s identical "my activities" toggle has the exact same behavior today. Not a
+  `CRM-4`-introduced regression; left as-is rather than redesigning a shared component this
+  package didn't otherwise need to touch.
+
+`npx tsc --noEmit`, `npx eslint`, and `npm run build` re-confirmed clean after all three QA-driven
+fixes.
+
+### 27.9 Status
+
+See `PROGRESS.md`'s `CRM-4` entry and `QA_LOG.md`'s `CRM-4` entry for the full code-review/QA account
+and final status. `CRM-5` (CRM → Sales Handoff) is **not started, not authorized by this package** —
+per the mission brief's explicit instruction to stop and wait for review/authorization before
+continuing.

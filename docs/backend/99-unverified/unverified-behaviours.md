@@ -844,7 +844,11 @@ live-verification pass (`crm-architecture.md` §25.1). **Updated 2026-09-25 (`CR
 access-gap class as `CRM-UNV-010`) newly logged, non-blocking. Two real, non-blocking bugs QA
 found were fixed same session rather than logged as unverified (Meeting `starts_on`/`ends_on`
 missing seconds; no way to complete an overdue Meeting) — see `crm-architecture.md` §26.8 and
-`QA_LOG.md`'s `CRM-3` entry for detail.
+`QA_LOG.md`'s `CRM-3` entry for detail. **Updated 2026-09-25 (`CRM-4`):** `CRM-UNV-012` (pipeline
+aggregation and stage mutation not live-exercised — zero live Opportunity/ToDo/Event/Communication
+records plus no frontend login credentials this session) newly logged, non-blocking; this session's
+live schema/data reads (`mcp__ceylon-stack__*`) re-confirmed every field `CRM-4` depends on matches
+`CRM-2`/`CRM-3`'s own earlier findings exactly.
 
 ### CRM-UNV-001 — Is `CRM Settings.enable_frappe_crm_data_synchronization` actually enabled?
 **Status:** `NEEDS_VERIFICATION`, non-blocking, low priority.
@@ -986,3 +990,27 @@ appears correctly in the unified timeline and (Follow-up/Meeting only) in `/crm/
 confirm a real overdue/due-today/upcoming due date buckets correctly; complete a Follow-up and a
 Meeting and confirm both stay visible in history while dropping out of the open/overdue count; then
 clean up every test document created.
+
+### CRM-UNV-012 — `CRM-4` pipeline aggregation and stage mutation not live-exercised (zero live data + no frontend login, disclosed)
+**Status:** `NEEDS_VERIFICATION`, non-blocking (shipped with this gap disclosed — same posture as
+`CRM-UNV-010`/`CRM-UNV-011`). **Logged 2026-09-25.**
+**What's uncertain:** `CRM-4`'s session had live **read-only** access to the real Hetzner instance
+via `mcp__ceylon-stack__*` tools (`ping` confirms `logged_in_as: "Administrator"`) — broader than
+`CRM-3`'s QA pass, but still no write-capable ERPNext credentials and no frontend (Next.js app)
+login credentials at all. `list_documents` confirms zero live `Opportunity`, `ToDo`
+(`reference_type: "Opportunity"`), `Event`, or `Communication` records exist on the instance, so
+`lib/crmPipeline.ts`'s bulk-fetch-then-group aggregation (weighted value, next-follow-up,
+closing-soon/past-expected-close, stale-days, KPI totals) and `updateOpportunityStageAction`'s
+`sales_stage` write have never executed against a real record. Every field name and the `Sales
+Stage` seed-data order were re-confirmed live via `get_doctype_fields`/`list_documents` this
+session (matching `crm-architecture.md` §25.1/§26.1's earlier findings exactly), and the aggregation
+logic was independently traced by a `code-reviewer` pass, but none of it has been runtime-observed
+against real data. An unauthenticated `curl` of `/crm` correctly redirected to `/login`, confirming
+only the route/middleware wiring, not the data-fetching path.
+**How to verify:** A future session with frontend login credentials and/or write-capable ERPNext API
+access should: create one disposable Customer-partied Opportunity plus one open `ToDo` against it
+(varying `expected_closing`/`probability`/`sales_stage` across a couple of fixtures to exercise more
+than one Attention Queue bucket), load `/crm`, confirm the KPI tiles/Attention Queue/board all show
+the expected values, exercise the stage-change `<select>` and confirm both the success path
+(`sales_stage` actually updates in ERPNext) and a simulated failure path (network/permission error)
+revert the card's visible stage correctly, then delete every fixture and confirm via a fresh query.

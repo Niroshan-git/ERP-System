@@ -2952,3 +2952,87 @@ about how QA was conducted that Codex's reconciliation pass should be aware of.
   work-in-progress was present in the shared working tree throughout this session (Finance
   `FIN-1G-C`, plus an unrelated Sales Settings change) — none of it was touched, reviewed, or staged
   into this package.
+
+## 2026-09-25 — CRM module — `CRM-4` (Pipeline Workspace) — implementation, code review, QA with a disclosed access gap and three fixed bugs
+
+- **Package tested**: `CRM-4` — `/crm`'s Pipeline Workspace: KPI summary, a Sales-Stage board with
+  an explicit stage-change control, and a six-section Attention Queue (Overdue Follow-up/Due Today/
+  No Next Action/Closing Soon/Past Expected Close/Stale), built on `CRM-2`'s Opportunity data and
+  `CRM-3`'s follow-up derivation with no new doctype. Full detail: `docs/backend/16-crm/
+  crm-architecture.md` §27, `PROGRESS.md`'s `CRM-4` entry.
+- **Working tree at session start**: clean of foreign WIP (only this session's own graphify
+  semantic-cache untracked files, unrelated tool output).
+- **Code review** (fresh `code-reviewer` subagent): **no blocking findings.** No core edits, no
+  secrets, scope confined to `CRM-4`'s own files, N+1 avoided (5 fixed requests regardless of
+  pipeline size), `pickNextFollowup`'s extraction out of `getNextFollowup` confirmed byte-for-byte
+  behavior-preserving for existing `CRM-3` callers, `updateOpportunityStageAction`'s allowlist/
+  error-handling checked out. Two real, non-blocking bugs found and fixed same session:
+  - **Finding A (fixed)**: `lib/crmPipeline.ts` derived "today" via `toISOString().slice(0,10)`
+    (UTC calendar date) for its own `isPastExpectedClose`/`isClosingSoon`/staleness comparisons,
+    while `lib/followupBucket.ts`'s `followupBucket()` (driving next-follow-up/health) used
+    local-timezone midnight — for a few hours around the UTC day boundary, a single pipeline row
+    could evaluate "today" two different ways depending on which field derived it. Fixed by
+    exporting `followupBucket.ts`'s private `todayMidnight()` and sharing it, plus mirroring
+    `followupBucket()`'s own date-parsing technique in a new `dateFloor()` helper.
+  - **Finding B (fixed)**: the staleness signal derived "last activity" from the same open-only
+    `ToDo` fetch used for next-follow-up (`listOpenFollowupsBulk`), so a Follow-up completed today
+    had already dropped out of that `status = "Open"` filter and stopped counting as recent
+    activity — a just-worked Opportunity could misreport as stale. Fixed with a dedicated
+    all-status `ToDo` bulk fetch used only for the recency signal; the open-only fetch continues to
+    drive next-follow-up/follow-up-health unchanged.
+- **QA** (fresh `qa-tester` subagent) — **result: PASS-WITH-GAPS, four new findings, three fixed.**
+  - **Access**: no `mcp__ceylon-stack__*` tools available to this QA pass (narrower than the
+    implementing session, which had live read-only schema/data access) — no browser, no
+    write-capable ERPNext credentials, no frontend login credentials either. Did not attempt any
+    workaround (no `.env` reads, no credential forging). Substituted cross-checking
+    `crmPipeline.ts`'s field/reference-pair usage against `crmActivity.ts`'s already-live-verified
+    `TODO_FIELDS`/`EVENT_FIELDS`/`COMMUNICATION_FIELDS` constants — explicitly disclosed as
+    consistency-checking against prior verification, not independent live confirmation.
+  - **What it did**: independently re-ran `tsc`/`eslint`/`build` clean; hand-traced Finding A's fix
+    against a concrete boundary-hour example (server local UTC+5:30, real time
+    `2026-09-24T20:00Z`) and confirmed the one-day mismatch the code-reviewer found is genuinely
+    closed, not merely moved — while separately noting a *pre-existing*, CRM-3-era subtlety in
+    `followupBucket()`'s own date-only parsing (UTC-then-floor can shift a date under a negative
+    server UTC offset) that CRM-4 inherited unchanged and did not introduce, with no live impact
+    given this deployment's actual timezone (Hetzner Helsinki / target market Sri Lanka, both
+    non-negative offsets); confirmed via `git diff` that `OpportunityForm`, both `CRM-2` detail
+    pages, `CrmActivityPanel.tsx`, and `/crm/activities/page.tsx` have zero changed lines.
+  - **Finding C (fixed)**: `PipelineBoard.tsx`'s single board-wide `useTransition()` disabled every
+    card's stage-change `<select>` while any one card's change was in flight — not a correctness
+    bug (rollback stayed per-row-correct) but a real usability rough edge on a board meant to let
+    someone move several deals in quick succession. Fixed with per-row pending state.
+  - **Finding D (fixed)**: Finding B's fix keyed the recency signal on `ToDo`/`Event`/
+    `Communication.creation` only, so completing an old, long-open Follow-up (or Meeting, via
+    `CRM-3`'s `completeMeetingAction`) *today* updated `modified`, not `creation` — the Opportunity
+    would still read as stale until a brand-new activity record was created against it. Fixed by
+    also fetching and bumping on each record's `modified` timestamp.
+  - **Finding E (fixed)**: the Follow-up Health filter had no `no_due_date` option, so an open
+    Follow-up with no due date (reachable via Desk's native "Assign," which doesn't require one,
+    even though this app's own Follow-up form does) was visible in the unfiltered board but
+    unreachable by this filter. Added `"No Due Date"` to `HEALTH_FILTER_LABELS`.
+  - **Finding F (disclosed, not fixed)**: submitting `ListFilterBar`'s own filter form drops the
+    "Show only my opportunities" toggle back to off, since that plain GET form only carries its own
+    named fields. QA confirmed `/crm/activities`'s identical "my activities" toggle already has this
+    exact behavior today — an existing `CRM-3`-era pattern, not a `CRM-4`-introduced regression, so
+    left as-is rather than redesigning a shared component this package didn't otherwise need to
+    touch.
+  - **What this QA pass does NOT establish**: no Opportunity/ToDo/Event/Communication fixture was
+    created and the rendered `/crm` page was never driven through a browser this session — the
+    aggregation logic, KPI math, and stage-mutation action have never executed against a real
+    record. Logged as `CRM-UNV-012` in `docs/backend/99-unverified/unverified-behaviours.md`.
+- **Post-fix verification**: `npx tsc --noEmit`, `npx eslint` (scoped to every changed file), and
+  `npm run build` all re-run clean after every code-review and QA-driven fix, not just before them.
+- **Cleanup**: N/A — no fixtures were created by this QA pass (no write access existed to create
+  any).
+- **Disposition**: same posture as `CRM-1`/`CRM-2`/`CRM-3` — **not marked `ACCEPTED`**, pending
+  Niroshan's review and `CRM-UNV-012`'s live-render/live-mutation gap being closed by a future
+  session with real write access and/or frontend login credentials. Three real, non-blocking bugs
+  (two from code review, one compounding fix from QA) were caught and fixed without any live access
+  at all, via static tracing and hand-computed boundary cases — the same "static verification still
+  catches real bugs" pattern `CRM-3`'s own QA pass demonstrated.
+- **Governance disclosure**, same as every prior entry under this constraint (today, 2026-09-25, is
+  the last day of `TEMP_DUAL_CLAUDE_MODE.md`'s effective period): no genuinely separate Claude
+  account/session exists in this environment; implementation, review, and QA were each performed by
+  fresh subagents independently re-deriving evidence rather than the implementer grading its own
+  claims — flagged for Codex's eventual §16 reconciliation audit. No foreign work-in-progress was
+  present in the shared working tree at any point this session.

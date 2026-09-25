@@ -6,6 +6,7 @@ import { callDocMethod, createDoc, getDoc, updateDoc } from "@/lib/erpnext";
 import { humanizeError } from "@/lib/masterActions";
 import { parseLineRows } from "@/lib/lineRows";
 import { getSellingDefaults } from "@/lib/salesDefaults";
+import { SALES_STAGE_OPTIONS } from "@/lib/salesStageOptions";
 
 export type FormState = { error?: string } | undefined;
 
@@ -206,4 +207,36 @@ export async function markOpportunityLostAction(
   revalidatePath("/crm/opportunities");
   revalidatePath(`/crm/opportunities/${encodeURIComponent(name)}`);
   redirect(`/crm/opportunities/${encodeURIComponent(name)}`);
+}
+
+export type StageUpdateResult = { error?: string };
+
+/**
+ * `CRM-4`'s pipeline board stage-change control — a plain single-field `updateDoc`, not a
+ * drag-and-drop reorder. The mission brief's own §8 explicitly allows either shape and prefers
+ * correctness over visual novelty; drag-and-drop's optimistic-UI/rollback surface can't be
+ * live-verified this session (no live Opportunity records exist yet on the instance, and this
+ * session — like `CRM-2`/`CRM-3`'s before it — has no live-mutation test path, `CRM-UNV-010`/
+ * `011`), so an explicit, narrow action is the safer shape to ship undemonstrated. Called
+ * directly from `PipelineBoard` (a client component) via a server-action reference, not through
+ * a `<form>` — no redirect, so the board stays on `/crm` and revalidation refreshes its data in
+ * place. `sales_stage` is allowlisted against the same hardcoded `SALES_STAGE_OPTIONS` order
+ * every other Opportunity stage control already uses (`lib/salesStageOptions.ts` — ERPNext's own
+ * `Sales Stage` schema carries no order/sequence field to validate against instead).
+ */
+export async function updateOpportunityStageAction(name: string, stage: string): Promise<StageUpdateResult> {
+  if (!SALES_STAGE_OPTIONS.includes(stage)) {
+    return { error: "Not a valid sales stage." };
+  }
+
+  try {
+    await updateDoc("Opportunity", name, { sales_stage: stage }, "update Opportunity stage");
+  } catch (e) {
+    return { error: humanizeError(e, "opportunity") };
+  }
+
+  revalidatePath("/crm");
+  revalidatePath("/crm/opportunities");
+  revalidatePath(`/crm/opportunities/${encodeURIComponent(name)}`);
+  return {};
 }

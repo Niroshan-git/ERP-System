@@ -138,6 +138,26 @@ is confirmed **not implementable today** — the live instance has zero `Email A
 must not be claimed as working; only the integration boundary should be designed. `FIN-2` remains
 **not authorized** and this note does not touch or reorder Finance V1 or CRM.
 
+**Updated 2026-09-25 (package `CRM-4`):** Niroshan issued a dedicated `CRM-4` mission brief —
+Pipeline Workspace: transforming the existing Lead + Opportunity + Activity foundation into a
+sales-management workspace at `/crm` (KPI summary — open opportunity count, pipeline value,
+probability-weighted pipeline, expected-to-close, overdue follow-ups, no-next-action count —
+pipeline board grouped by verified Opportunity stage, a Sales Attention Queue reusing CRM-3's
+`getNextFollowup`/`followupBucket` derivation, owner/stage/status/follow-up-health filtering, and
+My/All Opportunities visibility), per `CRM-0`'s `docs/backend/16-crm/crm-architecture.md` roadmap
+and the `CRM-1`/`CRM-2`/`CRM-3` precedent for how a CRM package gets authorized. This note is
+written **before** implementation starts, per the standing instruction `CRM-2`'s and `CRM-3`'s own
+notes issued (and the same shape `LP-0`/`LP-1` already followed). Same exception shape as the prior
+CRM notes above — does not resolve `docs/ceylon-stack-master-backlog.md` §5 decision #2, does not
+reopen or authorize `CRM-5`, and does not change Finance V1's priority for any session not working
+CRM. Per the mission brief's own instruction, Won/Lost analytics (win rate, won/lost revenue,
+conversion rate) are explicitly **not** implemented as authoritative KPIs — `CRM-UNV-010`/
+`CRM-UNV-011`'s unresolved won/lost-semantics gap is preserved, not silently closed. Opportunity
+stage mutation from the board is implemented only if CRM-2's existing verified stage-update path
+can be reused safely (explicit action, not drag-and-drop, no direct client-side ERPNext mutation);
+otherwise deferred and documented. `FIN-2` remains **not authorized** and this note does not touch
+or reorder Finance V1.
+
 1. **Finance V1 — primary stream.** FIN-0 (architecture/discovery) CLOSED 2026-09-24. Canonical
    sequence: FIN-1 (Chart of Accounts read + Bank Account CRUD) → FIN-2 (Payment Entry + AR/AP
    visibility) → FIN-3 (Journal Entry) → FIN-4 (General Ledger / Trial Balance / Profit & Loss /
@@ -160,11 +180,12 @@ must not be claimed as working; only the integration boundary should be designed
      this freeze, except for: critical defects, integration/accounting-impact defects Finance
      discovers while tracing Manufacturing→GL flows, release blockers, or a package Niroshan
      explicitly authorizes.
-4. **CRM** — `CRM-1` (Leads), `CRM-2` (Opportunities), and `CRM-3` (Activities & Follow-ups) have
-   shipped as explicit, dated exceptions (see the authorization notes above). Beyond those three,
-   CRM otherwise remains gated behind the preceding V1 foundations (Finance included) per
-   `docs/ceylon-stack-master-backlog.md` §5 decision #2 (still open) — `CRM-4`+ needs its own
-   separate authorization, the same way `CRM-3` needed its own beyond `CRM-2`'s.
+4. **CRM** — `CRM-1` (Leads), `CRM-2` (Opportunities), `CRM-3` (Activities & Follow-ups), and
+   `CRM-4` (Pipeline Workspace) have shipped as explicit, dated exceptions (see the authorization
+   notes above). Beyond those four, CRM otherwise remains gated behind the preceding V1
+   foundations (Finance included) per `docs/ceylon-stack-master-backlog.md` §5 decision #2 (still
+   open) — `CRM-5` needs its own separate authorization, the same way `CRM-4` needed its own
+   beyond `CRM-3`'s.
 5. **Later architecture programs** (e.g. tenant/module provisioning) — stay deferred unless
    separately unlocked.
 6. **Layout, Print & Document Output Engine** — `LP-0` (discovery) and `LP-1` (Company Print

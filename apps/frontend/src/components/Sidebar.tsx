@@ -302,11 +302,13 @@ const FINANCE_NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
-// CRM module — CRM-1 (Leads, 2026-09-24), CRM-2 (Opportunities, 2026-09-24), and CRM-3
-// (Activities & Follow-ups, 2026-09-25), each explicitly authorized ahead of full Finance V1
-// completion (see CLAUDE.md's mission-lock updates). Pipeline (Kanban) remains CRM-4, its own
-// future, separately authorized package (see docs/backend/16-crm/crm-architecture.md's
-// roadmap — per that document's §19, Pipeline is NOT exposed yet). Per §10/§22, CRM does NOT
+// CRM module — CRM-1 (Leads, 2026-09-24), CRM-2 (Opportunities, 2026-09-24), CRM-3
+// (Activities & Follow-ups, 2026-09-25), and CRM-4 (Pipeline Workspace, 2026-09-25), each
+// explicitly authorized ahead of full Finance V1 completion (see CLAUDE.md's mission-lock
+// updates). CRM-4's workspace lives at `/crm` itself — already reachable via this module's
+// "CRM Home" dashboard item (the same per-module homeHref pattern every other module already
+// uses, see MODULES below), so no dedicated "Workspace" group/item was added here; a separate
+// nav entry would have been a redundant second path to the same route. Per §10/§22, CRM does NOT
 // introduce its own Customer/Contact/Address/Territory routes — Lead's and Opportunity's own
 // detail pages link out to the canonical /master-data/customers/[name] once converted, same
 // "modules own process, Master Data owns entities" boundary every other module already

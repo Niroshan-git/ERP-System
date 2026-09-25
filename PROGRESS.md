@@ -6104,3 +6104,106 @@ and not authorized by this one, per the one-package-per-session rule
 (`docs/controls/AGENT_USAGE_POLICY.md` §4.1) — this session deliberately stopped at the
 documentation boundary rather than continuing into `LP-2`'s implementation. `FIN-2`/`FIN-3` remain
 not authorized; nothing in this package touches Finance V1 or any CRM package's priority.
+
+## `CRM-4` — Pipeline Workspace (2026-09-25, same day as `LP-0`/`LP-1`)
+
+Started: 2026-09-25, branch `frontend`, HEAD `d7bce5a` (the `DOCS-HELP-2` commit). Working tree was
+clean of foreign WIP at session start and throughout (only this session's own graphify semantic
+cache files under `graphify-out/cache/semantic/` were untracked, which are tool-generated and
+unrelated to any package's work).
+
+**Authorization:** Niroshan issued a dedicated `CRM-4` mission brief, the same pattern used for
+`CRM-1`/`CRM-2`/`CRM-3` — explicitly ahead of full Finance V1 completion. **Unlike `CRM-2`/`CRM-3`**,
+the dated `CLAUDE.md` authorization note was written **before** implementation started, per the
+standing instruction those two packages' own entries issued.
+
+**First gate:** this session had live **read-only** access to the real Hetzner instance via
+`mcp__ceylon-stack__*` tools (`ping` → `logged_in_as: "Administrator"`) — re-confirmed every
+Opportunity field this package depends on matches the live schema exactly, reconfirmed `Sales
+Stage`'s same 8 live records in the same order `lib/salesStageOptions.ts` already hardcodes, and
+confirmed zero live Opportunity/ToDo/Event/Communication records exist on the instance (same clean
+state `CRM-2`/`CRM-3`'s own first-gate checks found).
+
+**Implementation Summary:** New `lib/crmPipeline.ts` (server-only aggregation: bulk-fetches active
+Opportunities — `status not in [Lost, Converted, Closed]` — plus open ToDo/all-status ToDo/Event/
+Communication, 5 requests total regardless of pipeline size, no N+1) computing weighted value,
+next-follow-up (reusing `CRM-3`'s exact selection rule via a newly extracted `pickNextFollowup`
+helper), follow-up health, closing-soon/past-expected-close flags, a 14-day "stale" signal, and
+workspace KPI totals. New `components/PipelineBoard.tsx` (client component): board grouped by
+`sales_stage`, responsive (stacked full-width on mobile, horizontal-scroll columns on desktop), an
+explicit per-card stage-change `<select>` (not drag-and-drop) with optimistic UI and per-row
+rollback-on-error. New `updateOpportunityStageAction` in `crm/opportunities/actions.ts`, allowlisted
+against `SALES_STAGE_OPTIONS`. `/crm` (`crm/page.tsx`) rewritten from `CRM-1`/`CRM-2`'s minimal stub
+into the full workspace: KPI tiles, a six-section Attention Queue, Stage/Status/Territory/Owner/
+Origin/Follow-up-Health filters, and a "Show only my opportunities" toggle mirroring
+`/crm/activities`'s own convention. No structural Sidebar change — `/crm` was already reachable as
+"CRM Home" via the existing per-module `homeHref` pattern; only doc comments updated.
+
+**Design decisions requiring judgement, not resolved by `CRM-0`/§12/§17:** (1) stage movement is an
+explicit `<select>`, not drag-and-drop — correctness over visual novelty, and drag-and-drop's
+optimistic-UI surface couldn't be live-verified this session anyway. (2) KPI value totals are NOT
+converted to company base currency — raw `opportunity_amount` summed, currency shown only when every
+active row shares one, matching `CRM-2`'s own `OpportunitiesTable.tsx` precedent rather than
+introducing new multi-currency logic. (3) Won/Lost/win-rate/conversion-rate KPIs deliberately
+omitted, with a visible on-page disclosure naming `CRM-UNV-010`/`011`. (4) "Stale" (14 days) and the
+two expected-close windows (7-day "Closing Soon", 30-day "Expected to Close" KPI) are documented,
+hardcoded V1 defaults, not ERPNext-derived. (5) KPIs/Attention Queue/board all reflect the currently
+applied filters, not the whole module — disclosed in the page's own caption.
+
+**Verification:** `npx tsc --noEmit`, `npx eslint` (scoped to every changed file), and `npm run
+build` all run clean — re-confirmed a final time after both the code-review and QA-driven fixes
+below, not just before them.
+
+**Code review** (fresh `code-reviewer` subagent): no blocking findings — no core edits, no secrets,
+scope stayed within `CRM-4`, N+1 avoided (5 fixed requests, not one-per-row), `pickNextFollowup`'s
+extraction verified byte-for-byte behavior-preserving for existing `CRM-3` callers, allowlist/error-
+handling on `updateOpportunityStageAction` checked out. Two real, non-blocking bugs found and fixed
+same session: (a) `crmPipeline.ts` derived "today" via UTC `toISOString().slice(0,10)` while
+`followupBucket.ts` (driving next-follow-up/health) used local-timezone midnight — for a few hours
+around the UTC day boundary a single row could evaluate "today" two different ways depending on
+which field derived it; fixed by exporting `followupBucket.ts`'s `todayMidnight()` and sharing it.
+(b) the staleness signal derived "last activity" from the same open-only `ToDo` fetch used for
+next-follow-up, so a Follow-up completed today had already dropped out of that filter and stopped
+counting as recent activity; fixed with a dedicated all-status `ToDo` fetch for the signal only.
+
+**QA** (fresh `qa-tester` subagent) — **verdict: PASS-WITH-GAPS.** Independently re-ran
+`tsc`/`eslint`/`build` clean; hand-traced both code-review fixes against concrete boundary cases
+(confirmed the UTC/local mismatch is genuinely closed, confirmed a completed ToDo now contributes to
+the recency signal); confirmed zero diff on every `CRM-1`/`CRM-2`/`CRM-3` surface. No
+`mcp__ceylon-stack__*` access this pass (narrower than the implementing session), so live schema
+re-verification fell back to cross-checking against `crmActivity.ts`'s already-verified field
+constants rather than an independent live read — disclosed as such. No live write access or
+frontend login credentials either. Four new findings, three fixed same session: (1) `PipelineBoard`'s
+single board-wide pending flag disabled every card during any one stage change — fixed with per-row
+pending state. (2) the staleness fix from code review keyed on `ToDo.creation` only, so completing an
+old Follow-up *today* didn't refresh its Opportunity's recency signal until a brand-new record was
+created — fixed by also bumping on each record's `modified` timestamp. (3) the Follow-up Health
+filter had no `no_due_date` option — added. (4) disclosed, not fixed: the "my opportunities" toggle
+is dropped on filter-bar submit, an existing `ListFilterBar`/`CRM-3` pattern confirmed identical on
+`/crm/activities` today, not a `CRM-4`-introduced regression.
+
+**Post-fix verification:** `npx tsc --noEmit`, `npx eslint`, and `npm run build` all re-run clean
+after every code-review and QA-driven fix, not just before them.
+
+**Documentation:** `docs/backend/16-crm/crm-architecture.md` gained §27 (full implementation detail,
+design decisions, code-review/QA outcomes); `docs/backend/99-unverified/unverified-behaviours.md`
+gained `CRM-UNV-012`; `docs/backend/15-migration/migration-status.md`'s CRM row and "next candidates"
+note updated; `docs/product/crm/pipeline.md` (new) and `docs/product/crm/overview.md` (Pipeline
+Workspace status updated) — `docs/ceylon-stack-documentation.html` regenerated and validated clean
+(`node docs/tools/generate-docs.js` / `validate-docs.js`, 0 errors/0 warnings) both before and after
+the backend-doc updates.
+
+**Graphify:** `graphify update "D:\_07_ERP\ERP System"` (AST/code-only, no LLM) re-run after all
+code changes — 4830 nodes/9339 edges/382 communities. Full semantic re-extraction of this
+package's `docs/backend`/`docs/product` markdown changes was **not** run this session, matching an
+earlier package's own precedent (see this file's `--code-only`/full-rebuild note above) — the full
+`/graphify` flow dispatches multiple LLM subagents and was deferred to control cost; graphify is an
+advisory navigation aid, not a binding document, per `CLAUDE.md`.
+
+**Status:** implementation complete, code-reviewed (two findings, both fixed), QA'd
+(`PASS-WITH-GAPS`, four findings, three fixed, one disclosed as an existing non-`CRM-4` pattern).
+**Not marked `ACCEPTED`** — `CRM-UNV-012`'s live-mutation/live-render gap remains open for a future
+session with real write access and/or frontend login credentials to close, the same posture
+`CRM-1`/`CRM-2`/`CRM-3` shipped under. `CRM-5` (CRM → Sales Handoff) is **not started, not authorized
+by this package**; Finance V1 remains the priority-lock stream for any session not specifically
+working CRM.

@@ -16,7 +16,15 @@ export const BUCKET_DISPLAY: Record<FollowupBucket, { label: string; tone: "succ
   no_due_date: { label: "No Due Date", tone: "neutral" },
 };
 
-function todayMidnight(): Date {
+/**
+ * Exported so `lib/crmPipeline.ts`'s own date comparisons (`isPastExpectedClose`/`isClosingSoon`/
+ * staleness) can share the exact same "today" definition this file's own `followupBucket()`
+ * already uses — a `CRM-4` code-review finding: `crmPipeline.ts` originally derived "today" via
+ * `toISOString().slice(0,10)` (UTC calendar date), which can disagree with this function's local-
+ * timezone midnight for a few hours around the UTC day boundary, letting a single pipeline row
+ * evaluate "today" two different ways depending on which field derived it.
+ */
+export function todayMidnight(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;

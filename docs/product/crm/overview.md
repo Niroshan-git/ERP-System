@@ -44,7 +44,11 @@ timeline, next-follow-up/overdue derivation, and a cross-record `/crm/activities
 yet reviewed/accepted by Niroshan.
 
 Pipeline Workspace  
-**Planned** (`CRM-4`) — not started, not authorized.
+KPI summary, a Sales Stage board, and an Attention Queue (overdue/due-today/no-next-action/
+closing-soon/past-expected-close/stale) over the active pipeline. See `pipeline.md`. **Building** —
+implementation-complete and code-reviewed; zero live Opportunity records exist on the instance and
+no frontend login credentials were available this session, so live rendering/mutation is tracked as
+`CRM-UNV-012`, not yet closed.
 
 ## Required Configuration
 

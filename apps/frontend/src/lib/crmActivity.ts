@@ -151,17 +151,40 @@ export async function listOpenFollowups(doctype: CrmDoctype, name: string): Prom
 }
 
 /**
- * "Next actionable follow-up" — derived from open ToDo records, not stored anywhere. Earliest
- * due date wins; an open follow-up with no due date at all is surfaced only if nothing dated
- * exists, so a real deadline always takes priority over an unscheduled one. Returns null when
- * there is no open follow-up — the caller renders an explicit "No follow-up scheduled" state
- * rather than treating this as an error.
+ * Earliest due date wins; an open follow-up with no due date at all is surfaced only if
+ * nothing dated exists, so a real deadline always takes priority over an unscheduled one.
+ * Returns null for an empty list. Pulled out of `getNextFollowup` so `CRM-4`'s pipeline
+ * aggregation (`lib/crmPipeline.ts`) can apply the exact same selection rule to a bulk-fetched,
+ * per-record-grouped set of ToDo rows instead of re-deriving it.
  */
-export async function getNextFollowup(doctype: CrmDoctype, name: string): Promise<ToDoRow | null> {
-  const open = await listOpenFollowups(doctype, name);
+export function pickNextFollowup(open: ToDoRow[]): ToDoRow | null {
   if (open.length === 0) return null;
   const dated = open.filter((t) => t.date).sort((a, b) => (a.date! < b.date! ? -1 : a.date! > b.date! ? 1 : 0));
   return dated[0] ?? open[0];
+}
+
+/** "Next actionable follow-up" for a single Lead/Opportunity — derived from open ToDo records, not stored anywhere. */
+export async function getNextFollowup(doctype: CrmDoctype, name: string): Promise<ToDoRow | null> {
+  return pickNextFollowup(await listOpenFollowups(doctype, name));
+}
+
+/**
+ * All open follow-ups across every record of one doctype, in a single request — the bulk
+ * counterpart to `listOpenFollowups` (which is scoped to one record). Exists for `CRM-4`'s
+ * pipeline aggregation, which needs every Opportunity's next follow-up without an N+1 query
+ * per card; the same bulk-then-group-in-JS shape `listCrmActivities` below already uses for
+ * `/crm/activities`, not a new fetch pattern.
+ */
+export async function listOpenFollowupsBulk(doctype: CrmDoctype): Promise<ToDoRow[]> {
+  return listDocs<ToDoRow>("ToDo", {
+    fields: TODO_FIELDS,
+    filters: [
+      ["reference_type", "=", doctype],
+      ["status", "=", "Open"],
+    ],
+    orderBy: "date asc",
+    limit: 1000,
+  });
 }
 
 /**

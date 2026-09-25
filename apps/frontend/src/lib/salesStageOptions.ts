@@ -2,8 +2,8 @@
  * `Sales Stage` is a flat reference master (`stage_name` only, live-verified via
  * `get_doctype_fields`) — ERPNext's own schema encodes no order/sequence field
  * (`docs/backend/16-crm/crm-architecture.md` §12). This app needs a fixed client-side
- * ordering for the Opportunity form's stage dropdown and list filter (and later, `CRM-4`'s
- * Kanban columns) — hardcoded here rather than fetched via `fetchLinkOptions` (which sorts
+ * ordering for the Opportunity form's stage dropdown and list filter, and `CRM-4`'s pipeline
+ * board columns — hardcoded here rather than fetched via `fetchLinkOptions` (which sorts
  * alphabetically and would scramble a real pipeline sequence).
  *
  * Live-verified (`CRM-2` package, 2026-09-24, `list_documents("Sales Stage")` against the

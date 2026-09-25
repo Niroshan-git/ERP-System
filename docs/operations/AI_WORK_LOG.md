@@ -5408,3 +5408,134 @@ session not specifically working CRM. Recommended next steps for a future `CRM-2
 `CRM-UNV-003`/`005`/`006`/`007` (all non-blocking but relevant to that package's exact scope), and
 consider whether `MD-REL-1` should land first to unblock `CRM-UNV-008`'s deferred Contact/Address
 extension.
+
+## `CRM-4` — Pipeline Workspace (2026-09-25, same day as `CRM-3`/`LP-0`/`LP-1`)
+
+Started: 2026-09-25, branch `frontend`, HEAD `d7bce5a` (the `DOCS-HELP-2` commit).
+Completed: 2026-09-25.
+
+**Authorization:** Niroshan issued a dedicated `CRM-4` mission brief, the same authorization pattern
+`CRM-1`/`CRM-2`/`CRM-3` established — explicitly ahead of full Finance V1 completion. **Unlike
+`CRM-2`/`CRM-3`**, whose own entries disclosed writing the dated `CLAUDE.md` authorization note only
+after implementation had already started, this session wrote it **before** any code — the standing
+instruction those two entries issued.
+
+**Implementation Summary:** `/crm` rewritten from `CRM-1`/`CRM-2`'s minimal module-home stub into a
+full sales-management workspace, built entirely on `CRM-2`'s existing Opportunity data and `CRM-3`'s
+existing follow-up derivation — no new doctype. New `lib/crmPipeline.ts` (server-only, bulk-fetch
+aggregation, 5 fixed requests regardless of pipeline size — Opportunity, open ToDo, all-status ToDo,
+Event, Communication — explicitly avoiding N+1 per the mission brief's own requirement). New
+`components/PipelineBoard.tsx` (stage-grouped board, responsive, explicit per-card stage-change
+control with optimistic UI/rollback). New `updateOpportunityStageAction` (allowlisted single-field
+update). KPI summary, a six-section Attention Queue, and Stage/Status/Territory/Owner/Origin/
+Follow-up-Health filters on `/crm` itself. Won/Lost KPIs deliberately omitted (`CRM-UNV-010`/`011`
+still open, not silently closed). Full detail: `docs/backend/16-crm/crm-architecture.md` §27,
+`PROGRESS.md`'s `CRM-4` entry.
+
+**Files:** `apps/frontend/src/lib/crmPipeline.ts` (new), `apps/frontend/src/components/
+PipelineBoard.tsx` (new), `apps/frontend/src/app/(app)/crm/page.tsx` (rewritten),
+`apps/frontend/src/app/(app)/crm/opportunities/actions.ts` (one action added),
+`apps/frontend/src/lib/crmActivity.ts` (`pickNextFollowup` extracted, `listOpenFollowupsBulk`
+added — both additive), `apps/frontend/src/lib/followupBucket.ts` (`todayMidnight()` exported),
+`apps/frontend/src/components/Sidebar.tsx`/`apps/frontend/src/lib/salesStageOptions.ts` (doc
+comments only), `CLAUDE.md` (authorization note).
+
+**Tests:** `npx tsc --noEmit`, `npx eslint` (scoped to every changed file), and `npm run build` all
+run clean — re-confirmed a final time after both the code-review and QA-driven fixes, not just
+before them.
+
+**Handoff:** `CLAUDE_HANDOFF` — **not marked `ACCEPTED`**, same posture as `CRM-1`/`CRM-2`/`CRM-3`,
+pending Niroshan's review and `CRM-UNV-012`'s live-render/live-mutation gap.
+
+### Independent review (fresh `code-reviewer` subagent, this session — no genuinely separate Claude
+account exists in this environment; see Governance disclosure below)
+
+Review Started: 2026-09-25. Review Completed: 2026-09-25.
+Review State: no blocking findings. Two real, non-blocking correctness bugs found and fixed same
+session (not re-delegated):
+
+| ID | Severity | File | Finding | Found by | Resolution |
+|---|---|---|---|---|---|
+| (unlabeled) | LOW-MEDIUM | `lib/crmPipeline.ts` | "Today" derived via UTC `toISOString().slice(0,10)`, disagreeing with `followupBucket.ts`'s local-timezone midnight for a few hours around the UTC day boundary — one pipeline row could evaluate "today" two different ways | Claude (`code-reviewer`) | `FIXED` — shared `todayMidnight()` export + matching `dateFloor()` parse technique |
+| (unlabeled) | LOW-MEDIUM | `lib/crmPipeline.ts` | Staleness signal reused the open-only ToDo fetch, so a Follow-up completed today had already dropped out of the `status = "Open"` filter and stopped counting as recent activity | Claude (`code-reviewer`) | `FIXED` — dedicated all-status ToDo fetch for the recency signal only |
+
+### QA (fresh `qa-tester` subagent, this session)
+
+QA Started: 2026-09-25. QA Completed: 2026-09-25.
+Verdict: **PASS-WITH-GAPS**. No `mcp__ceylon-stack__*` tools, browser, write-capable ERPNext
+credentials, or frontend login credentials available to this pass — narrower than the implementing
+session, which had live read-only schema/data access. Did not attempt any workaround. Independently
+re-ran `tsc`/`eslint`/`build` clean; hand-traced both code-review fixes against concrete boundary
+cases and confirmed each genuinely closed what it claimed to; confirmed via `git diff` zero changed
+lines on every `CRM-1`/`CRM-2`/`CRM-3` surface. Four new findings, three fixed same session:
+
+| ID | Severity | File | Finding | Found by | Resolution |
+|---|---|---|---|---|---|
+| (unlabeled) | LOW | `components/PipelineBoard.tsx` | Single board-wide pending flag disabled every card during any one stage change | Claude (`qa-tester`) | `FIXED` — per-row pending state |
+| (unlabeled) | LOW-MEDIUM | `lib/crmPipeline.ts` | Recency-signal fix keyed on `creation` only, so completing an old Follow-up today didn't refresh its Opportunity's staleness until a new record was created | Claude (`qa-tester`) | `FIXED` — also bumps on each record's `modified` timestamp |
+| (unlabeled) | LOW | `app/(app)/crm/page.tsx` | Follow-up Health filter had no `no_due_date` option | Claude (`qa-tester`) | `FIXED` — added to `HEALTH_FILTER_LABELS` |
+| (unlabeled) | LOW (scoping, not a `CRM-4` defect) | `components/ListFilterBar.tsx` (pre-existing, shared) | "My opportunities" toggle drops on filter-bar submit — confirmed `/crm/activities`'s identical toggle already has this behavior | Claude (`qa-tester`) | `DEFERRED`, disclosed — not a `CRM-4`-introduced regression, shared component left untouched |
+
+`CRM-UNV-012` — `lib/crmPipeline.ts`'s aggregation and `updateOpportunityStageAction`'s mutation have
+never executed against a live record; the rendered `/crm` page was never driven through a browser
+this session. Logged in `docs/backend/99-unverified/unverified-behaviours.md`, same non-blocking
+disclosed-gap posture as `CRM-UNV-010`/`011`.
+
+Tests Independently Executed: `YES` — code review (static, diff-level, hand-traced boundary cases)
+and QA (independent re-run of the full static suite plus hand-traced verification of both prior
+fixes) both performed by fresh subagents independently re-deriving evidence, not grading the
+implementer's own claims.
+Documentation Updated: `YES`, per the checklist below.
+
+### Documentation Checklist
+
+Backend: `UPDATED` — `docs/backend/16-crm/crm-architecture.md` gained §27 (full implementation
+detail, design decisions, code-review/QA outcomes and fixes).
+Frontend: `UPDATED` — covered within the same §27 (no separate frontend-specific doc exists for CRM,
+consistent with `CRM-1`/`CRM-2`/`CRM-3`'s own precedent).
+ERD: `NOT_REQUIRED` — no new entity/relationship introduced; `CRM-4` is a read-time aggregation over
+entities `CRM-0`'s ERD already covers.
+Business Rules: `UPDATED` — the terminal-status exclusion, weighted-value formula, and the three
+hardcoded V1 thresholds (stale/closing-soon/expected-to-close windows) are documented in §27.3.
+QA_LOG: `UPDATED` — full `CRM-4` entry, including all code-review/QA findings and fixes.
+PROGRESS: `UPDATED` — full `CRM-4` entry.
+Architecture Decision: `NOT_REQUIRED` — no durable cross-cutting decision; this package implements
+against `CRM-0`'s/`CRM-2`'s/`CRM-3`'s existing architecture, doesn't revise it.
+Migration Status: `UPDATED` — `docs/backend/15-migration/migration-status.md`'s CRM row and "next
+candidates" note both updated to reflect `CRM-4` shipping and `CRM-5` as the next candidate.
+Product Guide: `UPDATED` — new `docs/product/crm/pipeline.md`, `docs/product/crm/overview.md`'s
+Pipeline Workspace status updated from Planned to Building. `docs/ceylon-stack-documentation.html`
+regenerated and validated clean (0 errors, 0 warnings) after these changes.
+Release Documentation: `PENDING` — `release-tracker` subagent invocation follows this log entry, per
+`CLAUDE.md`'s Package Closure Rules item 7/8.
+
+### Final State
+
+Implementation: `CLAUDE_HANDOFF`, not self-declared `ACCEPTED`.
+Independent Review: no blocking findings; two non-blocking findings fixed.
+QA: `PASS-WITH-GAPS`; three non-blocking findings fixed, one disclosed as a pre-existing pattern.
+Documentation: `UPDATED`, per the checklist above.
+Release: `PENDING` — `release-tracker` next.
+
+### Governance disclosure
+
+Today, 2026-09-25, is the last day of `TEMP_DUAL_CLAUDE_MODE.md`'s effective period (2026-09-20
+through 2026-09-25; expected reversion to normal Claude→Codex governance 2026-09-26). Same
+disclosure as every prior entry under this constraint: no genuinely separate Claude account/session
+exists in this environment. Implementation, code review, and QA were each performed by fresh
+subagents independently re-deriving evidence from the live codebase/instance (and, for the
+implementing session, live read-only ERPNext schema/data access via `mcp__ceylon-stack__*` —
+broader access than `CRM-2`'s or `CRM-3`'s own first-gate/QA passes had) rather than the implementer
+grading its own claims — the closest approximation of independent review available under
+`TEMP_DUAL_CLAUDE_MODE.md`. Flagged for Codex's eventual §16 reconciliation audit. No foreign
+work-in-progress was present in the shared working tree at any point this session.
+
+### Notes
+
+`CRM-5` (CRM → Sales Handoff) is **not started, not authorized by this package**, per the mission
+brief's explicit instruction to stop and wait for review/authorization before continuing. Finance V1
+remains the priority-lock stream for any session not specifically working CRM. Recommended next
+steps for a future session: close `CRM-UNV-012` (and, ideally, the still-open `CRM-UNV-010`/`011`)
+via a disposable-fixture live test once write access and/or frontend login credentials are
+available — create one Customer-partied Opportunity plus one open ToDo, load `/crm`, confirm the
+KPI/board/Attention-Queue numbers, exercise the stage-change control, then clean up.
