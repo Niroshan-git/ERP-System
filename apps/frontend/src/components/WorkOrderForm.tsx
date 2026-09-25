@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useMemo, useState, useTransition } from "react";
 import { getBomDetails, listBomsForItem, type BomDetail, type BomOption } from "@/lib/actions/bomLookup";
+import { getWarehousesForCompany } from "@/app/(app)/manufacturing/work-orders/actions";
 import type { ManufacturableItemOption } from "@/lib/actions/itemLookup";
 import { PlainLineItemsTable, type PlainLineItemRow } from "@/components/PlainLineItemsTable";
 import { StockBadge } from "@/components/StockBadge";
@@ -61,9 +62,24 @@ export function WorkOrderForm({
   const [company, setCompany] = useState(defaultCompany);
   const [useMultiLevelBom, setUseMultiLevelBom] = useState(false);
 
+  const [warehouseOptions, setWarehouseOptions] = useState(warehouses);
+  const [isWarehousePending, startWarehouseTransition] = useTransition();
   const [sourceWarehouse, setSourceWarehouse] = useState(() => matchWarehouse(warehouses, "Stores"));
   const [wipWarehouse, setWipWarehouse] = useState(() => matchWarehouse(warehouses, "Work In Progress"));
   const [fgWarehouse, setFgWarehouse] = useState(() => matchWarehouse(warehouses, "Finished Goods"));
+
+  /** Refetches this Company's own warehouses and re-derives the Source/WIP/Target picks
+   * against the new list — see getWarehousesForCompany's doc comment for why this exists. */
+  function onCompanyChange(next: string) {
+    setCompany(next);
+    startWarehouseTransition(async () => {
+      const nextWarehouses = await getWarehousesForCompany(next);
+      setWarehouseOptions(nextWarehouses);
+      setSourceWarehouse(matchWarehouse(nextWarehouses, "Stores"));
+      setWipWarehouse(matchWarehouse(nextWarehouses, "Work In Progress"));
+      setFgWarehouse(matchWarehouse(nextWarehouses, "Finished Goods"));
+    });
+  }
 
   function loadBomsForItem(itemCode: string) {
     startBomTransition(async () => {
@@ -196,7 +212,7 @@ export function WorkOrderForm({
             name="company"
             required
             value={company}
-            onChange={(e) => setCompany(e.target.value)}
+            onChange={(e) => onCompanyChange(e.target.value)}
             className={inputClass}
           >
             {companies.map((c) => (
@@ -296,7 +312,7 @@ export function WorkOrderForm({
               className={inputClass}
             >
               <option value="">None</option>
-              {warehouses.map((w) => (
+              {warehouseOptions.map((w) => (
                 <option key={w} value={w}>
                   {w}
                 </option>
@@ -315,7 +331,7 @@ export function WorkOrderForm({
               className={inputClass}
             >
               <option value="">None</option>
-              {warehouses.map((w) => (
+              {warehouseOptions.map((w) => (
                 <option key={w} value={w}>
                   {w}
                 </option>
@@ -334,7 +350,7 @@ export function WorkOrderForm({
               className={inputClass}
             >
               <option value="">None</option>
-              {warehouses.map((w) => (
+              {warehouseOptions.map((w) => (
                 <option key={w} value={w}>
                   {w}
                 </option>
@@ -344,6 +360,7 @@ export function WorkOrderForm({
         </div>
         <p className="mt-1 text-xs text-graphite-500">
           Pre-selected by matching warehouse names — all three are editable and optional.
+          {isWarehousePending && " Refreshing for the selected company…"}
         </p>
       </div>
 

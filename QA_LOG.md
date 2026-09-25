@@ -3112,3 +3112,65 @@ about how QA was conducted that Codex's reconciliation pass should be aware of.
   independently re-deriving evidence rather than the implementer grading its own claims — flagged
   for Codex's eventual §16 reconciliation audit. Foreign, concurrent `LP-2` work-in-progress was
   present throughout this session (disclosed above) — none of it touched, staged, or committed.
+
+## 2026-09-25/26 — E2E-1 full business workflow test — two live defects found and fixed (CRM Log Call, Work Order company/warehouse mismatch)
+
+- **Package tested**: not a single module package — a full CRM→Sales→Procurement→Manufacturing
+  E2E-1 business-workflow mission (Lead through an attempted-but-blocked Delivery/Invoice/
+  Payment), live-tested against the real ERPNext instance via the actual `apps/frontend` UI
+  (Chrome browser automation), per Niroshan's own dated E2E-1 mission brief. This entry covers
+  the two genuine defects found live during that run and fixed in-session as critical
+  integration/release fixes (`CLAUDE.md` item 2, always in scope); the mission's other findings
+  are disclosed below but were NOT fixed and are not part of this closure.
+- **Result**: **PASS** (both fixes), `code-reviewer`-approved, no blocking issues.
+- **Issues found and fixed**:
+  1. **CRM Log Call fails for the Administrator login** — `Communication.sender` is
+     email-format-validated; `session.email` for an Administrator login is the literal string
+     `"Administrator"`, not email-shaped → ERPNext 417 every time, surfaced to the user only as a
+     generic error (real reason visible solely via Error Explorer). Fixed in
+     `apps/frontend/src/lib/actions/crmActivity.ts`'s `createCallAction`: `sender` is now only
+     sent when `session.email` is email-shaped, omitted otherwise (not a required field).
+  2. **Work Order Source/WIP/Target Warehouse pickers don't follow the Company selection** —
+     `/manufacturing/work-orders/new`'s warehouse dropdowns were fetched once at page load for
+     the default company and never refreshed on a client-side Company change, so Submit failed
+     ("Work-in-Progress Warehouse is required") for any non-default company — and a sibling
+     Production-Plan-generated Work Order had silently gone through with the *wrong* Target
+     Warehouse instead (finished goods routed to the raw-materials warehouse). Fixed by adding
+     `getWarehousesForCompany` (`apps/frontend/src/app/(app)/manufacturing/work-orders/
+     actions.ts`) and wiring a company-change refetch into `src/components/WorkOrderForm.tsx`.
+- **Fixes / verification status**:
+  1. Fixed and live-verified: Log Call on Lead `CRM-LEAD-2026-00002` now succeeds and appears
+     correctly in the Activity timeline.
+  2. Fixed and live-verified: Work Order `MFG-WO-2026-00041` created and submitted with correct
+     `Ceylon Stack (Demo)` warehouses, then carried through a real, submitted Material Transfer to
+     WIP with the resulting stock movement confirmed by direct ledger read.
+- **Verification method — disclosed, not overstated**: both fixes were live-tested manually in
+  the browser against the real instance as part of the E2E-1 mission itself, immediately after
+  each fix, then carried forward through further real downstream documents. **A dedicated
+  `qa-tester` subagent pass was not additionally run** for this closure — `code-reviewer`'s own
+  process note flagged that one is technically expected per `AGENT_OPERATING_GUIDE.md` §8's
+  Definition of Ready for a core-flow change; disclosed here rather than treated as silently
+  satisfied by code review alone.
+- **`code-reviewer` sign-off**: both fixes correct and safe, no blocking issues, no control-doc
+  violations (Manufacturing/CRM freezes both explicitly except "critical defects," which these
+  are). Two non-blocking notes: (1) the email-shape regex in fix 1 requires a dot after `@`
+  (`admin@localhost` would also be treated as non-email — acceptable per the fix's stated bar);
+  (2) fix 2's `onCompanyChange` has no request-ordering guard, so rapid double-switching Company
+  could theoretically race — low-probability, flagged as a follow-up, not blocking. Also
+  suggested `getWarehousesForCompany` would fit better in `lib/stockDefaults.ts`/`lib/actions/`
+  for consistency with sibling `*Form.tsx` components — not applied this session.
+- **Not fixed / disclosed gaps from the same run** (documented in `PROGRESS.md`'s matching `E2E-1`
+  entry, not part of this closure): Opportunity→Quotation handoff broken for Lead-sourced
+  Opportunities; no tax-template UI anywhere in Sales; no Material Request→Purchase Order handoff;
+  the identical stale-warehouse-list bug still present on `/manufacturing/production-plans/new`;
+  **Job Card execution completely unbuilt**, blocking Manufacture/Delivery/Invoice/Payment for
+  the rest of this transaction (a disclosed, intentional Manufacturing-freeze scope boundary per
+  `CLAUDE.md`, not a regression — correctly not built this session); User Activity/Audit Trail
+  showing "Actor unavailable" for nearly all rows (traced to a likely stale-deployed-backend
+  issue in `smart_factory`'s `observability.py`, not chased further — backend Python, out of a
+  frontend session's reasonable scope).
+- **Cleanup**: none — this was a real business transaction, not a throwaway QA fixture; every
+  document created (Lead through Material Transfer/Job Card) is left in place as a legitimate,
+  still-valid record. Full ID list in `PROGRESS.md`'s `E2E-1` entry.
+- **Sign-off**: `code-reviewer` found no blockers on either fix. Meets `AGENT_OPERATING_GUIDE.md`
+  §8's Definition of Ready with one disclosed gap (no separate `qa-tester` pass — see above).

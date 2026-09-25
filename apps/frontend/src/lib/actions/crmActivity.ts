@@ -64,6 +64,13 @@ export async function createCallAction(
   const contentParts = [`<p>${escapeHtml(summary)}</p>`];
   if (outcome) contentParts.push(`<p><strong>Outcome:</strong> ${escapeHtml(outcome)}</p>`);
 
+  // `sender` is a Data field with Frappe's Email-format validation, unlike `user` (a plain
+  // Link to User) — a session identity that isn't email-shaped (e.g. the literal "Administrator"
+  // username, which logs in fine and is a valid User link, but fails Email-format validation)
+  // must not be sent there or ERPNext rejects the whole Communication with a 417. Found live via
+  // this package's own E2E-1 mission run: logging a Call as Administrator failed every time.
+  const senderIsEmailShaped = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(session.email);
+
   try {
     await createDoc("Communication", {
       subject,
@@ -76,7 +83,7 @@ export async function createCallAction(
       reference_doctype: doctype,
       reference_name: name,
       user: session.email,
-      sender: session.email,
+      sender: senderIsEmailShaped ? session.email : undefined,
       sender_full_name: session.fullName,
     });
   } catch (e) {

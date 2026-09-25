@@ -6,8 +6,23 @@ import { cancelDoc, createDoc, ErpNextError, getDoc, submitDoc } from "@/lib/erp
 import { getBomDetails } from "@/lib/actions/bomLookup";
 import { getConnections } from "@/lib/connections";
 import { canCancelWorkOrder } from "@/lib/erpStatus";
+import { getStockDefaults } from "@/lib/stockDefaults";
 
 export type FormState = { error?: string } | undefined;
+
+/**
+ * Refetches the warehouse list for whatever Company the user picks in WorkOrderForm's own
+ * Company select — the page's initial `warehouses` prop is scoped to `getStockDefaults()`'s
+ * single default company at page-load time and never changes again, so switching Company
+ * client-side previously left the Source/WIP/Target Warehouse selects showing the wrong
+ * company's warehouses with no way to pick the right ones (found live via this project's own
+ * E2E-1 mission run: Work Order Submit failed with "Work-in-Progress Warehouse is required"
+ * because the correct company's warehouses were never selectable in the first place).
+ */
+export async function getWarehousesForCompany(company: string): Promise<string[]> {
+  const defaults = await getStockDefaults(company);
+  return defaults.warehouses;
+}
 
 function humanizeError(e: unknown): string {
   if (e instanceof ErpNextError) {

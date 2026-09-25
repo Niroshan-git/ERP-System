@@ -6394,3 +6394,123 @@ Format) and `LP-4A` (full Sales Invoice pilot, including wiring `DocumentOutputA
 real page and the deferred live-credential verification) are separate, not-yet-authorized future
 packages. `FIN-2`/`FIN-3` remain not authorized; nothing in this package touches Finance V1 or any
 CRM package's priority.
+
+## `E2E-1` — Full Business Workflow Test (2026-09-25/26)
+
+**What this was:** not a build package — a live, full CRM→Sales→Procurement→Manufacturing
+end-to-end business-workflow test, per Niroshan's own dated E2E-1 mission brief, run directly
+against the real ERPNext instance via the actual `apps/frontend` UI (Chrome browser automation),
+not mocked or curl-simulated. Chased one realistic transaction (10× a new test item,
+`CS-DESK-001` "Executive Office Desk", for a new test customer "Lanka Office Solutions (Pvt)
+Ltd") from Lead creation as far as it would go, fixing genuine live-found defects along the way
+("critical integration/release fixes affecting already-built modules" — `CLAUDE.md` item 2,
+always in scope) and disclosing everything that couldn't be fixed within session bounds rather
+than working around it to force a clean pass, per the mission's own explicit "do not create
+artificial shortcuts" instruction.
+
+**Two real defects found and fixed live, both code-reviewed with no blocking issues:**
+
+1. **CRM Log Call hard-fails for the Administrator login** — `apps/frontend/src/lib/actions/
+   crmActivity.ts`'s `createCallAction`. ERPNext's `Communication.sender` field is a Data field
+   with Frappe's Email-format validation, but `session.email` for an Administrator login is the
+   literal string `"Administrator"`, not email-shaped — every Log Call attempt failed with a 417
+   ("Administrator is not a valid Email Address"), surfaced to the user only as a generic
+   "ERPNext rejected this call" message (the real reason was visible only via Error Explorer's
+   trace detail, since `humanizeActivityError` discards `ErpNextError.erpnextMessage` for this
+   error class). Fixed by only sending `sender` when `session.email` passes an email-shape regex
+   check; omitted otherwise (the field isn't required, and `createDoc`'s `JSON.stringify` drops
+   `undefined` keys cleanly — verified, not assumed). `user`/`sender_full_name` (unaffected —
+   `user` is a Link field, not email-format-validated) still always carry the real identity, so
+   attribution isn't lost. Live-verified: Log Call on Lead `CRM-LEAD-2026-00002` now succeeds and
+   appears correctly in the Activity timeline.
+2. **Work Order warehouse pickers don't follow the Company selection** —
+   `apps/frontend/src/app/(app)/manufacturing/work-orders/actions.ts` +
+   `src/components/WorkOrderForm.tsx`. `/manufacturing/work-orders/new`'s Source/WIP/Target
+   Warehouse dropdowns were populated once at page load for whatever company the page defaulted
+   to, and never refreshed when the user changed Company client-side — so working in any
+   non-default company left no way to select a correct warehouse, and Submit then failed
+   server-side ("Work-in-Progress Warehouse is required"). A companion Work Order auto-generated
+   from a Production Plan (same root bug class, different form) had actually gone through with a
+   *wrong* Target Warehouse (finished goods landing in the raw-materials warehouse) rather than
+   failing loudly — worse, silent data-integrity risk. Fixed by adding a new
+   `getWarehousesForCompany(company)` server action (thin wrapper around the existing
+   `getStockDefaults(company)`, which already supported company-scoped filtering but was never
+   called with an argument from this page) and wiring it into `WorkOrderForm.tsx` via a
+   company-change handler that refetches and re-derives the three warehouse picks. Live-verified:
+   Work Order `MFG-WO-2026-00041` created and submitted with correct `Ceylon Stack (Demo)`
+   warehouses, then carried through a real, submitted Material Transfer to WIP with the stock
+   movement confirmed by direct ledger read (Stores-CSD 10/20/10/10 → 0/0/0/0, WIP-CSD 0/0/0/0 →
+   10/20/10/10).
+
+**`code-reviewer` sign-off:** both fixes correct and safe, no blocking issues, no control-doc
+violations (Manufacturing and CRM are both frozen per the Current Mission lock, but both freezes
+explicitly except "critical defects" — a hard-failing Submit and a hard-failing Log Call both
+qualify). Two non-blocking notes carried forward rather than acted on in this closure: (1)
+`crmActivity.ts`'s email-shape regex requires a dot after `@`, so `admin@localhost` would also be
+treated as non-email-shaped — acceptable per the fix's own stated bar (reject `"Administrator"`,
+accept real emails), not a defect; (2) `WorkOrderForm.tsx`'s `onCompanyChange` has no
+request-ordering guard, so rapid double-switching Company could theoretically leave the
+warehouse list for a company the user is no longer on — same bug class reachable via a narrower,
+low-probability path, worth a follow-up (`AbortController` or disabling the Company select while
+`isWarehousePending`), not blocking. Also suggested `getWarehousesForCompany` would fit better in
+`lib/stockDefaults.ts`/`lib/actions/` for consistency with how other `*Form.tsx` components only
+import *types* from a route's own `actions.ts` — not applied in this closure, noted for whoever
+next touches this file.
+
+**Verification method — disclosed, not overstated:** both fixes were live-tested manually in the
+browser against the real ERPNext instance as part of the E2E-1 mission itself — immediately after
+each fix, the exact failing action was retried and confirmed working, then the transaction was
+carried forward through several more real, submitted downstream documents (see the full chain
+below). A dedicated `qa-tester` subagent pass was **not** additionally run for this closure;
+`code-reviewer`'s own process note flagged that one is technically expected per
+`AGENT_OPERATING_GUIDE.md` §8's Definition of Ready for a core-flow change — disclosing that gap
+explicitly rather than treating code review alone as satisfying it.
+
+**Everything else found in the same run — disclosed, NOT fixed, NOT part of this closure**
+(documented here for visibility; each is either a scope-too-large-for-inline-fix judgment call or
+a disclosed, intentional V1 boundary, not silently dropped):
+- Opportunity → Quotation handoff doesn't work for Lead-sourced Opportunities (`canCreateQuotation`
+  requires `opportunity_from === "Customer"`) — the mission's own canonical Lead→Opportunity flow
+  hits this dead end every time; worked around by creating the Quotation directly against the
+  Customer instead.
+- No tax-template UI exists anywhere in the Sales frontend (Quotation/Sales Order/Invoice), despite
+  `docs/product/sales/quotation.md` documenting Tax Template as an expected field and real tax
+  templates (`Sri Lanka Tax - CSD`) existing in ERPNext.
+- No Material Request → Purchase Order handoff in the UI (only → RFQ) — Purchase Orders must be
+  manually re-keyed, losing traceability back to the Material Request.
+- The Production Plan creation form (`/manufacturing/production-plans/new`) has the identical
+  stale-warehouse-list bug as fix #2 above, in a sibling component — not fixed this session.
+- **Job Card execution is completely unbuilt** (no Start/Complete action anywhere in the
+  frontend) — blocks "Complete Production" for any BOM with Operations attached, which in turn
+  blocked the rest of this transaction (Manufacture Stock Entry, Delivery Note, Sales Invoice,
+  Payment Entry never happened). This matches `CLAUDE.md`'s own documented Manufacturing freeze
+  ("Job Card (read-only + cancel)... do not expand Manufacturing... Job Card execution/time-log")
+  — a disclosed, intentional V1 scope boundary, not a regression, and correctly not built in this
+  session.
+- User Activity / Audit Trail show "Actor unavailable" for nearly every row, including this
+  session's own actions — traced (via direct `Activity Log.content` read) to a malformed stored
+  string missing the `<email>` bracket the frontend's parser requires, even though the
+  currently-committed Python source (`smart_factory/api/observability.py`) looks like it should
+  produce that bracket — likely a stale deployed backend process rather than a live source bug.
+  Not chased further (backend Python, materially bigger/riskier than this session's other fixes).
+
+**Test artifacts left in the system** (a real, still-valid transaction chain — not cleaned up):
+Lead `CRM-LEAD-2026-00002`, Opportunity `CRM-OPP-2026-00002`, Customer "Lanka Office Solutions
+(Pvt) Ltd", Quotation `SAL-QTN-2026-00029`, Sales Order `SAL-ORD-2026-00042`, Production Plan
+`MFG-PP-2026-00018`, Material Request `MAT-MR-2026-00008`, Purchase Order `PUR-ORD-2026-00015`,
+Purchase Receipt `MAT-PRE-2026-00003`, Work Order `MFG-WO-2026-00041` (plus two harmless orphaned
+Draft Work Orders, `MFG-WO-2026-00039`/`-00040`, left over from diagnosing fix #2 — unsubmitted,
+no stock/ledger impact), Material Transfer `MAT-STE-2026-00041`, Job Card `PO-JOB00019` (stuck in
+Draft), five new test Items (`CS-DESK-001` + four raw materials), one new BOM
+(`BOM-CS-DESK-001-001`), one new Supplier ("Colombo Hardware Suppliers (Pvt) Ltd").
+
+**Documentation Impact:** N/A across the board (Module Overview/User Guide/Configuration/Process
+Flow/Lifecycle/Stock Impact/Accounting Impact/Technical Reference) — both fixes correct existing,
+already-documented behavior; neither changes what the app does or adds a new business
+document/lifecycle action/configuration step. `docs/backend/` unaffected (no new ERPNext
+field/entity/relationship/business-rule discovered). `docs/ceylon-stack-documentation.html` not
+regenerated (nothing in `docs/product/` changed).
+
+**Status:** both fixes committed after this QA_LOG/PROGRESS.md write-up, per explicit user
+instruction to proceed with the closure sequence. `release-tracker` not invoked — no feature or
+plan phase shipped here, just two bug fixes plus a disclosed findings list from a QA mission.
