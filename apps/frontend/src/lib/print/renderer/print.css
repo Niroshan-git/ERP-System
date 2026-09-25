@@ -1,0 +1,228 @@
+/**
+ * Print-safe rendering shell (LP-2 §7). Deliberately independent of the app's Tailwind theme
+ * tokens (light/dark `--graphite-*`/`--canvas` variables) — a printed business document must
+ * always render on white/black regardless of the viewer's dark-mode preference, and must look the
+ * same in the browser preview as it will on paper/PDF. Only imported by the print preview route
+ * (apps/frontend/src/app/print/**), never globally.
+ *
+ * Visual polish (typography choices, brand color accents, logo placement refinement) is LP-3's
+ * job — this file only establishes the reusable mechanics: A4 sizing, margins, page-break
+ * behavior, and a plain, legible default so the engine is provably renderable end to end.
+ */
+
+.print-page {
+  background: #f1f1f1;
+  min-height: 100vh;
+  padding: 24px 0 48px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.print-toolbar {
+  width: 210mm;
+  max-width: 100%;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.print-doc {
+  background: #ffffff;
+  color: #111111;
+  width: 210mm;
+  max-width: 100%;
+  min-height: 297mm;
+  padding: 18mm 16mm;
+  box-sizing: border-box;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.45;
+}
+
+.print-doc__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  border-bottom: 2px solid #111111;
+  padding-bottom: 10mm;
+  margin-bottom: 8mm;
+}
+
+.print-doc__logo {
+  max-height: 20mm;
+  max-width: 60mm;
+  object-fit: contain;
+}
+
+.print-doc__company-name {
+  font-size: 13pt;
+  font-weight: 700;
+  margin: 0 0 2mm;
+}
+
+.print-doc__company-meta,
+.print-doc__party-block,
+.print-doc__totals-words {
+  font-size: 9pt;
+  color: #333333;
+  white-space: pre-line;
+}
+
+.print-doc__title {
+  font-size: 16pt;
+  font-weight: 700;
+  text-align: right;
+  margin: 0 0 2mm;
+}
+
+.print-doc__meta-table {
+  font-size: 9pt;
+  text-align: right;
+}
+
+.print-doc__meta-table td {
+  padding: 0 0 1mm;
+}
+
+.print-doc__meta-table td:first-child {
+  color: #555555;
+  padding-right: 6mm;
+}
+
+.print-doc__parties {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8mm;
+}
+
+.print-doc__party-title {
+  font-size: 8.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #555555;
+  margin: 0 0 1.5mm;
+}
+
+.print-doc__lines {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 6mm;
+}
+
+.print-doc__lines th {
+  text-align: left;
+  font-size: 8.5pt;
+  text-transform: uppercase;
+  border-bottom: 1px solid #111111;
+  padding: 2mm 2mm;
+}
+
+.print-doc__lines td {
+  font-size: 9.5pt;
+  padding: 2mm;
+  border-bottom: 0.5px solid #dddddd;
+  vertical-align: top;
+  page-break-inside: avoid;
+}
+
+.print-doc__lines .num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.print-doc__totals {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 6mm;
+}
+
+.print-doc__totals table {
+  min-width: 70mm;
+  font-size: 9.5pt;
+}
+
+.print-doc__totals td {
+  padding: 1mm 0;
+}
+
+.print-doc__totals td:first-child {
+  color: #555555;
+  padding-right: 6mm;
+}
+
+.print-doc__totals .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.print-doc__totals .grand-total td {
+  border-top: 1px solid #111111;
+  font-weight: 700;
+  font-size: 11pt;
+  padding-top: 2mm;
+}
+
+.print-doc__section {
+  margin-bottom: 6mm;
+}
+
+.print-doc__section-title {
+  font-size: 8.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #555555;
+  margin: 0 0 1.5mm;
+}
+
+.print-doc__section-body {
+  font-size: 9pt;
+  white-space: pre-line;
+}
+
+.print-doc__footer {
+  margin-top: 12mm;
+  padding-top: 4mm;
+  border-top: 1px solid #dddddd;
+  font-size: 8pt;
+  color: #777777;
+  display: flex;
+  justify-content: space-between;
+}
+
+@media print {
+  .print-toolbar {
+    display: none;
+  }
+
+  .print-page {
+    background: none;
+    padding: 0;
+    display: block;
+  }
+
+  .print-doc {
+    box-shadow: none;
+    width: auto;
+    min-height: 0;
+    margin: 0;
+  }
+
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  .print-doc__lines thead {
+    display: table-header-group;
+  }
+
+  .print-doc__lines tr {
+    page-break-inside: avoid;
+  }
+}

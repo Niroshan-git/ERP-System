@@ -1,10 +1,11 @@
 # Layout, Print & Document Output Engine — Domain Overview
 
-**Status:** `DOCUMENTED` (discovery/architecture only, packages `LP-0`/`LP-1`, 2026-09-25). **No
-frontend exists.** No route, Sidebar entry, adapter, template, or server action has been built for
-this domain. `apps/frontend`'s only existing "export" surface (`ExportMenu.tsx`/`lib/export.ts`) is
-a client-side list-view CSV/XLSX/table-PDF dump — unrelated to business-document printing and not
-extended or touched by this package.
+**Status:** `LP-0`/`LP-1` discovery/architecture, `LP-2` (Canonical Document Output Engine) shipped
+2026-09-25. A real engine now exists — canonical model, one adapter (Sales Invoice), template
+resolver, rendering shell, preview + PDF routes — but it is **not wired into any real document
+page** yet (`sales/invoices/[name]/page.tsx` is untouched; `LP-4A` owns that). `apps/frontend`'s
+older "export" surface (`ExportMenu.tsx`/`lib/export.ts`) is a separate, unrelated client-side
+list-view CSV/XLSX/table-PDF dump, not touched or extended by this domain.
 
 **Folder numbering note:** this domain was not among the `01-08` slots `docs/controls/
 BACKEND_KNOWLEDGE_POLICY.md` §4 originally enumerated (written 2026-09-17). Same precedent as
@@ -15,7 +16,7 @@ anything already committed.
 
 | File | Covers | Status |
 |---|---|---|
-| [`layout-print-architecture.md`](layout-print-architecture.md) | Live-verified ERPNext print/PDF/email capability, ERPNext-owned vs. Ceylon-Stack-owned data boundary, canonical print document model, adapter/template-resolution architecture, PDF strategy decision, permission model, V1 document coverage matrix, package sequence (`LP-0`–`LP-9`) | `LP-0`/`LP-1` documented; `LP-2` onward not started, not authorized by this document alone |
+| [`layout-print-architecture.md`](layout-print-architecture.md) | Live-verified ERPNext print/PDF/email capability, ERPNext-owned vs. Ceylon-Stack-owned data boundary, canonical print document model, adapter/template-resolution architecture, PDF strategy decision, permission model, V1 document coverage matrix, package sequence (`LP-0`–`LP-9`); §12 covers `LP-2`'s actual shipped runtime architecture, authorization model, and known limitations | `LP-0`/`LP-1`/`LP-2` shipped; `LP-3` onward not started, not authorized by this document alone |
 
 ## Method
 
@@ -28,8 +29,9 @@ prior print/PDF frontend implementation exists.
 
 ## What's next
 
-`LP-2` (Canonical Document Output Engine — the actual adapter/canonical-model/lib code) is the next
-package in sequence, per `layout-print-architecture.md` §9. **Not authorized to start by this
-document alone** — see `CLAUDE.md`'s dated `LP-0`/`LP-1` authorization note, which explicitly scopes
-this session's authorization to discovery + documentation only, and `layout-print-architecture.md`'s
-Governance section.
+`LP-3` (Standard Ceylon Stack Template — the polished visual layout, plus authoring the Ceylon
+Stack Jinja Print Format so the PDF path matches it) is the next package in sequence, per
+`layout-print-architecture.md` §9. **Not authorized to start by this document alone** — see
+`CLAUDE.md`'s dated `LP-2` authorization note and `layout-print-architecture.md` §12's Known
+Limitations for what `LP-3`/`LP-4A` should pick up first (full authenticated end-to-end
+verification against a real Sales Invoice, then the visual template itself).

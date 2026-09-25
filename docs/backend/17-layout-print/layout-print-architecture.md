@@ -222,7 +222,7 @@ ERPNext for the Ceylon Stack standard layout. None of this touches `CRM-3` or `F
 committed — both packages currently have uncommitted changes to it in flight (see this document's
 opening "Concurrent work" note).
 
-## 11. Governance
+## 11. Governance (LP-0/LP-1)
 
 This document and `LP-1`'s scope are authorized by `CLAUDE.md`'s dated `LP-0`/`LP-1` Current
 Mission lock note (2026-09-25) — the same exception-stream pattern as `CRM-1`/`CRM-2`/`CRM-3` and
@@ -231,3 +231,142 @@ each disclosed writing theirs late; this note breaks that pattern rather than re
 **`LP-2` is a separate package and is not authorized to start in the same session as `LP-0`/`LP-1`**
 per `docs/controls/AGENT_USAGE_POLICY.md` §4.1's one-package-per-session rule. `FIN-2`/`FIN-3`
 remain not authorized, and nothing in this document reorders Finance V1 or any CRM package.
+
+## 12. `LP-2` Implementation (2026-09-25)
+
+**Status:** shipped, in its own session, per `CLAUDE.md`'s dated `LP-2` note. Ran against real
+concurrent work in the tree throughout (multiple CRM packages progressing, Finance's own
+in-progress edits) — none read, staged, or committed by this package; see the commit for the exact
+file list, all under `apps/frontend/src/lib/print/`, `apps/frontend/src/app/print/`,
+`apps/frontend/src/components/DocumentOutputActions.tsx`, one addition to `lib/erpnext.ts`
+(`getPrintPdf`), and a new `vitest` test harness.
+
+### 12.1 Runtime architecture (as built)
+
+```text
+ERPNext Sales Invoice (getDoc)
+        ↓
+salesInvoiceAdapter.fetch()          — network: getDoc + resolveCompanyPrintInfo + resolveBankInformation
+        ↓
+salesInvoiceAdapter.normalize()      — pure: raw bundle → DocumentPrintModel (unit-testable, no network)
+        ↓
+resolveTemplate(doctype)             — V1: always "ceylon-standard" (LP-1 §6, unchanged)
+        ↓
+DocumentRenderer(model, template)    — React Server Component, print.css for A4/page-break rules
+        ↓
+   ┌────────────────────┬─────────────────────────┐
+   ▼                    ▼                         ▼
+Browser preview   window.print() (client,   getPrintPdf() → Frappe's own
+(app/print/**)    triggered from the        download_pdf endpoint (ADR-009:
+                  preview page only)        reuse Frappe's PDF engine)
+```
+
+Matches the mission's target pipeline exactly (Adapter → Canonical Model → Template Resolution →
+Renderer → Preview/Print/PDF) — no step was collapsed or skipped, and `fetch`/`normalize` are
+genuinely separate functions on the adapter contract (mission §5's "separate data extraction from
+normalization" instruction), not one function doing both.
+
+### 12.2 Canonical print document model — final V1 shape
+
+`apps/frontend/src/lib/print/types.ts`. Matches LP-1 §4's sketch with the same trims (no
+`signatures`) plus one refinement made against the real Sales Invoice schema: `PrintLetterHead`
+carries `headerHtml`/`footerHtml` as captured data, but **the renderer does not inject either as
+raw HTML** (see §12.5's security note) — only the letterhead `imageUrl` renders in `LP-2`'s shell.
+`PrintTaxRow`/`PrintTotals` read every number verbatim from the source doctype's own fields
+(`net_total`, `total_taxes_and_charges`, `grand_total`, `rounded_total`, `in_words` — confirmed live
+via `get_doctype_fields` against the real Sales Invoice doctype) — nothing is recomputed (mission
+§12).
+
+### 12.3 Adapter architecture
+
+`apps/frontend/src/lib/print/types.ts`'s `DocumentPrintAdapter<TRaw>` interface + `apps/frontend/
+src/lib/print/adapter.ts`'s registry (a plain object map, not an if/doctype-else chain — mission
+§4's explicit anti-pattern). One adapter shipped: `adapters/salesInvoiceAdapter.ts`. **Adding a new
+document family in a future `LP-4x` package means:** (1) write `adapters/<doctype>Adapter.ts`
+implementing `fetch`/`normalize`, reusing `shared.ts`'s `resolveCompanyPrintInfo`/
+`resolveBankInformation`/`htmlBlockToPlainText`/`resolveFileUrl` helpers; (2) add one line to
+`adapter.ts`'s registry; nothing else in the engine changes. The registry doubles as the
+authorization allowlist (§12.5).
+
+### 12.4 Template resolution
+
+Unchanged from `LP-1` §6 — `templateResolver.ts`'s `resolveTemplate(doctype, company?)` always
+returns the single `"ceylon-standard"` template. No new decision made or needed this package.
+
+### 12.5 Preview / Print / PDF flow and authorization model
+
+**Route placement is the security-relevant decision here:** both `app/print/[doctype]/[name]/
+page.tsx` (preview) and `app/print/[doctype]/[name]/pdf/route.ts` (PDF) live outside the `(app)`
+route group (so neither inherits Sidebar/Topbar chrome — mission §10) but **inside**
+`middleware.ts`'s protected matcher, which excludes only `/api`, `/_next/*`, `/brand`, and
+`/favicon.ico` — confirmed by live-testing all three cases against the running dev server
+(unauthenticated requests to the preview route, the PDF route, and an unregistered doctype path all
+returned `307 → /login`, identical to any other page in this app). The PDF route was deliberately
+placed at `app/print/**`, not `app/api/**`, specifically because `/api` is outside that matcher —
+an API-routed PDF endpoint would have been reachable without a session.
+
+**Authorization ceiling, disclosed rather than invented:** this app's existing architecture (see
+`apps/frontend/README.md`'s "Auth model", confirmed by reading `lib/erpnextAuth.ts`/`lib/session.ts`
+this session) runs **every** ERPNext call under one shared "Frontend Integration" service-account
+API key — there is no per-user, per-company, or per-role document-level ERPNext permission
+boundary anywhere in this app today, print/PDF included. The real authorization boundary this
+package adds is: (1) the adapter registry allowlist (an unregistered `doctype` never reaches
+ERPNext at all — confirmed live), (2) the existing app-wide "is there a valid Ceylon Stack session
+cookie" gate (confirmed live), (3) `getDoc`'s own 404/403 mapping when the service account itself
+can't read the requested document. This is the same posture every other document page in this app
+already has — `LP-2` does not invent a narrower boundary the rest of the app doesn't have, and does
+not claim one it can't back up. A future package introducing real per-user/company scoping would be
+an app-wide change, not scoped to print.
+
+**PDF format gap, disclosed:** `getPrintPdf()` calls Frappe's `download_pdf` without an explicit
+`format`, so it renders with ERPNext's own default Print Format for the doctype (one of the 7
+standard Sales Invoice formats already on the instance, per `LP-0`'s discovery) — not yet a Ceylon
+Stack-authored Jinja format matching the HTML preview's layout. `LP-3` owns authoring that format;
+until then, the downloaded PDF and the browser preview will not look alike.
+
+### 12.6 No raw HTML rendering — closes the injection concern by construction
+
+Mission §11 flags "unsafe HTML/template injection" and "untrusted document content" explicitly.
+`DocumentRenderer.tsx` contains **zero** `dangerouslySetInnerHTML` calls. Every Text Editor field
+ERPNext returns pre-formatted as HTML (`address_display`, `shipping_address`, `terms`) is reduced to
+plain text with preserved line breaks by `shared.ts`'s `htmlBlockToPlainText()` *before* it ever
+reaches the model — tested directly (`__tests__/shared.test.ts`) against a deliberately malicious
+fixture (`<img src=x onerror="alert(1)">Hello` → `"Hello"`). Letter Head header/footer HTML is
+captured on the model (§12.2) but the renderer never touches it, exactly to avoid deciding — without
+verifying ERPNext's own escaping behavior — whether that content is safe to inject raw. Company
+logo/letterhead image URLs are the only `src` attributes rendered, and both are built by
+`resolveFileUrl()` from server-verified `Company`/`Letter Head` doc data, never from client input.
+
+### 12.7 Test harness
+
+**First test framework in this repository's history** — no prior package used one; verification
+elsewhere has always been `tsc`/`eslint`/`npm run build` plus live/manual QA. Added `vitest@^2`
+(pinned to major 2, not latest 5, because `vitest@5` requires `@types/node@^22`, conflicting with
+this project's pinned `@types/node@^20` — a real peer-dependency conflict hit and resolved during
+this package, not a stylistic choice) as a devDependency, `vitest.config.ts`, and a test-only
+`server-only` stub (`test/stubs/server-only.ts`, aliased only inside `vitest.config.ts` — the real
+package still unconditionally throws outside Next's `react-server` bundler condition, exactly as it
+does in production; the stub never reaches `next build`/`next dev`). 19 tests across three files
+cover the mission §13 edge-case matrix that is actually a *data-normalization* concern (missing
+optional fields, long names/addresses, many lines, decimal quantities, multiple tax rows, logo
+present/absent, verbatim-totals) via `salesInvoiceAdapter.normalize()`'s pure function — no network
+mocking needed since `fetch`/`normalize` are already separate. Multi-page layout, page-break
+rendering, and PDF visual fidelity are **not** unit-testable and are explicitly left to a future
+live/browser QA pass (§12.8), not faked as covered here.
+
+### 12.8 Known limitations / what's still open
+
+- Full authenticated end-to-end verification (a real logged-in request through the adapter against
+  a real submitted Sales Invoice, e.g. `ACC-SINV-2026-00001`, confirmed to exist on the live
+  instance) was **not** run this session — this package deliberately did not mint a session cookie
+  to test past the login gate, given this project's own disclosed forged-session-cookie incident
+  history. Only the auth-gate redirect itself was live-verified. Recommended as the first step of
+  whichever package (`LP-3`/`LP-4A`) touches this next.
+- `LP-UNV-001`/`LP-UNV-002` (LP-0 §2.7) remain open: `download_pdf`'s exact behavior on this
+  instance, and whether `pdf_generator: chrome` works on this container, are still unconfirmed by an
+  actual downloaded PDF.
+- The PDF and HTML preview do not yet visually match (§12.5).
+- `DocumentOutputActions` is not wired into any real document page yet (deliberately — `sales/
+  invoices/[name]/page.tsx` is frozen core Sales, and wiring it in is `LP-4A`'s scope, not `LP-2`'s).
+- Letter Head header/footer HTML is captured but never rendered (§12.6) — a future package must
+  decide on a sanitization approach before changing that.

@@ -571,6 +571,64 @@ export async function requestPasswordReset(email: string): Promise<void> {
 }
 
 /**
+ * Downloads a rendered PDF via Frappe's own `frappe.utils.print_format.download_pdf` whitelisted
+ * endpoint (LP-2, Layout & Print Document Output Engine) — the same real, native mechanism ERPNext
+ * Desk's own "Print" → "PDF" action uses, per the LP-0/LP-1 architecture decision to reuse Frappe's
+ * PDF generation rather than a second rendering engine (see `docs/architecture/decisions/README.md`
+ * ADR-009). Bypasses erpnextFetch() like verifyErpNextLogin()/requestPasswordReset() above — the
+ * response is a binary PDF, not JSON, so erpnextFetch()'s unconditional `res.json()` tail doesn't
+ * apply here.
+ *
+ * `LP-UNV-001` (`docs/backend/17-layout-print/layout-print-architecture.md` §2.7): this endpoint's
+ * exact behavior on this specific Frappe v16 build (query param names, default `pdf_generator`,
+ * response content-type) was not hit live during LP-0/LP-1 discovery — only doctype/document
+ * metadata was queried. This implementation follows Frappe's long-standing, well-documented public
+ * contract for `download_pdf`, but should be exercised against a real document (by a browser/QA
+ * pass) before being relied on as verified.
+ */
+export async function getPrintPdf(
+  doctype: string,
+  name: string,
+  opts: { printFormat?: string; letterhead?: string } = {},
+): Promise<{ bytes: ArrayBuffer; contentType: string }> {
+  const params = new URLSearchParams({ doctype, name });
+  if (opts.printFormat) params.set("format", opts.printFormat);
+  if (opts.letterhead) {
+    params.set("letterhead", opts.letterhead);
+  } else {
+    params.set("no_letterhead", "1");
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}/api/method/frappe.utils.print_format.download_pdf?${params.toString()}`, {
+      headers: { Authorization: serviceAuthHeader() },
+      cache: "no-store",
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    const correlationId = generateCorrelationId();
+    logError({ source: "getPrintPdf", message: `network error downloading PDF for ${doctype} ${name}`, detail: message, correlationId });
+    throw new ErpNextError(message, 0, correlationId);
+  }
+
+  if (!res.ok) {
+    const body = await res.text();
+    const correlationId = generateCorrelationId();
+    logError({
+      source: "getPrintPdf",
+      message: `ERPNext ${res.status} generating PDF for ${doctype} ${name}`,
+      status: res.status,
+      detail: body.slice(0, 500),
+      correlationId,
+    });
+    throw new ErpNextError(`ERPNext ${res.status} generating PDF for ${doctype} ${name}`, res.status, correlationId);
+  }
+
+  return { bytes: await res.arrayBuffer(), contentType: res.headers.get("content-type") ?? "application/pdf" };
+}
+
+/**
  * Resolves the real ERPNext roles for a human who just passed verifyErpNextLogin(), via
  * smart_factory's resolve_actor_roles whitelisted method — the trusted source lib/session.ts's
  * `isSystemManager` flag is derived from at login time. Deliberately not derived from
