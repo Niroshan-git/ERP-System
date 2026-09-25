@@ -298,6 +298,7 @@ const FINANCE_NAV_GROUPS: NavGroupDef[] = [
       { href: "/accounting/chart-of-accounts", label: "Chart of Accounts", icon: Network },
       { href: "/accounting/account-determination", label: "Account Determination", icon: SlidersHorizontal },
       { href: "/accounting/bank-accounts", label: "Bank Accounts", icon: Banknote },
+      { href: "/accounting/reports", label: "Financial Reports", icon: ChartNoAxesCombined },
     ],
   },
 ];

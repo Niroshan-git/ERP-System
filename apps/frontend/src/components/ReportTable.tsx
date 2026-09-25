@@ -28,10 +28,10 @@ function cellValue(row: ReportRow, col: ReportColumn, idx: number): unknown {
  * dynamic columns that vary with real data (e.g. Sales Register adds one column per
  * income account/tax account that actually appears in the filtered invoices).
  *
- * A report's own explicit total row (e.g. Sales Analytics's periodic "Total" row) comes
- * back as a plain array instead of a keyed object — rendered bold via `Array.isArray`.
- * When no such row is present, a grand-total footer is computed client-side over numeric
- * columns, matching the footer Desk's report view adds itself.
+ * A report's own explicit total row (for example, Sales Analytics's periodic "Total"
+ * row) is returned by ERPNext and rendered bold. This component never invents a footer:
+ * numeric does not mean additive (rates, balances, percentages and averages are common
+ * counterexamples). ERPNext remains the only source of report totals.
  */
 export function ReportTable({
   columns,
@@ -46,19 +46,6 @@ export function ReportTable({
 }) {
   if (result.length === 0) {
     return <p className="rounded-xl border border-border bg-surface px-4 py-6 text-center text-graphite-500">No records for these filters.</p>;
-  }
-
-  const hasOwnTotalRow = result.some((r) => Array.isArray(r));
-  const totals: Record<string, number> = {};
-  if (!hasOwnTotalRow) {
-    for (const col of columns) {
-      if (!NUMERIC_TYPES.has(col.fieldtype ?? "")) continue;
-      totals[col.fieldname] = result.reduce((sum, row) => {
-        const v = (row as Record<string, unknown>)[col.fieldname];
-        const n = typeof v === "number" ? v : Number(v);
-        return sum + (Number.isNaN(n) ? 0 : n);
-      }, 0);
-    }
   }
 
   const exportHeaders = columns.map((c) => c.label);
@@ -133,18 +120,6 @@ export function ReportTable({
                 </tr>
               );
             })}
-            {!hasOwnTotalRow && (
-              <tr className="bg-canvas font-semibold text-graphite-900">
-                {columns.map((col, idx) => (
-                  <td
-                    key={col.fieldname}
-                    className={`whitespace-nowrap px-3 py-2 font-mono tabular-nums ${NUMERIC_TYPES.has(col.fieldtype ?? "") ? "text-right" : ""}`}
-                  >
-                    {idx === 0 ? "Total" : col.fieldname in totals ? formatAmount(totals[col.fieldname]) : ""}
-                  </td>
-                ))}
-              </tr>
-            )}
           </tbody>
         </table>
       </div>
