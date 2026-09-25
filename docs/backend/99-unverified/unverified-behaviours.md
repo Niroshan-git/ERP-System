@@ -839,7 +839,12 @@ status-tone mapping) and `CRM-UNV-010` (mutation paths not live-exercised — QA
 and shipped anyway per Niroshan's explicit choice) newly logged, both non-blocking.
 `CRM-UNV-001`/`003`/`005`/`006`/`007` remain open, all still non-blocking for `CRM-2`'s shipped scope
 — none was required to resolve before this package started, per `CRM-2`'s own first-gate
-live-verification pass (`crm-architecture.md` §25.1).
+live-verification pass (`crm-architecture.md` §25.1). **Updated 2026-09-25 (`CRM-3`):**
+`CRM-UNV-011` (mutation paths and `followupBucket()` classification not live-exercised — same QA
+access-gap class as `CRM-UNV-010`) newly logged, non-blocking. Two real, non-blocking bugs QA
+found were fixed same session rather than logged as unverified (Meeting `starts_on`/`ends_on`
+missing seconds; no way to complete an overdue Meeting) — see `crm-architecture.md` §26.8 and
+`QA_LOG.md`'s `CRM-3` entry for detail.
 
 ### CRM-UNV-001 — Is `CRM Settings.enable_frappe_crm_data_synchronization` actually enabled?
 **Status:** `NEEDS_VERIFICATION`, non-blocking, low priority.
@@ -959,3 +964,25 @@ the code looks correct), edit one, create one `Opportunity Lost Reason` fixture 
 `declare_enquiry_lost` for real, and run the full Opportunity → Quotation handoff end to end
 (confirming the created Quotation's fields and the source Opportunity's `status → "Quotation"`
 follow-up write both land correctly) — then clean up every fixture and confirm via a fresh query.
+
+### CRM-UNV-011 — `CRM-3` mutation paths and `followupBucket()` classification not live-exercised (QA access gap, disclosed)
+**Status:** `NEEDS_VERIFICATION`, non-blocking (shipped with this gap disclosed — same posture as
+`CRM-UNV-010`). **Logged 2026-09-25.**
+**What's uncertain:** `CRM-3`'s QA pass had no `mcp__ceylon-stack__*` tools, no browser, and no
+write-capable ERPNext credentials at all this session (narrower access than even `CRM-2`'s QA
+pass, which at least had read-only schema tools) — confirmed the live instance is reachable
+(`ping` → 200) but every unauthenticated schema/data read returned `PermissionError`. As a result,
+no Call/Meeting/Follow-up/Note was ever actually created against a disposable test Lead or
+Opportunity this session, `followupBucket()`'s Overdue/Due Today/Upcoming classification was not
+checked against a real due date, and completing a follow-up/meeting (ToDo/Event status transition)
+was not live-exercised. Every code path traced matches the live-verified schema from
+`crm-architecture.md` §26.1 (itself confirmed by a `get_doctype_fields` read earlier in this same
+day's work, before this QA pass ran), but none of `CRM-3`'s own five create/complete scenarios has
+been runtime-observed.
+**How to verify:** A future session with real browser/login credentials or write-capable ERPNext
+API access should run the full test plan `QA_LOG.md`'s `CRM-3` entry describes: log one Call, one
+Meeting, one Follow-up, and one Note against a disposable test Lead and Opportunity; confirm each
+appears correctly in the unified timeline and (Follow-up/Meeting only) in `/crm/activities`;
+confirm a real overdue/due-today/upcoming due date buckets correctly; complete a Follow-up and a
+Meeting and confirm both stay visible in history while dropping out of the open/overdue count; then
+clean up every test document created.

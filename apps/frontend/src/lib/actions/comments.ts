@@ -4,16 +4,9 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { addComment, ErpNextError } from "@/lib/erpnext";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { escapeHtml } from "@/lib/html";
 
 export type CommentResult = { error?: string };
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
 
 /**
  * Posts a comment on any doctype's Comments tab, shared across Quotation/Sales

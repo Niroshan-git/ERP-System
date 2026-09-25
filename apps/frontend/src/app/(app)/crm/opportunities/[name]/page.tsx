@@ -6,15 +6,23 @@ import { DocTabs } from "@/components/DocTabs";
 import { DocField } from "@/components/DocField";
 import { StatusPill } from "@/components/StatusPill";
 import { SavedBanner } from "@/components/SavedBanner";
-import { ActivityTimeline } from "@/components/ActivityTimeline";
 import { OpportunityForm, type OpportunityFormOptions } from "@/components/OpportunityForm";
+import { CrmActivityPanel } from "@/components/CrmActivityPanel";
 import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
 import { listItemOptions } from "@/lib/actions/itemLookup";
 import { opportunityStatus } from "@/lib/erpStatus";
 import { formatAmount } from "@/lib/format";
-import { buildTimeline } from "@/lib/timeline";
+import { getCrmActivityTimeline, listOpenFollowups, followupBucket, type CrmNoteRow } from "@/lib/crmActivity";
+import { stripHtml } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
+import {
+  completeFollowupAction,
+  createFollowupAction,
+  createCallAction,
+  createMeetingAction,
+  createNoteAction,
+} from "@/lib/actions/crmActivity";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 import { updateOpportunityAction } from "../actions";
 
@@ -52,6 +60,7 @@ type OpportunityDoc = {
   transaction_date?: string;
   items: { item_code: string; item_name: string; qty: number; uom: string; rate: number; amount: number }[];
   total?: number;
+  notes?: CrmNoteRow[];
   creation: string;
   owner: string;
   modified: string;
@@ -91,6 +100,8 @@ export default async function OpportunityDetailPage({
     timeline,
     session,
     linkedQuotations,
+    owners,
+    openFollowupsRaw,
   ] = await Promise.all([
     fetchLinkOptions("Opportunity Type"),
     fetchLinkOptions("Territory"),
@@ -101,13 +112,15 @@ export default async function OpportunityDetailPage({
     fetchLinkOptions("Contact"),
     fetchLinkOptions("Address"),
     listItemOptions(),
-    buildTimeline("Opportunity", doc.name, doc),
+    getCrmActivityTimeline("Opportunity", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
     listDocs<QuotationLink>("Quotation", {
       fields: ["name", "status", "grand_total", "currency"],
       filters: [["opportunity", "=", doc.name]],
       orderBy: "creation desc",
     }),
+    fetchLinkOptions("User"),
+    listOpenFollowups("Opportunity", doc.name),
   ]);
 
   const options: OpportunityFormOptions = {
@@ -125,6 +138,19 @@ export default async function OpportunityDetailPage({
 
   const status = opportunityStatus(doc);
   const weightedValue = ((doc.opportunity_amount ?? 0) * (doc.probability ?? 0)) / 100;
+
+  const revalidateHref = `/crm/opportunities/${encodeURIComponent(doc.name)}`;
+  const openFollowups = openFollowupsRaw
+    .slice()
+    .sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"))
+    .map((t) => ({
+      todoName: t.name,
+      description: stripHtml(t.description ?? "") || "Follow-up",
+      dueDate: t.date,
+      bucket: followupBucket(t.date, t.status, "Open"),
+      assignedTo: t.allocated_to,
+    }));
+  const nextFollowup = openFollowups[0] ?? null;
 
   // A resolved Opportunity is one this app no longer offers day-to-day pipeline actions on —
   // same "resolved" judgement call `LeadDetailPage` already makes for Lead's own status.
@@ -161,6 +187,18 @@ export default async function OpportunityDetailPage({
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill label={status.label} tone={status.tone} />
           {doc.sales_stage && <StatusPill label={doc.sales_stage} tone="neutral" />}
+          {nextFollowup && (
+            <StatusPill
+              label={`Next Follow-up: ${nextFollowup.description}${nextFollowup.dueDate ? ` — ${nextFollowup.dueDate}` : ""}`}
+              tone={
+                nextFollowup.bucket === "overdue"
+                  ? "alert"
+                  : nextFollowup.bucket === "due_today"
+                    ? "signal"
+                    : "neutral"
+              }
+            />
+          )}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -252,11 +290,20 @@ export default async function OpportunityDetailPage({
     </div>
   );
 
-  const commentsTab = (
-    <ActivityTimeline
+  const activityTab = (
+    <CrmActivityPanel
       currentUserFullName={session?.fullName ?? ""}
-      entries={timeline}
-      postComment={postCommentAction.bind(null, "Opportunity", doc.name, `/crm/opportunities/${encodeURIComponent(doc.name)}`)}
+      currentUserEmail={session?.email ?? ""}
+      userOptions={owners}
+      timeline={timeline}
+      nextFollowup={nextFollowup}
+      openFollowups={openFollowups}
+      logCallAction={createCallAction.bind(null, "Opportunity", doc.name, revalidateHref)}
+      scheduleMeetingAction={createMeetingAction.bind(null, "Opportunity", doc.name, revalidateHref)}
+      createFollowupAction={createFollowupAction.bind(null, "Opportunity", doc.name, revalidateHref)}
+      addNoteAction={createNoteAction.bind(null, "Opportunity", doc.name, revalidateHref)}
+      completeFollowupAction={completeFollowupAction.bind(null, revalidateHref)}
+      postComment={postCommentAction.bind(null, "Opportunity", doc.name, revalidateHref)}
     />
   );
 
@@ -269,7 +316,7 @@ export default async function OpportunityDetailPage({
         tabs={[
           { id: "overview", label: "Overview", content: overviewTab },
           { id: "linked-records", label: "Linked Records", content: linkedRecordsTab },
-          { id: "comments", label: "Activity", content: commentsTab },
+          { id: "comments", label: "Activity", content: activityTab },
         ]}
       />
     </div>

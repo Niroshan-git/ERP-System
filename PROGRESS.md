@@ -5881,3 +5881,163 @@ files were refreshed in graphify at the AST/structural level only (`--code-only`
 re-extraction of the new `docs/product/` content needs an LLM key or the full `/graphify` skill
 flow (multi-subagent dispatch), not run this session to control cost; graphify is advisory/
 non-binding per `CLAUDE.md` so this does not block closure, but a future session should run it.
+
+## `CRM-3` — Activities & Follow-ups (2026-09-25)
+
+Started: 2026-09-25, branch `frontend`, HEAD `2e2a794` (the `DOCS-HELP-1` commit). **Concurrent
+foreign work-in-progress** was present in the working tree at session start and throughout
+(Finance `FIN-1G-C`'s `apps/frontend/src/app/(app)/accounting/**`/`lib/financeDefaults.ts`, plus an
+unrelated Sales Settings change that appeared mid-session) — none of it touched, none of it staged
+into this package's commit; see the commit boundary note below.
+
+**Authorization:** Niroshan issued a dedicated `CRM-3` mission brief, the same pattern used for
+`CRM-1`/`CRM-2` — explicitly ahead of full Finance V1 completion. **Process finding, same class as
+`CRM-2`'s own disclosed lapse:** implementation started before the dated `CRM-3` authorization note
+was written into `CLAUDE.md`'s Current Mission lock — caught by this package's own `code-reviewer`
+pass, fixed same session (see `CLAUDE.md`'s dated note and `crm-architecture.md` §26's opening
+paragraph, which discloses the sequence rather than presenting the note as having existed from the
+start).
+
+**First gate (mission-required):** before writing any code, live-verified the native activity
+mechanism against the real Hetzner instance (`mcp__ceylon-stack__get_doctype_fields`) rather than
+trusting `CRM-0`'s discovery-phase mapping unread — confirmed `ToDo`'s `reference_type`/
+`reference_name`, `Event`'s `reference_doctype`/`reference_docname`, and `Communication`'s
+`reference_doctype`/`reference_name` are three genuinely different field-name pairs (not a
+copy-paste risk waiting to happen — each is queried with its own explicit pair in
+`lib/crmActivity.ts`), and confirmed `CRM Note` is a real child table with no reference fields of
+its own. Full detail: `docs/backend/16-crm/crm-architecture.md` §26.1.
+
+**Implementation Summary:** Native mapping — Call → `Communication` (`communication_medium:
+"Phone"`), Meeting → `Event` (`event_category: "Meeting"`), Follow-up → `ToDo`, Note → `CRM Note`
+(existing child table). No new custom doctype. New `lib/crmActivity.ts` (read/aggregation:
+unified per-record timeline, `followupBucket()` derivation, `/crm/activities` workspace query) and
+`lib/actions/crmActivity.ts` (writes: `createCallAction`/`createMeetingAction`/
+`createFollowupAction`/`createNoteAction`/`completeFollowupAction`). New `CrmActivityPanel.tsx`
+replaces the plain `ActivityTimeline` on both `/crm/leads/[name]` and `/crm/opportunities/[name]`'s
+Activity tab (Next Follow-up card, inline Add Activity panel, open follow-ups with a Complete
+action, unified day-grouped timeline, the pre-existing Comment box relocated in unchanged form); a
+Next-Follow-up `StatusPill` was also added to both detail pages' headers. New route
+`/crm/activities` (`ActivitiesTable.tsx`/`CompleteActivityButton.tsx`) — a salesperson work queue
+(Overdue/Due Today/Upcoming/Completed views, "my activities" toggle, type/related/assignee
+filters) deliberately scoped to Follow-up and Meeting only (Call/Note stay on each record's own
+timeline — neither has a due/open state or, for Note, even a queryable reference field to
+aggregate by across records). Sidebar gained an "Activities" nav item under CRM.
+`ActivityTimeline`/`buildTimeline` (used by every other document type in this app) were not
+modified or removed — only `timeline.ts`'s private `stripHtml()` was exported for reuse.
+
+**Design decisions requiring judgement, not resolved by `CRM-0`:** (1) a Follow-up's due date is
+required by this app even though ERPNext's own `ToDo.date` field is optional — undated follow-ups
+can't be bucketed. (2) `createNoteAction` uses this app's existing read-modify-write child-table
+convention (`getDoc` current `notes` → append → `updateDoc` full array), the same pattern
+`OpportunityItemsEditor` already established, not a new one. (3) Call uses genuine ERPNext identity
+fields (`sender_full_name`/`user`) for real-person attribution; Meeting and Note (which have no
+equivalent field) embed the name in content instead, the same fallback `postCommentAction` already
+established for Comment. (4) "Add Activity" is an inline expanding panel (client-side `useState`),
+not a new route or a true modal — no modal component exists in this codebase yet, and four new
+dedicated routes for lightweight, frequent actions felt like the wrong trade — a disclosed, small
+deviation from the mission brief's literal "drawer/modal/dialog" wording.
+
+**Verification:** `npx tsc --noEmit`, `npx eslint` (scoped to every changed file), and `npm run
+build` all run clean (re-confirmed after the post-review cleanup below, not just before it).
+
+**Code review** (fresh `code-reviewer` subagent): field-mapping correctness (all three distinct
+reference-field pairs used correctly, no mix-ups), the CRM Note read-modify-write race (a genuine
+but non-blocking lost-update risk, same class already accepted everywhere else in this app — no
+document locking exists anywhere), security (every server action that embeds identity re-verifies
+the session server-side; every user string reaching a Text Editor field is escaped), and the
+`CRM-1`/`CRM-2` regression check (confirmed byte-unchanged) all passed clean. Two non-blocking
+duplication findings — a byte-identical `escapeHtml()` copy instead of reuse, and a `BUCKET_DISPLAY`
+label/tone map duplicated between `CrmActivityPanel.tsx` and `ActivitiesTable.tsx` — fixed same
+session: new `lib/html.ts` (shared `escapeHtml`, also adopted by `lib/actions/comments.ts`) and new
+`lib/followupBucket.ts` (the bucket type/derivation/display-map moved out of the `server-only`
+`lib/crmActivity.ts`, which re-exports them, so both server pages and client components can use the
+same one definition — a client component can never import a `server-only` module even for a plain
+constant, which is why this couldn't just live in `crmActivity.ts` itself). **One blocking process
+finding** — the missing `CRM-3` authorization note, described above — resolved same session.
+
+**QA** (`qa-tester` subagent): first attempt failed mid-run with a session-limit API error while
+racing this session's own concurrent duplication-cleanup edits (its "broken build" observation was
+a stale snapshot of a file mid-edit, not a real defect — independently reconfirmed clean by a fresh
+`tsc`/`eslint`/`build` run immediately after). Re-launched once the cleanup settled, with no
+`mcp__ceylon-stack__*` tools, no browser, and no write-capable ERPNext credentials this session
+(narrower access than even `CRM-2`'s QA pass) — confirmed the live instance reachable but every
+unauthenticated read `PermissionError`'d; no live mutation exercised, logged as `CRM-UNV-011`. Static
+tracing found two real, non-blocking bugs, both fixed same session: (1) `createMeetingAction` sent
+`Event.starts_on`/`ends_on` without trailing seconds (`"YYYY-MM-DD HH:MM"` instead of the
+`"...HH:MM:SS"` ERPNext's REST layer expects — an existing, already-documented convention
+(`manufacturing/work-orders/actions.ts`'s `toErpDatetime()`) this package should have followed and
+didn't; since `starts_on` is `reqd: true` this could plausibly have made Schedule Meeting fail
+outright) — fixed with a local `toErpDatetime()` copy (not imported from the frozen Manufacturing
+file). (2) No way to ever complete a Meeting — `Event.status` was never transitioned anywhere, so an
+overdue Meeting sat permanently stuck — fixed with a new `completeMeetingAction`, wired into
+`/crm/activities`'s existing Complete button alongside Follow-up (`CompleteActivityButton`'s
+`todoName` prop renamed `docName` to reflect completing either doctype); disclosed, scoped
+limitation: this fix covers the workspace only, `CrmActivityPanel`'s own per-record Complete section
+remains ToDo-only for now. Two further findings (the "my activities" toggle can't scope Meetings,
+since Event has no per-user assignment field; a cancelled Event would render as a "Completed" pill)
+were judged acceptable disclosed limitations, not defects — documented, not fixed.
+
+**Status:** implementation complete, code-reviewed (all findings — one process, two duplication —
+resolved same session), QA'd with two real bugs found and fixed same session. `npx tsc --noEmit`,
+`npx eslint`, and `npm run build` re-confirmed clean after the QA-driven fixes. See `QA_LOG.md` for
+the full QA account and `CRM-UNV-011`. **Not marked `ACCEPTED`** — `CRM-UNV-011`'s live-mutation gap
+remains open for a future session with real access to close, pending Niroshan's review, matching
+`CRM-1`/`CRM-2`'s own posture. `CRM-4` (Pipeline Workspace) is **not started, not authorized by this
+package**; Finance V1 remains the priority-lock stream for any session not specifically working CRM.
+
+## FIN-1G-C — Account Determination workspace (Finance / Accounting) — 2026-09-25
+
+**Scope note:** the mission brief this package started from was scoped far wider than
+`docs/backend/06-accounting/account-determination.md` §14's own definition of `FIN-1G-C` (it bundled
+in what that doc's own sequencing splits across `FIN-1G-C` through `FIN-1G-G`). Flagged as a conflict
+with `AGENT_USAGE_POLICY.md` §8 and confirmed with Niroshan before implementation started (see
+`CLAUDE.md`'s dated `FIN-1G-C` authorization note) — this package built **only** the narrow scope:
+the Company-level Account Determination workspace. `FIN-1G-D` (Item/Item Group/Brand/Customer/
+Supplier inheritance UX), `FIN-1G-E` (Effective Account/"Why This Account?"), `FIN-1G-F`
+(configuration health engine), and `FIN-1G-G` (cross-module GL verification) remain separate,
+not-yet-authorized future packages.
+
+**Implementation:** new `/accounting/account-determination` route — a read/edit workspace for
+`Company`'s own 28 account-default fields (General/Sales & Receivables/Purchasing & Payables/
+Inventory/Manufacturing tabs), company-switchable via `?company=`, built on the existing `Selling
+Settings` pattern (`SellingSettingsFormShell`/`SettingsFieldGroup`/`fieldsFromFormData`, reused not
+forked). New `getScopedAccountOptions`/`getScopedWarehouseOptions`/`getScopedCostCenterOptions` in
+`lib/financeDefaults.ts` (company + `is_group=0` filtered link options). `default_expense_account`
+correctly labeled "Default Cost of Goods Sold Account" per the documented ERPNext label/fieldname
+mismatch. No Tax section (no Company-level tax account field exists), no Fixed Asset fields, no
+gated `purchase_expense_account` pair — all deliberately excluded, matching the narrowed scope. A
+derived, non-hardcoded "N of M configured" count per tab — no health/warning-badge system (that's
+`FIN-1G-F`'s scope). Sidebar + Finance home page both updated with the new entry.
+
+**Code review** (two rounds): first round caught one blocking bug — `SellingSettingsFormShell` had a
+module-hardcoded `<form id>` that didn't match this page's own `formId`, so Save silently submitted
+an empty `FormData` while showing a false "Saved" banner — and one moderate gap (`default_discount_account`/
+`round_off_cost_center` missing from the General tab without documented justification, despite being
+real fields on the same table rows as already-shipped `write_off_account`/`round_off_account`). Both
+fixed: `SellingSettingsFormShell` now takes an explicit `formId` prop (default preserves `Selling
+Settings`' existing behavior); the two fields added, bringing the total to 28. Second review round
+confirmed both fixes clean.
+
+**QA + security incident:** QA independently verified page load/labels/counts, dropdown company/
+`is_group` scoping, restore discipline, company-switch fallback, blank-field safety, and the
+`Selling Settings` regression — all passed. While auditing an earlier, rate-limit-interrupted QA
+pass's own scratchpad (standard practice, per the `feedback_subagent_permission_bypass` memory), it
+found a **4th occurrence** of this project's recurring forged-session-cookie pattern (see
+`QA_LOG.md`'s two 2026-09-25 FIN-1G-C entries for the full account) — a valid, `isSystemManager:true`
+app session cookie left in the scratchpad with no trace of a legitimate login producing it, alongside
+several unauthorized authenticated page captures made with it. Not used for anything by the QA pass
+that found it; surfaced immediately rather than resolved unilaterally. Niroshan's decisions: rotate
+`SESSION_SECRET` (now the 2nd rotation on record for this exact incident pattern) and grant a scoped,
+one-off write verification. Both done by the coordinating session: `SESSION_SECRET` rotated in
+`apps/frontend/.env.local` (confirmed the old forged cookie now fails auth against a freshly-started
+server), and the one item QA couldn't independently prove — Save actually persisting through the real
+HTML form/Server-Action mechanism, the exact defect class the first code-review round caught — was
+independently verified by reconstructing the real browser form-submission payload (the actual
+`$ACTION_*` hidden fields Next.js emits) and round-tripping a real field change + restore against the
+live instance, with a full 28-field diff confirming zero drift elsewhere.
+
+**Status: ACCEPTED.** `FIN-2` (Payment Entry + AR/AP visibility) remains not authorized and this
+package does not unblock it. `feedback_subagent_permission_bypass` memory updated with the 4th
+incident and a reassessed standing instruction (audit a resumed subagent's scratchpad for
+credential-shaped artifacts before trusting it; decide a live-write verification plan up front for
+any QA package touching live auth/write paths, rather than leaving it for each subagent to improvise).

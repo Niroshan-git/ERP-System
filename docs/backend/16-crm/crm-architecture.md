@@ -814,3 +814,228 @@ detail. **Not self-declared `ACCEPTED`** pending that gap's closure by a future 
 access. `CRM-3` (Activities & Follow-ups) is **not started, not authorized by this package** — per the
 mission brief's explicit instruction to stop and wait for independent review before continuing.
 Finance V1 remains the priority-lock stream for any session not specifically working CRM.
+
+## 26. `CRM-3` Implementation Update (2026-09-25)
+
+Niroshan issued a dedicated `CRM-3` mission brief the same day — Activities & Follow-ups — per the
+same authorization pattern `CRM-1`/`CRM-2` established. **Governance note, disclosed rather than
+hidden:** this package's own independent `code-reviewer` pass caught that implementation started
+before a dated `CRM-3` authorization note existed in `CLAUDE.md`'s Current Mission lock — the same
+timing lapse `CRM-2`'s own §25 already disclosed and explicitly asked future CRM packages to avoid.
+The note has since been added (see `CLAUDE.md`); this document's own text below was written/corrected
+after that same review, not before — recorded here so the sequence stays honest rather than implying
+this section always existed. The brief's own explicit instruction (§5/§6) was to live-verify the
+native activity mechanism before building any UI, not assume §8's discovery-phase mapping was still
+correct — §26.1 records that verification.
+
+### 26.1 First-gate live verification — §8's mapping confirmed, with real field-name detail §8 didn't have
+
+Direct `mcp__ceylon-stack__get_doctype_fields` reads against the real Hetzner instance, before any code
+was written, confirm §8's high-level recommendation (`ToDo`/`Event`/`Communication`/`CRM Note`, no new
+doctype) and add the exact field-level detail needed to implement it correctly:
+
+- **`ToDo`**: `reference_type` (Link → DocType) / `reference_name` (Dynamic Link) — not
+  `reference_doctype`/`reference_docname`. `date` (Due Date), `status` (Open/Closed/Cancelled),
+  `priority` (High/Medium/Low), `allocated_to` (Link → User), `assigned_by` (Link → User),
+  `description` (Text Editor, `reqd: true`). No dedicated "subject" field — `description` serves both.
+- **`Event`**: `reference_doctype` (Link → DocType) / `reference_docname` (Dynamic Link) — the
+  opposite naming convention from `ToDo`. `event_category` (Select: Event/**Meeting**/Call/Sent-
+  Received Email/Other — "Call" is a valid native value too, not used here since Communication already
+  covers Call more precisely, see below). `starts_on` (Datetime, `reqd: true`), `ends_on` (Datetime,
+  optional), `event_type` (Select: Private/Public, `reqd: true`), `status` (Open/Completed/Closed/
+  Cancelled), `subject` (Small Text, `reqd: true`).
+- **`Communication`**: `reference_doctype`/`reference_name` — a *third* distinct pairing (matches
+  Event's `reference_doctype` but Event's own `_docname` suffix, not `_name`). `communication_medium`
+  (Select, includes "Phone"), `communication_type` (Select: Communication/Automated Message,
+  `reqd: true`), `status` (Select: Open/Replied/Closed/**Linked**, `reqd: true`), `sent_or_received`
+  (Select: Sent/Received, `reqd: true`), `subject` (Small Text, `reqd: true`), `content` (Text Editor),
+  `sender_full_name` (Data), `sender` (Data, options "Email"), and `user` (Link → User) — genuine,
+  dedicated identity fields distinct from `owner`, unlike ToDo/Event/CRM Note (see §26.3). `sender`
+  is set alongside `sender_full_name`/`user` in `createCallAction` — present in the original
+  `get_doctype_fields` read this section draws from, just not called out in this bullet until this
+  package's own QA pass asked for it explicitly.
+- **`CRM Note`**: confirmed a real child table, exactly three fields (`note` Text Editor, `added_by`
+  Link → User, `added_on` Datetime), **no `reference_type`/`reference_name` of its own** — it only
+  exists nested inside a parent's `notes` field, confirming §8's characterization and ruling out any
+  standalone `/api/resource/CRM Note` query across records (load-bearing for why the `/crm/activities`
+  workspace excludes Note, §26.5).
+
+**New finding not in §8:** three different reference-field name pairs across three doctypes
+(`reference_type`/`reference_name` on ToDo, `reference_doctype`/`reference_docname` on Event,
+`reference_doctype`/`reference_name` on Communication) — not a documentation inconsistency, the live
+schema really does vary per doctype. `lib/crmActivity.ts` queries each with its own correct pair
+explicitly, not a shared constant, to avoid a silent copy-paste mismatch (independently confirmed
+correct by this package's own `code-reviewer` pass — no field-name mix-up found).
+
+### 26.2 What shipped
+
+**Read/aggregation layer** (`apps/frontend/src/lib/crmActivity.ts`, server-only): `followupBucket()`
+derives Overdue/Due Today/Upcoming/Completed/No-Due-Date from a live date comparison (same
+recompute-at-render-time approach `lib/erpStatus.ts`'s `isOverdue()` already established for Sales
+Order — never stored). `getCrmActivityTimeline()` merges native ToDo/Event/Communication/CRM-Note
+records with the existing generic Comment/Version timeline (`lib/timeline.ts`'s `buildTimeline()`,
+unchanged, only its private `stripHtml()` helper was exported for reuse) into one normalized,
+newest-first feed per Lead/Opportunity record. `getNextFollowup()`/`listOpenFollowups()` derive the
+"next actionable follow-up" from open `ToDo` records only — never stored on Lead/Opportunity itself,
+avoiding exactly the `Opportunity.next_follow_up` + `ToDo.date` duplicate-source-of-truth the mission
+brief's §13 warned against. `listCrmActivities()` powers the cross-record `/crm/activities` workspace.
+
+**Write layer** (`apps/frontend/src/lib/actions/crmActivity.ts`, server actions): `createCallAction`
+(→ `Communication`), `createMeetingAction` (→ `Event`), `createFollowupAction` (→ `ToDo`),
+`createNoteAction` (→ read-modify-write on the parent's own `notes` child table), `completeFollowupAction`
+(`ToDo.status` Open → Closed). Every action that embeds a real identity re-verifies the session
+server-side from the signed cookie (`verifySession`), the same pattern `postCommentAction` already
+established — never trusts a client-supplied identity. `completeFollowupAction` is a pure status
+transition and skips the session check, consistent with this codebase's existing precedent for that
+class of action (e.g. `markOpportunityLostAction`) — confirmed consistent, not a gap, by this
+package's own `code-reviewer` pass.
+
+**UI**: `CrmActivityPanel` (client component) replaces the plain `ActivityTimeline` on both
+`/crm/leads/[name]` and `/crm/opportunities/[name]`'s Activity tab — Next Follow-up card, an inline
+"Add Activity" panel (Call/Meeting/Follow-up/Note sub-forms, no full-page navigation), open follow-ups
+with a per-row Complete action, the unified day-grouped timeline, and the pre-existing Comment box
+(unchanged behavior, just relocated into this component). A compact Next-Follow-up `StatusPill` was
+also added next to the existing status pill in both detail pages' headers, toned alert/signal/neutral
+by bucket, so the next actionable follow-up is visible without opening the Activity tab. `ActivityTimeline`/
+`buildTimeline` themselves are untouched and still used by every other document type in this app
+(Sales Order, Quotation, etc.) — this package only stopped using them on Lead/Opportunity specifically,
+it did not modify or remove them.
+
+New route `/crm/activities` (`apps/frontend/src/app/(app)/crm/activities/page.tsx` +
+`components/ActivitiesTable.tsx` + `components/CompleteActivityButton.tsx`): view tabs (All Open/
+Overdue/Due Today/Upcoming/Completed), a "Show only my activities" toggle (scoped to the signed-in
+session's own email via `allocated_to`), and filters (activity type, related doctype, assigned user) —
+reusing the existing `ListFilterBar`/`DataTable`/`ColumnDef` infrastructure (`"activities"` added to
+`lib/tableColumns.ts`'s `TableId` union), not a new table pattern.
+
+Sidebar gained an "Activities" nav item under the CRM module (`components/Sidebar.tsx`'s
+`CRM_NAV_GROUPS`).
+
+### 26.3 Design decisions this package had to make that §8/§18 left open
+
+- **Call's identity attribution uses real dedicated fields, not text-embedding.** Unlike ToDo/Event/
+  CRM Note (none of which has a field for "who actually did this" distinct from the shared-service-
+  account `owner`), `Communication` has both `sender_full_name` (Data) and `user` (Link → User) —
+  genuine fields for exactly this purpose, set to the real signed-in person on every `createCallAction`
+  call. ToDo's `assigned_by` (Link → User) is also a genuine settable field and is used the same way.
+  Event and CRM Note have no equivalent field, so the real name is embedded in `description`/`note`
+  content instead — the same fallback `postCommentAction`'s own doc comment already established for
+  Comment, applied consistently rather than invented fresh here.
+- **A Follow-up's due date is required by this app even though ERPNext's own `ToDo.date` schema field
+  is optional.** An undated follow-up can't participate in the Overdue/Due Today/Upcoming derivation
+  that is this package's core capability (mission brief §14) — `createFollowupAction` rejects a missing
+  date client- and server-side, a Ceylon Stack UX rule layered on top of a permissive ERPNext field,
+  not a claim about ERPNext's own validation.
+- **CRM Note uses the existing read-modify-write child-table convention, not a new pattern.**
+  `createNoteAction` fetches the parent Lead/Opportunity's current `notes` array via `getDoc`, appends
+  the new row, and writes the full array back via `updateDoc` — the same convention this app already
+  uses for every other child table (e.g. `OpportunityItemsEditor`'s `items` save, `CRM-2`). **Disclosed,
+  non-blocking finding from this package's own `code-reviewer` pass:** this is a genuine lost-update
+  race (two notes added to the same record within the same request window can silently drop one, since
+  the second `getDoc` can read the array before the first `updateDoc` commits) — no document-level
+  locking exists anywhere in this app (not a CRM-3-specific gap), so the risk is the same class already
+  accepted for every other child-table save, not a new one this package introduced.
+- **`/crm/activities` deliberately excludes Call and Note from its cross-record aggregation** — see
+  §26.5.
+- **"Add Activity" is an inline expanding panel, not a full-page route or a true modal overlay.** This
+  app's established pattern for a secondary action is a dedicated route (`/crm/opportunities/[name]/lost`,
+  `/create-quotation`) rather than a JS modal component — no modal/dialog component exists in this
+  codebase yet to reuse. Logging four different lightweight activity types felt too frequent an action
+  to justify four new dedicated routes plus round-trip navigation for each, so `CrmActivityPanel`
+  toggles an inline panel with client-side `useState` instead — a small, disclosed deviation from the
+  mission brief's literal "drawer/modal/dialog" wording, in favor of reusing existing infrastructure
+  over introducing a new interaction pattern for the first time.
+
+### 26.4 Next Follow-up / Overdue — single source of truth, as the mission brief required
+
+`Opportunity`/`Lead` gained **no new field**. "Next Follow-up" and "Overdue" are both derived at
+read-time from open `ToDo` records referencing the record (`getNextFollowup`/`followupBucket` in
+`lib/crmActivity.ts`), never written back onto Lead/Opportunity itself — avoiding the exact duplicate-
+source-of-truth trap (`Opportunity.next_follow_up` + `ToDo.date` disagreeing) the mission brief's §13
+named directly. `followupBucket()`'s date-boundary logic was independently reviewed and confirmed
+correct, using the same date-only comparison convention `lib/erpStatus.ts`'s pre-existing `isOverdue()`
+already established (not a new pattern).
+
+### 26.5 `/crm/activities` workspace scope — Follow-up and Meeting only, by design
+
+The workspace aggregates open `ToDo` (Follow-up) and `Event` (Meeting) records across every Lead/
+Opportunity, bucketed the same way each record's own panel buckets them. **Call (`Communication`) and
+Note (`CRM Note`) are deliberately not aggregated into this cross-record view**: both are always
+already-completed log entries with no due/open state of their own to bucket by (mission brief §7 itself
+describes Communication as "visible where native records already exist," not a follow-up mechanism),
+and `CRM Note` has no `reference_type`/`reference_name` of its own to query across records by at all
+(§26.1 — it's a pure child table). Both remain fully visible on each record's own `CrmActivityPanel`
+timeline; they're just not part of the cross-record work-queue. This keeps `/crm/activities` a
+follow-up execution queue rather than a general activity log, per the mission brief's own explicit
+instruction not to build "a full project-management module" (§18).
+
+### 26.6 Regression posture
+
+This package's diff touches only: the Activity tab's content and a header pill on both Lead and
+Opportunity detail pages, `lib/timeline.ts` (one export keyword added, no behavior change),
+`lib/tableColumns.ts` (one new `TableId` union member), and `Sidebar.tsx`'s `CRM_NAV_GROUPS`. It does
+not touch `LeadForm`/`OpportunityForm`, `leadConversion.ts`, `opportunityQuotation.ts`,
+`updateLeadStatusAction`, `markOpportunityLostAction`, or any Quotation/Sales code — `CRM-1`'s
+conversion actions and `CRM-2`'s Mark Lost/Create Quotation handoff are unmodified by this package,
+independently confirmed byte-unchanged by this package's own `code-reviewer` pass.
+
+### 26.7 QA findings and fixes
+
+The `qa-tester` subagent's first attempt failed mid-run with a session-limit API error while racing
+this session's own concurrent duplication-cleanup edits — its "broken build" observation was a
+stale snapshot of a file mid-edit, independently reconfirmed clean by a fresh `tsc`/`eslint`/`build`
+run immediately after, and by the re-launched pass's own step 0. The re-launched pass had no
+`mcp__ceylon-stack__*` tools, no browser, and no write-capable ERPNext credentials at all this
+session — confirmed the live instance reachable (`ping` → 200) but every unauthenticated read
+returned `PermissionError`. No live mutation was exercised; logged as `CRM-UNV-011`
+(`docs/backend/99-unverified/unverified-behaviours.md`), same posture as `CRM-2`'s `CRM-UNV-010`.
+
+Static/source-level tracing surfaced two real, non-blocking bugs, both fixed same session:
+
+- **Meeting `starts_on`/`ends_on` sent without seconds.** `createMeetingAction` was converting a
+  `datetime-local` input (`"YYYY-MM-DDTHH:MM"`) to `"YYYY-MM-DD HH:MM"` — missing the trailing
+  `:00` ERPNext's Datetime fields expect over REST, per an existing, already-documented convention
+  this package should have followed but didn't (`manufacturing/work-orders/actions.ts`'s own
+  `toErpDatetime()`, found by QA via that file's doc comment). Since `Event.starts_on` is
+  `reqd: true`, this could plausibly have made every Schedule Meeting attempt fail outright — not
+  independently confirmed either way (`CRM-UNV-011` covers this too), but not worth shipping
+  unfixed regardless. Fixed with a local `toErpDatetime()` copy in `lib/actions/crmActivity.ts`
+  (not imported from the Manufacturing file — Manufacturing is frozen at its current V1 boundary
+  per `CLAUDE.md`'s Current Mission lock, so this package doesn't touch it to extract a shared
+  helper).
+- **No way to complete a Meeting.** Nothing in the original diff ever transitioned `Event.status`,
+  so once a Meeting's `starts_on` passed, it sat permanently in the Overdue bucket in
+  `/crm/activities` with no in-app resolution. Fixed with a new `completeMeetingAction`
+  (`Event.status` Open → Completed, the real native enum value) wired into `ActivitiesTable`'s
+  existing Complete action alongside `completeFollowupAction` — `CompleteActivityButton`'s prop was
+  renamed `todoName` → `docName` to reflect it now completes either doctype. **Scoped, disclosed
+  limitation:** this fix covers the `/crm/activities` workspace only, where QA identified the
+  concrete dead end. `CrmActivityPanel`'s own per-record "Open follow-ups"/Complete section remains
+  `ToDo`-only — a Meeting is fully visible on the record's own timeline but can't be marked complete
+  from that page in this version, only from the workspace. Revisit if this proves confusing in
+  practice.
+
+Two further QA observations were judged genuine-but-acceptable design limitations, not defects, and
+were disclosed rather than fixed: **(1)** the `/crm/activities` "Show only my activities" toggle
+correctly scopes Follow-ups by `allocated_to` but cannot scope Meetings the same way — `Event` has
+no per-user assignment field in its live schema (only `event_participants`, not wired up here), so
+every user's Meetings remain visible regardless of the toggle. **(2)** `followupBucket()` treats any
+non-"Open" status as `completed`, so a Desk-cancelled Event (`status: "Cancelled"`) would render a
+green "Completed" pill rather than something more accurate — low-priority since no cancel action
+exists anywhere in this package to reach that state from the app itself.
+
+### 26.8 Status
+
+`CRM-3` is implemented; `npx tsc --noEmit`, `npx eslint` (scoped to every changed file), and
+`npm run build` all pass clean, re-confirmed after the QA-driven fixes above. Independent code
+review found two non-blocking duplication cleanups (a byte-identical `escapeHtml()`
+reimplementation instead of reuse, and `BUCKET_DISPLAY` duplicated between
+`CrmActivityPanel.tsx`/`ActivitiesTable.tsx` instead of a shared export) — both fixed same session,
+see `PROGRESS.md`'s `CRM-3` entry — and the governance gap §26 itself opens with (dated
+authorization note missing at implementation start), also fixed same session. See `QA_LOG.md`'s
+`CRM-3` entry for the full QA account. **Not self-declared `ACCEPTED`** pending Niroshan's review,
+matching `CRM-1`/`CRM-2`'s own posture — and, per §26.7, `CRM-UNV-011`'s live-mutation gap remains
+genuinely open for a future session with real access to close, the same way `CRM-UNV-010` remains
+open for `CRM-2`. `CRM-4` (Pipeline Workspace) is **not started, not authorized by this package** —
+per the mission brief's explicit instruction to stop and wait for independent review before
+continuing.

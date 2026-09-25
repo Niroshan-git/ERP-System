@@ -71,6 +71,19 @@ own `code-reviewer` pass) — see `PROGRESS.md`'s `CRM-2` entry for the full seq
 packages should record their dated authorization note here **before** implementation starts, matching
 `CRM-1`'s own precedent, not after.
 
+**Updated 2026-09-25 (package `CRM-3`):** Niroshan issued a dedicated `CRM-3` mission brief —
+Activities & Follow-ups: Call/Meeting/Follow-up/Note logging against Lead and Opportunity using only
+native ERPNext mechanisms (`Communication`/`Event`/`ToDo`/`CRM Note` — no new custom doctype), a
+unified per-record activity timeline, next-follow-up/overdue derivation, and a `/crm/activities`
+salesperson work-queue workspace, per `CRM-0`'s `docs/backend/16-crm/crm-architecture.md` §8/§18
+roadmap and the `CRM-1`/`CRM-2` precedent for how a CRM package gets authorized. Same exception shape
+as `CRM-1`/`CRM-2`'s notes above — does not resolve `docs/ceylon-stack-master-backlog.md` §5 decision
+#2, does not reopen or authorize `CRM-4`/`CRM-5`, and does not change Finance V1's priority for any
+session not working CRM. **Same timing lapse `CRM-2`'s own note above disclosed, repeated here**: this
+note was written back to this file after implementation was already underway, not before — see
+`PROGRESS.md`'s `CRM-3` entry for the full sequence; the standing instruction remains that future CRM
+packages record their dated authorization note here **before** implementation starts.
+
 **Updated 2026-09-25 (package `FIN-1G`):** Niroshan explicitly authorized `FIN-1G — Account
 Determination & Predefined Accounts` — the accounting configuration layer connecting Company,
 Item/Item Group, Customer/Customer Group, Supplier/Supplier Group, Warehouse, and Tax to the G/L
@@ -104,6 +117,27 @@ Account?"), `FIN-1G-F` (configuration health engine), and `FIN-1G-G` (cross-modu
 verification) remain separate, not-yet-authorized future packages — this note does not authorize
 them. **FIN-2 remains not authorized** and FIN-1G-C does not unblock it.
 
+**Updated 2026-09-25 (package `LP-0`/`LP-1`):** Niroshan issued a dedicated Layout, Print &
+Document Output Engine V1 mission brief and explicitly confirmed — when this note's absence was
+flagged before any implementation started — that it runs as a **new exception stream, the same
+shape as `CRM-1`/`CRM-2`/`CRM-3`**: authorized to proceed now, alongside Finance V1 and the CRM
+exceptions, without superseding Finance V1's priority for any session not working this package.
+Unlike `CRM-2`/`CRM-3`, this note was written **before** implementation started, per the standing
+instruction those two packages' own notes issued. Scope: `LP-0` (discovery — read-only, complete
+this session, no unrelated files touched) and `LP-1` (Company Print Profile source mapping —
+ERPNext-owned vs. Ceylon-Stack-owned data ownership boundary, canonical print document model,
+documented in `docs/backend/17-layout-print/`; no UI, no new DocType). Niroshan also resolved
+`LP-0`'s §11 PDF-architecture fork explicitly: **reuse Frappe's native PDF generation** (already
+proven — 7 shipped Sales Invoice Print Formats live-verified on the Hetzner instance) rather than
+a second rendering engine, accepting the cost of maintaining a synchronized Jinja Print Format
+alongside the React preview template — see `docs/architecture/decisions/README.md` ADR-009. `LP-2`
+onward (the actual adapter/canonical-model/template code, starting with the Sales Invoice pilot)
+is a **separate future package**, not authorized by this note to start in the same session as
+`LP-0`/`LP-1`, per the one-package-per-session rule (`AGENT_USAGE_POLICY.md` §4.1). Email (`LP-8`)
+is confirmed **not implementable today** — the live instance has zero `Email Account` records — and
+must not be claimed as working; only the integration boundary should be designed. `FIN-2` remains
+**not authorized** and this note does not touch or reorder Finance V1 or CRM.
+
 1. **Finance V1 — primary stream.** FIN-0 (architecture/discovery) CLOSED 2026-09-24. Canonical
    sequence: FIN-1 (Chart of Accounts read + Bank Account CRUD) → FIN-2 (Payment Entry + AR/AP
    visibility) → FIN-3 (Journal Entry) → FIN-4 (General Ledger / Trial Balance / Profit & Loss /
@@ -126,13 +160,18 @@ them. **FIN-2 remains not authorized** and FIN-1G-C does not unblock it.
      this freeze, except for: critical defects, integration/accounting-impact defects Finance
      discovers while tracing Manufacturing→GL flows, release blockers, or a package Niroshan
      explicitly authorizes.
-4. **CRM** — `CRM-1` (Leads) and `CRM-2` (Opportunities) have shipped as explicit, dated exceptions
-   (see the authorization notes above). Beyond those two, CRM otherwise remains gated behind the
-   preceding V1 foundations (Finance included) per `docs/ceylon-stack-master-backlog.md` §5
-   decision #2 (still open) — `CRM-3`+ needs its own separate authorization, the same way `CRM-2`
-   needed its own beyond `CRM-1`'s.
+4. **CRM** — `CRM-1` (Leads), `CRM-2` (Opportunities), and `CRM-3` (Activities & Follow-ups) have
+   shipped as explicit, dated exceptions (see the authorization notes above). Beyond those three,
+   CRM otherwise remains gated behind the preceding V1 foundations (Finance included) per
+   `docs/ceylon-stack-master-backlog.md` §5 decision #2 (still open) — `CRM-4`+ needs its own
+   separate authorization, the same way `CRM-3` needed its own beyond `CRM-2`'s.
 5. **Later architecture programs** (e.g. tenant/module provisioning) — stay deferred unless
    separately unlocked.
+6. **Layout, Print & Document Output Engine** — `LP-0` (discovery) and `LP-1` (Company Print
+   Profile source mapping) have shipped as an explicit, dated exception (see the authorization note
+   above), the same pattern as the CRM exceptions. `LP-2` onward (canonical model/adapter code,
+   template engine, Sales Invoice pilot) needs its own separate package/session and is **not**
+   authorized by this note.
 
 ### Operating Mode
 

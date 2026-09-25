@@ -297,14 +297,15 @@ const FINANCE_NAV_GROUPS: NavGroupDef[] = [
   },
 ];
 
-// CRM module — CRM-1 (Leads, 2026-09-24) and CRM-2 (Opportunities, 2026-09-24), both
-// explicitly authorized ahead of full Finance V1 completion (see CLAUDE.md's mission-lock
-// updates). Pipeline (Kanban)/Activities remain CRM-3/CRM-4, each its own future, separately
-// authorized package (see docs/backend/16-crm/crm-architecture.md's roadmap). Per that
-// document's §10/§22, CRM does NOT introduce its own Customer/Contact/Address/Territory
-// routes — Lead's and Opportunity's own detail pages link out to the canonical
-// /master-data/customers/[name] once converted, same "modules own process, Master Data owns
-// entities" boundary every other module already follows.
+// CRM module — CRM-1 (Leads, 2026-09-24), CRM-2 (Opportunities, 2026-09-24), and CRM-3
+// (Activities & Follow-ups, 2026-09-25), each explicitly authorized ahead of full Finance V1
+// completion (see CLAUDE.md's mission-lock updates). Pipeline (Kanban) remains CRM-4, its own
+// future, separately authorized package (see docs/backend/16-crm/crm-architecture.md's
+// roadmap — per that document's §19, Pipeline is NOT exposed yet). Per §10/§22, CRM does NOT
+// introduce its own Customer/Contact/Address/Territory routes — Lead's and Opportunity's own
+// detail pages link out to the canonical /master-data/customers/[name] once converted, same
+// "modules own process, Master Data owns entities" boundary every other module already
+// follows.
 const CRM_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "leads",
@@ -314,6 +315,12 @@ const CRM_NAV_GROUPS: NavGroupDef[] = [
       { href: "/crm/leads", label: "Leads", icon: Users2 },
       { href: "/crm/opportunities", label: "Opportunities", icon: Handshake },
     ],
+  },
+  {
+    id: "crm-activities",
+    label: "Activities",
+    icon: Activity,
+    items: [{ href: "/crm/activities", label: "Activities", icon: Activity }],
   },
 ];
 

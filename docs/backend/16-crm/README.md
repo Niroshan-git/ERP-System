@@ -13,7 +13,7 @@ reserved-but-still-unpopulated `07-tax/`/`08-workflows/` slots.
 
 | File | Covers | Status |
 |---|---|---|
-| [`crm-architecture.md`](crm-architecture.md) | Lead, Opportunity, Prospect — full canonical model, conversion mechanism, activity architecture, CRM/Sales/Master Data/Finance boundaries, pipeline design, `CRM-1`–`CRM-5` package roadmap, plus `CRM-1` (§24) and `CRM-2` (§25) implementation updates | `CRM-1`/`CRM-2` implemented and shipped (§24/§25); `CRM-3`–`CRM-5` remain discovery-only, not authorized |
+| [`crm-architecture.md`](crm-architecture.md) | Lead, Opportunity, Prospect — full canonical model, conversion mechanism, activity architecture, CRM/Sales/Master Data/Finance boundaries, pipeline design, `CRM-1`–`CRM-5` package roadmap, plus `CRM-1` (§24), `CRM-2` (§25), and `CRM-3` (§26) implementation updates | `CRM-1`/`CRM-2`/`CRM-3` implemented and shipped (§24/§25/§26); `CRM-4`/`CRM-5` remain discovery-only, not authorized |
 
 ## Method
 
@@ -26,6 +26,7 @@ existence) — see `crm-architecture.md` §24/§25.
 
 ## What's next
 
-`CRM-1 — Leads` and `CRM-2 — Opportunities` have both shipped, per `crm-architecture.md` §24/§25.
-`CRM-3 — Activities & Follow-ups` is the next package in sequence, per `crm-architecture.md` §18 —
-**not authorized to start by this document alone.** See that document's Governance section.
+`CRM-1 — Leads`, `CRM-2 — Opportunities`, and `CRM-3 — Activities & Follow-ups` have all shipped,
+per `crm-architecture.md` §24/§25/§26. `CRM-4 — Pipeline Workspace` is the next package in
+sequence, per `crm-architecture.md` §18 — **not authorized to start by this document alone.** See
+that document's Governance section.

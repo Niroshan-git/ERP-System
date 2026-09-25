@@ -6,15 +6,23 @@ import { DocTabs } from "@/components/DocTabs";
 import { DocField } from "@/components/DocField";
 import { StatusPill } from "@/components/StatusPill";
 import { SavedBanner } from "@/components/SavedBanner";
-import { ActivityTimeline } from "@/components/ActivityTimeline";
 import { LeadForm, type LeadFormOptions } from "@/components/LeadForm";
 import { LeadStatusControl } from "@/components/LeadStatusControl";
 import { ConvertButtonClient } from "@/components/ConvertButtonClient";
+import { CrmActivityPanel } from "@/components/CrmActivityPanel";
 import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
 import { leadStatus } from "@/lib/erpStatus";
-import { buildTimeline } from "@/lib/timeline";
+import { getCrmActivityTimeline, listOpenFollowups, followupBucket, type CrmNoteRow } from "@/lib/crmActivity";
+import { stripHtml } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
+import {
+  completeFollowupAction,
+  createFollowupAction,
+  createCallAction,
+  createMeetingAction,
+  createNoteAction,
+} from "@/lib/actions/crmActivity";
 import { convertLeadToCustomerAction, convertLeadToOpportunityAction } from "@/lib/actions/leadConversion";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 import { updateLeadAction, updateLeadStatusAction } from "../actions";
@@ -53,6 +61,7 @@ type LeadDoc = {
   qualified_on?: string;
   disabled?: 0 | 1;
   unsubscribed?: 0 | 1;
+  notes?: CrmNoteRow[];
   creation: string;
   owner: string;
   modified: string;
@@ -93,6 +102,7 @@ export default async function LeadDetailPage({
     session,
     linkedOpportunities,
     linkedCustomers,
+    openFollowupsRaw,
   ] = await Promise.all([
     fetchLinkOptions("Salutation"),
     fetchLinkOptions("Gender"),
@@ -102,7 +112,7 @@ export default async function LeadDetailPage({
     fetchLinkOptions("Territory"),
     fetchLinkOptions("User"),
     fetchLinkOptions("Company"),
-    buildTimeline("Lead", doc.name, doc),
+    getCrmActivityTimeline("Lead", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
     listDocs<OpportunityLink>("Opportunity", {
       fields: ["name", "status"],
@@ -117,10 +127,27 @@ export default async function LeadDetailPage({
       filters: [["lead_name", "=", doc.name]],
       orderBy: "creation desc",
     }),
+    listOpenFollowups("Lead", doc.name),
   ]);
 
   const options: LeadFormOptions = { salutations, genders, industries, marketSegments, countries, territories, owners, companies };
   const status = leadStatus(doc);
+
+  // "Next Follow-up" (mission brief §13) is derived from open ToDo records, never stored —
+  // see lib/crmActivity.ts's own doc comment for why (avoids a second, competing source of
+  // truth alongside `Opportunity.expected_closing`-style duplication).
+  const revalidateHref = `/crm/leads/${encodeURIComponent(doc.name)}`;
+  const openFollowups = openFollowupsRaw
+    .slice()
+    .sort((a, b) => (a.date ?? "9999").localeCompare(b.date ?? "9999"))
+    .map((t) => ({
+      todoName: t.name,
+      description: stripHtml(t.description ?? "") || "Follow-up",
+      dueDate: t.date,
+      bucket: followupBucket(t.date, t.status, "Open"),
+      assignedTo: t.allocated_to,
+    }));
+  const nextFollowup = openFollowups[0] ?? null;
 
   // See lib/actions/leadConversion.ts's doc comments for the exact field mapping. Gating
   // below is a Ceylon Stack UX decision (ERPNext itself doesn't block re-conversion):
@@ -149,7 +176,21 @@ export default async function LeadDetailPage({
       <div>
         <h1 className="text-2xl font-medium text-graphite-900">{doc.lead_name || doc.name}</h1>
         <p className="mb-1 font-mono text-xs text-graphite-500">{doc.name}</p>
-        <StatusPill label={status.label} tone={status.tone} />
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusPill label={status.label} tone={status.tone} />
+          {nextFollowup && (
+            <StatusPill
+              label={`Next Follow-up: ${nextFollowup.description}${nextFollowup.dueDate ? ` — ${nextFollowup.dueDate}` : ""}`}
+              tone={
+                nextFollowup.bucket === "overdue"
+                  ? "alert"
+                  : nextFollowup.bucket === "due_today"
+                    ? "signal"
+                    : "neutral"
+              }
+            />
+          )}
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {canConvertToOpportunity && (
@@ -219,11 +260,20 @@ export default async function LeadDetailPage({
     </div>
   );
 
-  const commentsTab = (
-    <ActivityTimeline
+  const activityTab = (
+    <CrmActivityPanel
       currentUserFullName={session?.fullName ?? ""}
-      entries={timeline}
-      postComment={postCommentAction.bind(null, "Lead", doc.name, `/crm/leads/${encodeURIComponent(doc.name)}`)}
+      currentUserEmail={session?.email ?? ""}
+      userOptions={owners}
+      timeline={timeline}
+      nextFollowup={nextFollowup}
+      openFollowups={openFollowups}
+      logCallAction={createCallAction.bind(null, "Lead", doc.name, revalidateHref)}
+      scheduleMeetingAction={createMeetingAction.bind(null, "Lead", doc.name, revalidateHref)}
+      createFollowupAction={createFollowupAction.bind(null, "Lead", doc.name, revalidateHref)}
+      addNoteAction={createNoteAction.bind(null, "Lead", doc.name, revalidateHref)}
+      completeFollowupAction={completeFollowupAction.bind(null, revalidateHref)}
+      postComment={postCommentAction.bind(null, "Lead", doc.name, revalidateHref)}
     />
   );
 
@@ -245,7 +295,7 @@ export default async function LeadDetailPage({
         tabs={[
           { id: "overview", label: "Overview", content: overviewTab },
           { id: "linked-records", label: "Linked Records", content: linkedRecordsTab },
-          { id: "comments", label: "Activity", content: commentsTab },
+          { id: "comments", label: "Activity", content: activityTab },
         ]}
       />
     </div>

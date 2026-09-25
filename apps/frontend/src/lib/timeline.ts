@@ -51,7 +51,7 @@ function truncateValue(v: unknown): string {
   return s.length > 40 ? `${s.slice(0, 40)}…` : s;
 }
 
-function stripHtml(html: string): string {
+export function stripHtml(html: string): string {
   return html
     .replace(/<[^>]+>/g, "")
     .replace(/&nbsp;/g, " ")

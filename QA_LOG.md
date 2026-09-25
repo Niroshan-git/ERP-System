@@ -2749,3 +2749,74 @@ about how QA was conducted that Codex's reconciliation pass should be aware of.
   Claude account/session exists in this environment; implementation, review, and QA were each
   performed by fresh subagents independently re-deriving evidence rather than the implementer grading
   its own claims — flagged for Codex's eventual §16 reconciliation audit.
+## 2026-09-25 — CRM module — `CRM-3` (Activities & Follow-ups) — implementation, code review, QA with a disclosed access gap and two fixed bugs
+
+- **Package tested**: `CRM-3` — Call/Meeting/Follow-up/Note activity logging on Lead and
+  Opportunity via native `Communication`/`Event`/`ToDo`/`CRM Note` (no new doctype), a unified
+  per-record timeline (`CrmActivityPanel`), Next Follow-up/Overdue derivation from open `ToDo`
+  records, and a cross-record `/crm/activities` work queue scoped to Follow-up and Meeting. Full
+  detail: `docs/backend/16-crm/crm-architecture.md` §26, `PROGRESS.md`'s `CRM-3` entry.
+- **Code review** (fresh `code-reviewer` subagent): **one blocking process finding, otherwise
+  clean.** Blocking: implementation had started before a dated `CRM-3` authorization note existed
+  in `CLAUDE.md`'s Current Mission lock (the same class of lapse `CRM-2`'s own review caught) —
+  resolved immediately by writing the note back. Technical review found no field-mapping
+  mix-ups across ToDo/Event/Communication's three genuinely different reference-field pairs, no
+  XSS-shaped gaps (every user string reaching a Text Editor field is escaped), correct session
+  re-verification on every identity-embedding action, and no `CRM-1`/`CRM-2` regression (both
+  detail pages' conversion/Mark-Lost/Quotation-handoff logic confirmed byte-unchanged). Two
+  non-blocking duplication findings — a copy-pasted `escapeHtml()` instead of reuse, and a
+  `BUCKET_DISPLAY` label/tone map duplicated between two components — fixed same session (new
+  `lib/html.ts`, new `lib/followupBucket.ts`).
+- **QA** (fresh `qa-tester` subagent) — **result: two real bugs found and fixed; everything else
+  checked passed, with a disclosed access gap.** First attempt failed mid-run with a session-limit
+  API error while racing this session's own concurrent duplication-cleanup edits — its "broken
+  build" observation was a stale mid-edit snapshot, independently reconfirmed clean by a fresh
+  `tsc`/`eslint`/`build` run immediately afterward. Re-launched once the cleanup settled.
+  - **Access**: no `mcp__ceylon-stack__*` tools, no browser, no write-capable ERPNext credentials
+    at all this session — narrower than even `CRM-2`'s own QA gap (which at least had read-only
+    schema tools). Confirmed the live instance reachable (`ping` → 200) but every unauthenticated
+    read `PermissionError`'d — correctly did not fabricate or bypass credentials to get further.
+  - **What it did**: independently re-ran `tsc`/`eslint`/`build` clean from a fresh state; traced
+    every field `lib/actions/crmActivity.ts` writes against the live-verified schema in
+    `crm-architecture.md` §26.1 (all match); diffed both detail pages directly to confirm zero
+    touched lines near any `CRM-1`/`CRM-2` action.
+  - **Real finding A (fixed)**: `createMeetingAction` sent `Event.starts_on`/`ends_on` as
+    `"YYYY-MM-DD HH:MM"` (missing trailing seconds) instead of the `"...HH:MM:SS"` shape ERPNext's
+    Datetime fields expect over REST — an existing, already-documented convention in this codebase
+    (`manufacturing/work-orders/actions.ts`'s `toErpDatetime()`) that this package should have
+    followed and didn't. Since `Event.starts_on` is `reqd: true`, this could plausibly have made
+    every Schedule Meeting attempt fail outright. Fixed with a local `toErpDatetime()` copy (kept
+    local rather than importing from Manufacturing, which is frozen per `CLAUDE.md`'s Current
+    Mission lock).
+  - **Real finding B (fixed)**: nothing in the original diff ever transitioned `Event.status`, so
+    a Meeting whose `starts_on` passed sat permanently in the Overdue bucket in `/crm/activities`
+    with no in-app resolution. Fixed with a new `completeMeetingAction` (`Event.status` Open →
+    Completed) wired into `/crm/activities`'s existing Complete action. Disclosed, scoped
+    limitation: this fix covers the workspace only — `CrmActivityPanel`'s own per-record Complete
+    section remains `ToDo`-only in this version.
+  - **Two disclosed, non-blocking design limitations** (not fixed, judged acceptable): the "Show
+    only my activities" toggle can't scope Meetings the way it scopes Follow-ups, since `Event` has
+    no per-user assignment field in its live schema; a Desk-cancelled Event would render as a green
+    "Completed" pill rather than something more accurate (unreachable in-app, no cancel action
+    exists here).
+  - **What this QA pass does NOT establish**: no Call, Meeting, Follow-up, or Note was actually
+    created against a disposable test Lead/Opportunity this session; `followupBucket()`'s
+    Overdue/Due Today/Upcoming classification was not checked against a real due date; completing a
+    Follow-up/Meeting was not live-exercised. Logged as `CRM-UNV-011` in
+    `docs/backend/99-unverified/unverified-behaviours.md`.
+- **Post-QA verification**: `npx tsc --noEmit`, `npx eslint` (scoped to every changed file), and
+  `npm run build` all re-run clean after both fixes, not just before them.
+- **Disposition**: same posture as `CRM-1`/`CRM-2` — **not marked `ACCEPTED`**, pending Niroshan's
+  review and `CRM-UNV-011`'s live-mutation gap being closed by a future session with real access.
+  Two real bugs a QA pass without live access still managed to catch (via source-level tracing
+  against a documented codebase convention and a straightforward code-path read) were fixed before
+  this package was considered done, rather than shipped silently broken.
+- **Cleanup**: N/A — no fixtures were created by this QA pass (no write access existed to create
+  any).
+- **Governance disclosure**, same as every prior entry under this constraint: no genuinely separate
+  Claude account/session exists in this environment; implementation, review, and QA were each
+  performed by fresh subagents independently re-deriving evidence rather than the implementer
+  grading its own claims — flagged for Codex's eventual §16 reconciliation audit. Concurrent foreign
+  work-in-progress was present in the shared working tree throughout this session (Finance
+  `FIN-1G-C`, plus an unrelated Sales Settings change) — none of it was touched, reviewed, or staged
+  into this package.
