@@ -2,10 +2,14 @@
 
 **Domain:** Finance — Accounting Configuration.
 **Package:** `FIN-1G-A` (ERPNext discovery) + `FIN-1G-B` (canonical determination matrix), 2026-09-25.
-**Status:** `DOCUMENTED` — discovery/architecture only. No frontend UI shipped by this package
-(`FIN-1G-C` onward — Account Determination workspace, master-data inheritance UX, Effective
-Account/"Why This Account?" explainer, configuration health check, cross-module GL verification —
-remain unimplemented; see "Recommended next steps" at the end of this document).
+**Status:** `DOCUMENTED` + **`FIN-1G-C` SHIPPED** (2026-09-25) — `FIN-1G-A`/`FIN-1G-B` discovery/
+architecture below, plus the Company-level Account Determination workspace at
+`/accounting/account-determination` (read/edit for every §2 field, grouped by domain, company-
+switchable; see `PROGRESS.md`'s `FIN-1G-C` entry and `QA_LOG.md`'s 2026-09-25 entries for the full
+build/review/QA account, including a security incident resolved during QA). `FIN-1G-D` (master-data
+inheritance UX), `FIN-1G-E` (Effective Account/"Why This Account?" explainer), `FIN-1G-F`
+(configuration health check), and `FIN-1G-G` (cross-module GL verification) remain unimplemented —
+see "Recommended next steps" below, still accurate for what's left.
 
 This document answers, for every accounting role a Ceylon Stack transaction depends on (revenue,
 COGS, receivable, payable, inventory, cost center, tax, manufacturing WIP/FG/operating-cost): where

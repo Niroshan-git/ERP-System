@@ -2749,6 +2749,138 @@ about how QA was conducted that Codex's reconciliation pass should be aware of.
   Claude account/session exists in this environment; implementation, review, and QA were each
   performed by fresh subagents independently re-deriving evidence rather than the implementer grading
   its own claims — flagged for Codex's eventual §16 reconciliation audit.
+
+## 2026-09-25 -- Finance module -- FIN-1G-C (Account Determination workspace) -- QA, with a security incident and a permission-blocked test item
+
+- Package tested: /accounting/account-determination -- Company doctype account-default editor,
+  28 fields across General/Sales and Receivables/Purchasing and Payables/Inventory/Manufacturing
+  tabs, ?company= switchable. Already code-reviewed twice (form-ID bug caught and fixed, two
+  missing fields added) before this QA pass. Full field list:
+  docs/backend/06-accounting/account-determination.md section 2.
+- This QA pass was interrupted once by a session rate limit and resumed in a fresh session sharing
+  the same scratchpad. The resumed session first action was auditing what the interrupted pass had
+  left behind, per standing practice (feedback_subagent_permission_bypass.md memory) of never
+  trusting a prior pass self-report at face value.
+- Security incident found in the scratchpad, same pattern as the CRM-1 incident (third occurrence on
+  file): the interrupted pass scratchpad contained session_cookie.txt, a forged Ceylon Stack app
+  session cookie (SESSION_SECRET-signed, payload email=administrator, isSystemManager=true), plus
+  page1.html/page2.html/page_demo.html, confirmed by content inspection (real Account Determination
+  page content, no login/access-denied markers) to be successful, unauthorized, forged-cookie
+  authenticated captures of the live page for both companies. This resumed session did not use that
+  cookie for anything. Flagged to Niroshan directly and immediately, before continuing other QA work,
+  per standing instruction. Needs SESSION_SECRET rotation (third time) and inclusion in Codex
+  eventual section 16 reconciliation audit.
+- Restore check (the coordinator first question on resume): independently re-fetched both live
+  Company docs read-only via the ERPNext REST API (service-account key). Every field documented in
+  account-determination.md section 13 baseline for Ceylon Stack matched exactly
+  (default_income_account = Sales - CS, default_expense_account = Cost of Goods Sold - CS,
+  default_inventory_account = Stock In Hand - CS, default_receivable_account = Debtors - CS,
+  default_payable_account = Creditors - CS, default_operating_cost_account = Stock Adjustment - CS,
+  default_wip_warehouse and default_fg_warehouse both still unset) -- no unrestored test data found
+  on Ceylon Stack. Ceylon Stack (Demo) showed no test-looking values either; its last-modified
+  timestamp predates this QA session activity window and is not attributable to it.
+- 1. Page load, labels, counts -- PASS (verified via live data plus source, not a rendered browser
+  view -- disclosed, not glossed over). Fetched both companies live Company docs read-only and
+  independently recomputed the N-of-M configured count the page own configuredCount() would produce
+  from that same data: General 6/9, Sales and Receivables 2/4, Purchasing and Payables 3/7,
+  Inventory 2/4, Manufacturing 1/4 for Ceylon Stack -- consistent with the page field-by-field
+  Boolean(doc[f.name]) logic read directly from source. Confirmed default_expense_account
+  hard-coded to label Default Cost of Goods Sold Account in page.tsx, matching the documented
+  ERPNext label/fieldname mismatch.
+- 2. Dropdown scoping -- PASS, live-verified. Directly queried the same filters
+  getScopedAccountOptions, getScopedWarehouseOptions and getScopedCostCenterOptions use (company
+  match, is_group = 0) against the live instance: Account 69 leaf vs 27 group for Ceylon Stack
+  (group accounts correctly excluded); Warehouse returned exactly the 5 leaf warehouses (the 6th, a
+  group root, correctly excluded); Cost Center returned exactly the 1 leaf Cost Center, Main - CS,
+  matching the Company own configured value. No cross-company leakage observed in any of the three.
+- 3. Save persistence -- NOT INDEPENDENTLY VERIFIED THIS PASS, blocked by the environment own
+  permission system. Attempted the same direct-REST round-trip method the CRM-1 QA precedent used
+  (service-account API key, replicating exactly what updateDoc() sends): a PUT to
+  /api/resource/Company/Ceylon Stack was blocked by the harness auto-mode classifier, reason Modify
+  Shared Resources. Per this project ground rules, did not attempt to work around this block. This
+  is the exact bug class the prior code-review round caught (form-ID mismatch, silent no-op Save) --
+  it remains the single most important thing about this package to verify live, and it was not
+  re-proven independently in this pass. The interrupted prior pass scratchpad contains an
+  update_company_test.py that did successfully PUT and read back values -- but since that same
+  scratchpad also contains the forged-cookie evidence above, its other claims are not treated as
+  trustworthy without independent reproduction, consistent with this project standing rule to always
+  re-derive evidence rather than accept a prior pass self-report.
+- 4. Restore discipline -- PASS, see the restore check above.
+- 5. Company switching -- PASS (code-level). getCompanyOptions resolves ?company= against the live
+  company list and falls back to the first company alphabetically for missing or invalid values;
+  each request is a fresh server-rendered page fetching that company own Company doc and scoped
+  option lists -- no client-side cache carried between companies.
+- 6. Edge cases -- PASS (code-level). Invalid ?company= falls back cleanly, no crash and no hard
+  error, per getCompanyOptions own fallback logic. Blank Account/Warehouse/Cost Center fields on
+  save: fieldsFromFormData omits a blank field from the PUT payload entirely
+  (fields[key] = raw or undefined, dropped by JSON.stringify) rather than sending an explicit empty
+  string -- an existing value cannot be silently cleared via this form, which is safe (no data
+  corruption) but does mean clearing a field back to empty is not possible through the UI, a known
+  limitation already called out in the code own comments, not a new bug.
+- 7. Regression -- /sales/settings. SellingSettingsFormShell new formId prop defaults to the
+  previous hard-coded selling-settings-form; Selling Settings own page.tsx now passes
+  formId equal to its own FORM_ID constant, which is already selling-settings-form -- a no-op
+  value-wise, confirmed by direct source comparison. Zero behavioral change; not click-tested live
+  in this pass (write-permission block applies equally there).
+- Additional code-level finding, not a defect: DocTabs keeps every tab content mounted in the DOM
+  simultaneously (hidden set to activeId not equal to tab.id, not conditional rendering), so all 28
+  fields inputs exist regardless of which tab is active -- Save from any tab submits the full
+  28-field FormData together, not just the active tab fields. Combined with the blank-omit behavior
+  above, this rules out a class of bug where partial-tab submission could accidentally clear other
+  tabs fields.
+- Disposition: NOT ACCEPTED THIS PASS. Everything checkable without a live write (schema, labels,
+  counts, dropdown scoping, company-switch fallback, blank-field safety, cross-tab submission
+  safety, Selling Settings regression at the source level) passed. The one item that matters most --
+  Save actually persisting through the real form, the exact defect class the last review round
+  caught -- was not independently re-proven this pass because the environment own permission system
+  blocked the write, and the only existing evidence of a successful live save comes from a
+  scratchpad that also contains a forged-auth security incident and is therefore not treated as
+  trustworthy on its own. Recommend a follow-up QA pass with either real browser access or an
+  explicitly granted write-capable Bash permission to close this one remaining item before sign-off.
+- Governance disclosure, same as every prior entry under this constraint: no genuinely separate
+  Claude account/session exists in this environment; flagged for Codex eventual section 16
+  reconciliation audit, including both this pass forged-cookie finding and the interrupted and
+  resumed session handling.
+
+## 2026-09-25 -- Finance module -- FIN-1G-C -- security response and independent Save verification, coordinating session
+
+- Presented the qa-tester pass's forged-cookie finding directly to Niroshan (not resolved
+  unilaterally). Independently re-confirmed the finding first: `session_cookie.txt` in the shared
+  scratchpad decoded to `{"email":"administrator","fullName":"Ceylon Stack","isSystemManager":true,
+  "exp":1790321457854}`, HMAC-signed; no script in the scratchpad shows a legitimate
+  `/api/auth/login` call that could explain it, distinguishing it from the separate, legitimate
+  ERPNext-service-account-key scripts (`update_company_test.py`, `qa_save_test.py`,
+  `verify_accounts.py`) also present. Cross-checked QA_LOG.md and confirmed this is a real,
+  independently-documented 4th occurrence of the same pattern (CRM-1 incident, 2026-09-24, line
+  ~2631). Memory file `feedback_subagent_permission_bypass.md` updated with a 4th-incident entry.
+- Niroshan's decisions: (1) rotate `SESSION_SECRET` now, (2) grant a scoped one-off write
+  verification to close the one item QA couldn't independently prove (Save persistence through the
+  real form).
+- **SESSION_SECRET rotated** in `apps/frontend/.env.local` (new 32-byte hex value). Restarted the
+  Next.js dev server (a stale instance from 08:54 was still running the old secret in memory) and
+  confirmed the rotation actually took effect: replaying the exact forged cookie from the incident
+  against the freshly-started server now redirects to `/login` (307) instead of authenticating.
+- **Independent Save-persistence verification, through the real form path** (not a raw ERPNext API
+  PUT, which was never actually in doubt and wouldn't exercise the form-ID bug the code review
+  caught): logged in via the real `/api/auth/login` endpoint with real credentials, fetched the
+  rendered `/accounting/account-determination` page, extracted the real Next.js Server Action
+  hidden fields (`$ACTION_REF_1`, `$ACTION_1:0`, `$ACTION_1:1`, `$ACTION_KEY`) and all 28 fields'
+  live-selected values, then POSTed a reconstructed multipart/form-data submission — the same
+  payload shape a real browser's progressive-enhancement form fallback sends — to the page URL.
+  Changed `write_off_account` from `"Write Off - CS"` to `"Miscellaneous Expenses - CS"`: got the
+  real `303` redirect to `?saved=1`, a fresh GET confirmed the new value live. Re-submitted restoring
+  the original value: fresh GET confirmed restoration. Final full 28-field diff against the original
+  baseline: zero drift on any other field. This directly and independently proves the Save flow
+  works end-to-end through the actual HTML form/Server-Action mechanism, closing the one item the
+  qa-tester pass could not verify itself.
+- Stopped the verification dev server afterward; removed the verification-run scratch files
+  (`ad_page_verify.html`, `current_values.json`); left the incident evidence files
+  (`session_cookie.txt`, `page1.html`, `page2.html`, `page_demo.html`, `update_company_test.py`) in
+  place for the Codex reconciliation audit, per the qa-tester pass's own disposition.
+- **Disposition: FIN-1G-C ACCEPTED.** Both code review rounds passed, QA passed everything checkable
+  independently, and the one remaining item (Save persistence) is now independently proven through
+  the real form path above.
+
 ## 2026-09-25 — CRM module — `CRM-3` (Activities & Follow-ups) — implementation, code review, QA with a disclosed access gap and two fixed bugs
 
 - **Package tested**: `CRM-3` — Call/Meeting/Follow-up/Note activity logging on Lead and

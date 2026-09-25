@@ -30,6 +30,15 @@ export default function FinanceHomePage() {
             </p>
           </li>
           <li>
+            <Link href="/accounting/account-determination" className="font-medium text-signal hover:underline">
+              Account Determination
+            </Link>
+            <p className="text-graphite-500">
+              Company-level G/L account and warehouse defaults — where Sales, Buying, Inventory,
+              and Manufacturing transactions post when nothing more specific overrides them.
+            </p>
+          </li>
+          <li>
             <Link href="/accounting/bank-accounts" className="font-medium text-signal hover:underline">
               Bank Accounts
             </Link>

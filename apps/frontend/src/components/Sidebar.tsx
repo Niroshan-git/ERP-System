@@ -281,10 +281,14 @@ const MANUFACTURING_NAV_GROUPS: NavGroupDef[] = [
 // since Payment Entry itself is FIN-2 scope, not this package's). Chart of Accounts (read-only
 // tree) and Bank Accounts (full CRUD) are FIN-1's only two screens; Payments, Journal Entries,
 // and the native financial reports are each a later, separately authorized package — see
-// `docs/backend/06-accounting/finance-architecture.md`'s FIN-1..FIN-6 sequence. Entities with
-// no screen yet (Cost Center, Payment Entry, Journal Entry, General Ledger/Trial Balance/P&L/
-// Balance Sheet/AR/AP) are deliberately omitted rather than padded with "Soon" placeholders —
-// same precedent Manufacturing/Master Data set for their own not-yet-built entities.
+// `docs/backend/06-accounting/finance-architecture.md`'s FIN-1..FIN-6 sequence. Account
+// Determination (`FIN-1G-C`, 2026-09-25) added a third screen — Company-level G/L account/
+// warehouse default configuration (docs/backend/06-accounting/account-determination.md) — an
+// extension layered on top of Chart of Accounts, not part of the FIN-1..FIN-6 sequence itself.
+// Entities with no screen yet (Cost Center, Payment Entry, Journal Entry, General Ledger/Trial
+// Balance/P&L/Balance Sheet/AR/AP) are deliberately omitted rather than padded with "Soon"
+// placeholders — same precedent Manufacturing/Master Data set for their own not-yet-built
+// entities.
 const FINANCE_NAV_GROUPS: NavGroupDef[] = [
   {
     id: "accounting",
@@ -292,6 +296,7 @@ const FINANCE_NAV_GROUPS: NavGroupDef[] = [
     icon: Landmark,
     items: [
       { href: "/accounting/chart-of-accounts", label: "Chart of Accounts", icon: Network },
+      { href: "/accounting/account-determination", label: "Account Determination", icon: SlidersHorizontal },
       { href: "/accounting/bank-accounts", label: "Bank Accounts", icon: Banknote },
     ],
   },

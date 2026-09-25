@@ -152,6 +152,7 @@ export default async function SellingSettingsPage({
 
       <SellingSettingsFormShell
         action={updateSellingSettingsAction}
+        formId={FORM_ID}
         tabs={[
           {
             id: "customer-defaults",
