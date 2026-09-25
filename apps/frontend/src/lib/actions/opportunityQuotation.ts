@@ -16,6 +16,8 @@ type OpportunityForQuotation = {
   territory?: string;
   customer_group?: string;
   company: string;
+  contact_person?: string;
+  customer_address?: string;
   items: OpportunityItemForQuotation[];
 };
 
@@ -79,6 +81,8 @@ export async function createQuotationFromOpportunityAction(opportunityName: stri
       plc_conversion_rate: 1,
       territory: opportunity.territory,
       customer_group: opportunity.customer_group,
+      contact_person: opportunity.contact_person,
+      customer_address: opportunity.customer_address,
       items: opportunity.items.map((i) => ({
         item_code: i.item_code,
         item_name: i.item_name,

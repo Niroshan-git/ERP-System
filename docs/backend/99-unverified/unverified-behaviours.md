@@ -848,7 +848,19 @@ missing seconds; no way to complete an overdue Meeting) — see `crm-architectur
 aggregation and stage mutation not live-exercised — zero live Opportunity/ToDo/Event/Communication
 records plus no frontend login credentials this session) newly logged, non-blocking; this session's
 live schema/data reads (`mcp__ceylon-stack__*`) re-confirmed every field `CRM-4` depends on matches
-`CRM-2`/`CRM-3`'s own earlier findings exactly.
+`CRM-2`/`CRM-3`'s own earlier findings exactly. **Updated 2026-09-25 (`CRM-5` — CRM V1 closure):**
+full classification pass over every item in this section — see `crm-architecture.md` §28.6 for the
+complete table. `CRM-UNV-005` reclassified `RESOLVED/MOOT` (the Opportunity→Quotation handoff never
+calls ERPNext's native outbound mapper this item concerns — it reimplements its own payload, the
+same convention every other conversion in this codebase uses, so the unconfirmed native mapper
+behavior isn't load-bearing for anything shipped). `CRM-UNV-007` explicitly kept open, per the
+`CRM-5` mission brief's own instruction not to invent Won/Lost semantics — not resolved just to
+close it out. `CRM-UNV-010`/`011`/`012` remain open, carried forward unchanged — this session had
+no write-capable tool (`mcp__ceylon-stack__*` is read-only only) and no browser/frontend-login
+access, the same ceiling every prior CRM package's own QA pass hit; live data checked this session
+confirms zero live Lead/Opportunity records and zero CRM-originated Quotations still exist, so none
+of the three could be closed regardless. **CRM V1 status: `V1 ACCEPTED WITH DISCLOSED GAPS`, now
+`V1 FROZEN`** — no item in this section is classified `BLOCKING`.
 
 ### CRM-UNV-001 — Is `CRM Settings.enable_frappe_crm_data_synchronization` actually enabled?
 **Status:** `NEEDS_VERIFICATION`, non-blocking, low priority.

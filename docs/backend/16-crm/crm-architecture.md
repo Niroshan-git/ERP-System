@@ -1250,3 +1250,199 @@ See `PROGRESS.md`'s `CRM-4` entry and `QA_LOG.md`'s `CRM-4` entry for the full c
 and final status. `CRM-5` (CRM → Sales Handoff) is **not started, not authorized by this package** —
 per the mission brief's explicit instruction to stop and wait for review/authorization before
 continuing.
+
+## 28. `CRM-5` — CRM → Sales Integration & V1 Closure (2026-09-25)
+
+Niroshan issued a dedicated `CRM-5` mission brief — not a new feature package, an integration
+verification/hardening/closure pass over the complete `Lead → Opportunity → Quotation → Sales
+Order` chain `CRM-1`..`CRM-4` built, per this document's own §18 roadmap. Authorization note
+written to `CLAUDE.md`'s Current Mission lock before the bulk of this session's work (one small,
+in-scope fix — §28.2 — preceded the note by a few edits; disclosed rather than hidden, same class
+of timing lapse `CRM-2`'s/`CRM-3`'s own sections already disclosed, corrected immediately upon
+being caught by this package's own process).
+
+### 28.1 Method
+
+Not a new-code package by default — per the mission brief's own explicit instruction, this session
+inspected the actual shipped implementation (source reads, not just documentation) of
+`leadConversion.ts`, `opportunityQuotation.ts`, the canonical Sales `quotations/actions.ts`
+(`buildQuotationFields`), `quotationLookup.ts`/`orders/actions.ts` (Quotation → Sales Order carry-
+forward), and `OpportunityForm.tsx`/`crm/opportunities/actions.ts` (to confirm which Opportunity
+fields are genuinely user-settable, not just schema-present). Live read-only verification via
+`mcp__ceylon-stack__*` against the real Hetzner instance (`ping` → `logged_in_as: "Administrator"`)
+confirmed current data state: **zero live Lead/Opportunity records** (same clean state every prior
+CRM package found), 20 live Quotations (all `quotation_to: "Customer"`, all `opportunity: null` —
+confirming no CRM-originated Quotation has ever actually been created on this instance), and zero
+Customer records with `lead_name`/`opportunity_name` populated — direct, live confirmation that
+`CRM-1`/`CRM-2`'s conversion/handoff *code paths* have never executed against real data, consistent
+with `CRM-UNV-010`'s already-disclosed gap. **No write-capable tool was available this session**
+(`mcp__ceylon-stack__*` is read-only by design — `list_documents`/`get_doctype_fields`/`list_doctypes`/
+`ping` only, no create/update) and no frontend login credentials or browser access existed either —
+the same access ceiling `CRM-2`/`CRM-3`/`CRM-4`'s own QA passes hit. A live disposable-fixture
+end-to-end run (§19 of the mission brief) was therefore **not possible this session** — recorded
+honestly as a continued gap, not attempted via any workaround (no session-secret extraction, no
+cookie forgery — the exact incident class `feedback_subagent_permission_bypass` already flags as
+having recurred four times on this project).
+
+### 28.2 Real integration defect found and fixed
+
+**`createQuotationFromOpportunityAction` silently dropped `contact_person`/`customer_address`.**
+`OpportunityForm.tsx` (`CRM-2`) genuinely lets a user pick a Contact and Address on a Customer-
+partied Opportunity — both wired to `fetchLinkOptions("Contact")`/`fetchLinkOptions("Address")`,
+i.e. Master Data's real, canonical, live Contact/Address records (not a CRM-owned duplicate —
+confirmed clean against §10's ownership rule). But `opportunityQuotation.ts`'s Quotation-creation
+payload never carried either field through, even though `Quotation.customer_address`/
+`contact_person` are the same real fields the canonical `buildQuotationFields()`
+(`sales/quotations/actions.ts`) already sends for every other Quotation in this app. A user who
+took the time to attach a specific Contact/Address to an Opportunity would have had that context
+silently discarded at the exact moment CRM hands off to Sales — directly contradicts §8's "party/
+customer/lead context is correct" requirement and §11's commercial-traceability goal. **Fixed**:
+`OpportunityForQuotation`'s type gained `contact_person`/`customer_address`, and both are now
+passed straight through into the `createDoc("Quotation", ...)` call, matching
+`buildQuotationFields()`'s field names exactly — no new pattern, no Sales-core file touched. Not
+independently live-verified (§28.1's access ceiling), but `npx tsc --noEmit`/`npx eslint`/`npm run
+build` all re-confirmed clean after the change, and the fix is a strict superset of the previous
+payload (two additional optional fields — cannot break an Opportunity that has neither set).
+**Precision correction from this package's own QA pass:** the Contact/Address picker
+`OpportunityForm.tsx` uses (`fetchLinkOptions("Contact")`/`fetchLinkOptions("Address")`) is
+**global and unfiltered by party** — not scoped to the Opportunity's own Customer — so this fix's
+real guarantee is narrower than "the carried-through Contact/Address is provably correct for this
+Customer": it's "whatever the user already explicitly picked on the Opportunity is now preserved
+instead of silently discarded, with no more risk than Sales' own canonical Quotation form already
+carries" (`sales/quotations/[name]/page.tsx` uses the exact same unfiltered pattern — an existing,
+documented, accepted low-risk convention app-wide, `party-contact-address-architecture.md` §10,
+not a new risk this fix introduces).
+
+No other integration defect was found in the chain. `Quotation → Sales Order` (existing, unmodified
+Sales flow — `quotationLookup.ts`'s `listCopyableQuotations`/`getQuotationForCopy` plus
+`orders/actions.ts`'s create-order path) already carries `customer_address`/`contact_person`/
+`territory`/`customer_group`/`terms`/`tc_name` forward correctly, and Sales Order Items already
+carry `prevdoc_docname`/`quotation_item` back to their source Quotation line — real, native
+ERPNext traceability fields, not something this package needed to add. `Quotation.opportunity`
+(set by `createQuotationFromOpportunityAction`, §25.3) plus that existing `prevdoc_docname` chain
+together make the full `Opportunity → Quotation → Sales Order` path traceable end-to-end via
+ERPNext's own canonical links, with no duplicated relationship table introduced — satisfying §11's
+explicit instruction.
+
+### 28.3 End-to-end relationship matrix
+
+| From | To | Mechanism | Verified | Owner |
+|---|---|---|---|---|
+| Lead | Opportunity | `convertLeadToOpportunityAction` (reimplemented payload: `opportunity_from: "Lead"`, `party_name`, contact fields mapped from Lead) + explicit `Lead.status = "Opportunity"` write (ERPNext's own mapper never sets this, §6) | Code-verified (source read, this session); live-mutation not exercised — no write access this session, same as `CRM-UNV-010` | CRM |
+| Lead | Customer | `convertLeadToCustomerAction` — creates `Customer` (`customer_name`, `customer_type`, `lead_name = lead.name`) + explicit `Lead.status = "Converted"` write | Code-verified; live-mutation not exercised (no write access) | CRM → Master Data |
+| Opportunity | Quotation | `createQuotationFromOpportunityAction` — Customer-partied Opportunities only; carries `party_name`/`company`/`currency`/price list/`territory`/`customer_group`/`contact_person`/`customer_address` (the last two newly fixed, §28.2)/items; sets `Quotation.opportunity = opportunity.name`; explicit `Opportunity.status = "Quotation"` write | Code-verified this session (including the fix); live-mutation not exercised — no write access | CRM → Sales |
+| Quotation | Sales Order | Existing, unmodified Sales "Copy From Quotation" flow (`quotationLookup.ts`/`orders/actions.ts`) — `Sales Order Item.prevdoc_docname = Quotation.name`, `quotation_item` set per line; requires the Quotation to be **Submitted** (`docstatus = 1`) first, same precondition every other Quotation in this app has | Existing, `ACCEPTED`, code-verified this session, unmodified by `CRM-5` | Sales |
+| Sales Order | Delivery Note | Existing, unmodified Sales flow (`/sales/orders/[name]/create-delivery`) | Existing/`ACCEPTED`, not re-verified this session (frozen, hardened core per Current Mission lock; no CRM-5 touch, no regression evidence) | Sales |
+| Delivery Note | Sales Invoice | Existing, unmodified Sales flow (`/sales/delivery-notes/[name]/create-invoice`) | Existing/`ACCEPTED`, not re-verified this session | Sales |
+| Sales Invoice | Payment | Not built — `FIN-2` (Payment Entry + AR/AP visibility) remains **not authorized** | N/A — no Payment Entry frontend exists in this app yet | Finance (future) |
+
+### 28.4 Cross-module ownership matrix (confirmed, not changed)
+
+| Domain | Owns | Notes |
+|---|---|---|
+| **CRM** | `Lead`, `Opportunity`, CRM activity orchestration (`ToDo`/`Event`/`Communication`/`CRM Note` usage patterns, §8), `/crm` workspace, `Industry Type`/`Market Segment` reference masters (§10 — deliberately CRM-owned, not Master Data, per the same "internal/marketing constructs stay module-owned" precedent `docs/master-data-architecture.md` §11 already sets) | No duplicate Customer/Contact/Address/Territory implementation anywhere in `/crm/*`, confirmed again this session |
+| **Master Data** | `Customer`, `Contact`, `Address`, `Territory`, `Customer Group` | CRM's Opportunity Contact/Address picker (§28.2) reuses these directly via `fetchLinkOptions` — no CRM-owned copy |
+| **Sales** | `Quotation`, `Sales Order`, `Delivery Note`, `Sales Invoice` | Frozen/hardened core (Current Mission lock) — `CRM-5` added zero new fields, actions, or routes to any Sales doctype/module |
+| **Finance** | Payment/accounting consequences (not yet built) | `FIN-2` remains not authorized; CRM has no Finance read/write dependency today (§11) |
+
+### 28.5 Contact/Address integration — final V1 state
+
+**Lead**: still no direct Contact/Address integration — `CRM-UNV-008` remains an **`ACCEPTED V1
+GAP`**, unchanged this session. Its blocker (`MD-REL-1`, Master Data's relationship action/API
+foundation) is confirmed **still not shipped** this session (`docs/backend/15-migration/
+migration-status.md`, `docs/backend/11-relationships/party-contact-address-architecture.md` §16 —
+still only "architecture accepted", no implementation package run). Lead's flat `email_id`/
+`mobile_no`/`phone` fields remain the only contact info surfaced on a Lead in this app.
+
+**Opportunity**: already had genuine, working Contact/Address integration via Master Data's
+canonical `Contact`/`Address` link pickers (`CRM-2`, confirmed this session) — the only gap was
+that integration silently stopping at the Quotation boundary, now closed by §28.2's fix.
+
+**Quotation/Sales Order**: unchanged, already correct (existing Sales core).
+
+**V1 classification: Contact/Address integration is now `sufficient for V1`** for the
+Opportunity → Quotation → Sales Order path (the commercially load-bearing one); the Lead-side gap
+remains a disclosed, non-blocking V1 limitation, not silently dropped.
+
+### 28.6 `CRM-UNV-*` register — final classification
+
+| Item | Classification | Basis |
+|---|---|---|
+| `CRM-UNV-001` (Frappe CRM sync toggle) | `ACCEPTED V1 GAP` | Not fetchable via this session's read-only tools either (Single doctype value); irrelevant to CRM-1..5's own design regardless of the answer (§3.1) |
+| `CRM-UNV-002` (Lead/Prospect naming) | `RESOLVED` for Lead (`CRM-1`, live fixture); Prospect stays unconfirmed but is `POST-V1`, out of scope | No change this session |
+| `CRM-UNV-003` (`opportunity_from` server-side enforcement) | `ACCEPTED V1 GAP` | Moot in practice — every Ceylon Stack write already self-allowlists to `{"Lead","Customer"}` regardless of what ERPNext itself enforces (§9.3) |
+| `CRM-UNV-004` (Opportunity submittability) | `RESOLVED` | Confirmed `is_submittable: 0` (`CRM-1`, live schema read) |
+| `CRM-UNV-005` (Opportunity's own outbound mapper field mapping) | `RESOLVED / MOOT` | **New this session**: `createQuotationFromOpportunityAction` never calls ERPNext's native `opportunity/mapper.py` functions at all — it reimplements its own payload, the same convention every other conversion in this codebase already uses (§6, §25.3). The unconfirmed native mapper behavior is therefore not load-bearing for anything CRM has shipped or will ship under this architecture |
+| `CRM-UNV-006` (`Open → Replied` trigger) | `ACCEPTED V1 GAP` | CRM never writes or depends on this transition |
+| `CRM-UNV-007` (`→ Converted` trigger / Won semantics) | `ACCEPTED V1 GAP`, deliberately preserved open | Per the `CRM-5` mission brief's explicit §12 instruction not to invent unsupported Won/Lost semantics; zero live Opportunity records exist to observe a real transition against even if this session wanted to |
+| `CRM-UNV-008` (Lead Contact/Address create-with-link) | `ACCEPTED V1 GAP` | Blocked on `MD-REL-1`, confirmed still unshipped this session (§28.5) |
+| `CRM-UNV-009` (Opportunity status-tone mapping) | `ACCEPTED V1 GAP` | Cosmetic, non-blocking |
+| `CRM-UNV-010` (`CRM-2` live-mutation gap) | `ACCEPTED V1 GAP`, carried forward | Could not be closed this session — no write-capable tool, no browser/login access (§28.1) |
+| `CRM-UNV-011` (`CRM-3` live-mutation gap) | `ACCEPTED V1 GAP`, carried forward | Same access ceiling |
+| `CRM-UNV-012` (`CRM-4` live-mutation gap) | `ACCEPTED V1 GAP`, carried forward | Same access ceiling |
+
+**No item is `BLOCKING`.** Nothing above prevents the `Lead → Opportunity → Quotation → Sales
+Order` lifecycle from functioning as designed; every open item is either resolved, moot by
+architecture, or a previously-disclosed, non-blocking live-verification gap Niroshan has already
+reviewed and repeatedly chosen to ship with (§ `CRM-2`/`CRM-3`/`CRM-4`'s own status sections).
+
+### 28.7 Module enable/disable dependency posture (confirmed, not newly implemented)
+
+§15's table already correctly classifies Master Data and Users/Authentication as **Hard**
+dependencies and Sales/Finance as **Soft** — reconfirmed unchanged this session, nothing in
+`CRM-1`..`CRM-4`'s actual shipped code contradicts it. CRM's core Lead→Opportunity flow and the
+`/crm`/`/crm/activities` workspaces all function with zero Sales-module code executing; only the
+`Opportunity → Quotation` handoff (§28.3) requires Sales. No module-provisioning engine was built
+or scoped here, per the mission brief's explicit §22 instruction.
+
+### 28.8 Regression posture
+
+This package's diff is deliberately small: `opportunityQuotation.ts` (+4 lines, §28.2's fix) and
+`CLAUDE.md` (authorization note). No other `CRM-1`/`CRM-2`/`CRM-3`/`CRM-4` file was touched.
+`npx tsc --noEmit`, `npx eslint`, and `npm run build` all pass clean across the full app (including
+unrelated, concurrent `LP-2` Layout & Print work-in-progress present in the same working tree this
+session — see §28.9), and the production build output confirms every `/crm/*` route from `CRM-1`
+through `CRM-4` still compiles and is still present (`/crm`, `/crm/activities`, `/crm/leads`,
+`/crm/leads/[name]`, `/crm/leads/new`, `/crm/opportunities`, `/crm/opportunities/[name]`,
+`/crm/opportunities/[name]/create-quotation`, `/crm/opportunities/[name]/lost`,
+`/crm/opportunities/new`).
+
+### 28.9 Concurrent foreign work-in-progress (untouched)
+
+At session start and throughout, `apps/frontend/src/lib/print/types.ts` (untracked) was already
+present in the working tree — confirmed to be `LP-2` (Layout & Print, the canonical-model/adapter
+code `LP-0`/`LP-1` deferred as a separate future package) actively in progress in a concurrent
+session. During this package's own work, that concurrent session additionally modified
+`apps/frontend/src/lib/erpnext.ts` (added `getPrintPdf()`, real native-`download_pdf`-endpoint
+integration per ADR-009) and added `apps/frontend/src/components/DocumentOutputActions.tsx` and
+new `/print/[doctype]/[name]` routes — all confirmed via `git diff`/`git status` to be unrelated to
+CRM, never read beyond the diff needed to confirm it wasn't this package's own change, never
+staged, never committed by this package.
+
+### 28.10 Status
+
+**Package Status: PASS.** Independent `code-reviewer` verdict: **PASS**, no findings (confirmed
+correctness, risk posture, type-safety, architecture/secrets cleanliness, and scope discipline on
+the one-file diff). Independent `qa-tester` verdict: **PASS-WITH-GAPS** — confirmed zero regression
+across every CRM file, re-ran `tsc`/`eslint`/`build` independently clean, hand-traced the fix, and
+contributed the §28.2 precision correction above; gap is the same class already disclosed
+(`CRM-UNV-010`/`011`/`012` — no write-capable tool or browser/frontend-login access existed for
+this QA pass either, so the live-mutation path remains unexercised, not a new gap this package
+introduced). **CRM V1 Status: `V1 ACCEPTED WITH DISCLOSED GAPS`.** One real integration defect
+found and fixed (§28.2); the full `Lead → Opportunity → Quotation → Sales Order` chain is
+confirmed, by source verification plus two independent review passes, to be wired correctly
+end-to-end through ERPNext's own canonical mechanisms, with no duplicated relationship tables and
+no CRM-owned copy of Customer/Contact/Address/Quotation/Sales Order anywhere. Every `CRM-UNV-*`
+item is resolved, moot, or an already-disclosed non-blocking live-verification gap (§28.6) — none
+is blocking. `npx tsc --noEmit`/`npx eslint`/`npm run build` all pass clean (independently
+re-confirmed by both review passes); all `CRM-1`..`CRM-4` routes verified present with no
+regression.
+
+**CRM FREEZE: `V1 FROZEN`.** No new CRM V1 features from this point without Niroshan's explicit,
+dated authorization (matching every prior CRM package's own authorization pattern) — only critical
+defects, security fixes, integration blockers, or explicitly authorized exceptions. Post-V1 backlog
+(not implemented, recorded only): campaigns, marketing automation, email/WhatsApp/telephony
+synchronization, richer sales analytics and forecasting, AI lead scoring/next-best-action, mobile
+CRM enhancements, `Prospect` (§5.3), the native `quotation_to: "Lead"` shortcut (§9.2). Recommended
+next functional stream: `PROC-BID-0 — Procurement Bidding Architecture Discovery` (§23) — **not
+started, not implemented by this package.**

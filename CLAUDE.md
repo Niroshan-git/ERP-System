@@ -158,6 +158,50 @@ can be reused safely (explicit action, not drag-and-drop, no direct client-side 
 otherwise deferred and documented. `FIN-2` remains **not authorized** and this note does not touch
 or reorder Finance V1.
 
+**Updated 2026-09-25 (package `CRM-5`):** Niroshan issued a dedicated `CRM-5` mission brief —
+`CRM → Sales Integration & V1 Closure`: not a new feature package but a verification/hardening/
+closure pass over the complete `Lead → Opportunity → Quotation → Sales Order` chain built by
+`CRM-1`..`CRM-4`, per `CRM-0`'s `docs/backend/16-crm/crm-architecture.md` §18 roadmap and the same
+authorization pattern the prior four CRM packages established. This note is written **before**
+further implementation work continues this session (one small in-scope integration fix — carrying
+`Opportunity.contact_person`/`customer_address` through to the Quotation handoff — preceded this
+note by a few edits; the write-back-before-implementation lesson `CRM-2`'s/`CRM-3`'s own notes
+disclosed is being applied for the remainder of this package, not perfectly from the first edit).
+Same exception shape as the prior CRM notes — does not resolve
+`docs/ceylon-stack-master-backlog.md` §5 decision #2, does not authorize any CRM package beyond
+`CRM-5`, and does not change Finance V1's priority for any session not working CRM. Per the
+mission brief's own instruction, this package does not invent Won/Lost semantics —
+`CRM-UNV-007`'s (`Opportunity.status → Converted` trigger) and `CRM-UNV-010`/`011`/`012`'s
+(live-mutation access gaps) open status is preserved unless genuinely resolved with evidence, not
+silently closed to make CRM's status look more complete than it is. `FIN-2` remains **not
+authorized** and this note does not touch or reorder Finance V1.
+
+**Updated 2026-09-25 (package `LP-2`):** `LP-2 — Canonical Document Output Engine` has shipped,
+per the separate-package/session requirement the `LP-0`/`LP-1` note above already flagged (this
+note was written before treating the package as closed, not after). Scope actually built: the
+canonical print document model, the document-adapter contract + registry (one real adapter —
+Sales Invoice — proving the architecture, per the mission's own "enough to prove the architecture,
+not every document" boundary), the V1 template resolver (unchanged single-template decision from
+`LP-1` §6), a minimal (deliberately unpolished — `LP-3` owns visual design) rendering shell with
+print-safe A4 CSS, a chrome-free preview route and a PDF download route (both outside the `(app)`
+route group but still inside `middleware.ts`'s session-gated matcher), a reusable
+`DocumentOutputActions` component, and this repo's first test harness (`vitest`, engine-level
+fixture tests only — no prior test framework existed). **Known, disclosed gap, not fabricated as
+resolved:** the PDF path reuses one of ERPNext's own existing standard Sales Invoice Print Formats
+(no explicit format requested) since `LP-3` has not yet authored a Ceylon Stack Jinja Print Format
+— the downloaded PDF will not visually match the HTML preview until that ships. Full live-fetch
+end-to-end rendering (an authenticated request through the adapter against a real submitted Sales
+Invoice) was **not** exercised this session — this package deliberately did not mint a session
+cookie to test past the login gate itself, given this project's own disclosed forged-session-cookie
+incident history; only the auth-gate redirect (unauthenticated → `/login`, for the preview route,
+the PDF route, and an unregistered doctype alike) was live-verified. A real logged-in
+browser/`qa-tester` pass against `ACC-SINV-2026-00001` (a real submitted Sales Invoice, confirmed to
+exist) is the recommended first step of `LP-3`/`LP-4A`, not assumed to already be proven here.
+`LP-3` (Standard Ceylon Stack Template) and `LP-4A` (full Sales Invoice pilot: wiring
+`DocumentOutputActions` into the real, currently-frozen `/sales/invoices/[name]` page) remain
+**separate, not-yet-authorized future packages** — this note does not authorize either. `FIN-2`
+remains **not authorized** and this note does not touch or reorder Finance V1 or CRM.
+
 1. **Finance V1 — primary stream.** FIN-0 (architecture/discovery) CLOSED 2026-09-24. Canonical
    sequence: FIN-1 (Chart of Accounts read + Bank Account CRUD) → FIN-2 (Payment Entry + AR/AP
    visibility) → FIN-3 (Journal Entry) → FIN-4 (General Ledger / Trial Balance / Profit & Loss /
@@ -180,19 +224,24 @@ or reorder Finance V1.
      this freeze, except for: critical defects, integration/accounting-impact defects Finance
      discovers while tracing Manufacturing→GL flows, release blockers, or a package Niroshan
      explicitly authorizes.
-4. **CRM** — `CRM-1` (Leads), `CRM-2` (Opportunities), `CRM-3` (Activities & Follow-ups), and
-   `CRM-4` (Pipeline Workspace) have shipped as explicit, dated exceptions (see the authorization
-   notes above). Beyond those four, CRM otherwise remains gated behind the preceding V1
-   foundations (Finance included) per `docs/ceylon-stack-master-backlog.md` §5 decision #2 (still
-   open) — `CRM-5` needs its own separate authorization, the same way `CRM-4` needed its own
-   beyond `CRM-3`'s.
+4. **CRM — `V1 FROZEN`** (2026-09-25, package `CRM-5`). `CRM-1` (Leads), `CRM-2` (Opportunities),
+   `CRM-3` (Activities & Follow-ups), `CRM-4` (Pipeline Workspace), and `CRM-5` (CRM → Sales
+   Integration & V1 Closure) have all shipped as explicit, dated exceptions (see the authorization
+   notes above). `CRM-5` verified the full `Lead → Opportunity → Quotation → Sales Order` chain
+   end-to-end and closed CRM V1 as `V1 ACCEPTED WITH DISCLOSED GAPS` — see
+   `docs/backend/16-crm/crm-architecture.md` §28 for the full closure account. **No new CRM V1
+   feature ships without a fresh, dated authorization note** — only critical defects, security
+   fixes, integration blockers, or explicitly authorized exceptions. This does not resolve
+   `docs/ceylon-stack-master-backlog.md` §5 decision #2 (still open). Recommended next functional
+   stream once separately authorized: `PROC-BID-0 — Procurement Bidding Architecture Discovery`
+   (not started).
 5. **Later architecture programs** (e.g. tenant/module provisioning) — stay deferred unless
    separately unlocked.
-6. **Layout, Print & Document Output Engine** — `LP-0` (discovery) and `LP-1` (Company Print
-   Profile source mapping) have shipped as an explicit, dated exception (see the authorization note
-   above), the same pattern as the CRM exceptions. `LP-2` onward (canonical model/adapter code,
-   template engine, Sales Invoice pilot) needs its own separate package/session and is **not**
-   authorized by this note.
+6. **Layout, Print & Document Output Engine** — `LP-0` (discovery), `LP-1` (Company Print Profile
+   source mapping), and `LP-2` (Canonical Document Output Engine) have shipped as an explicit,
+   dated exception (see the authorization notes above), the same pattern as the CRM exceptions.
+   `LP-3` (Standard Ceylon Stack Template) onward — including `LP-4A`'s full Sales Invoice pilot —
+   needs its own separate package/session and is **not** authorized by this note.
 
 ### Operating Mode
 

@@ -6207,3 +6207,190 @@ session with real write access and/or frontend login credentials to close, the s
 `CRM-1`/`CRM-2`/`CRM-3` shipped under. `CRM-5` (CRM → Sales Handoff) is **not started, not authorized
 by this package**; Finance V1 remains the priority-lock stream for any session not specifically
 working CRM.
+
+## `CRM-5` — CRM → Sales Integration & V1 Closure (2026-09-25, same day as `CRM-4`)
+
+Started: 2026-09-25, branch `frontend`, HEAD `8ce963b` (the `DOCS-HELP-2`/`CRM-4`-release-sync
+commit). **Concurrent foreign work-in-progress present at session start and throughout**:
+`apps/frontend/src/lib/print/types.ts` (untracked) at session start; a concurrent `LP-2` (Layout &
+Print canonical model/adapter) session continued working the same tree during this package's own
+work, adding `getPrintPdf()` to `apps/frontend/src/lib/erpnext.ts`, a `vitest` dependency to
+`apps/frontend/package.json`, `apps/frontend/src/components/DocumentOutputActions.tsx`, new
+`apps/frontend/src/app/print/`/`apps/frontend/test/`/`apps/frontend/vitest.config.ts`. None of it
+was read beyond the diff needed to confirm it wasn't this package's own change; none staged or
+committed by this package.
+
+**Authorization:** Niroshan's `CRM-5` mission brief — explicitly **not** a new feature package, an
+integration verification/hardening/closure pass over the complete `Lead → Opportunity → Quotation
+→ Sales Order` chain `CRM-1`..`CRM-4` already shipped, per `crm-architecture.md` §18's own roadmap
+and the same authorization pattern every prior CRM package used. Authorization note written to
+`CLAUDE.md`'s Current Mission lock — with one small, disclosed process lapse: the §28.2 fix below
+was made a few edits before the note itself, the same class of timing gap `CRM-2`'s/`CRM-3`'s own
+entries already disclosed, corrected for the remainder of the session once caught by this
+package's own process discipline.
+
+**Method:** not a build-first package — per the mission brief's own explicit instruction, this
+session inspected the actual shipped implementation (source reads across `leadConversion.ts`,
+`opportunityQuotation.ts`, the canonical `sales/quotations/actions.ts`, `quotationLookup.ts`/
+`orders/actions.ts`, `OpportunityForm.tsx`) rather than re-deriving architecture from documentation
+alone. Live **read-only** verification via `mcp__ceylon-stack__*` against the real Hetzner instance
+(`ping` → `logged_in_as: "Administrator"`) confirmed current data state: zero live Lead/Opportunity
+records (unchanged since `CRM-0`), 20 live Quotations (all `quotation_to: "Customer"`, all
+`opportunity: null`), zero Customers with `lead_name`/`opportunity_name` populated — direct, live
+confirmation `CRM-1`/`CRM-2`'s conversion/handoff code paths have never actually executed against
+real data on this instance. **No write-capable tool and no browser/frontend-login access existed
+this session** — the same ceiling `CRM-2`/`CRM-3`/`CRM-4`'s own QA passes hit — so the mission
+brief's own §19 live disposable-fixture end-to-end run was not possible; disclosed as a continued
+gap, not worked around (no `.env` reads, no session-cookie forgery — the exact incident class
+`feedback_subagent_permission_bypass` already flags as having recurred four times on this project).
+
+**Real integration defect found and fixed:** `createQuotationFromOpportunityAction` (`CRM-2`'s
+Opportunity → Quotation handoff) silently dropped the Opportunity's `contact_person`/
+`customer_address` when creating the Quotation, even though `OpportunityForm.tsx` genuinely lets a
+user pick both (real Master Data Contact/Address Link fields via `fetchLinkOptions`, confirmed not
+a CRM-owned duplicate) and the canonical `buildQuotationFields()` (`sales/quotations/actions.ts`)
+already sends both fields for every other Quotation in this app. A user who attached a specific
+Contact/Address to an Opportunity had that context silently discarded at the exact moment CRM
+handed off to Sales. **Fixed:** both fields added to `OpportunityForQuotation`'s type and the
+`createDoc("Quotation", ...)` payload in `opportunityQuotation.ts`, matching
+`buildQuotationFields()`'s field names exactly — one file, 4 additive lines, no Sales-core file
+touched.
+
+No other integration defect was found. `Quotation → Sales Order` (existing, unmodified Sales
+"Copy From Quotation" flow) already carries `customer_address`/`contact_person`/`territory`/
+`customer_group`/`terms`/`tc_name` forward correctly, and Sales Order Items already carry
+`prevdoc_docname`/`quotation_item` back to their source Quotation line — real, native ERPNext
+traceability, nothing new needed. `Quotation.opportunity` (already set by `CRM-2`) plus that
+existing chain make the full `Opportunity → Quotation → Sales Order` path traceable end-to-end
+through ERPNext's own canonical links, with zero duplicated relationship table — satisfying the
+mission's explicit §11 instruction.
+
+**Code review** (fresh `code-reviewer` subagent): **PASS, no findings** — confirmed field-name/type
+correctness, no new risk beyond what already exists on Sales' own canonical form, no Sales-core/
+ERPNext-core file touched, no secrets, diff scope exactly one file (also flagged, for traceability
+only, that the visible `apps/frontend/package.json` diff belongs to the concurrent `LP-2` session).
+
+**QA** (fresh `qa-tester` subagent) — **verdict: PASS-WITH-GAPS.** Independently re-ran
+`tsc`/`eslint`/`build` clean (one `next build` lock collision with the concurrent `LP-2` session's
+own build, retried after release, not touched/killed). Confirmed zero regression across every CRM/
+`lib/actions/` file. Contributed a real precision correction, folded into `crm-architecture.md`
+§28.2/§28.3 same session: the Contact/Address picker `OpportunityForm.tsx` uses is **global and
+unfiltered by party**, not scoped to the Opportunity's own Customer, so the fix's actual guarantee
+is "preserves whatever the user already explicitly picked" rather than "provably correct for this
+Customer" — not a defect, since the canonical Sales Quotation form uses the exact same unfiltered
+pattern, an existing, documented, accepted low-risk convention app-wide
+(`docs/backend/11-relationships/party-contact-address-architecture.md` §10). Gap: no write-capable
+tool or browser access existed for this QA pass either, so the actual mutation remains
+unexercised — `CRM-UNV-010`/`011`/`012` remain open, not newly introduced.
+
+**`CRM-UNV-*` full classification this session** (`crm-architecture.md` §28.6, all 12 items):
+`CRM-UNV-002`/`004` already `RESOLVED`; `CRM-UNV-005` newly reclassified `RESOLVED/MOOT` (the
+shipped handoff never calls ERPNext's native outbound mapper this item concerns — it reimplements
+its own payload, same convention as every other conversion in this codebase); `CRM-UNV-001`/`003`/
+`006`/`008`/`009` `ACCEPTED V1 GAP` unchanged (confirmed `MD-REL-1`, `CRM-UNV-008`'s blocker, is
+still unshipped); `CRM-UNV-007` deliberately kept open per the mission's explicit instruction not
+to invent Won/Lost semantics; `CRM-UNV-010`/`011`/`012` `ACCEPTED V1 GAP`, carried forward — could
+not be closed this session (no write access). **No item is `BLOCKING`.**
+
+**Documentation:** `docs/backend/16-crm/crm-architecture.md` gained §28 (full closure account —
+method, the fix, end-to-end relationship matrix, cross-module ownership matrix, Contact/Address
+final V1 state, `CRM-UNV-*` classification table, module dependency posture, regression posture,
+concurrent-foreign-WIP disclosure, final status/freeze decision). `docs/backend/99-unverified/
+unverified-behaviours.md`'s `## CRM` section header updated with the full closure summary.
+`docs/backend/15-migration/migration-status.md`'s CRM row and "next candidates" note updated to
+`V1 FROZEN`. `docs/product/crm/overview.md` (status `PARTIAL` → `LIVE`, all four prior packages'
+"Building" labels corrected to "Live", new CRM-5 summary) and `docs/product/crm/opportunity.md`
+(stale "Pipeline Workspace... not built" limitation line removed, since `CRM-4` shipped it) both
+updated. `docs/ceylon-stack-documentation.html` regenerated and validated
+(`node docs/tools/generate-docs.js` / `validate-docs.js` — 0 errors, 0 warnings).
+
+**Verification:** `npx tsc --noEmit`, `npx eslint`, and `npm run build` all pass clean —
+independently re-confirmed by both the code-review and QA passes, not just the implementing
+session. All ten `CRM-1`..`CRM-4` routes confirmed present in the production build output with no
+regression.
+
+**Status: Package PASS. CRM V1 Status: `V1 ACCEPTED WITH DISCLOSED GAPS`, now `V1 FROZEN`.** One
+real integration defect found and fixed; the full `Lead → Opportunity → Quotation → Sales Order`
+chain is confirmed, by source verification plus two independent review passes, to be wired
+correctly end-to-end through ERPNext's own canonical mechanisms, with no duplicated relationship
+tables and no CRM-owned copy of Customer/Contact/Address/Quotation/Sales Order anywhere. **No new
+CRM V1 features from this point without Niroshan's fresh, dated authorization** — only critical
+defects, security fixes, integration blockers, or explicitly authorized exceptions. Recommended
+next functional stream: `PROC-BID-0 — Procurement Bidding Architecture Discovery` (not started, not
+implemented by this package). Finance V1 remains the priority-lock stream for any session not
+specifically working CRM or `PROC-BID-0` once/if that's separately authorized.
+
+## `LP-2` — Canonical Document Output Engine (2026-09-25)
+
+Started 2026-09-25, branch `frontend`, on top of the committed `LP-0`/`LP-1` package (`12e7525`).
+**Heavy concurrent foreign work throughout** — multiple CRM packages (`CRM-4`, `CRM-5`) shipped and
+froze CRM V1 during this session, plus other in-progress Finance/docs edits — none read, staged, or
+committed by this package; only files under `apps/frontend/src/lib/print/`, `apps/frontend/src/app/
+print/`, `apps/frontend/src/components/DocumentOutputActions.tsx`, one addition to `lib/erpnext.ts`,
+and the new `vitest` harness were touched.
+
+**Authorization:** per `CLAUDE.md`'s dated `LP-0`/`LP-1` note, which already named `LP-2` as the
+next, separate, not-yet-authorized package — this session's own mission brief is that
+authorization, and a fresh dated `LP-2` note was written into `CLAUDE.md` before treating the
+package as closed (not after), continuing the pattern the `LP-0`/`LP-1` note itself established.
+
+**What shipped:** the full pipeline the mission specified — Adapter → Canonical Model → Template
+Resolution → Renderer → Preview/Print/PDF — with one adapter (Sales Invoice) proving it, not every
+document family. `lib/print/types.ts` (canonical model + adapter contract), `lib/print/shared.ts`
+(Company/Letter Head/Bank Account resolution, HTML-to-plain-text reduction, file URL resolution),
+`lib/print/adapter.ts` (registry + the one orchestration entry point every route calls —
+`resolveDocumentPrintModel`), `lib/print/adapters/salesInvoiceAdapter.ts`,
+`lib/print/templateResolver.ts` (unchanged single-template decision from `LP-1`),
+`lib/print/renderer/DocumentRenderer.tsx` + `print.css` (A4, page-break rules, no
+`dangerouslySetInnerHTML` anywhere), `lib/erpnext.ts`'s new `getPrintPdf()` (reuses Frappe's own
+`download_pdf` endpoint per `ADR-009`), `components/DocumentOutputActions.tsx`, and two new routes
+outside the `(app)` group — `app/print/[doctype]/[name]/page.tsx` (preview) and its `pdf/route.ts`
+sibling — both confirmed live (via the running dev server, unauthenticated) to redirect to `/login`
+exactly like every other page, including for an unregistered doctype. Full detail:
+`docs/backend/17-layout-print/layout-print-architecture.md` §12.
+
+**Test harness:** this repo's first (`vitest@^2` — pinned below the current major because
+`vitest@5` needs `@types/node@^22`, a real peer conflict against this project's pinned `^20`, hit
+and resolved this session, not a stylistic pin). 19 fixture tests against
+`salesInvoiceAdapter.normalize()`'s pure function cover the mission's edge-case list that's actually
+a normalization concern (missing optional fields, long names/addresses, many lines, decimals,
+multiple tax rows, logo present/absent, verbatim totals) — deliberately not claiming coverage of
+the visual concerns from the same list (multi-page layout, page-break rendering, PDF fidelity),
+which need a real browser/PDF check instead.
+
+**Verification:** `npx vitest run` (19/19 pass), `npx tsc --noEmit` (clean), `npx eslint` on every
+changed file (0 errors, 2 pre-existing-pattern warnings on `templateResolver.ts`'s intentionally
+unused, future-shaped `_doctype`/`_company` params — same underscore convention already used
+elsewhere in this codebase, e.g. `crm/opportunities/actions.ts`), `npm run build` (clean, both new
+routes present in the production route list as dynamic). Live-checked against the running dev
+server: unauthenticated requests to the preview route, the PDF route, and an unregistered doctype
+(`/print/User/Administrator`) all correctly redirect to `/login`.
+
+**Disclosed, not fabricated as complete:** full authenticated end-to-end rendering against a real
+document was **not** exercised — this session deliberately did not mint a session cookie to test
+past the login gate, given this project's own prior forged-session-cookie incident history (see the
+`FIN-1G-C` entry above). A real submitted Sales Invoice exists to test against once a package picks
+this up with real credentials (`ACC-SINV-2026-00001`, confirmed live via `list_documents`). The PDF
+path currently renders through one of ERPNext's own existing standard Sales Invoice Print Formats,
+not yet a Ceylon Stack-authored one — the PDF and HTML preview will not visually match until `LP-3`
+ships that format. `DocumentOutputActions` is not wired into the real `/sales/invoices/[name]` page
+(frozen core Sales) — that's `LP-4A`'s scope, deliberately not pulled forward into `LP-2`.
+
+**Process note, disclosed:** mid-session, verifying the new routes' auth behavior against a local
+dev server, a broad `taskkill //F //IM node.exe //T` was run to stop it — this kills *every* Node
+process on the machine, not just the one this session started, and this project has multiple
+concurrent Claude Code sessions running real work at any given time (confirmed by the CRM/Finance
+activity landing throughout this exact session). No file/data loss resulted and no other session's
+work appears to have been disrupted (checked via `git status` immediately after), but this was a
+broader blast radius than intended for what should have been a scoped, single-process stop — a
+future session should kill by specific PID/port instead.
+
+**Documentation Impact: NONE.** No end-user-visible surface shipped (`DocumentOutputActions` isn't
+reachable from any real page yet) — the first user-facing `docs/product/` entry for this stream
+lands with `LP-4A`.
+
+**Status:** `LP-2` complete. `LP-3` (Standard Ceylon Stack Template + the matching Jinja Print
+Format) and `LP-4A` (full Sales Invoice pilot, including wiring `DocumentOutputActions` into the
+real page and the deferred live-credential verification) are separate, not-yet-authorized future
+packages. `FIN-2`/`FIN-3` remain not authorized; nothing in this package touches Finance V1 or any
+CRM package's priority.

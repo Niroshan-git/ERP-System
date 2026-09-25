@@ -101,7 +101,7 @@ A Lead can generate multiple Opportunities. The Opportunity → Quotation handof
 
 ## Limitations
 
-Pipeline Workspace (Kanban-style board view) is planned but not built (CRM-4). Per-user permission enforcement is not yet live — all users share one service account's ERPNext access.
+Per-user permission enforcement is not yet live — all users share one service account's ERPNext access. Won/Lost semantics (win rate, won/lost revenue, conversion rate) are deliberately not modeled — see `pipeline.md`.
 
 ## Technical Reference
 

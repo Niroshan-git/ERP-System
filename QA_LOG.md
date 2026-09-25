@@ -3036,3 +3036,79 @@ about how QA was conducted that Codex's reconciliation pass should be aware of.
   fresh subagents independently re-deriving evidence rather than the implementer grading its own
   claims — flagged for Codex's eventual §16 reconciliation audit. No foreign work-in-progress was
   present in the shared working tree at any point this session.
+
+## 2026-09-25 — CRM module — `CRM-5` (CRM → Sales Integration & V1 Closure) — verification pass, one real defect found and fixed, code review + QA both PASS
+
+- **Package tested**: `CRM-5` — not a new feature package. A verification/hardening/closure pass
+  over the complete `Lead → Opportunity → Quotation → Sales Order` chain built by `CRM-1`..`CRM-4`,
+  per the mission brief and `docs/backend/16-crm/crm-architecture.md` §18's own roadmap. Full
+  detail: `crm-architecture.md` §28, `PROGRESS.md`'s `CRM-5` entry.
+- **Working tree at session start**: **not clean** — `apps/frontend/src/lib/print/types.ts`
+  (untracked) already present, confirmed to be a concurrent `LP-2` (Layout & Print) session's
+  work-in-progress. That concurrent session continued modifying the shared tree throughout this
+  package's own work (`apps/frontend/src/lib/erpnext.ts`, `apps/frontend/package.json`,
+  `apps/frontend/src/components/DocumentOutputActions.tsx`, new `apps/frontend/src/app/print/`,
+  `apps/frontend/test/`, `apps/frontend/vitest.config.ts`) — none of it read beyond the diff needed
+  to confirm it wasn't this package's own change, none of it staged or committed by this package.
+- **Method**: source-level verification (`leadConversion.ts`, `opportunityQuotation.ts`, the
+  canonical `sales/quotations/actions.ts`, `quotationLookup.ts`/`orders/actions.ts`,
+  `OpportunityForm.tsx`) plus live **read-only** data checks via `mcp__ceylon-stack__*` against the
+  real Hetzner instance (`ping` → `logged_in_as: "Administrator"`) — confirmed zero live Lead/
+  Opportunity records (unchanged since `CRM-0`), 20 live Quotations (all `quotation_to: "Customer"`,
+  all `opportunity: null`), and zero Customers with `lead_name`/`opportunity_name` populated —
+  direct, live confirmation that `CRM-1`/`CRM-2`'s conversion/handoff code paths have never executed
+  against real data on this instance. **No write-capable tool and no browser/frontend-login access
+  existed this session** — the same access ceiling every prior CRM package's own QA pass hit — so a
+  live disposable-fixture end-to-end run (the mission brief's own §19) was not possible and is
+  disclosed as such, not worked around.
+- **Real integration defect found and fixed**: `createQuotationFromOpportunityAction` silently
+  dropped the Opportunity's `contact_person`/`customer_address` when creating the Quotation, even
+  though `OpportunityForm.tsx` genuinely lets a user pick both (real Master Data Contact/Address
+  Link fields, confirmed not a CRM-owned duplicate) and the canonical Sales Quotation create flow
+  already sends both fields for every other Quotation in this app. Fixed: both fields added to
+  `OpportunityForQuotation`'s type and the `createDoc("Quotation", ...)` payload, matching
+  `buildQuotationFields()`'s field names exactly. One file, 4 additive lines.
+- **Code review** (fresh `code-reviewer` subagent): **PASS, no findings.** Independently confirmed
+  field-name/type correctness, that the fix introduces no new risk beyond what already exists on
+  Sales' own canonical form, no Sales-core/ERPNext-core file touched, no secrets, and that the diff
+  is exactly the one file described (also flagged, for traceability only, that the visible
+  `apps/frontend/package.json` diff belongs to the concurrent `LP-2` session, not this package).
+- **QA** (fresh `qa-tester` subagent) — **verdict: PASS-WITH-GAPS.** Independently re-ran
+  `tsc`/`eslint`/`build` clean (one `next build` lock collision with the concurrent `LP-2` session's
+  own build, retried after it released — not touched/killed). Confirmed zero regression across
+  every `crm/`/`lib/actions/`/`crmActivity.ts`/`crmPipeline.ts` file — exactly one file changed.
+  Contributed a real precision correction: the Contact/Address picker `OpportunityForm.tsx` uses is
+  **global and unfiltered by party**, not scoped to the Opportunity's own Customer — so the fix's
+  actual guarantee is "preserves whatever the user already explicitly picked, instead of silently
+  discarding it" rather than "provably correct for this Customer." Not a defect — the canonical
+  Sales Quotation form (`sales/quotations/[name]/page.tsx`) uses the exact same unfiltered pattern,
+  an existing, documented, accepted low-risk convention app-wide
+  (`docs/backend/11-relationships/party-contact-address-architecture.md` §10) — folded into
+  `crm-architecture.md` §28.2/§28.3 same session. Gap: no live-capable tool or browser access
+  existed for this QA pass either, so the actual `createDoc` mutation remains unexercised —
+  `CRM-UNV-010`/`011`/`012` (already-disclosed, non-blocking, `CRM-2`/`3`/`4`-era gaps) remain open,
+  not newly introduced by this package.
+- **`CRM-UNV-*` register — full classification this session** (`crm-architecture.md` §28.6):
+  `CRM-UNV-002`/`004` already `RESOLVED`; `CRM-UNV-005` newly reclassified `RESOLVED/MOOT` (the
+  shipped Opportunity→Quotation handoff never calls ERPNext's native outbound mapper this item
+  concerns — it reimplements its own payload, same as every other conversion in this codebase);
+  `CRM-UNV-001`/`003`/`006`/`008`/`009` `ACCEPTED V1 GAP`, unchanged (confirmed `MD-REL-1`, the
+  blocker behind `CRM-UNV-008`, is still unshipped); `CRM-UNV-007` deliberately kept open per the
+  mission's explicit instruction not to invent Won/Lost semantics; `CRM-UNV-010`/`011`/`012`
+  `ACCEPTED V1 GAP`, carried forward — could not be closed this session (no write access). **No item
+  is `BLOCKING`.**
+- **Post-fix verification**: `npx tsc --noEmit`, `npx eslint`, and `npm run build` all re-run clean,
+  independently by both review passes, after the fix and after the doc-precision correction.
+- **Cleanup**: N/A — no fixtures were created (no write access existed to create any); zero
+  ERPNext-side mutation occurred this session.
+- **Disposition**: **Package PASS. CRM V1 Status: `V1 ACCEPTED WITH DISCLOSED GAPS`, now `V1
+  FROZEN`** — no new CRM V1 features without a fresh, dated authorization; only critical defects,
+  security fixes, integration blockers, or explicitly authorized exceptions from this point. Full
+  end-to-end relationship matrix, ownership matrix, and freeze rationale: `crm-architecture.md`
+  §28.3/§28.4/§28.10.
+- **Governance disclosure**, same as every prior CRM entry (today, 2026-09-25, is the last day of
+  `TEMP_DUAL_CLAUDE_MODE.md`'s effective period): no genuinely separate Claude account/session
+  exists in this environment; implementation, review, and QA were each performed by fresh subagents
+  independently re-deriving evidence rather than the implementer grading its own claims — flagged
+  for Codex's eventual §16 reconciliation audit. Foreign, concurrent `LP-2` work-in-progress was
+  present throughout this session (disclosed above) — none of it touched, staged, or committed.
