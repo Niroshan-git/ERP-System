@@ -164,3 +164,39 @@ shared Party doctype exists in this ERPNext version). Unifying them would be
 `REQUIRED_CEYLON_BEHAVIOR` for a native backend, not `FRAPPE_CURRENT_BEHAVIOR` today — remains an
 open architecture decision in `docs/master-data-architecture.md` §10, not resolved here or by
 anything shipped since this ADR was first recorded.
+
+## ADR-009 — Reuse Frappe's native PDF generation for the Document Output Engine; no second rendering engine
+
+**Status:** Accepted, active. Recorded 2026-09-25 (packages `LP-0`/`LP-1`).
+
+**Decision:** the Ceylon Stack Layout, Print & Document Output Engine reuses Frappe's native PDF
+generation (`Print Format`'s `pdf_generator`: `wkhtmltopdf` or `chrome`) rather than introducing a
+second, independent PDF rendering path (e.g. server-rendering the React preview template directly
+to PDF via a headless-Chrome step under Ceylon Stack's own control).
+
+**Why:** live-verified against the real Hetzner instance (`mcp__ceylon-stack__get_doctype_fields`/
+`list_documents`) that native Jinja-template PDF rendering is real, proven infrastructure already —
+7 standard Print Formats ship for Sales Invoice alone. The mission brief driving this package (§11)
+requires explicit justification before adding a second PDF engine; none exists strong enough to
+outweigh reusing what's already working, matches `docs/backend/`'s existing "prefer proven ERPNext
+capability" posture applied elsewhere (e.g. ADR-006's stance on accounting logic), and keeps the
+system's only PDF-correctness surface (tax/total formatting, page breaks, multi-page handling)
+inside Frappe's own well-exercised code path rather than a second one Ceylon Stack would have to
+maintain and validate independently.
+
+**Consequence, accepted knowingly:** the browser/print preview (Ceylon Stack's own React template,
+built for full UX control per the mission's §10 requirements) and the actual PDF (a Ceylon
+Stack-authored Jinja `Print Format` hosted in ERPNext) are **two separately maintained
+representations of the same standard layout** — there is no shared template source between them in
+V1. Visual drift between preview and PDF is a disclosed, accepted V1 limitation, not a defect. A
+future package may explore a shared-source template (e.g. generating the Jinja format from the same
+data the React component consumes) once the two-representation cost is felt in practice, but V1 does
+not attempt that up front. Full detail: `docs/backend/17-layout-print/layout-print-architecture.md`
+§5. The shipped "Business Partner domain" package only grouped Customer and
+Supplier under one Sidebar section and route prefix — it did not unify them at the data or
+component level; `CustomerForm.tsx` and Supplier's bespoke form remain fully separate, matching
+ERPNext's own separate `Customer`/`Supplier` DocTypes (live-confirmed via `get_doctype_fields`, no
+shared Party doctype exists in this ERPNext version). Unifying them would be
+`REQUIRED_CEYLON_BEHAVIOR` for a native backend, not `FRAPPE_CURRENT_BEHAVIOR` today — remains an
+open architecture decision in `docs/master-data-architecture.md` §10, not resolved here or by
+anything shipped since this ADR was first recorded.

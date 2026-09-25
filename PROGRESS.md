@@ -6041,3 +6041,66 @@ package does not unblock it. `feedback_subagent_permission_bypass` memory update
 incident and a reassessed standing instruction (audit a resumed subagent's scratchpad for
 credential-shaped artifacts before trusting it; decide a live-write verification plan up front for
 any QA package touching live auth/write paths, rather than leaving it for each subagent to improvise).
+
+## `LP-0`/`LP-1` — Layout, Print & Document Output Engine: discovery + Company Print Profile (2026-09-25)
+
+Started 2026-09-25, branch `frontend`. **Concurrent foreign work-in-progress** was present
+throughout (`CRM-3`, then `FIN-1G-C`, both mid-flight at session start; a further concurrent
+docs-backfill/release-tracker session was active by the time this package closed) — none of it
+read, staged, edited, or committed by this package. See the disclosed exception below.
+
+**Authorization:** Niroshan issued a dedicated Layout, Print & Document Output Engine V1 mission
+brief. Unlike `CRM-2`/`CRM-3`'s own disclosed process lapse, the dated `CLAUDE.md` authorization
+note for this package (Current Mission lock, item 6) was written **before** any implementation —
+flagged as missing during LP-0 discovery (Layout & Print isn't in the existing priority lock at
+all) and confirmed with Niroshan via a direct question before proceeding, rather than assumed from
+the mission brief text alone. Niroshan confirmed: (1) this runs as a new exception stream, same
+shape as the CRM exceptions, not superseding Finance V1 priority; (2) the `LP-0` §11 PDF-rendering
+fork resolves to reusing Frappe's native PDF generation, not a second engine — recorded as ADR-009.
+
+**Disclosed exception to "never touch concurrent work":** while this package's own edits were in
+progress, a concurrent session committed `CRM-3` (`e01f0f1`) and its commit — through no action by
+this package, which only ever used file-edit tools, never `git add`/`git commit` — swept up this
+package's own in-flight `CLAUDE.md` edit (the `LP-0`/`LP-1` authorization note) alongside its
+unrelated `CRM-3` changes. The note's content is correct and intentional; only its commit boundary
+is imperfect (mixed into someone else's commit rather than its own). Not unwound — rewriting a
+commit that may already be relied on elsewhere is a bigger risk than the cosmetic history mix.
+Flagging this as a real cross-session hazard: concurrent Claude Code sessions editing the same
+working tree can have one session's commit silently absorb another's uncommitted edits.
+
+**LP-0 (Discovery):** read-only. Live-verified against the real Hetzner instance
+(`mcp__ceylon-stack__get_doctype_fields`/`list_documents`, not assumed from generic Frappe
+documentation) that `Print Format` (7 standard formats already shipped for Sales Invoice),
+`Letter Head` (2 real records), `Company` (logo/tax ID/registration/`default_letter_head`), and
+`Address` (`Dynamic Link`-based, shared with the rest of this app) are all real, working ERPNext
+capability. Confirmed **zero existing print/PDF/document-output frontend surface** — the only prior
+"export" code (`ExportMenu.tsx`/`lib/export.ts`) is a client-side list-view CSV/XLSX/table-PDF dump,
+unrelated to business-document printing. Confirmed **`Email Account`: zero records** — email
+delivery is not production-ready on this instance today, disclosed rather than assumed working.
+
+**LP-1 (Company Print Profile / source mapping):** documentation only, no code. Established the
+ERPNext-owned vs. Ceylon-Stack-owned data ownership boundary, the V1 canonical print document model
+(trimmed from the mission brief's conceptual sketch to only what's live-verified), and the package
+sequence (`LP-2`–`LP-9`, unchanged from the mission's own plan since the §11 fork was resolved by
+Niroshan directly rather than needing a separate spike package). Full detail:
+`docs/backend/17-layout-print/layout-print-architecture.md`.
+
+**Documentation:** new `docs/backend/17-layout-print/` (`README.md`,
+`layout-print-architecture.md`), `docs/backend/README.md` domain index updated, ADR-009 added to
+`docs/architecture/decisions/README.md` (PDF-engine-reuse decision). `docs/product/` impact: **NONE**
+— this package shipped no end-user-visible surface (no route, no UI, no Print button) for any
+document type; the first user-facing Documentation Impact for this stream lands with `LP-4A`
+(Sales Invoice pilot).
+
+**Review/QA posture:** no code was written this package (discovery + architecture documentation
+only) — `code-reviewer`/`qa-tester` in the usual implementation-review sense do not apply, matching
+the precedent already established for `FIN-1G-A/B` (a discovery-only package) and `DOCS-HELP-1`'s
+own framing for its non-code phases. The new documentation's factual claims are all traceable to a
+live tool call or a direct file read cited inline, not asserted from memory.
+
+**Status:** `LP-0`/`LP-1` complete. **`LP-2` (Canonical Document Output Engine — the actual
+adapter/lib code, `DocumentOutputActions` component) is a separate future package**, not started
+and not authorized by this one, per the one-package-per-session rule
+(`docs/controls/AGENT_USAGE_POLICY.md` §4.1) — this session deliberately stopped at the
+documentation boundary rather than continuing into `LP-2`'s implementation. `FIN-2`/`FIN-3` remain
+not authorized; nothing in this package touches Finance V1 or any CRM package's priority.

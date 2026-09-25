@@ -41,6 +41,16 @@ Per §4 of the policy, domain subfolders (`01-master-data/`, `02-sales/`, `03-pu
 - `15-migration/migration-status.md` — new CRM row (`DOCUMENTED`, discovery-only).
 - `99-unverified/unverified-behaviours.md` — new `## CRM` section, `CRM-UNV-001` through `CRM-UNV-007`.
 
+**Added 2026-09-25 (packages `LP-0`/`LP-1`):**
+
+- `17-layout-print/` — Layout, Print & Document Output Engine discovery/architecture: live-verified
+  `Print Format`/`Letter Head`/`Company`/`Address`/`Email Account` capability on the real Hetzner
+  instance, ERPNext-owned vs. Ceylon-Stack-owned data boundary, canonical print document model, and
+  the `LP-0`–`LP-9` package sequence. **Discovery + source-mapping only — no CRM/Sales/Purchasing
+  document frontend print/PDF/email surface exists yet.** Not added to the migration-order table in
+  this file — it's a cross-cutting output/presentation layer over existing transaction domains, not
+  a business domain of its own being migrated. See `17-layout-print/README.md`.
+
 Sales, Buying, Inventory, Purchasing, Accounting, and Tax are all real, shipped functionality in the frontend already (see `PROGRESS.md`) but still have **no backend documentation** — they remain the next candidates for a baseline pass, in that rough order (per the Current Mission priority lock and `docs/ceylon-stack-master-backlog.md` §4/§6), not because Manufacturing or Master Data are commercially ahead of them.
 
 ## Full structure reference
