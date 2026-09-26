@@ -6469,6 +6469,112 @@ being marked `ACCEPTED` or before `release-tracker` is invoked. `FIN-1G-E`/`FIN-
 remain separate, not-yet-authorized future packages. `FIN-2` remains **not authorized** and
 `FIN-1G-D` does not unblock it.
 
+## `V1-HARDEN-1` — Runtime Resilience, Error Boundaries & Loading Architecture (2026-09-25)
+
+**Authorization:** Niroshan issued the full `V1-HARDEN-1` mission brief; the dated `CLAUDE.md`
+Current Mission note was written by the orchestrating session **before** this implementation
+started. Cross-cutting production-hardening package, not a new feature/module and not a
+redesign — see `docs/controls/AGENT_USAGE_POLICY.md` §8's "split it into one package" framing.
+
+**Gap closed:** before this package, `apps/frontend` had zero `error.tsx`/`global-error.tsx`
+files anywhere (a gap Observability package `O-2`, 2026-09-23, had already disclosed) and
+`loading.tsx` existed only under `admin/observability/*`. Every other route crashed straight to
+Next's raw/dev error overlay on any uncaught failure (ERPNext down, a 5xx, a bug) and showed no
+loading feedback on navigation.
+
+**Architecture implemented** (full detail: `docs/architecture/runtime-resilience.md`):
+- `src/lib/appError.ts` — shared `AppErrorCode`/`AppError` taxonomy, curated safe-copy +
+  retryable tables, `classifyStatus()`, `toAppError()` (server-side, real `ErpNextError` in
+  hand) and `classifyBoundaryError()` (client-side, boundary-safe — Next.js 16 sanitizes a
+  Server Component's thrown error down to a generic message + `.digest` before it reaches
+  `error.tsx` in production, verified against `node_modules/next/dist/server/app-render/
+  create-error-handler.js`, so these two entry points classify from genuinely different
+  information and are not redundant).
+- `src/lib/erpnext.ts` — `ErpNextError` now sets `this.digest = correlationId`; Next.js
+  preserves a pre-set `.digest` rather than regenerating one, so the same Ceylon Stack
+  correlation ID already written to Error Log/Activity Log surfaces at the error boundary as a
+  user-visible, Trace-Explorer-linkable reference (mission §5/§13's correlation-propagation
+  ask). One-line, additive, safe change to the central API layer — no existing caller affected.
+- `src/components/ErrorState.tsx` — one reusable `ErrorState` component plus
+  `ModuleErrorBoundary` (the ~15-line shape every route's own `error.tsx` wraps) and
+  `InlineErrorState` (for a page's own classifiable-error branch). Renders only
+  `appError.userMessage`, never raw error text; reuses the existing `TraceIdBadge` component
+  with a working `openHref` into `/admin/observability/traces/[traceId]` (that route didn't
+  exist yet when `TraceIdBadge` was first built). Reports genuine client-render errors (the one
+  failure class invisible to Observability before this package, since it never touches
+  `erpnextFetch()`) via a new `reportClientRenderError` server action
+  (`src/lib/actions/clientErrorReport.ts`), reusing `reportOperation()`/`redactString()` —
+  explicitly not a new logging system.
+- `src/components/LoadingSkeleton.tsx` — `TableSkeleton`/`DetailSkeleton`/`FormSkeleton`/
+  `DashboardSkeleton`/`InlineLoadingState`/`PageSkeleton`, matching the visual language of the
+  one pre-existing hand-rolled skeleton (`admin/observability/errors/loading.tsx`).
+- `global-error.tsx` (root, catastrophic-only, own `<html>`/`<body>`, imports `globals.css`
+  directly per Next's documented requirement); `(app)/error.tsx` + `(app)/loading.tsx`
+  (app-shell fallback); one `error.tsx` + `loading.tsx` pair per module route group — Sales,
+  Buying, Inventory (`stock`), Manufacturing, CRM, Master Data, Finance (`accounting`), Reports
+  — plus `admin/error.tsx` (Observability already had its own route-specific `loading.tsx`s).
+  20 new boundary files total, each a thin wrapper, per mission §8's explicit "no duplicate
+  100-line files" instruction.
+- One live demonstration of the documented inline-classification adoption pattern:
+  `sales/orders/[name]/page.tsx`'s existing `if (e instanceof ErpNextError && e.status === 404)
+  notFound()` branch (present verbatim in ~90 other files across every module — confirmed by
+  grep) gained one more classifiable branch for 403, rendering `InlineErrorState` instead of
+  crashing to the module boundary. No other page/action file touched — see
+  `runtime-resilience.md` §9 for why (mission §24's explicit "do NOT rewrite 153 pages/39
+  action files" instruction) and how the rest should adopt the same pattern later.
+
+**Retry model:** uses Next 16.3's stable `retry()` prop (not the older `reset()`-only pattern —
+version-specific, confirmed via `error.md`'s version history: `retry` stabilized in `v16.3.0`,
+this repo is on `16.3.5`). Retry is only offered when `AppError.retryable` is true — never for
+`AUTH_REQUIRED`/`FORBIDDEN`/`VALIDATION_ERROR`/`NOT_FOUND`/`CONFLICT`. No automatic/blind
+retries anywhere; no Submit/Cancel/Create/Update/Payment/Journal/Stock-posting action touched.
+
+**Verification performed by the implementing session:**
+- `npm test` (vitest): 39/39 passing, including 20 new tests in
+  `src/lib/__tests__/appError.test.ts` covering status classification, safe-message sanitization
+  (asserts raw ERPNext tracebacks/IPs/hostnames never reach `userMessage`), retryable
+  classification, and the `.digest`-as-correlation-ID boundary path.
+- `npm run lint`: 0 errors (one lint error this package introduced — `global-error.tsx`'s
+  `<a href="/">` — fixed by switching to `next/link`, matching this codebase's existing
+  convention; the 2 remaining warnings are pre-existing, in `lib/print/templateResolver.ts`,
+  not touched by this package).
+- `npx tsc --noEmit`: clean (no package.json `typecheck` script exists; this is the direct
+  equivalent, per the mission's "use actual package scripts... rather than assuming these
+  exist" instruction).
+- `npm run build` (`next build`, Turbopack): exit 0, all ~157 routes compiled, including the 20
+  new boundary files and every existing route unchanged.
+- **NOT performed: a live/browser ERP-downtime test against the real Hetzner instance.** This
+  project has a disclosed forged-session-cookie incident history (see `LP-2`'s own entry above),
+  and this subagent had no ERPNext/frontend login credentials — minting a session cookie to test
+  past `middleware.ts`'s auth gate was deliberately avoided, matching that precedent, rather than
+  worked around. What was verified instead: a mocked-`fetch`-failure unit test proving the
+  `erpnextFetch()` → `ErpNextError` → `toAppError()`/`classifyBoundaryError()` → safe-message
+  chain end-to-end at the logic level; static confirmation that no other code path swallows a
+  rethrown `ErpNextError` before reaching the new boundary files; and that unauthenticated
+  requests are unaffected (`middleware.ts` never calls ERPNext, so its redirect-to-`/login`
+  behavior is untouched regardless of ERPNext's availability). See `QA_LOG.md`'s matching entry
+  and `runtime-resilience.md` §10 for the full, disclosed limitation.
+
+**Documentation:** `docs/architecture/runtime-resilience.md` (new) — error taxonomy,
+normalization architecture (and specifically *why* two normalization entry points exist, driven
+by Next.js 16's own RSC error-sanitization behavior), boundary hierarchy, loading architecture,
+retry rules, security/sanitization rules, Observability integration, and the adoption pattern
+for the rest of the app. Documentation Impact: **Technical Reference — UPDATED** (new
+architecture doc); no `docs/product/` change (this package has no new end-user-visible business
+document, lifecycle action, or configuration step — it changes how *existing* failures are
+displayed, not what the app does) — **Documentation Impact: Module Overview/User Guide/
+Configuration/Process Flow/Lifecycle/Stock Impact/Accounting Impact: N/A, Technical Reference:
+UPDATED**. `docs/backend/` unaffected (no ERPNext field/entity/relationship/business-rule
+discovered — this package is purely frontend-side resilience, per
+`BACKEND_KNOWLEDGE_POLICY.md`'s own scope). `docs/ceylon-stack-documentation.html` not
+regenerated by this session (no `docs/product/` change to regenerate from) — left for the
+orchestrating session to confirm alongside `release-tracker`.
+
+**Status: implementation handed back to the orchestrating session for independent code review
+and QA**, per this package's own explicit instruction not to self-commit. See the full
+`V1-HARDEN-1` handoff report for complete file list, module-by-module verification detail, and
+the honest PASS/CHANGES_REQUIRED self-assessment.
+
 ## `E2E-1` — Full Business Workflow Test (2026-09-25/26)
 
 **What this was:** not a build package — a live, full CRM→Sales→Procurement→Manufacturing

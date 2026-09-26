@@ -13,6 +13,8 @@ import { DocTabs } from "@/components/DocTabs";
 import { ConnectionsPanel } from "@/components/ConnectionsPanel";
 import { SavedBanner } from "@/components/SavedBanner";
 import { ErpNextError, getDoc } from "@/lib/erpnext";
+import { toAppError } from "@/lib/appError";
+import { InlineErrorState } from "@/components/ErrorState";
 import { getSellingDefaults } from "@/lib/salesDefaults";
 import { listItemOptions } from "@/lib/actions/itemLookup";
 import { fetchLinkOptions } from "@/lib/linkOptions";
@@ -94,6 +96,15 @@ export default async function SalesOrderDetailPage({
     doc = await getDoc<SalesOrderDoc>("Sales Order", decodeURIComponent(name));
   } catch (e) {
     if (e instanceof ErpNextError && e.status === 404) notFound();
+    // V1-HARDEN-1 demonstration of the documented inline-classification pattern
+    // (docs/architecture/runtime-resilience.md "Adoption pattern"): a 403 is an *expected*,
+    // classifiable condition — same tier as the pre-existing 404→notFound() branch above —
+    // so it renders a safe, differentiated state here instead of falling through to the
+    // generic sales/error.tsx boundary. Every other failure (ERPNext down, 500s, network)
+    // still rethrows unchanged, exactly as before this package.
+    if (e instanceof ErpNextError && e.status === 403) {
+      return <InlineErrorState appError={toAppError(e)} homeHref="/sales" />;
+    }
     throw e;
   }
 

@@ -19,10 +19,24 @@ export class ErpNextError extends Error {
   /** Ceylon Stack correlation ID for this failure (see lib/correlationId.ts) — safe to show
    * the user as a support reference; always server-generated, never client-supplied. */
   correlationId: string;
+  /**
+   * V1-HARDEN-1: mirrors `correlationId` onto the standard `Error.digest` field Next.js's App
+   * Router already looks for on a thrown error (`Error & { digest?: string }` — see
+   * `node_modules/next/dist/docs/.../error.md`). When this error is thrown from a Server
+   * Component and reaches an `error.tsx`/`global-error.tsx` boundary, Next preserves a
+   * pre-set `.digest` verbatim instead of generating a new hash (verified against
+   * `next/dist/server/app-render/create-error-handler.js`), so the same correlation ID
+   * already written to Error Log/Activity Log via `scheduleFailureReport()` above is also
+   * what a user sees as the boundary's "Reference: ..." — closing the loop from ERPNext
+   * failure through to a support-reportable ID, without inventing a second ID scheme. See
+   * `lib/appError.ts`'s `classifyBoundaryError()` doc comment for the full chain.
+   */
+  digest: string;
   constructor(message: string, status: number, correlationId: string, erpnextMessage?: string) {
     super(message);
     this.status = status;
     this.correlationId = correlationId;
+    this.digest = correlationId;
     this.erpnextMessage = erpnextMessage;
   }
 }

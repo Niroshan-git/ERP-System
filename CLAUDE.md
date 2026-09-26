@@ -216,6 +216,33 @@ Account?"), `FIN-1G-F` (configuration health engine), and `FIN-1G-G` (cross-modu
 verification) remain separate, not-yet-authorized future packages — this note does not authorize
 them. `FIN-2` remains **not authorized** and `FIN-1G-D` does not unblock it.
 
+**Updated 2026-09-25 (package `V1-HARDEN-1`):** Niroshan issued a dedicated `V1-HARDEN-1 — Runtime
+Resilience, Error Boundaries & Loading Architecture` mission brief — a cross-cutting production-
+hardening package (typed error model + centralized ERPNext/API error normalization, reusable
+error-state UI, route/module-level error boundaries, reusable loading/skeleton primitives with
+strategic `loading.tsx` placement, safe retry rules that never auto-retry mutations, and
+integration with the existing Observability O-series correlation-ID infrastructure) rather than a
+new business module. This note is written **before** implementation starts, per the standing
+instruction `CRM-2`'s/`CRM-3`'s own notes issued and the pattern `CRM-4`/`CRM-5`/`LP-0`/`LP-2`/
+`FIN-1G-D` already followed correctly. It runs as an explicit, dated exception stream the same
+shape as those — authorized to proceed now, alongside Finance V1/CRM/LP, without superseding
+Finance V1's priority for any session not working this package, and without reordering the
+priority list below. Confirmed via `PROGRESS.md` (O-2, 2026-09-23): the correlation-ID/
+`lib/observability.ts`/`lib/errorLog.ts` foundation already exists, and that same package explicitly
+logged "no UI surfaces the correlation ID yet (no `error.tsx`/`global-error.tsx`)" as a disclosed
+gap — confirmed still true by a fresh repo search (zero `error.tsx`/`global-error.tsx` files exist
+anywhere in `apps/frontend` as of this note). This package extends that existing Observability
+architecture; it must not build a competing logging/error subsystem. **Known concurrent WIP at
+authorization time:** `FIN-1G-D` (Account Determination inheritance UX) is uncommitted in this same
+working tree — `AccountingDefaultsPanel.tsx`, the master-data `[name]/page.tsx` and `actions.ts`
+files, `lib/financeDefaults.ts`, `DocTabs.tsx`, and related `docs/backend`/`docs/product` files, some
+with edits still unstaged. Per this package's own repository-safety rules, none of those files are
+to be touched, staged, or committed by `V1-HARDEN-1` — only files this package itself creates or
+edits get committed under it. This note does not resolve
+`docs/ceylon-stack-master-backlog.md` §5 decision #2, does not authorize RBAC, Payment Entry,
+Journal Entry, User Management, or CI/CD (all explicitly out of scope per the brief), and does not
+change Finance V1's, CRM's, or `FIN-1G-D`'s priority or status. `FIN-2` remains **not authorized**.
+
 **Updated 2026-09-26 (package `MFG-JC-EXEC-1`):** Niroshan issued a dedicated `MFG-JC-EXEC-1 —
 Job Card Execution` mission brief — a narrow, explicit exception to the Manufacturing V1 freeze
 (item 3 below), authorized specifically to resolve a P0 blocker (`D7`) found by this repo's own

@@ -3166,6 +3166,70 @@ Flagged to Niroshan; still sitting in the working tree, not resolved by this ent
   manual click-test. Implementation, code review, and the two automated verification layers above
   are complete; do not treat this as fully closed until Niroshan reports back.
 
+## 2026-09-25 — `V1-HARDEN-1` (Runtime Resilience, Error Boundaries & Loading Architecture) — implementer-level verification, independent code review/QA still pending
+
+**Scope:** production-hardening, cross-cutting package — `error.tsx`/`global-error.tsx`
+boundaries, `loading.tsx` skeletons, and a shared `AppError` normalization layer
+(`src/lib/appError.ts`), per the full mission brief in the `V1-HARDEN-1` handoff report. Not a
+core-flow *feature* change, but it does add code that runs on top of Sales/Buying/Inventory/
+Manufacturing/Finance/CRM/Master Data/Reports routes (the new module `error.tsx`/`loading.tsx`
+files, plus one classification branch added to `sales/orders/[name]/page.tsx`), so per
+`CLAUDE.md`'s Package Closure Rules this still needs `code-reviewer` and, because it touches
+Sales/Stock/Buying-adjacent surfaces even if only additively, `qa-tester` before acceptance.
+
+**What the implementing session itself verified** (not a substitute for independent
+code-reviewer/qa-tester passes — recorded here for transparency, same convention as every other
+entry in this log):
+- `npm test` (vitest): 39/39 passing — 20 new tests in `src/lib/__tests__/appError.test.ts`. Key
+  assertions: a fake `ErpNextError`-shaped object with a raw ERPNext traceback in
+  `erpnextMessage` on a 500 never leaks that text into `userMessage` (only the curated safe
+  string does); a raw `Error("fetch failed: ECONNREFUSED 10.0.0.5:8000")` classifies as
+  `NETWORK_ERROR` without the IP ever appearing in `userMessage`; `classifyBoundaryError()`
+  correctly prefers a pre-set `.digest` as the correlation reference and falls back to
+  `UNKNOWN`'s honest copy (not a fabricated specific code) when the message is Next's generic
+  production placeholder.
+- `npm run lint`: 0 errors after one fix (`global-error.tsx`'s `<a href="/">` → `next/link`, to
+  match this codebase's existing `Breadcrumb.tsx`-established convention). The 2 remaining
+  warnings are pre-existing, in `lib/print/templateResolver.ts`, untouched by this package.
+- `npx tsc --noEmit`: clean. (No `typecheck` package.json script exists in this repo — this is
+  the direct equivalent.)
+- `npm run build`: exit 0, ~157 routes compiled successfully, including all 20 new boundary
+  files (`global-error.tsx`, `(app)/error.tsx`+`loading.tsx`, and one `error.tsx`+`loading.tsx`
+  pair per module route group) and the one modified page.
+  (`sales/orders/[name]/page.tsx`).
+- `git status`/`git diff --stat` confirmed, before and after implementation, that every file
+  flagged as foreign `FIN-1G-D` WIP in the task brief (`PROGRESS.md`, `QA_LOG.md`'s pre-existing
+  content, the 5 master-data `[name]/page.tsx`+`actions.ts` pairs, `AccountingDefaultsPanel.tsx`,
+  `DocTabs.tsx`, `financeDefaults.ts`, `docs/backend/06-accounting/account-determination.md`,
+  `docs/product/finance/*`, `docs/ceylon-stack-documentation.html`) has identical status markers
+  to the session's starting snapshot — none of it was touched, reverted, or staged.
+
+**Explicitly NOT verified — disclosed, not fabricated:**
+- **No live/browser ERP-downtime test against the real Hetzner-hosted instance.** This subagent
+  had no ERPNext/frontend login credentials, and this project has a disclosed prior
+  forged-session-cookie incident (referenced in `LP-2`'s `PROGRESS.md` entry) that this session
+  deliberately did not repeat by minting a session cookie to get past `middleware.ts`'s auth
+  gate. Only verified: (a) a mocked-`fetch`-rejection unit test proving the full
+  `erpnextFetch()` → `ErpNextError` → `classifyBoundaryError()` → safe-message chain works at the
+  logic level; (b) static read-through confirming no code path between `getDoc`/`listDocs` and
+  the new `error.tsx` files silently swallows a rethrown `ErpNextError`; (c) that
+  `middleware.ts` never calls ERPNext, so unauthenticated-user behavior (redirect to `/login`)
+  is provably unaffected by ERPNext's availability either way.
+- **No component-rendering test** for `ErrorState`/`ModuleErrorBoundary`/the skeleton
+  components — this repo's only test framework (vitest) has no React Testing Library equivalent
+  installed, and the mission explicitly discourages adding a new test framework solely for this
+  package.
+- **Only one page (`sales/orders/[name]/page.tsx`) got the inline-403-classification
+  treatment** — the other ~90 files sharing the same `if (... 404) notFound()` pattern are
+  documented as future adoption candidates (`docs/architecture/runtime-resilience.md` §9), not
+  migrated in this package, per the mission's explicit "do not rewrite 153 pages" instruction.
+
+**Status:** implementation complete and handed back to the orchestrating session, which is
+expected to run independent `code-reviewer` and `qa-tester` passes (the latter warranted given
+this package's additive-but-real touch on Sales/Buying/Inventory/Manufacturing/Finance/CRM/
+Master Data/Reports route trees) before this entry can be upgraded to a genuine PASS/ACCEPTED
+record. Full detail: the `V1-HARDEN-1` handoff report and `docs/architecture/runtime-resilience.md`.
+
 ## 2026-09-25/26 — E2E-1 full business workflow test — two live defects found and fixed (CRM Log Call, Work Order company/warehouse mismatch)
 
 - **Package tested**: not a single module package — a full CRM→Sales→Procurement→Manufacturing
