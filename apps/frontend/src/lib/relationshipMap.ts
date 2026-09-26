@@ -1,6 +1,6 @@
 import "server-only";
 import { getDoc } from "@/lib/erpnext";
-import { getConnections } from "@/lib/connections";
+import { getConnections, type Connection } from "@/lib/connections";
 import { quotationStatus, salesOrderStatus, salesInvoiceStatus, deliveryNoteStatus, type StatusDisplay } from "@/lib/erpStatus";
 import type { DocStatus } from "@/lib/docStatus";
 
@@ -34,6 +34,47 @@ type DocRef = { doctype: string; name: string };
 
 function keyOf(ref: DocRef): string {
   return `${ref.doctype}::${ref.name}`;
+}
+
+/**
+ * Perf fix (2026-09-26, disclosed slow-page-load report): the tree walk below revisits the
+ * same document from multiple directions — `findRoots` climbs up through a node on its way
+ * to the root, then `buildNode` walks back down through that same node on its way to the
+ * leaves, and the Sales-Order branch of `getChildren` computes a Delivery Note's own
+ * `getConnections()` once to dedupe invoices and then `buildNode` recomputes the identical
+ * call again when it recurses into that same Delivery Note. None of that was cached, so a
+ * single page load could fire the same `getDoc`/`getConnections` call 2-3x. This cache is
+ * created fresh per `getRelationshipMap()` invocation (passed down as a plain argument, not
+ * module-level state) so it never leaks data across concurrent requests for different
+ * documents/users — it only dedupes repeat calls within one tree build.
+ */
+type RelMapCache = {
+  nodeData: Map<string, Promise<{ status: StatusDisplay; parents: DocRef[] }>>;
+  connections: Map<string, Promise<Connection[]>>;
+};
+
+function newCache(): RelMapCache {
+  return { nodeData: new Map(), connections: new Map() };
+}
+
+function cachedLoadNodeData(ref: DocRef, cache: RelMapCache) {
+  const key = keyOf(ref);
+  let p = cache.nodeData.get(key);
+  if (!p) {
+    p = loadNodeData(ref);
+    cache.nodeData.set(key, p);
+  }
+  return p;
+}
+
+function cachedGetConnections(doctype: string, name: string, cache: RelMapCache) {
+  const key = `${doctype}::${name}`;
+  let p = cache.connections.get(key);
+  if (!p) {
+    p = getConnections(doctype, name);
+    cache.connections.set(key, p);
+  }
+  return p;
 }
 
 function dedupeRefs(refs: DocRef[]): DocRef[] {
@@ -118,12 +159,12 @@ async function loadNodeData(ref: DocRef): Promise<{ status: StatusDisplay; paren
 /** Climbs upstream from `ref` until it finds every root ancestor (a document with no
  * parent of its own — usually the originating Quotation). `seen` guards against re-walking
  * the same node twice when multiple lines converge on a shared ancestor. */
-async function findRoots(ref: DocRef, seen: Set<string>): Promise<DocRef[]> {
+async function findRoots(ref: DocRef, seen: Set<string>, cache: RelMapCache): Promise<DocRef[]> {
   if (seen.has(keyOf(ref))) return [];
   seen.add(keyOf(ref));
-  const { parents } = await loadNodeData(ref);
+  const { parents } = await cachedLoadNodeData(ref, cache);
   if (parents.length === 0) return [ref];
-  const rootsPerParent = await Promise.all(parents.map((p) => findRoots(p, seen)));
+  const rootsPerParent = await Promise.all(parents.map((p) => findRoots(p, seen, cache)));
   return dedupeRefs(rootsPerParent.flat());
 }
 
@@ -141,15 +182,17 @@ async function findRoots(ref: DocRef, seen: Set<string>): Promise<DocRef[]> {
  * Delivery Note, once nested correctly under it). This is the common case, not a rare
  * edge case, since every Sales-Order-to-Delivery-Note-to-Invoice chain hits it.
  */
-async function getChildren(ref: DocRef): Promise<DocRef[]> {
-  const connections = await getConnections(ref.doctype, ref.name);
+async function getChildren(ref: DocRef, cache: RelMapCache): Promise<DocRef[]> {
+  const connections = await cachedGetConnections(ref.doctype, ref.name, cache);
   if (ref.doctype !== "Sales Order") {
     return connections.flatMap((c) => c.docs.map((name) => ({ doctype: c.label, name })));
   }
 
   const deliveryNotes = connections.find((c) => c.label === "Delivery Note")?.docs ?? [];
   const directInvoices = connections.find((c) => c.label === "Sales Invoice")?.docs ?? [];
-  const viaDeliveryNoteConnections = await Promise.all(deliveryNotes.map((dn) => getConnections("Delivery Note", dn)));
+  const viaDeliveryNoteConnections = await Promise.all(
+    deliveryNotes.map((dn) => cachedGetConnections("Delivery Note", dn, cache)),
+  );
   const viaDeliveryNote = new Set(
     viaDeliveryNoteConnections
       .flat()
@@ -164,15 +207,20 @@ async function getChildren(ref: DocRef): Promise<DocRef[]> {
   ];
 }
 
-async function buildNode(ref: DocRef, current: DocRef, ancestryPath: Set<string>): Promise<RelationshipNode> {
-  const [{ status }, children] = await Promise.all([loadNodeData(ref), getChildren(ref)]);
+async function buildNode(
+  ref: DocRef,
+  current: DocRef,
+  ancestryPath: Set<string>,
+  cache: RelMapCache,
+): Promise<RelationshipNode> {
+  const [{ status }, children] = await Promise.all([cachedLoadNodeData(ref, cache), getChildren(ref, cache)]);
   // A node already on the path from the root down to here would be a genuine cycle
   // (impossible with real ERPNext data, but guarded rather than trusted) — rendered as a
   // childless leaf instead of recursing forever.
   const nextPath = new Set(ancestryPath);
   nextPath.add(keyOf(ref));
   const childNodes = await Promise.all(
-    children.filter((c) => !ancestryPath.has(keyOf(c))).map((c) => buildNode(c, current, nextPath)),
+    children.filter((c) => !ancestryPath.has(keyOf(c))).map((c) => buildNode(c, current, nextPath, cache)),
   );
   return {
     doctype: ref.doctype,
@@ -189,6 +237,7 @@ async function buildNode(ref: DocRef, current: DocRef, ancestryPath: Set<string>
  * each expanded all the way down through every downstream branch. */
 export async function getRelationshipMap(doctype: string, name: string): Promise<RelationshipNode[]> {
   const current: DocRef = { doctype, name };
-  const roots = await findRoots(current, new Set());
-  return Promise.all(roots.map((r) => buildNode(r, current, new Set())));
+  const cache = newCache();
+  const roots = await findRoots(current, new Set(), cache);
+  return Promise.all(roots.map((r) => buildNode(r, current, new Set(), cache)));
 }
