@@ -6621,3 +6621,162 @@ step; Job Card execution is an internal shop-floor action inside an already-docu
 not a new user-facing concept). `docs/ceylon-stack-documentation.html` not regenerated (nothing in
 `docs/product/` changed). `release-tracker` not invoked — this is a narrow defect-fix exception,
 not a shipped feature/plan phase.
+
+
+## SALES-DN-WH-1 / E2E-3 — Delivery Note Warehouse Selection (D9 fix, 2026-09-26)
+
+Resumed the same `E2E-1` transaction `MFG-JC-EXEC-1` left blocked at Delivery — fixed `D9`
+(neither Delivery Note creation path in this frontend exposed a per-line Warehouse field; both
+silently forced every line onto `getSellingDefaults()`'s single company default, "Stores - CSD",
+even though `Delivery Note Item.warehouse` is a real, independently-settable field), then
+continued the transaction through Sales Invoice.
+
+**Root cause:** `Delivery Note Item.warehouse` and `Sales Order Item.warehouse` are both real
+per-line fields (confirmed via `docs/backend/02-sales/{delivery-note,sales-order}.md`'s own
+canonical mapping), but nothing in the frontend ever exposed either as user-editable — `LineItemsEditor`
+applied `defaultWarehouse` to every row uniformly with no `<select>`, and `LineSelectionEditor`
+(the Sales-Order → Delivery-Note line-selection step) showed `row.warehouse` read-only, for a
+stock badge only. `createDeliveryNoteFromSalesOrderAction` hardcoded
+`warehouse: defaults.defaultWarehouse` on every line, discarding whatever the source Sales Order
+Item's own `warehouse` held.
+
+**Fix:**
+- `lib/salesDefaults.ts` — `SellingDefaults` gained `warehouses: string[]` (the full company-scoped
+  warehouse list, reusing the query `defaultWarehouse` already ran, limit bumped 20→200 to match
+  `stockDefaults.ts`'s own pattern).
+- `components/LineItemsEditor.tsx` — new optional `warehouseOptions?: string[]` prop; when set
+  alongside the existing `defaultWarehouse`, renders a real per-row Warehouse `<select>` column.
+  Left unset by every other caller (Quotation/Sales Order/Sales Invoice/Purchase
+  Order/Material Request/Supplier Quotation forms, and Stock Entry's own from/to warehouse
+  selects) — a true no-op there, confirmed via `code-reviewer`.
+- `components/LineSelectionEditor.tsx` — same `warehouseOptions?` prop; turns the previously
+  read-only `row.warehouse` into a real per-row `<select>`, tracked in local state, included in
+  both `ConfirmedLineRow` and the hidden-JSON payload sent to the server action. A changed
+  warehouse correctly invalidates any already-confirmed batch/serial selection for that row
+  (batches/serials are warehouse-specific).
+- `lib/lineRows.ts` — `LineSelectionInput` gained `warehouse?: string`, parsed the same way every
+  other optional field on that type already is.
+- `components/DeliveryNoteForm.tsx`, `.../delivery-notes/new/page.tsx`,
+  `.../delivery-notes/SharedDetail.tsx`, `.../delivery-notes/[name]/page.tsx` (a separate,
+  hand-duplicated implementation of the DN detail/edit page that does NOT delegate to
+  `SharedDetail.tsx` — a `code-reviewer` pass initially caught this one as missed, fixed before
+  proceeding), `.../sales/orders/[name]/create-delivery/page.tsx` — thread `warehouseOptions`
+  through; the create-delivery page also now reads the source Sales Order Item's own `warehouse`
+  field as each row's starting value (falling back to the company default), instead of always
+  starting from the company default.
+- `.../sales/delivery-notes/actions.ts` — `buildDeliveryNoteFields` (manual create/edit) and
+  `createDeliveryNoteFromSalesOrderAction` (Sales-Order → Delivery-Note) both resolve warehouse
+  via precedence **user's explicit selection → source Sales Order Item's own warehouse (SO-derived
+  path only) → company default**, and both re-validate any client-submitted warehouse against the
+  company's real warehouse list server-side before use (never trusted blindly, same as every
+  other field these actions already re-derive from the live document).
+- `components/LineItemsTable.tsx` — added an optional read-only Warehouse column (only renders
+  when at least one row actually carries one) so a submitted Delivery Note's warehouse is visible,
+  not just editable.
+- Pick List → Delivery Note (`sales/pick-lists/actions.ts`) was deliberately left untouched — it
+  already correctly uses each Pick List location's own real warehouse, a separate, already-correct
+  mechanism, not part of `D9`.
+
+**New, smaller, separately-disclosed gap found while fixing this (not `D9`, not fixed):**
+`createPickListFromSalesOrderAction` (Pick List creation from a Sales Order) has the exact same
+shape of bug — hardcodes `defaults.defaultWarehouse` for every location — but Pick List is a
+separate document from Delivery Note and wasn't part of this package's scope or this E2E
+transaction's path. Left as a disclosed observation for a future package, not assigned a `D`
+number since it doesn't block anything currently in progress.
+
+**Live verification — resumed the actual, already-in-progress `E2E-1` transaction, not a
+synthetic fixture:**
+1. Confirmed starting state via MCP `Bin` read: `CS-DESK-001` — `Finished Goods - CSD` actual_qty
+   10 (unreserved), `Stores - CSD` actual_qty 0 / reserved_qty 10 (the original Sales Order's own
+   reservation against the wrong warehouse — exactly the bug's shape).
+2. `/sales/orders/SAL-ORD-2026-00042/create-delivery` — the new Warehouse `<select>` rendered,
+   defaulted to `Stores - CSD` (the Sales Order Item's own stored warehouse), changed to
+   `Finished Goods - CSD` — the live `StockBadge` correctly re-queried and showed "Available: 10"
+   for the newly-selected warehouse. Submitted → Delivery Note `MAT-DN-2026-00014` created.
+3. Confirmed directly in ERPNext Desk (ground truth, bypassing this app's own read path):
+   `MAT-DN-2026-00014`, Draft, CS-DESK-001 qty 10, **Warehouse: Finished Goods - CSD**, created by
+   the `Frontend Integration` service account.
+4. Submitted (via ERPNext Desk — see Known Limitation below) → docstatus 1, status "To Bill".
+5. Stock reconciled correctly: `Finished Goods - CSD` 10→0, `Stores - CSD` reserved_qty 10→0.
+   Sales Order `SAL-ORD-2026-00042`: `per_delivered` 100, status "To Bill".
+6. `/sales/delivery-notes/MAT-DN-2026-00014/create-invoice` (through this app) → Sales Invoice
+   `ACC-SINV-2026-00029` created (750,000.00 LKR, no tax — expected, disclosed `D3` limitation,
+   not silently worked around), submitted via this app's own Submit button → status "Unpaid",
+   Outstanding 750,000.00, Receivable Account `Debtors - CSD`.
+7. GL verified via MCP `GL Entry` reads, both balanced:
+   - Sales Invoice `ACC-SINV-2026-00029`: Dr `Debtors - CSD` 750,000 / Cr `Sales - CSD` 750,000.
+   - Delivery Note `MAT-DN-2026-00014`: Dr `Cost of Goods Sold - CSD` 219,000 / Cr
+     `Stock In Hand - CSD` 219,000 (item's valuation rate from the `MFG-JC-EXEC-1` manufacture).
+8. Payment Entry: **not attempted** — `FIN-2` (Payment Entry + AR/AP visibility) remains
+   explicitly **not authorized** per this repo's Current Mission lock; stopped here per the
+   mission brief's own instruction rather than bypass through ERPNext Desk.
+9. Observability (`/admin/observability`): confirmed `DEMO DATA` — none of this session's real
+   actions (Delivery, Invoice) appear there, and no real actor identity is attached to them,
+   exactly as `D8` already discloses. No new evidence either way beyond re-confirming `D8`'s
+   still-open status.
+
+**Known limitation, honestly disclosed:** the Delivery Note's own **Submit** step (an existing,
+unchanged action, not part of this package's diff) was completed via ERPNext Desk directly, not
+through this app's own Submit button — the browser automation tooling in this environment was
+intermittently unreliable mid-session (`navigate()` calls silently not taking effect, and one
+genuine ~4-minute server-side hang — see below), and rather than keep fighting it, the session
+fell back to ERPNext Desk (still real evidence the Delivery Note itself was created correctly by
+this app, since Desk is independent ground truth) to keep the E2E transaction moving. Every other
+step (warehouse selection + Delivery Note creation, Sales Invoice creation + submission) was
+verified live through this app's own UI.
+
+**Separately observed, not a code defect in this package:** the very first "Create Delivery Note"
+click hung client-side (stuck on "Creating…") for ~4.2 minutes before the dev server logged
+`failed to get redirect response [TypeError: fetch failed] ... HeadersTimeoutError`. The action
+itself (`createDeliveryNoteFromSalesOrderAction`) completed correctly in ~3.2s and the document
+was created successfully — the hang happened afterward, in Next.js's own dev-mode handling of the
+post-action redirect (which re-renders the destination page server-side, itself firing ~11
+concurrent ERPNext calls via `Promise.all` in `delivery-notes/[name]/page.tsx`). Every subsequent
+create/submit action in this same session completed normally (seconds, not minutes) — most
+consistent with a one-off resource contention spike on the live Hetzner instance (2 vCPU/4GB)
+under concurrent load (this session's own MCP queries + the dev server compiling + the burst of
+concurrent requests, all at once), not a defect introduced by this package. Not assigned a `D`
+number since it didn't reproduce and isn't tied to the code changed here — flagged for awareness
+if it recurs.
+
+**D9 resolved — live-verified against the real E2E-1 transaction, not a synthetic fixture or
+build-success claim**, per this package's own mission brief's closing instruction.
+
+**Verification method:** `tsc --noEmit`, `eslint`, and `next build` all clean across every changed
+file (build's dev-mode dynamic-server-usage log noise is pre-existing, unrelated to this package).
+Existing `vitest` suite (39 tests, unrelated to this package) still passes. `code-reviewer` pass
+found and this session fixed one real gap (the `[name]/page.tsx` duplicate edit page initially
+missed) before re-confirming clean. `qa-tester` pass — see `QA_LOG.md`'s matching entry.
+
+**Documentation Impact:** Technical Reference — UPDATED (`docs/backend/02-sales/delivery-note.md`'s
+new "Warehouse Resolution" section). Process Flow / Configuration — UPDATED
+(`docs/product/sales/delivery-note.md`'s "How to Create" step 3, matching the real per-line
+selector now; also corrected a pre-existing inaccuracy in `docs/product/sales/sales-order.md`'s
+own "How to Create" step 6, which claimed a per-line warehouse picker that has never actually
+existed on Sales Order's own creation form — out of this package's scope to build, but wrong to
+leave stated as if it already existed). Accounting Impact — UPDATED
+(`docs/product/sales/delivery-note.md`'s previously-`NEEDS_VERIFICATION` GL behavior, now
+confirmed live: Dr Cost of Goods Sold / Cr Stock In Hand on Submit). Module
+Overview/User Guide/Lifecycle/Stock Impact — N/A (no new business document, no new lifecycle
+action; this is a correctness fix to an existing creation step). `docs/ceylon-stack-documentation.html`
+**not regenerated this package** — it already carries uncommitted, in-flight changes from
+concurrent `FIN-1G-D` work in this same working tree, and regenerating now would either discard
+that WIP or improperly bundle it into this package's own commit; deferred to whichever package
+closes `FIN-1G-D` (or a dedicated doc-sync pass) to regenerate once, capturing both. `release-tracker`
+not invoked for the same reason — this is a defect-fix package, not a shipped feature/plan phase,
+and the HTML/Notion sync is already blocked on the above.
+
+**graphify:** `--update` was attempted but stopped by its own shrink-safety-guard (the working
+tree currently has ~200 files changed since the last graph build — 102 code, 98 documents, mostly
+from concurrent `FIN-1G-D`/`V1-HARDEN-1` work, not this package — and a code-only partial update
+produced a smaller graph than the existing one, which graphify correctly refused to write over
+rather than risk losing content). `graph.json` is untouched; the AST cache was warmed and this
+package's own changed files' manifest entries were updated, so a future full rebuild will be
+faster. A full `/graphify` rebuild is recommended once the concurrent doc-heavy packages land,
+not forced here on this package's own authority.
+
+**Not fixed this session, per the mission brief's own scope-control instructions:** `D2`
+(Opportunity → Quotation Lead-origin handoff), `D3` (Sales Tax Template UI — directly visible in
+this session's own Sales Invoice, no tax applied, left as-is), `D4` sibling (Production Plan stale
+warehouse), `D5` (Material Request → Purchase Order handoff), `D6` (orphaned/bad Draft Work Order
+cleanup), `D8` (Observability Actor unavailable — re-confirmed still open, see above).

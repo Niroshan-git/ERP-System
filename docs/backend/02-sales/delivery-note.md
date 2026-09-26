@@ -32,6 +32,36 @@ A custom backend could streamline this drastically by putting Batch/Serial Forei
 | `so_detail` | `so_detail` | `sales_order_line_id` (UUID, FK)| Links to exact Order Item row. |
 | *Separate Bundle* | `batchSerialEntries` | `batch_id` / `serial_id` (FK) | In a custom DB, batch/serial tracking would live directly on the line or an associated `ShipmentTracking` table. |
 
+## Warehouse Resolution (SALES-DN-WH-1 / D9 fix, 2026-09-26)
+
+`Delivery Note Item.warehouse` is a real per-line field (row above), but before this fix the
+frontend never exposed it — every line was silently forced onto `getSellingDefaults()`'s single
+company-default warehouse (whichever `Warehouse` starts with "Stores", or the first one found),
+with no UI to override it. This made it impossible to deliver stock sitting in any other
+warehouse (e.g. manufactured Finished Goods stock, which lands in a `Finished Goods - *`
+warehouse, not `Stores - *`).
+
+Both creation paths now expose a real per-line Warehouse `<select>` (populated from
+`salesDefaults.ts`'s company-scoped `warehouses` list — the same list `stockDefaults.ts` already
+used for Stock Entry), with this resolution precedence:
+
+1. The user's explicit per-line selection.
+2. For Sales-Order → Delivery-Note only: the source `Sales Order Item.warehouse` (itself
+   currently always the company default too, since Sales Order creation hasn't been extended to
+   let the user pick a warehouse — this precedence step exists for when that changes, and for
+   Sales Orders created directly in ERPNext Desk with a real per-line warehouse).
+3. The company default (unchanged fallback).
+
+Any client-submitted warehouse is re-validated server-side against the company's real warehouse
+list before use — never trusted blindly, same as every other field this app's actions re-derive
+from the live document rather than the client.
+
+Live-verified against the real E2E-1 transaction (Work Order `MFG-WO-2026-00041` → manufactured
+stock in `Finished Goods - CSD` → Sales Order `SAL-ORD-2026-00042` → Delivery Note
+`MAT-DN-2026-00014`, warehouse `Finished Goods - CSD`, confirmed directly in ERPNext Desk):
+stock ledger reconciled correctly (`Finished Goods - CSD` 10→0), GL posted correctly
+(Delivery Note: Dr Cost of Goods Sold - CSD / Cr Stock In Hand - CSD, 219,000).
+
 ## Document Flow & Lifecycle
 
 The Delivery Note handles the physical movement of inventory. Due to Serial and Batch requirements, its creation is a two-step API flow.

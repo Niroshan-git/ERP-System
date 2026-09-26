@@ -119,6 +119,12 @@ export type LineSelectionInput = {
    * field above, carried through generically since parseLineSelectionRows is shared with
    * the Sales-Order -> Sales-Invoice / Delivery-Note -> Sales-Invoice flows that don't use it. */
   batchSerialEntries?: BatchSerialEntryInput[];
+  /** Delivery-Note-only (SALES-DN-WH-1 / D9 fix) — the user's explicit per-line warehouse
+   * override from LineSelectionEditor's warehouse selector, only rendered/submitted when
+   * that component was given `warehouseOptions`. Undefined for every other
+   * parseLineSelectionRows caller (create-invoice from Sales Order/Delivery Note), which
+   * don't move stock and never render that selector. */
+  warehouse?: string;
 };
 
 /**
@@ -144,10 +150,12 @@ export function parseLineSelectionRows(formData: FormData, fieldName: string): L
     .filter((r): r is Record<string, unknown> => Boolean(r && typeof r === "object" && r.reference))
     .map((r) => {
       const batchSerialEntries = parseBatchSerialEntries(r.batchSerialEntries);
+      const warehouse = typeof r.warehouse === "string" && r.warehouse ? r.warehouse : undefined;
       return {
         reference: String(r.reference),
         qty: Number(r.qty) || 0,
         ...(batchSerialEntries.length > 0 ? { batchSerialEntries } : {}),
+        ...(warehouse ? { warehouse } : {}),
       };
     })
     .filter((r) => r.qty > 0);

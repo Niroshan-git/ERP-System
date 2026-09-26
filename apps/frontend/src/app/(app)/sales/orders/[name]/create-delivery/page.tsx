@@ -15,6 +15,11 @@ type SalesOrderItemForSelection = {
   /** Real, live stored Float field on Sales Order Item — see the doc comment on
    * createDeliveryNoteFromSalesOrderAction. */
   delivered_qty?: number;
+  /** Real Sales Order Item field (confirmed via docs/backend/02-sales/sales-order.md's
+   * canonical mapping — "Target fulfillment warehouse. Per-line or default") — used as the
+   * row's starting warehouse selection (SALES-DN-WH-1 / D9 fix) so a real per-line warehouse
+   * carries forward when one was set, before falling back to the company default below. */
+  warehouse?: string;
 };
 
 type SalesOrderForSelection = {
@@ -76,7 +81,7 @@ export default async function CreateDeliveryNoteFromSalesOrderPage({
     rate: item.rate,
     originalQty: item.qty,
     remainingQty: item.qty - (item.delivered_qty ?? 0),
-    warehouse: defaults.defaultWarehouse,
+    warehouse: item.warehouse || defaults.defaultWarehouse,
     has_batch_no: Boolean(flagsByItem[item.item_code]?.has_batch_no),
     has_serial_no: Boolean(flagsByItem[item.item_code]?.has_serial_no),
   }));
@@ -94,9 +99,9 @@ export default async function CreateDeliveryNoteFromSalesOrderPage({
       />
       <h1 className="mb-1 text-2xl font-medium text-graphite-900">Create Delivery Note</h1>
       <p className="mb-4 text-sm text-graphite-500">
-        From Sales Order <span className="font-mono">{salesOrderName}</span> — select which lines and how much of
-        each to deliver now. Lines already fully delivered are shown disabled; you can create another Delivery Note
-        later for whatever&apos;s left.
+        From Sales Order <span className="font-mono">{salesOrderName}</span> — select which lines, how much of
+        each to deliver now, and which warehouse to deliver from. Lines already fully delivered are shown disabled;
+        you can create another Delivery Note later for whatever&apos;s left.
       </p>
       <LineSelectionEditor
         action={createDeliveryNoteFromSalesOrderAction.bind(null, salesOrderName)}
@@ -104,6 +109,7 @@ export default async function CreateDeliveryNoteFromSalesOrderPage({
         currency={doc.currency}
         submitLabel="Create Delivery Note"
         pendingLabel="Creating…"
+        warehouseOptions={defaults.warehouses}
       />
     </div>
   );

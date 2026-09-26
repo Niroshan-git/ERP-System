@@ -15,6 +15,13 @@ export type SellingDefaults = {
   defaultCostCenter?: string;
   /** A non-group warehouse belonging to the company — see the warning below `getSellingDefaults`. */
   defaultWarehouse?: string;
+  /** Every non-group, non-disabled Warehouse belonging to the resolved company — added for
+   * SALES-DN-WH-1 (D9) so Delivery Note's per-line warehouse selector can offer real choices
+   * instead of the single `defaultWarehouse` every line used to be silently forced onto. Same
+   * shape as getStockDefaults' own `warehouses` list (stockDefaults.ts) — not reused directly
+   * since this module already fetches the identical list for `defaultWarehouse` below and a
+   * second company-scoped query would be redundant. */
+  warehouses: string[];
 };
 
 type CompanyDoc = {
@@ -81,7 +88,7 @@ export async function getSellingDefaults(companyName?: string): Promise<SellingD
       ["is_group", "=", 0],
       ["disabled", "=", 0],
     ],
-    limit: 20,
+    limit: 200,
   });
   const defaultWarehouse = warehouses.find((w) => w.name.startsWith("Stores"))?.name ?? warehouses[0]?.name;
 
@@ -95,5 +102,6 @@ export async function getSellingDefaults(companyName?: string): Promise<SellingD
     defaultIncomeAccount: companyDoc.default_income_account,
     defaultCostCenter: companyDoc.cost_center,
     defaultWarehouse,
+    warehouses: warehouses.map((w) => w.name),
   };
 }

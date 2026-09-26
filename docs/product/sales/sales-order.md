@@ -6,7 +6,7 @@ status: LIVE
 frontend_route: /sales/orders
 canonical_entity: sales_order
 backend_doc: docs/backend/02-sales/sales-order.md
-last_verified: 2026-09-25
+last_verified: 2026-09-26
 ---
 
 ## Overview
@@ -47,7 +47,12 @@ A Sales Order can also be created directly without a preceding Quotation.
 3. Choose the customer.
 4. Enter the transaction date and expected delivery date.
 5. Optionally enter the customer's Purchase Order reference (PO No, PO Date).
-6. Add items — select item code, quantity, rate, UOM, and delivery warehouse per line.
+6. Add items — select item code, quantity, rate, and UOM per line. `warehouse` is a real
+   per-line field (see Important Fields below) but is not yet user-selectable here — every line
+   is currently set to the company's single default warehouse automatically, with no picker in
+   this form (confirmed 2026-09-26 while investigating `SALES-DN-WH-1`/D9, the same-shaped gap
+   already fixed on Delivery Note's own creation forms — Sales Order's own picker remains a
+   separate, not-yet-authorized gap, out of that package's scope).
 7. Review quantities and pricing.
 8. Optionally apply a document-level discount.
 9. Configure address, contact, and terms if applicable.

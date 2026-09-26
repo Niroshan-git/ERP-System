@@ -227,6 +227,20 @@ execution" instruction; `D9` blocks Delivery, not Job Card execution, so it's di
 fixed. `FIN-2` remains **not authorized** and this note does not touch or reorder Finance V1, CRM,
 or `FIN-1G-D`.
 
+**Updated 2026-09-26 (package `SALES-DN-WH-1` / `E2E-3`):** Fixed `D9` — Delivery Note creation
+could not select the warehouse manufactured (or any non-"Stores") stock actually sat in, across
+both creation paths (manual New/Edit, and Sales-Order → Delivery-Note) — the blocker
+`MFG-JC-EXEC-1`'s own note above disclosed while resuming the same `E2E-1` transaction. This is a
+critical Sales/Inventory integration fix on an already-`ACCEPTED`, frozen module (Sales core) —
+in scope under item 2 below ("critical integration/release fixes... always in scope regardless of
+the freezes"), not a new priority-lock exception needing authorization to jump the queue, so it
+does not reorder Finance V1/CRM/`FIN-1G-D`/`V1-HARDEN-1`'s priority. See `PROGRESS.md`'s
+`SALES-DN-WH-1` entry for the full fix and live `E2E-1` resumption result (Delivery Note
+`MAT-DN-2026-00014` delivered from `Finished Goods - CSD`, Sales Invoice `ACC-SINV-2026-00029`
+submitted, GL verified — Payment Entry not attempted, `FIN-2` remains not authorized). `FIN-2`
+remains **not authorized** and this note does not touch or reorder Finance V1, CRM, `FIN-1G-D`, or
+`V1-HARDEN-1`.
+
 1. **Finance V1 — primary stream.** FIN-0 (architecture/discovery) CLOSED 2026-09-24. Canonical
    sequence: FIN-1 (Chart of Accounts read + Bank Account CRUD) → FIN-2 (Payment Entry + AR/AP
    visibility) → FIN-3 (Journal Entry) → FIN-4 (General Ledger / Trial Balance / Profit & Loss /

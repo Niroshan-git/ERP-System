@@ -22,10 +22,11 @@ function humanizeError(e: unknown): string {
 
 /**
  * Manual "New Delivery Note" build — mirrors buildSalesOrderFields/buildSalesInvoiceFields.
- * `warehouse` defaults to the company's default (same WarehouseRequired reasoning as Sales
- * Order — see the comment on defaultWarehouse in salesDefaults.ts) but is taken from the
- * row itself when LineItemsEditor already set one (it does, uniformly, whenever
- * `defaultWarehouse` is passed to it — see DeliveryNoteForm.tsx).
+ * `warehouse` is a real per-line user selection now (SALES-DN-WH-1 / D9 fix —
+ * LineItemsEditor's warehouse `<select>`, only rendered when DeliveryNoteForm passes
+ * `warehouseOptions`), re-validated against the company's real warehouse list below and
+ * falling back to the company default (same WarehouseRequired reasoning as Sales Order — see
+ * the comment on defaultWarehouse in salesDefaults.ts) only when a row left it unset.
  *
  * Returns the parsed `rows` alongside `fields` (not just `fields.items`) because the rows
  * also carry each line's `batchSerialEntries` — real ERPNext `items` fields only, never
@@ -67,15 +68,25 @@ async function buildDeliveryNoteFields(formData: FormData) {
   // parseLineRows's LineRowInput also carries optional quotation_item/source_quotation tag
   // fields (only meaningful for Sales Order's "Copy From Quotation" — see lib/lineRows.ts's
   // doc comment) — deliberately not read here, Delivery Note Item has no such fields.
-  const items = rows.map((r) => ({
-    item_code: r.item_code,
-    item_name: r.item_name,
-    qty: r.qty,
-    uom: r.uom,
-    rate: r.rate,
-    conversion_factor: 1,
-    warehouse: r.warehouse || defaults.defaultWarehouse,
-  }));
+  //
+  // `warehouse` (SALES-DN-WH-1 / D9 fix): the user's per-line selection from
+  // LineItemsEditor's warehouse `<select>` (built from `defaults.warehouses`, so always
+  // company-scoped by construction), re-validated here anyway since form input is never
+  // trusted blindly, falling back to the company default when a row left it unset.
+  const items = rows.map((r) => {
+    if (r.warehouse && !defaults.warehouses.includes(r.warehouse)) {
+      throw new Error(`${r.item_code}: selected warehouse does not belong to ${defaults.company}.`);
+    }
+    return {
+      item_code: r.item_code,
+      item_name: r.item_name,
+      qty: r.qty,
+      uom: r.uom,
+      rate: r.rate,
+      conversion_factor: 1,
+      warehouse: r.warehouse || defaults.defaultWarehouse,
+    };
+  });
 
   const fields = {
     naming_series: "MAT-DN-.YYYY.-",
@@ -290,6 +301,11 @@ type SalesOrderItemForDelivery = {
    * JSON) — unlike the billed-qty case, "remaining to deliver" is a simple subtraction,
    * no live-summed query needed. */
   delivered_qty?: number;
+  /** Real Sales Order Item field (see docs/backend/02-sales/sales-order.md's canonical
+   * mapping — "Target fulfillment warehouse. Per-line or default") — used as the fallback
+   * warehouse below when the user didn't explicitly override it on the create-delivery
+   * selection step (SALES-DN-WH-1 / D9 fix). */
+  warehouse?: string;
   /** Real Pricing Rule fields (Phase 4) — carried straight through onto the resulting
    * Delivery Note line (which has the same fields, confirmed via its live DocType JSON) so
    * a later "Create Sales Invoice from Delivery Note" still reflects the original
@@ -335,8 +351,20 @@ type SalesOrderForDelivery = {
  * (`{"name": "so_detail", "parent": "against_sales_order"}`, confirmed by reading that file
  * on the live server) — without it, Sales Order Item's own `delivered_qty` bookkeeping
  * would never fire on submit, and the Sales Order's delivery status/progress would never
- * update. `warehouse` defaults from getSellingDefaults(), same as every other stock line
- * this app creates.
+ * update.
+ *
+ * `warehouse` precedence (SALES-DN-WH-1 / D9 fix — manufactured Finished Goods stock, or any
+ * stock sitting outside the company's single "Stores*" default, could never be delivered
+ * through this app before this fix, since every line was silently forced onto
+ * getSellingDefaults()'s defaultWarehouse with no way to override it):
+ *   1. The user's explicit per-line selection from LineSelectionEditor's warehouse `<select>`
+ *      (`sel.warehouse` — re-validated below against the company's real warehouse list, never
+ *      trusted blindly, same as every other client-submitted field here).
+ *   2. The source Sales Order Item's own `warehouse` field, if it carried one.
+ *   3. The company's default warehouse (getSellingDefaults()), same fallback every other
+ *      stock line this app creates already uses.
+ * ERPNext's own stock ledger is still the sole authority on whether the resolved warehouse
+ * actually has enough of the item — this only decides which warehouse the line targets.
  *
  * Multiple partial Delivery Notes against the same Sales Order are legal as long as no
  * single line is ever over-delivered — same "partial fulfillment" shape as Phase 1's
@@ -393,6 +421,10 @@ export async function createDeliveryNoteFromSalesOrderAction(
     if (sel.qty > remaining + 1e-6) {
       return { error: `${item.item_code}: requested ${sel.qty} but only ${remaining} remains to deliver.` };
     }
+    if (sel.warehouse && !defaults.warehouses.includes(sel.warehouse)) {
+      return { error: `${item.item_code}: selected warehouse does not belong to ${salesOrder.company}.` };
+    }
+    const warehouse = sel.warehouse || item.warehouse || defaults.defaultWarehouse;
     deliveryItems.push({
       item_code: item.item_code,
       item_name: item.item_name,
@@ -400,7 +432,7 @@ export async function createDeliveryNoteFromSalesOrderAction(
       uom: item.uom,
       rate: item.rate,
       conversion_factor: 1,
-      warehouse: defaults.defaultWarehouse,
+      warehouse,
       against_sales_order: salesOrderName,
       so_detail: item.name,
       ...(item.price_list_rate

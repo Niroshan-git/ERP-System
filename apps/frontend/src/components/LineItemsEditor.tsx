@@ -108,6 +108,7 @@ export function LineItemsEditor({
   initialRows,
   currency,
   defaultWarehouse,
+  warehouseOptions,
   pricingContext,
   showRate = true,
   showScheduleDate = false,
@@ -118,13 +119,22 @@ export function LineItemsEditor({
   initialRows?: LineRow[];
   currency: string;
   /**
-   * Set only by DeliveryNoteForm — the company's default warehouse, applied to every line
-   * automatically (this app doesn't expose per-line warehouse picking, see the
-   * WarehouseRequired note in salesDefaults.ts). Its presence is also what turns on the
-   * batch/serial picker button and the live Bin stock badge below (Phase 2C/2D) — Delivery
-   * Note is the only doctype in this app that actually moves stock.
+   * Set by DeliveryNoteForm and StockEntryForm — a per-document fallback warehouse, applied
+   * to any row that doesn't already carry its own `warehouse` (see the WarehouseRequired note
+   * in salesDefaults.ts). Its presence is also what turns on the batch/serial picker button
+   * and the live Bin stock badge below (Phase 2C/2D) — Delivery Note and Stock Entry are the
+   * only doctypes in this app that actually move stock.
    */
   defaultWarehouse?: string;
+  /**
+   * SALES-DN-WH-1 (D9 fix) — set only by DeliveryNoteForm, the company-scoped list of real
+   * warehouses (salesDefaults.ts's `warehouses`) to render as a per-row Warehouse `<select>`.
+   * Deliberately withheld by StockEntryForm, which keeps its existing single
+   * from_warehouse/to_warehouse-applies-to-every-line behavior (see StockEntryForm.tsx's own
+   * doc comment) — passing this prop is what turns per-line warehouse override on, so every
+   * other caller (Quotation/Sales Order/Sales Invoice/Stock Entry forms) is unaffected.
+   */
+  warehouseOptions?: string[];
   /**
    * Set only by QuotationForm/SalesOrderForm/SalesInvoiceForm (Phase 4) — the transaction
    * context ERPNext's real Pricing Rule engine needs (see
@@ -281,6 +291,7 @@ export function LineItemsEditor({
 
   const total = rows.reduce((sum, row) => sum + row.qty * row.rate, 0);
   const activePicker = pickerIndex !== null ? rows[pickerIndex] : undefined;
+  const showWarehouseColumn = Boolean(defaultWarehouse) && Boolean(warehouseOptions?.length);
 
   return (
     <div>
@@ -293,6 +304,7 @@ export function LineItemsEditor({
               <th className="px-3 py-2 font-semibold">Item</th>
               <th className="px-3 py-2 text-right font-semibold">Qty</th>
               <th className="px-3 py-2 font-semibold">UOM</th>
+              {showWarehouseColumn && <th className="px-3 py-2 font-semibold">Warehouse</th>}
               {showScheduleDate && <th className="px-3 py-2 font-semibold">Required by</th>}
               {showRate && (
                 <>
@@ -370,6 +382,22 @@ export function LineItemsEditor({
                   )}
                 </td>
                 <td className="px-3 py-2 font-mono text-graphite-500">{row.uom || "—"}</td>
+                {showWarehouseColumn && (
+                  <td className="px-3 py-2">
+                    <select
+                      value={row.warehouse ?? ""}
+                      onChange={(e) => updateRow(index, { warehouse: e.target.value || undefined })}
+                      className="w-full min-w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal"
+                    >
+                      <option value="">Select…</option>
+                      {warehouseOptions!.map((w) => (
+                        <option key={w} value={w}>
+                          {w}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                )}
                 {showScheduleDate && (
                   <td className="px-3 py-2">
                     <input

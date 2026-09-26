@@ -242,6 +242,7 @@ export default async function DeliveryNoteDetailPage({
         currency={defaults.currency}
         sellingPriceList={defaults.sellingPriceList}
         defaultWarehouse={defaults.defaultWarehouse}
+        warehouseOptions={defaults.warehouses}
         initial={{
           customer: doc.customer,
           posting_date: doc.posting_date,

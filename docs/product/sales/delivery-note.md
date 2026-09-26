@@ -6,7 +6,7 @@ status: LIVE
 frontend_route: /sales/delivery-notes
 canonical_entity: delivery_note
 backend_doc: docs/backend/02-sales/delivery-note.md
-last_verified: 2026-09-25
+last_verified: 2026-09-26
 ---
 
 ## Overview
@@ -42,7 +42,11 @@ Sales Invoice
 
 1. Navigate to Sales → Delivery Notes, select New Delivery Note. Or from a submitted Sales Order, use Create Delivery Note.
 2. If created from a Sales Order, the customer, items, and quantities pre-fill from remaining undelivered quantities.
-3. Confirm the source warehouse for each line item.
+3. Pick the source warehouse for each line item (a per-line dropdown, listing every warehouse
+   belonging to the document's company) — it starts pre-filled with the company's default
+   warehouse, or the source Sales Order line's own warehouse when creating from a Sales Order,
+   but can be changed per line before saving. This is what lets a Delivery Note actually deliver
+   stock sitting in a non-default warehouse, such as manufactured Finished Goods.
 4. If items require batch or serial tracking, use the batch/serial picker to assign specific batches or serial numbers.
 5. Review quantities.
 6. Save (creates a Draft).
@@ -73,7 +77,7 @@ The stock movement is posted to the Stock Ledger via ERPNext's native Bin bookke
 
 ## Accounting Impact
 
-`NEEDS_VERIFICATION` — In standard ERPNext with perpetual inventory enabled, submitting a Delivery Note posts COGS (debit) and Inventory (credit) GL entries. The exact GL behavior on this instance has not been independently verified.
+Confirmed live (2026-09-26, via a real submitted Delivery Note against manufactured stock): submitting a Delivery Note posts a balanced GL entry pair — debit Cost of Goods Sold, credit Stock In Hand (both at the company's respective accounts, e.g. `Cost of Goods Sold - CSD` / `Stock In Hand - CSD`), at the item's valuation rate. Cancelling reverses it.
 
 ## Related Documents
 

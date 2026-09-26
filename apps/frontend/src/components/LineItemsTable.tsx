@@ -7,11 +7,18 @@ export type LineItemRow = {
   uom: string;
   rate: number;
   amount: number;
+  /** Delivery-Note-only (SALES-DN-WH-1 / D9 fix) — the line's stock-moving warehouse.
+   * Undefined for every other doctype using this table (Quotation/Sales Order/Sales
+   * Invoice), which don't move stock; the column below only renders when at least one row
+   * actually carries one. */
+  warehouse?: string;
 };
 
 /** Read-only items table for Submitted/Cancelled document views — LineItemsEditor.tsx's counterpart. */
 export function LineItemsTable({ items, currency, isReturn }: { items: LineItemRow[]; currency: string; isReturn?: boolean }) {
   const total = items.reduce((sum, row) => sum + row.amount, 0);
+  const showWarehouseColumn = items.some((row) => row.warehouse);
+  const columnCount = 4 + (showWarehouseColumn ? 1 : 0);
 
   return (
     <div className="overflow-x-auto rounded-xl border border-border bg-surface">
@@ -21,6 +28,7 @@ export function LineItemsTable({ items, currency, isReturn }: { items: LineItemR
             <th className="px-3 py-2 font-semibold">Item</th>
             <th className="px-3 py-2 text-right font-semibold">Qty</th>
             <th className="px-3 py-2 font-semibold">UOM</th>
+            {showWarehouseColumn && <th className="px-3 py-2 font-semibold">Warehouse</th>}
             <th className="px-3 py-2 text-right font-semibold">Rate</th>
             <th className="px-3 py-2 text-right font-semibold">Amount</th>
           </tr>
@@ -33,6 +41,9 @@ export function LineItemsTable({ items, currency, isReturn }: { items: LineItemR
               </td>
               <td className="px-3 py-2 text-right font-mono tabular-nums">{isReturn ? Math.abs(row.qty) : row.qty}</td>
               <td className="px-3 py-2 font-mono text-graphite-500">{row.uom}</td>
+              {showWarehouseColumn && (
+                <td className="px-3 py-2 font-mono text-graphite-500">{row.warehouse || "—"}</td>
+              )}
               <td className="px-3 py-2 text-right font-mono tabular-nums">{formatAmount(row.rate)}</td>
               <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-900">{formatAmount(isReturn ? Math.abs(row.amount) : row.amount)}</td>
             </tr>
@@ -40,7 +51,7 @@ export function LineItemsTable({ items, currency, isReturn }: { items: LineItemR
         </tbody>
         <tfoot>
           <tr className="border-t border-border bg-canvas">
-            <td colSpan={4} className="px-3 py-2 text-right text-sm font-medium text-graphite-900">
+            <td colSpan={columnCount} className="px-3 py-2 text-right text-sm font-medium text-graphite-900">
               Total
             </td>
             <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-900">

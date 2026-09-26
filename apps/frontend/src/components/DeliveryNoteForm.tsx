@@ -9,12 +9,11 @@ export type DeliveryNoteFormState = { error?: string } | undefined;
 /**
  * Mirrors SalesInvoiceForm.tsx's shape almost exactly — Delivery Note's own transaction
  * date field is `posting_date` (confirmed live via the DocType meta), same as Sales
- * Invoice, not `transaction_date`/`delivery_date` like Sales Order. `warehouse` is still a
- * single, uniform per-document default (see delivery-notes/actions.ts's
- * buildDeliveryNoteFields, same pattern as buildSalesOrderFields) — this app doesn't offer
- * per-line warehouse picking — but that default is now threaded down into every
- * LineItemsEditor row (`defaultWarehouse` below) so the Phase 2C/2D batch/serial picker and
- * live Bin stock badge know which warehouse to query.
+ * Invoice, not `transaction_date`/`delivery_date` like Sales Order. `warehouse` defaults to
+ * the company's default (see delivery-notes/actions.ts's buildDeliveryNoteFields) but is
+ * now a real per-line `<select>` (SALES-DN-WH-1 / D9 fix) — threaded down into every
+ * LineItemsEditor row (`defaultWarehouse`/`warehouseOptions` below) so the Phase 2C/2D
+ * batch/serial picker and live Bin stock badge track whichever warehouse the user picks.
  */
 export function DeliveryNoteForm({
   action,
@@ -24,6 +23,7 @@ export function DeliveryNoteForm({
   currency,
   sellingPriceList,
   defaultWarehouse,
+  warehouseOptions,
   initial,
 }: {
   action: (state: DeliveryNoteFormState, formData: FormData) => Promise<DeliveryNoteFormState>;
@@ -32,10 +32,13 @@ export function DeliveryNoteForm({
   companies: string[];
   currency: string;
   sellingPriceList: string;
-  /** The company's default warehouse (see salesDefaults.ts) — threaded down to
-   * LineItemsEditor so it can default each line's `warehouse` and turn on the batch/serial
+  /** The company's default warehouse (see salesDefaults.ts) — the fallback applied to any
+   * row where the user hasn't picked one, and what turns on LineItemsEditor's batch/serial
    * picker + live stock badge (Phase 2C/2D). */
   defaultWarehouse?: string;
+  /** SALES-DN-WH-1 (D9 fix) — the company-scoped list of real warehouses (salesDefaults.ts's
+   * `warehouses`), rendered as a per-row Warehouse `<select>` by LineItemsEditor. */
+  warehouseOptions?: string[];
   initial?: {
     customer: string;
     posting_date: string;
@@ -122,12 +125,13 @@ export function DeliveryNoteForm({
           initialRows={initial?.items}
           currency={currency}
           defaultWarehouse={defaultWarehouse}
+          warehouseOptions={warehouseOptions}
         />
       </div>
 
       <p className="text-xs text-graphite-500">
-        Price list <span className="font-mono">{sellingPriceList}</span> · warehouse is applied to every line from
-        the company&apos;s own default automatically on save.
+        Price list <span className="font-mono">{sellingPriceList}</span> · warehouse defaults to the company&apos;s
+        own default but can be picked per line above.
       </p>
 
       {state?.error && <p className="text-sm text-alert">{state.error}</p>}

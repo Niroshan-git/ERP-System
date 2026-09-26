@@ -22,6 +22,7 @@ export default async function NewDeliveryNotePage() {
         currency={defaults.currency}
         sellingPriceList={defaults.sellingPriceList}
         defaultWarehouse={defaults.defaultWarehouse}
+        warehouseOptions={defaults.warehouses}
       />
     </div>
   );

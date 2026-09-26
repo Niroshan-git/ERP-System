@@ -3233,3 +3233,68 @@ about how QA was conducted that Codex's reconciliation pass should be aware of.
   `tsc`/`eslint` clean. Meets `AGENT_OPERATING_GUIDE.md` §8's Definition of Ready for a core-flow
   (Manufacturing) change with a live/manual verification pass in place of a separate `qa-tester`
   subagent invocation (same disclosed-gap shape as `E2E-1`'s own note above).
+
+
+## `SALES-DN-WH-1` / `E2E-3` — Delivery Note Warehouse Selection (D9 fix) — 2026-09-26
+
+**Scope:** per-line Warehouse `<select>` added to both Delivery Note creation paths, resuming
+`E2E-1`'s real transaction past the `D9` blocker `MFG-JC-EXEC-1` disclosed.
+
+**Live-verified this session** (real Hetzner instance, real `E2E-1` transaction, not a synthetic
+fixture — cross-checked via MCP reads and, once, ERPNext Desk directly as independent ground
+truth):
+- `/sales/orders/SAL-ORD-2026-00042/create-delivery` — the new Warehouse `<select>` rendered,
+  defaulted to `Stores - CSD` (the source Sales Order Item's own stored warehouse), changed to
+  `Finished Goods - CSD` — **PASS**. Live `StockBadge` re-queried and correctly showed
+  "Available: 10" for the newly-selected warehouse — **PASS**.
+- Submit → Delivery Note `MAT-DN-2026-00014` created; confirmed directly in ERPNext Desk (not
+  this app's own read path): Draft, CS-DESK-001 qty 10, **Warehouse: Finished Goods - CSD**,
+  created by the `Frontend Integration` service account — **PASS**.
+- Delivery Note submitted (docstatus 1) → `Bin` reconciliation: `Finished Goods - CSD` actual_qty
+  10→0, `Stores - CSD` reserved_qty 10→0 — **PASS**. Sales Order `per_delivered` → 100 — **PASS**.
+- `/sales/delivery-notes/MAT-DN-2026-00014/create-invoice` (through this app) → Sales Invoice
+  `ACC-SINV-2026-00029` created (750,000.00 LKR, no tax — expected/disclosed `D3`) and submitted
+  through this app's own Submit button — **PASS**.
+- `GL Entry` reads, both balanced: Sales Invoice Dr `Debtors - CSD` / Cr `Sales - CSD` 750,000;
+  Delivery Note Dr `Cost of Goods Sold - CSD` / Cr `Stock In Hand - CSD` 219,000 — **PASS**.
+- Server-side warehouse-belongs-to-company validation exists on both write paths (code-confirmed;
+  not live-attacked with a tampered request) — see `qa-tester`'s pass below for the traced logic.
+
+**Known limitation on the live pass, disclosed:** the Delivery Note's own **Submit** click (an
+existing, unchanged action — not part of this package's diff) was completed via ERPNext Desk
+directly rather than this app's own Submit button, after the browser automation tooling in this
+environment became intermittently unreliable mid-session (see `PROGRESS.md`'s matching entry for
+the ~4.2-minute one-off server hang this surfaced, assessed as infra resource contention, not a
+code defect in this package). Every other click (warehouse selection, DN creation, Sales Invoice
+creation, Sales Invoice submission) went through this app's own UI, live.
+
+**`qa-tester` subagent pass — code-level only, browser/credentials unavailable to it (disclosed by
+the agent itself, not glossed over):** traced every changed file plus every `LineItemsEditor`/
+`LineItemsTable`/`LineSelectionEditor` call site across the frontend. Findings, all **PASS at code
+level**, **not exercised live this session**:
+- Manual "New Delivery Note" — warehouse `<select>` wired correctly, non-default selection
+  persists, `buildDeliveryNoteFields` re-validates server-side.
+- Editing an existing Draft DN via `/sales/delivery-notes/[name]` — confirms the earlier
+  `code-reviewer` catch (this page's own separate `DeliveryNoteForm` call, not delegating to
+  `SharedDetail.tsx`) is genuinely fixed; existing rows correctly seed from the document's own
+  saved `warehouse`, not blanked/defaulted.
+- Sales Return and Pick List → Delivery Note — both confirmed **unaffected** (neither file is in
+  this package's diff; neither passes `warehouseOptions`, so neither renders a new selector).
+- Regression sweep — Quotation/Sales Order/Sales Invoice/Purchase Order/Purchase Invoice/Material
+  Request/Supplier Quotation forms and Stock Entry's own from/to warehouse UI: none gained a
+  Warehouse column (`showWarehouseColumn` requires `warehouseOptions`, which only Delivery Note's
+  two forms pass) — confirmed via full call-site grep, not just spot-checked.
+- Lint (`0 errors`, 2 pre-existing unrelated warnings) and `next build` (clean, full route
+  manifest) re-confirmed independently by the agent.
+
+**Net assessment:** the primary path this package exists to fix — the actual `E2E-1` warehouse
+blocker — is live-verified end to end, including the resulting stock and GL postings. The
+secondary paths (manual create, existing-draft edit, and the surrounding regression surface) are
+verified at the code level by an independent pass, with the "not live-exercised" gap stated
+plainly rather than implied otherwise, consistent with this repo's own established honesty
+standard (`LP-2`, `FIN-1G-C`) for when full interactive QA access isn't available in a given
+session.
+
+**Sign-off:** `D9` **RESOLVED**, live-verified against the real `E2E-1` transaction. Definition of
+Ready met for a core-flow (Sales/Inventory) change: live/manual primary-path verification +
+independent code-level regression pass, both disclosed honestly rather than overstated.

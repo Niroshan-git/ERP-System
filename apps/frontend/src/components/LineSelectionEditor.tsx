@@ -24,12 +24,14 @@ export type SelectableLineRow = {
    * routes, which don't need it. */
   sourceLabel?: string;
   /**
-   * Delivery-Note-only (Sales-Order -> Delivery-Note create-delivery flow, Phase 2C/2D) —
-   * the target warehouse (this app's single per-document default, see salesDefaults.ts) and
-   * the source Item's own batch/serial flags, resolved server-side by the page before this
-   * component ever renders. Undefined for every other LineSelectionEditor call site
-   * (create-invoice from Sales Order/Delivery Note, Copy From Quotation), which don't move
-   * stock and so never show the picker/stock badge below.
+   * Delivery-Note-only (Sales-Order -> Delivery-Note create-delivery flow, Phase 2C/2D) — the
+   * starting/fallback warehouse (the source Sales Order Item's own `warehouse` where set,
+   * else the company default — see the create-delivery page) and the source Item's own
+   * batch/serial flags, resolved server-side by the page before this component ever renders.
+   * When `warehouseOptions` is also passed (SALES-DN-WH-1 / D9 fix), the user can override
+   * this per line via a real `<select>`. Undefined for every other LineSelectionEditor call
+   * site (create-invoice from Sales Order/Delivery Note, Copy From Quotation), which don't
+   * move stock and so never show the picker/stock badge/warehouse selector below.
    */
   warehouse?: string;
   has_batch_no?: boolean;
@@ -60,6 +62,10 @@ export type ConfirmedLineRow = {
   sourceLabel?: string;
   /** The confirmed BatchSerialPicker selection for this row, if any — see SelectableLineRow. */
   batchSerialEntries?: BatchSerialEntry[];
+  /** SALES-DN-WH-1 (D9 fix) — the resolved warehouse for this row: the user's own selection
+   * when `warehouseOptions` was passed, else whatever SelectableLineRow.warehouse started
+   * as. Undefined for callers that never set SelectableLineRow.warehouse in the first place. */
+  warehouse?: string;
   /** See SelectableLineRow's own doc comment above. */
   price_list_rate?: number;
   discount_percentage?: number;
@@ -97,6 +103,12 @@ type LineSelectionEditorProps = (SubmitModeProps | ConfirmModeProps) & {
   currency: string;
   submitLabel: string;
   pendingLabel?: string;
+  /** SALES-DN-WH-1 (D9 fix) — the company-scoped list of real warehouses
+   * (salesDefaults.ts's `warehouses`), passed only by the Sales-Order -> Delivery-Note
+   * create-delivery page. Turns on a per-row Warehouse `<select>` overriding each row's
+   * starting `warehouse`; every other caller leaves this unset and keeps the old read-only
+   * warehouse (stock badge only, no selector). */
+  warehouseOptions?: string[];
 };
 
 /**
@@ -114,9 +126,10 @@ type LineSelectionEditorProps = (SubmitModeProps | ConfirmModeProps) & {
  *   anywhere.
  */
 export function LineSelectionEditor(props: LineSelectionEditorProps) {
-  const { rows, currency, submitLabel } = props;
+  const { rows, currency, submitLabel, warehouseOptions } = props;
   const isConfirmMode = props.mode === "confirm";
   const pendingLabel = props.pendingLabel ?? "Working…";
+  const showWarehouseColumn = Boolean(warehouseOptions?.length);
 
   // Always called unconditionally (rules of hooks) — in confirm mode it's never actually
   // triggered, since the form has no `action` and the button is type="button".
@@ -130,12 +143,30 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
   );
   const [batchSerial, setBatchSerial] = useState<Record<string, BatchSerialEntry[]>>({});
   const [pickerRef, setPickerRef] = useState<string | null>(null);
+  // SALES-DN-WH-1 (D9 fix) — per-row warehouse override, defaulted from each row's starting
+  // `warehouse` (the source Sales Order Item's own warehouse, or the company default — see
+  // the create-delivery page). Only ever read/rendered when `warehouseOptions` is set.
+  const [warehouses, setWarehouses] = useState<Record<string, string>>(
+    Object.fromEntries(rows.map((r) => [r.reference, r.warehouse ?? ""])),
+  );
 
   function updateQty(reference: string, value: number, max: number) {
     const clamped = Math.min(Math.max(value, 0), max);
     setQtys((prev) => ({ ...prev, [reference]: clamped }));
     // A changed qty invalidates any already-confirmed batch/serial selection for this row —
     // its total no longer matches, so force a re-pick rather than submitting a stale total.
+    setBatchSerial((prev) => {
+      if (!(reference in prev)) return prev;
+      const next = { ...prev };
+      delete next[reference];
+      return next;
+    });
+  }
+
+  function updateWarehouse(reference: string, warehouse: string) {
+    setWarehouses((prev) => ({ ...prev, [reference]: warehouse }));
+    // A changed warehouse invalidates any already-confirmed batch/serial selection for this
+    // row — batches/serials are warehouse-specific, so force a re-pick against the new one.
     setBatchSerial((prev) => {
       if (!(reference in prev)) return prev;
       const next = { ...prev };
@@ -154,6 +185,7 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
       sourceLabel: r.sourceLabel,
       qty: qtys[r.reference] ?? 0,
       batchSerialEntries: batchSerial[r.reference],
+      warehouse: warehouses[r.reference] || r.warehouse,
       price_list_rate: r.price_list_rate,
       discount_percentage: r.discount_percentage,
       discount_amount: r.discount_amount,
@@ -173,6 +205,7 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
             <th className="px-3 py-2 text-right font-semibold">Original qty</th>
             <th className="px-3 py-2 text-right font-semibold">Remaining</th>
             <th className="px-3 py-2 text-right font-semibold">Qty to take</th>
+            {showWarehouseColumn && <th className="px-3 py-2 font-semibold">Warehouse</th>}
             <th className="px-3 py-2 text-right font-semibold">Rate</th>
           </tr>
         </thead>
@@ -180,6 +213,7 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
           {rows.map((row) => {
             const remaining = Math.max(row.remainingQty, 0);
             const fulfilled = remaining <= 0;
+            const resolvedWarehouse = warehouses[row.reference] || row.warehouse || "";
             return (
               <tr key={row.reference} className={`border-b border-border last:border-0 ${fulfilled ? "opacity-50" : ""}`}>
                 <td className="px-3 py-2 text-graphite-900">
@@ -188,7 +222,7 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
                   {row.sourceLabel && (
                     <div className="font-mono text-xs text-graphite-500">from {row.sourceLabel}</div>
                   )}
-                  {(row.has_batch_no || row.has_serial_no) && row.warehouse && !fulfilled && (qtys[row.reference] ?? 0) > 0 && (
+                  {(row.has_batch_no || row.has_serial_no) && resolvedWarehouse && !fulfilled && (qtys[row.reference] ?? 0) > 0 && (
                     <div className="mt-1">
                       <button
                         type="button"
@@ -225,14 +259,39 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
                     />
                     <span className="font-mono text-xs text-graphite-500">{row.uom}</span>
                   </div>
-                  {row.warehouse && (
+                  {!showWarehouseColumn && resolvedWarehouse && (
                     <StockBadge
                       itemCode={row.item_code}
-                      warehouse={row.warehouse}
+                      warehouse={resolvedWarehouse}
                       requestedQty={batchSerialTotal(batchSerial[row.reference]) || qtys[row.reference] || 0}
                     />
                   )}
                 </td>
+                {showWarehouseColumn && (
+                  <td className="px-3 py-2">
+                    <select
+                      required
+                      disabled={fulfilled}
+                      value={resolvedWarehouse}
+                      onChange={(e) => updateWarehouse(row.reference, e.target.value)}
+                      className="w-full min-w-40 rounded-md border border-border bg-surface px-2 py-1.5 text-sm focus:border-signal focus:outline-none focus:ring-1 focus:ring-signal disabled:bg-canvas disabled:text-graphite-500"
+                    >
+                      <option value="">Select…</option>
+                      {warehouseOptions!.map((w) => (
+                        <option key={w} value={w}>
+                          {w}
+                        </option>
+                      ))}
+                    </select>
+                    {resolvedWarehouse && (
+                      <StockBadge
+                        itemCode={row.item_code}
+                        warehouse={resolvedWarehouse}
+                        requestedQty={batchSerialTotal(batchSerial[row.reference]) || qtys[row.reference] || 0}
+                      />
+                    )}
+                  </td>
+                )}
                 <td className="px-3 py-2 text-right font-mono tabular-nums text-graphite-500">{formatAmount(row.rate)}</td>
               </tr>
             );
@@ -275,7 +334,7 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
       onConfirm={(entries) => setBatchSerial((prev) => ({ ...prev, [pickerRow.reference]: entries }))}
       itemCode={pickerRow.item_code}
       itemName={pickerRow.item_name}
-      warehouse={pickerRow.warehouse ?? ""}
+      warehouse={warehouses[pickerRow.reference] || pickerRow.warehouse || ""}
       qty={qtys[pickerRow.reference] ?? 0}
       hasBatchNo={Boolean(pickerRow.has_batch_no)}
       hasSerialNo={Boolean(pickerRow.has_serial_no)}
@@ -300,7 +359,9 @@ export function LineSelectionEditor(props: LineSelectionEditorProps) {
       <input
         type="hidden"
         name="items"
-        value={JSON.stringify(selection.map(({ reference, qty, batchSerialEntries }) => ({ reference, qty, batchSerialEntries })))}
+        value={JSON.stringify(
+          selection.map(({ reference, qty, batchSerialEntries, warehouse }) => ({ reference, qty, batchSerialEntries, warehouse })),
+        )}
         readOnly
       />
       {table}
