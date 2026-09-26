@@ -8,8 +8,17 @@ pre-existing read-only fields on the Work Order detail page's Job Cards tab (now
 new detail route instead of plain text) and `apps/mcp-server`'s `list_job_cards`/
 `get_job_card_detail` tools (a separate consumer, different purpose). Cancel (`MFG-JOBCARD-LC-1`,
 2026-09-23) shipped on top: native `cancelDoc("Job Card", name)` via a "Cancel Job Card" button
-on the detail page, same no-cascade pattern as Work Order/BOM cancel. Execution (Start/Pause/
-Complete, `MFG-JOBCARD-2`) remains unbuilt — see "Proposed Ceylon Stack architecture" below.
+on the detail page, same no-cascade pattern as Work Order/BOM cancel. Execution (Start/Complete,
+`MFG-JC-EXEC-1`, 2026-09-26) shipped on top of that — a narrow, dated Manufacturing-freeze
+exception (see CLAUDE.md's Current Mission lock) authorized specifically to resolve `E2E-1`
+finding `D7` (a Work Order built from a BOM "With Operations" could never reach Complete
+Production, since no Start/Complete UI existed anywhere in this frontend). `jobCardExecutionState()`
+in `lib/erpStatus.ts` decides which of `JobCardExecutionPanel`'s two forms (Start/Complete) to
+render, purely from whether an open time log already exists — see "Execution contract" below for
+the exact whitelisted-method kwargs this calls. Pause/Resume were **not** built — out of the
+authorizing brief's own "minimum OPEN → START → IN PROGRESS → COMPLETE flow" scope, not a missed
+case; still a real gap for genuine multi-cycle/interrupted shop-floor work, tracked as
+`MFG-UNV-016` below.
 **Verification:** `Documentation: VERIFIED` — full model, lifecycle, time-log, quantity, and
 Cancel/Amend contract confirmed via direct read of the live ERPNext v16.34.2 / Frappe v16.33.1
 source (`job_card.py`, `job_card_time_log.py`, `work_order.py`, `frappe/model/{document,delete_doc}.py`)
@@ -20,7 +29,15 @@ against real API responses) and code-reviewed with no blocking findings. `MFG-JO
 Cancel action was independently code-reviewed (no blocking findings) and live-QA'd against fresh
 `TEST-JOBCARDLC-*` fixtures — scenarios A-F all `Runtime Test: VERIFIED`, including `MFG-UNV-014`
 (below), now resolved rather than open. See `QA_LOG.md`'s `MFG-JOBCARD-LC-1` entry for the full
-scenario-by-scenario evidence.
+scenario-by-scenario evidence. `MFG-JC-EXEC-1`'s Start/Complete actions were source-verified
+(`start_timer`/`complete_job_card`/`add_time_logs`/`add_time_logs_for_employess` read directly
+from the live instance's `job_card.py`, plus `job_card.js`'s own Desk button-click args, confirming
+Desk itself requires an Employee selection when starting) and live-verified end-to-end against the
+real, already-in-progress `E2E-1` transaction (Job Card `PO-JOB00019`: Start → Complete → Work
+Order `MFG-WO-2026-00041`'s Operations tab reflecting `Completed`/10 → Complete Production
+succeeding, all confirmed via both the browser UI and a direct MCP re-read of the resulting
+documents) — not a synthetic fixture. See `PROGRESS.md`'s `MFG-JC-EXEC-1` entry for the full
+sequence and `QA_LOG.md` for the scenario-by-scenario record.
 
 ## Fields (full model, not just what the Work Order tab currently reads)
 
@@ -118,6 +135,53 @@ There is no literal Start/Pause/Resume/Complete *state machine* — instead, fou
 
 Actual whitelisted method names present in source: `start_timer`, `pause_job`, `resume_job`, `complete_job_card`, `make_time_log` (module-level, older/simpler entry point), `make_stock_entry_for_semi_fg_item`, `get_required_items`, plus module-level `make_subcontracting_po`, `get_operation_details`, `get_operations`, `make_material_request`, `make_stock_entry`, `get_job_details`, `make_corrective_job_card`.
 
+## Execution contract — `SOURCE VERIFIED` + `LIVE VERIFIED` (`MFG-JC-EXEC-1`, 2026-09-26)
+
+Exact kwargs this app's `startJobCardAction`/`completeJobCardAction`
+(`manufacturing/job-cards/actions.ts`) send, verified by reading `start_timer`/`complete_job_card`/
+`add_time_logs`/`add_time_logs_for_employess` directly off the live v16.34.2 instance (not
+guessed from the docstring above) and cross-checked against `job_card.js`'s own Desk button-click
+args:
+
+- **Start** — `callDocMethod("Job Card", name, "start_timer", { start_time, employees })`.
+  `start_time` is a plain `"YYYY-MM-DD HH:MM:SS"` string. `employees` must be a non-empty array of
+  `{ employee: <Employee id> }` — **live-confirmed this is not optional in practice**: `add_time_logs_for_employess()` does `for employee in kwargs.employees`, so an empty/missing `employees`
+  either raises (`None` is not iterable) or, if `[]`, silently appends no time-log row at all
+  (Job Card stays `Open`, no error surfaced) — either way, nothing starts. This matches Desk's own
+  `job_card.js`: its Start button hard-requires an Employee selection (`frappe.prompt(...,
+  reqd: 1, filters: { status: "Active" })`) before calling `start_timer` at all, live-read
+  2026-09-26. This app's Start form (`JobCardExecutionPanel.tsx`) mirrors that: a required
+  Active-Employee checklist, not an optional field, sourced from `listDocs("Employee", { filters:
+  [["status","=","Active"]] })`. On this instance there is currently exactly one Active Employee
+  (`HR-EMP-00001`, "Kasun Perera").
+- **Complete** — `callDocMethod("Job Card", name, "complete_job_card", { qty, pending_qty,
+  process_loss_qty, end_time, auto_submit: true })`. `qty` is the completed quantity for *this*
+  cycle (`Job Card Time Log.completed_qty`, closes the currently-open time log via `add_time_logs(to_time=end_time, completed_qty=qty, ...)`). This app deliberately never sends the older
+  `for_quantity` kwarg (a separate, confusingly-named "extend the cycle" parameter, not the
+  Job Card's own `for_quantity` field) — source-confirmed `validate_completion_qty_split()` only
+  runs its stricter qty-conservation check `if flt(kwargs.for_quantity)`, so omitting it skips
+  that check entirely, which is correct here since this app always completes against the Job
+  Card's pre-existing `for_quantity`, never extends it mid-flight. `auto_submit: true` is a real,
+  source-confirmed kwarg (`complete_job_card` calls `self.submit()` when truthy) — this app relies
+  on it instead of a separate Submit click, the same "OPEN → START → IN PROGRESS → COMPLETE"
+  minimum flow the authorizing brief asked for. Because the Job Card in this app's real data has
+  no `finished_good` set (semi-finished-goods tracking unused, per the rest of this doc),
+  `auto_submit`'s own `make_stock_entry_for_semi_fg_item` side effect never fires — plain submit
+  only.
+- **Live-caught datetime bug, fixed in the same package:** capturing `end_time` from an HTML
+  `datetime-local` input without seconds (`step` unset) can read as *before* `start_time` (which
+  is captured with real seconds precision) when Start and Complete happen inside the same clock
+  minute — ERPNext's own `time_diff_in_minutes` doesn't reject this at the Python level, but
+  `add_time_logs_for_employess`'s own to-time assignment combined with `validate_time_logs()`
+  does, surfacing as `"Row #1: From time must be less than to time"`. Fixed by adding `step={1}`
+  to the End Time input and capturing seconds throughout (`JobCardExecutionPanel.tsx`'s
+  `nowAsErpDatetime`/`toErpDatetimeLocal`) — live-reverified working after the fix.
+- **Not built, disclosed gap:** Pause/Resume (`pause_job`/`resume_job`) — out of the authorizing
+  brief's own minimum-flow scope. Tracked as `MFG-UNV-016` below: a Job Card interrupted
+  mid-operation (shift change, material shortage) currently has no in-app way to pause and later
+  resume other than leaving the time log open indefinitely or completing early with a
+  `pending_qty` remainder.
+
 ## Quantity / partial-completion model — `SOURCE VERIFIED` + `LIVE VERIFIED`
 
 Conservation invariant enforced at submit: `total_completed_qty + process_loss_qty + pending_qty == for_quantity`.
@@ -168,6 +232,9 @@ Only 3 roles have any access at all: **System Manager, Manufacturing User, Manuf
 
 - `MFG-UNV-013` (new) — the exact mechanism/UI for who picks up a Job Card's carried-forward `pending_qty` after a partial completion (a second Job Card? manual re-open?).
 - `MFG-UNV-015` (new) — whether Work Order's own status display should defensively handle "Job Card cancelled but parent WO status didn't revert" (cosmetic, not a correctness bug in ERPNext, but worth a UX check once a Job Card UI exists).
+- `MFG-UNV-016` (new, `MFG-JC-EXEC-1`) — Pause/Resume not built (deliberately, out of the
+  authorizing brief's minimum-flow scope) — no in-app way to interrupt and later resume a Job
+  Card other than leaving its time log open or completing early with `pending_qty`.
 
 ## Resolved: `MFG-UNV-014` — Manufacture Stock Entry blocks Job Card cancel — `LIVE VERIFIED` (`MFG-JOBCARD-LC-1`, 2026-09-23)
 
@@ -208,18 +275,27 @@ package in this project (cancel Manufacture Stock Entry → cancel Job Card → 
 
 1. **`MFG-JOBCARD-1` — Read-only list + detail + Work Order contextual link. `SHIPPED` (2026-09-23).** Zero lifecycle actions, as scoped. `docstatus`-derived state (`jobCardStatus()` in `lib/erpStatus.ts`), not the raw `status` field, per the quirk above — live-QA'd. Work Order detail's Job Cards tab and the Work Order Cancel blocker-preview message both now link a Job Card name to the real detail route instead of plain text.
 2. **`MFG-JOBCARD-LC-1` — Cancel. `SHIPPED` (2026-09-23).** The actual motivating capability (unblocks Work Order cancel without Desk) — closes the "Desk dependency" gap this whole investigation was motivated by. Native `cancelDoc("Job Card", name)`, same defense-in-depth re-fetch/re-check pattern as every prior lifecycle package this project has shipped. `validate_produced_quantity()`'s rejection (`JobCardCancelError`, see the resolved `MFG-UNV-014` above) passes through `humanizeCancelError` untouched, as planned — no custom message needed. Independently code-reviewed (no blocking findings) and live-QA'd (scenarios A-F, all PASS) — see `QA_LOG.md`.
-3. **`MFG-JOBCARD-2` — Time-log/execution actions** (`start_timer`/`pause_job`/`resume_job`/`complete_job_card`). Bigger scope — this is the actual shop-floor execution UX, not just lifecycle plumbing, and given the live-data signal that Job Card is barely used today, this is reasonably deferred until there's a concrete operational need, rather than assumed urgent.
+3. **`MFG-JC-EXEC-1` — Start/Complete execution actions. `SHIPPED` (2026-09-26).** Ran as a narrow,
+   dated exception to the Manufacturing V1 freeze (not the originally-illustrative `MFG-JOBCARD-2`
+   name — authorized instead as a targeted fix for `E2E-1` finding `D7`; see CLAUDE.md's Current
+   Mission lock and the "Execution contract" section above). Built `start_timer`/`complete_job_card`
+   only — `pause_job`/`resume_job` deliberately not built (`MFG-UNV-016`), out of the authorizing
+   brief's own minimum-flow scope. Live-verified against the real, already-in-progress `E2E-1`
+   transaction, not a synthetic fixture.
 4. **`MFG-OPERATION-1` / `MFG-WORKSTATION-1`** — not required before any of the above (see "Operation/Workstation dependency"); only worth scoping if the business needs to add a 3rd operation/workstation, independent of Job Card's own timeline.
-
-Recommended next package: **`MFG-JOBCARD-LC-1`** — Cancel is the package that actually closes the "Desk dependency" gap this whole investigation was motivated by, and its hard prerequisite (`MFG-JOBCARD-1`'s detail page) is now shipped.
 
 ### Operator experience (derived from the actual lifecycle, not assumed)
 
-For the two packages above (`MFG-JOBCARD-1`/`LC-1`), the real flow is short because there's no execution UI yet: **Work Order detail → Job Cards tab → click a Job Card name → detail page → if submitted and blocking a Work Order cancel, click Cancel → return to Work Order, cancel succeeds.** A future `MFG-JOBCARD-2` would add: detail page → Start → (shop floor performs work) → enter completed qty/time → Complete — mapping directly onto `start_timer`/`complete_job_card`, not an invented sequence.
+Now that `MFG-JC-EXEC-1` has shipped: **Work Order detail → Operations tab (or Job Cards tab) →
+click a Job Card name → detail page → Start (select Active Employee(s)) → (shop floor performs
+work) → Complete (enter completed/pending/process-loss qty + end time) → Job Card submits itself
+(`auto_submit`) → Work Order's Operations tab reflects the completion → Complete Production
+unblocks.** Cancel remains available post-submit for the same "Desk dependency" reasons
+`MFG-JOBCARD-LC-1` shipped it.
 
 ### Mobile-readiness (architectural only, not built)
 
-Time-log entry (`MFG-JOBCARD-2`, when it happens) is the piece that will actually run on a shop-floor tablet/phone — worth keeping in mind now: (1) `start_timer`/`complete_job_card` take a minimal payload (qty, optional employee/time), which maps well to large single-purpose touch targets rather than a dense form; (2) `employee` is optional and multi-select-capable server-side, which could later support a "who's logged in at this workstation" tablet-mode pattern without a schema change; (3) nothing in the native model assumes barcode/QR input, so that would be a pure frontend addition (e.g. scanning a Job Card ID into a search box) with no backend dependency. None of this needs deciding now — just noting it doesn't conflict with anything in `MFG-JOBCARD-1`/`LC-1`'s scope.
+Time-log entry (now shipped by `MFG-JC-EXEC-1`) is the piece that actually runs on a shop-floor tablet/phone — worth keeping in mind for a future pass: (1) `start_timer`/`complete_job_card` take a minimal payload (qty, employee(s)/time), which maps well to large single-purpose touch targets rather than a dense form — `JobCardExecutionPanel.tsx`'s two small forms already lean this way, but haven't been tested on an actual small/touch viewport; (2) `employee` is a real multi-select server-side (this app's Start form already supports selecting more than one Active Employee via checkboxes), which could later support a "who's logged in at this workstation" tablet-mode pattern without a schema change; (3) nothing in the native model assumes barcode/QR input, so that would be a pure frontend addition (e.g. scanning a Job Card ID into a search box) with no backend dependency.
 
 ### Future OEE data contract (architectural only, not built)
 

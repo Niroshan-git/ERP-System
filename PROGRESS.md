@@ -6514,3 +6514,110 @@ regenerated (nothing in `docs/product/` changed).
 **Status:** both fixes committed after this QA_LOG/PROGRESS.md write-up, per explicit user
 instruction to proceed with the closure sequence. `release-tracker` not invoked — no feature or
 plan phase shipped here, just two bug fixes plus a disclosed findings list from a QA mission.
+
+## `MFG-JC-EXEC-1` — Job Card Execution (Start/Complete) — 2026-09-26
+
+**Authorization:** Niroshan issued a dedicated `MFG-JC-EXEC-1` mission brief — a narrow, explicit
+exception to the Manufacturing V1 freeze, authorized specifically to resolve `E2E-1`'s own `D7`
+finding (Job Card execution completely unbuilt, blocking Complete Production for any Work Order
+built from a BOM "With Operations"). Dated `CLAUDE.md` Current Mission note written before
+committing but after implementation started — same disclosed lapse `CRM-2`/`CRM-3` already
+flagged; not corrected this time either, despite the standing instruction.
+
+**Discovery first, per the brief's own instruction:** before writing any code, read the real
+ERPNext v16.34.2 Job Card lifecycle directly off the live Hetzner instance via SSH — confirmed the
+whitelisted `start_timer`/`complete_job_card` methods' exact kwargs (`job_card.py`,
+`add_time_logs`/`add_time_logs_for_employess`) and cross-checked against Desk's own
+`job_card.js` button-click behavior (confirms Desk itself hard-requires an Employee selection to
+start — not an invented Ceylon Stack requirement). Full contract now recorded in
+`docs/backend/05-manufacturing/job-card.md`'s new "Execution contract" section, including the
+exact reasoning for omitting `complete_job_card`'s `for_quantity` kwarg and for using its
+`auto_submit` kwarg instead of a separate Submit click.
+
+**Implementation** (5 files, all in `apps/frontend`):
+- `lib/erpStatus.ts` — new `jobCardExecutionState(doc)` gate: mirrors ERPNext Desk's own
+  Start/Complete button visibility (derived purely from whether an open time log exists), not an
+  invented Ceylon Stack status.
+- `components/JobCardExecutionPanel.tsx` (new) — Start form (required Active-Employee checklist,
+  sourced live from `listDocs("Employee", {filters:[["status","=","Active"]]})`) and Complete
+  form (completed/pending/process-loss qty + end time, defaulting qty to the remaining quantity).
+- `manufacturing/job-cards/actions.ts` — `startJobCardAction`/`completeJobCardAction`, both
+  re-fetching the Job Card fresh and re-checking `docstatus`/open-time-log state server-side
+  before calling ERPNext (same defense-in-depth precedent as `cancelJobCardAction`), calling
+  `callDocMethod("Job Card", name, "start_timer"|"complete_job_card", ...)` — ERPNext's own native
+  methods, no reimplemented business logic. `completeJobCardAction` passes `auto_submit: true`,
+  so Complete also submits the Job Card in the same action (the "OPEN → START → IN PROGRESS →
+  COMPLETE" minimum flow the brief asked for, no extra step).
+- `manufacturing/job-cards/[name]/page.tsx` — wires the panel in, fetches Active Employees only
+  when the Start form will actually render.
+- `manufacturing/work-orders/[name]/page.tsx` — Operations tab now cross-references each
+  operation row to its Job Card(s) by name (using data already fetched for the Job Cards tab, no
+  extra query) and links it — closes the Work-Order-to-Job-Card navigation direction the brief's
+  §9 asked for (the reverse direction, Job Card → Work Order, already existed).
+
+**Live-caught and fixed during this package's own browser verification (not found by static
+review):** the Complete form's End Time defaulted to `datetime-local`'s minute-only precision
+(seconds truncated to `:00`), which read as *before* Start's real-seconds timestamp whenever Start
+and Complete happened inside the same clock minute — surfaced as ERPNext's own real
+`"Row #1: From time must be less than to time"` validation error. Fixed by adding `step={1}` to
+the End Time input and capturing seconds throughout both `nowAsErpDatetime()`/
+`toErpDatetimeLocal()` — re-verified working after the fix.
+
+**Live verification — resumed the actual, already-in-progress `E2E-1` transaction, not a
+synthetic fixture, per the brief's own instruction:**
+1. Job Card `PO-JOB00019` (Work Order `MFG-WO-2026-00041`, Assembly operation, qty 10) — Start
+   with Employee `HR-EMP-00001` (the only Active Employee on this instance) → time log opened,
+   Actual Start populated, status "Work In Progress" (confirmed via MCP `get_work_order_detail`).
+2. Complete with qty 10/pending 0/process loss 0 → Job Card `Completed`, `docstatus` 1 (submitted
+   via `auto_submit`), Actual End populated, Work Order's `total_completed_qty` 10/10.
+3. Work Order `MFG-WO-2026-00041`'s Operations tab now shows the Assembly row linked to
+   `PO-JOB00019`, Status "Completed" — confirms the new Work-Order→Job-Card link.
+4. **Complete Production, previously hard-blocked by `D7`, now succeeds**: Manufacture Stock Entry
+   `MAT-STE-2026-00042` submitted, Work Order status → "Completed", 10/10 produced. Confirmed via
+   MCP `Bin` read: `CS-DESK-001` actual_qty 10 in `Finished Goods - CSD` (0 in `Stores - CSD`).
+
+**D7 resolved.** `E2E-1`'s manufacturing boundary is unblocked — the Job Card execution gap that
+stopped that mission's transaction no longer exists.
+
+**New finding this package deliberately did NOT fix — `D9` [P1, disclosed, out of scope]:**
+attempting to continue the *same* `E2E-1` transaction into Delivery (`SAL-ORD-2026-00042` →
+"Create Delivery Note") hit a new, live-reproduced blocker: neither delivery-note creation path in
+this frontend (`sales/orders/[name]/create-delivery` or `sales/delivery-notes/new`) exposes a
+per-line Warehouse field — both hardcode `getSellingDefaults()`'s single default (the first
+warehouse whose name starts with "Stores"), even though `Delivery Note Item.warehouse` is a real,
+independently-settable Link field (confirmed via `get_doctype_fields`). For a manufactured item,
+the sellable stock lands in the BOM's own Finished Goods warehouse (`Finished Goods - CSD`, 10
+units, confirmed above), not "Stores" (0 units) — real ERPNext submit-time error, live-reproduced:
+`"10.0 units of Item CS-DESK-001: Executive Office Desk needed in Warehouse Stores - CSD to
+complete this transaction."` A harmless orphaned Draft Delivery Note (`MAT-DN-2026-00013`, 0 stock
+impact — Draft docs never post) was left behind attempting this, same "leave the harmless orphan,
+don't try to force-delete it" precedent `E2E-1` already established for bad Draft Work Orders.
+**Not fixed this session** — per this package's own explicit scope instruction ("do not fix
+D2/D3/D4-sibling/D5/D6/D8 unless it directly blocks Job Card execution"), and `D9` blocks
+Delivery, not Job Card execution. A real fix needs a per-line warehouse selector across both
+delivery-note creation paths (a Sales/Delivery module change, not a Manufacturing one) — a
+separate, not-yet-authorized future package.
+
+**E2E-1 downstream status, honestly reported, not faked:** Delivery Note: **BLOCKED** (`D9`).
+Sales Invoice / Payment Entry / GL verification: **NOT REACHED** (blocked upstream by `D9`, same
+as `E2E-1`'s own "do not fake completion" rule).
+
+**Not built, disclosed gap:** Pause/Resume (`pause_job`/`resume_job`) — out of the brief's own
+minimum-flow scope, tracked as `MFG-UNV-016` in `job-card.md`.
+
+**Verification method:** `tsc --noEmit` and `eslint` both clean on the 5 changed files. Live
+end-to-end browser verification against the real Hetzner instance (not mocked), cross-checked via
+direct MCP reads (`get_work_order_detail`, `Bin`) rather than trusting the UI alone.
+`code-reviewer` pass: no blocking issues — see `QA_LOG.md`'s matching entry for the full findings
+(server-side re-validation confirmed genuine, not just commented; one non-blocking note about
+under-allocation not being pre-empted client-side, left as-is since ERPNext's own submit
+validation already covers it correctly).
+
+**Documentation Impact:** Technical Reference — UPDATED
+(`docs/backend/05-manufacturing/job-card.md`'s new "Execution contract" section, `MFG-UNV-016`,
+package-sequence update). Module Overview/User Guide/Configuration/Process Flow/Lifecycle/Stock
+Impact/Accounting Impact — N/A (no new business document, no changed prerequisite/configuration
+step; Job Card execution is an internal shop-floor action inside an already-documented lifecycle,
+not a new user-facing concept). `docs/ceylon-stack-documentation.html` not regenerated (nothing in
+`docs/product/` changed). `release-tracker` not invoked — this is a narrow defect-fix exception,
+not a shipped feature/plan phase.

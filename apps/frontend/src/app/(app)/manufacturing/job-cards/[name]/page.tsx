@@ -4,16 +4,17 @@ import { cookies } from "next/headers";
 import { ActivityTimeline } from "@/components/ActivityTimeline";
 import { DocActionBar } from "@/components/DocActionBar";
 import { DocField } from "@/components/DocField";
+import { JobCardExecutionPanel } from "@/components/JobCardExecutionPanel";
 import { StatusPill } from "@/components/StatusPill";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import { DocTabs } from "@/components/DocTabs";
-import { ErpNextError, getDoc } from "@/lib/erpnext";
-import { jobCardStatus } from "@/lib/erpStatus";
+import { ErpNextError, getDoc, listDocs } from "@/lib/erpnext";
+import { jobCardExecutionState, jobCardStatus } from "@/lib/erpStatus";
 import type { DocStatus } from "@/lib/docStatus";
 import { buildTimeline } from "@/lib/timeline";
 import { postCommentAction } from "@/lib/actions/comments";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
-import { cancelJobCardAction } from "../actions";
+import { cancelJobCardAction, completeJobCardAction, startJobCardAction } from "../actions";
 
 type JobCardTimeLogRow = {
   employee?: string;
@@ -70,22 +71,27 @@ function DocLink({ href, children }: { href: string; children: React.ReactNode }
 /**
  * `MFG-JOBCARD-1` shipped read-only; Cancel (`MFG-JOBCARD-LC-1`) added on top of it — native
  * `cancelDoc("Job Card", name)` via `cancelJobCardAction`, same no-cascade pattern as
- * Work Order/BOM cancel. No Start/Pause/Resume/Complete yet; those remain `MFG-JOBCARD-2`.
- * `items`/`secondary_items`/`sub_operations`/`scheduled_time_logs` child tables (real, per
- * `docs/backend/05-manufacturing/job-card.md`) are deliberately not fetched/rendered here — on
- * this instance's real data they're consistently empty (no semi-finished-goods tracking or
- * sub-operations configured on either real Operation master), so showing them would be empty
- * noise for the current operator experience; revisit once real data actually populates them.
+ * Work Order/BOM cancel. Start/Complete (`MFG-JC-EXEC-1`, narrow dated Manufacturing-freeze
+ * exception resolving E2E-1 finding D7) added on top of that — `jobCardExecutionState()` decides
+ * which of `JobCardExecutionPanel`'s two forms to render, calling ERPNext's own `start_timer`/
+ * `complete_job_card` whitelisted methods rather than a Ceylon-Stack-invented state machine.
+ * Pause/Resume are deliberately not built — out of the mission's own "minimum flow" scope, not a
+ * missed case. `items`/`secondary_items`/`sub_operations`/`scheduled_time_logs` child tables
+ * (real, per `docs/backend/05-manufacturing/job-card.md`) are deliberately not fetched/rendered
+ * here — on this instance's real data they're consistently empty (no semi-finished-goods
+ * tracking or sub-operations configured on either real Operation master), so showing them would
+ * be empty noise for the current operator experience; revisit once real data actually populates
+ * them.
  */
 export default async function JobCardDetailPage({
   params,
   searchParams,
 }: {
   params: Promise<{ name: string }>;
-  searchParams: Promise<{ cancelled?: string }>;
+  searchParams: Promise<{ cancelled?: string; started?: string; completed?: string }>;
 }) {
   const { name } = await params;
-  const { cancelled } = await searchParams;
+  const { cancelled, started, completed } = await searchParams;
 
   let doc: JobCardDoc;
   try {
@@ -95,9 +101,20 @@ export default async function JobCardDetailPage({
     throw e;
   }
 
-  const [timeline, session] = await Promise.all([
+  const execState = jobCardExecutionState(doc);
+
+  const [timeline, session, activeEmployees] = await Promise.all([
     buildTimeline("Job Card", doc.name, doc),
     verifySession((await cookies()).get(SESSION_COOKIE)?.value),
+    // Only fetched when actually offering the Start form — same "don't pay for a query the page
+    // doesn't need" shape as the Work Order Job Cards tab's Cancel-blocker preview.
+    execState === "can-start"
+      ? listDocs<{ name: string; employee_name?: string }>("Employee", {
+          fields: ["name", "employee_name"],
+          filters: [["status", "=", "Active"]],
+          limit: 100,
+        })
+      : Promise.resolve([]),
   ]);
 
   const status = jobCardStatus(doc);
@@ -133,9 +150,23 @@ export default async function JobCardDetailPage({
   );
 
   const timeLogs = doc.time_logs ?? [];
+  const remainingQty = (doc.for_quantity ?? 0) - (doc.total_completed_qty ?? 0);
+
+  const executionSection = execState !== "none" && (
+    <div className="mb-6">
+      <JobCardExecutionPanel
+        mode={execState}
+        remainingQty={remainingQty}
+        activeEmployees={activeEmployees}
+        startAction={startJobCardAction.bind(null, doc.name)}
+        completeAction={completeJobCardAction.bind(null, doc.name)}
+      />
+    </div>
+  );
 
   const detailsTab = (
     <div>
+      {executionSection}
       <dl className="mb-6 grid grid-cols-2 gap-4 text-sm md:grid-cols-4">
         <DocField label="Work Order" value={<DocLink href={`/manufacturing/work-orders/${encodeURIComponent(doc.work_order)}`}>{doc.work_order}</DocLink>} />
         <DocField label="Operation" value={doc.operation || "—"} />
@@ -209,6 +240,16 @@ export default async function JobCardDetailPage({
       {cancelled && (
         <div className="mb-4 rounded-md border border-border bg-canvas px-4 py-2 text-sm font-medium text-graphite-700">
           Job Card cancelled.
+        </div>
+      )}
+      {started && (
+        <div className="mb-4 rounded-md border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-success">
+          Job Card started.
+        </div>
+      )}
+      {completed && (
+        <div className="mb-4 rounded-md border border-success/30 bg-success/10 px-4 py-2 text-sm font-medium text-success">
+          Job Card completed and submitted.
         </div>
       )}
       {header}

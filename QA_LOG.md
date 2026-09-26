@@ -3174,3 +3174,62 @@ about how QA was conducted that Codex's reconciliation pass should be aware of.
   still-valid record. Full ID list in `PROGRESS.md`'s `E2E-1` entry.
 - **Sign-off**: `code-reviewer` found no blockers on either fix. Meets `AGENT_OPERATING_GUIDE.md`
   §8's Definition of Ready with one disclosed gap (no separate `qa-tester` pass — see above).
+
+## 2026-09-26 — `MFG-JC-EXEC-1` — Job Card Execution (Start/Complete), resolves `E2E-1`'s `D7`
+
+- **Package tested:** Job Card Start/Complete (`JobCardExecutionPanel.tsx`,
+  `startJobCardAction`/`completeJobCardAction`, `jobCardExecutionState`, Work Order Operations tab
+  Job Card cross-link). Narrow, dated Manufacturing-freeze exception — see `CLAUDE.md`'s Current
+  Mission lock and `PROGRESS.md`'s matching entry for full authorization/scope detail.
+- **Result:** PASS. Resumed the real, already-in-progress `E2E-1` transaction (Job Card
+  `PO-JOB00019`, Work Order `MFG-WO-2026-00041`) rather than a synthetic fixture, per the
+  authorizing brief's own instruction.
+- **Scenarios (all against the live Hetzner instance, cross-checked via direct MCP reads, not UI
+  alone):**
+  - Start Job with required Employee selection (`HR-EMP-00001`, the only Active Employee on this
+    instance) — **PASS**: time log opened, Actual Start populated, Complete form appears in place
+    of Start (duplicate-Start protected by both the button no longer rendering and
+    `startJobCardAction`'s own server-side open-time-log re-check).
+  - Complete Job (qty 10, pending 0, process loss 0) — **PASS**: Job Card status → "Completed",
+    `docstatus` → 1 (auto-submitted), Actual End populated, Work Order `total_completed_qty` 10/10
+    (confirmed via `mcp__ceylon-stack__get_work_order_detail`).
+  - Work Order Operations tab → Job Card link — **PASS**: Assembly row now shows
+    `PO-JOB00019`/"Completed", both navigation directions (Work Order→Job Card, Job Card→Work
+    Order) confirmed working.
+  - Complete Production (previously hard-blocked by `D7`) — **PASS**: Manufacture Stock Entry
+    `MAT-STE-2026-00042` submitted, Work Order → "Completed" 10/10. `Bin` read confirms
+    `CS-DESK-001` actual_qty 10 in `Finished Goods - CSD`, 0 in `Stores - CSD`.
+- **Real bug caught and fixed during this session's own live verification** (not by static review
+  or a subagent): Complete's End Time field, at `datetime-local`'s default minute-only precision,
+  could read as *before* Start's real-seconds timestamp when both happened in the same clock
+  minute — a real ERPNext `"Row #1: From time must be less than to time"` rejection, reproduced
+  live, then fixed (`step={1}` + seconds captured throughout) and re-verified passing.
+- **New finding, deliberately NOT fixed this session — `D9`:** continuing the same transaction
+  into Delivery Note creation hit a live, real blocker — neither delivery-note creation path
+  exposes a per-line Warehouse override, both hardcoding a "Stores"-prefixed default via
+  `getSellingDefaults()`, so a manufactured item's actual Finished Goods stock is invisible to
+  Delivery Note creation. Real ERPNext error reproduced: `"10.0 units of Item CS-DESK-001:
+  Executive Office Desk needed in Warehouse Stores - CSD to complete this transaction."` One
+  harmless orphaned Draft Delivery Note (`MAT-DN-2026-00013`) left behind, no stock/ledger impact.
+  Out of this package's explicit scope (only fixes that directly block Job Card execution were
+  authorized) — disclosed, not fixed. Full detail in `PROGRESS.md`'s matching entry.
+- **`code-reviewer` sign-off:** no blocking issues. Confirmed `start_timer`/`complete_job_card`
+  args match `job-card.md`'s documented contract exactly; both actions genuinely re-validate
+  server-side (docstatus, open-time-log state, qty against server-fetched `remaining`) rather than
+  trusting the client; the datetime fix is correct and non-brittle. One non-blocking note: the
+  server-side qty guard only blocks *over*-allocation, not under-allocation — an under-allocated
+  submit still reaches ERPNext and is rejected there with its own real error (not a silent
+  failure), so left as-is rather than pre-empted client-side.
+- **Not fixed / disclosed gaps carried forward from `E2E-1`, untouched by this package** (per its
+  own explicit "do not fix D2/D3/D4-sibling/D5/D6/D8" scope instruction): Opportunity→Quotation
+  handoff for Lead-sourced Opportunities; no tax-template UI in Sales; no Material Request→
+  Purchase Order handoff; the stale-warehouse-list bug on `/manufacturing/production-plans/new`;
+  User Activity/Audit Trail "Actor unavailable". Plus this package's own new disclosed gaps:
+  Pause/Resume not built (`MFG-UNV-016`); `D9` (above).
+- **Cleanup:** none needed beyond what's already disclosed — `MAT-DN-2026-00013` (Draft, 0 impact)
+  and the rest of `E2E-1`'s real transaction chain are left in place as legitimate records, not
+  QA fixtures.
+- **Sign-off:** live end-to-end verification against the real instance, cross-checked via MCP,
+  `tsc`/`eslint` clean. Meets `AGENT_OPERATING_GUIDE.md` §8's Definition of Ready for a core-flow
+  (Manufacturing) change with a live/manual verification pass in place of a separate `qa-tester`
+  subagent invocation (same disclosed-gap shape as `E2E-1`'s own note above).

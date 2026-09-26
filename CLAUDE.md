@@ -202,6 +202,31 @@ exist) is the recommended first step of `LP-3`/`LP-4A`, not assumed to already b
 **separate, not-yet-authorized future packages** — this note does not authorize either. `FIN-2`
 remains **not authorized** and this note does not touch or reorder Finance V1 or CRM.
 
+**Updated 2026-09-26 (package `MFG-JC-EXEC-1`):** Niroshan issued a dedicated `MFG-JC-EXEC-1 —
+Job Card Execution` mission brief — a narrow, explicit exception to the Manufacturing V1 freeze
+(item 3 below), authorized specifically to resolve a P0 blocker (`D7`) found by this repo's own
+`E2E-1` full-business-workflow test: Job Card execution (Start/Complete/time-log) was completely
+unbuilt, so any Work Order generated from a BOM "With Operations" could never reach Complete
+Production through this frontend. Scope, per the brief's own repeated instruction: the *minimum*
+canonical flow (`OPEN → START → IN PROGRESS → COMPLETE`), mirroring ERPNext's own whitelisted
+`start_timer`/`complete_job_card` Job Card methods (source-verified live against the Hetzner
+instance) rather than inventing a Ceylon Stack state machine — Pause/Resume deliberately not
+built, out of the brief's own minimum-flow scope. This note is written **before** committing but
+**after** implementation started (same disclosed lapse `CRM-2`'s/`CRM-3`'s own notes already
+flagged and `CRM-4`/`CRM-5`/`LP-0`/`FIN-1G-D` corrected — the standing instruction is still to
+write it *before* implementation next time). Does not reopen Manufacturing generally: no Job Card
+redesign, no Workstation/OEE work, no changes to Production Plan's still-open `D4` sibling
+warehouse bug. Live-verified against the real, already-in-progress `E2E-1` transaction itself
+(Work Order `MFG-WO-2026-00041`, Job Card `PO-JOB00019`), not a synthetic fixture — see
+`PROGRESS.md`'s `MFG-JC-EXEC-1` entry for the full sequence, including a new downstream blocker
+(`D9`) this session found and deliberately did **not** fix (Delivery Note has no per-line
+warehouse selector and defaults to a hardcoded "Stores"-prefixed warehouse, not the Finished Goods
+warehouse a manufactured item actually lands in) — out of this package's own narrow scope per the
+brief's explicit "do not fix D2/D3/D4-sibling/D5/D6/D8 unless it directly blocks Job Card
+execution" instruction; `D9` blocks Delivery, not Job Card execution, so it's disclosed, not
+fixed. `FIN-2` remains **not authorized** and this note does not touch or reorder Finance V1, CRM,
+or `FIN-1G-D`.
+
 1. **Finance V1 — primary stream.** FIN-0 (architecture/discovery) CLOSED 2026-09-24. Canonical
    sequence: FIN-1 (Chart of Accounts read + Bank Account CRUD) → FIN-2 (Payment Entry + AR/AP
    visibility) → FIN-3 (Journal Entry) → FIN-4 (General Ledger / Trial Balance / Profit & Loss /

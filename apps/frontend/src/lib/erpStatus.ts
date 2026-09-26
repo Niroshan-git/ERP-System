@@ -562,6 +562,24 @@ export function jobCardStatus(doc: { docstatus: DocStatus; status?: string }): S
 }
 
 /**
+ * Job Card execution gate (`MFG-JC-EXEC-1`, narrow dated Manufacturing-freeze exception —
+ * resolves E2E-1 finding D7). Mirrors ERPNext Desk's own Start/Complete button visibility
+ * (`job_card.js`, live-read on the Hetzner instance: `show_start`/`show_complete` are computed
+ * from whether an open time log — `from_time` set, `to_time` unset — already exists) rather than
+ * inventing a separate Ceylon Stack status. A submitted (`docstatus 1`) or cancelled
+ * (`docstatus 2`) Job Card offers neither action, matching `start_timer`/`complete_job_card`'s
+ * own `validate_docstatus()` guard, which rejects both server-side anyway.
+ */
+export function jobCardExecutionState(doc: {
+  docstatus: DocStatus;
+  time_logs?: { from_time?: string; to_time?: string }[];
+}): "can-start" | "can-complete" | "none" {
+  if (doc.docstatus !== 0) return "none";
+  const hasOpenLog = (doc.time_logs ?? []).some((t) => t.from_time && !t.to_time);
+  return hasOpenLog ? "can-complete" : "can-start";
+}
+
+/**
  * BOM has no separate `status` Select field of its own (live-confirmed via
  * `get_doctype_fields`, 2026-09-19 Manufacturing Masters (BOM) investigation — see
  * `docs/backend/05-manufacturing/bom.md`'s Identity/Status tables) — only the standard

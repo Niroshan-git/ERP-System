@@ -435,6 +435,18 @@ export default async function WorkOrderDetailPage({
   );
 
   const operations = doc.operations ?? [];
+  // Cross-references Work Order Operation rows to Job Cards by operation name (Package 5's
+  // already-fetched `jobCards` — no extra query). 1:1 on this instance's real data today (see
+  // job-card.md's "Creation contract" — batch-split/corrective Job Cards are the only cases that
+  // would produce more than one match), handled generically with `.filter` rather than assuming
+  // exactly one match, so a future batch-split scenario shows every Job Card, not just the first.
+  const jobCardsByOperation = new Map<string, JobCardRow[]>();
+  for (const jc of jobCards) {
+    if (!jc.operation) continue;
+    const existing = jobCardsByOperation.get(jc.operation) ?? [];
+    existing.push(jc);
+    jobCardsByOperation.set(jc.operation, existing);
+  }
   const operationsTab = (
     <div className={plainTableWrap}>
       <table className="w-full text-left text-sm">
@@ -442,6 +454,7 @@ export default async function WorkOrderDetailPage({
           <tr className={plainTableHead}>
             <th className={`${cell} text-right font-semibold`}>#</th>
             <th className={`${cell} font-semibold`}>Operation</th>
+            <th className={`${cell} font-semibold`}>Job Card</th>
             <th className={`${cell} font-semibold`}>Workstation</th>
             <th className={`${cell} font-semibold`}>Status</th>
             <th className={`${cell} text-right font-semibold`}>Time (mins)</th>
@@ -454,10 +467,27 @@ export default async function WorkOrderDetailPage({
           </tr>
         </thead>
         <tbody>
-          {operations.map((op, i) => (
+          {operations.map((op, i) => {
+            const relatedJobCards = jobCardsByOperation.get(op.operation) ?? [];
+            return (
             <tr key={i} className="border-b border-border last:border-0">
               <td className={`${cell} text-right text-graphite-400`}>{i + 1}</td>
               <td className={`${cell} text-graphite-900`}>{op.operation}</td>
+              <td className={cell}>
+                {relatedJobCards.length === 0
+                  ? "—"
+                  : relatedJobCards.map((jc, j) => (
+                      <span key={jc.name}>
+                        {j > 0 && ", "}
+                        <Link
+                          href={`/manufacturing/job-cards/${encodeURIComponent(jc.name)}`}
+                          className="font-mono text-signal hover:underline"
+                        >
+                          {jc.name}
+                        </Link>
+                      </span>
+                    ))}
+              </td>
               <td className={`${cell} text-graphite-500`}>{op.workstation || "—"}</td>
               <td className={`${cell} text-graphite-500`}>{op.status || "—"}</td>
               <td className={`${cell} text-right font-mono tabular-nums`}>{op.time_in_mins ?? "—"}</td>
@@ -468,10 +498,11 @@ export default async function WorkOrderDetailPage({
               <td className={`${cell} font-mono text-graphite-500`}>{op.actual_start_time || "—"}</td>
               <td className={`${cell} font-mono text-graphite-500`}>{op.actual_end_time || "—"}</td>
             </tr>
-          ))}
+            );
+          })}
           {operations.length === 0 && (
             <tr>
-              <td colSpan={11} className="px-4 py-6 text-center text-graphite-500">
+              <td colSpan={12} className="px-4 py-6 text-center text-graphite-500">
                 No operations on this Work Order.
               </td>
             </tr>
