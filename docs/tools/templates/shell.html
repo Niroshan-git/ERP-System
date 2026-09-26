@@ -47,7 +47,7 @@
   html{scroll-behavior:smooth; color-scheme:light dark;}
   body{margin:0; background:var(--bg); color:var(--ink); font-family:"IBM Plex Sans",ui-sans-serif,sans-serif; font-size:15.5px; line-height:1.6;}
   h1,h2,h3,h4{font-family:"Archivo",sans-serif; text-wrap:balance; margin:0 0 8px;}
-  p{margin:0 0 14px; max-width:70ch; color:var(--ink-soft);}
+  p{margin:0 0 14px; max-width:none; color:var(--ink-soft);}
   code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;}
   a{color:var(--accent);}
   ul,ol{margin:0 0 14px; padding-left:1.2em;}
@@ -82,24 +82,43 @@
   .search-results a small{display:block; color:var(--ink-faint); font-family:"IBM Plex Mono",monospace; font-size:10px; text-transform:uppercase; letter-spacing:.04em; margin-top:3px;}
   .search-empty{padding:14px; color:var(--ink-faint); font-size:13px;}
 
-  .shell{display:flex; align-items:flex-start; max-width:1320px; margin:0 auto;}
+  /* Odoo-docs style: full-width 3-column layout — nav tree | fluid content | "On this page" */
+  .shell{display:grid; grid-template-columns:280px minmax(0,1fr) 230px; width:100%;}
   .sidebar{
-    width:272px; flex:none; position:sticky; top:57px; align-self:flex-start;
-    max-height:calc(100vh - 57px); overflow-y:auto; padding:22px 14px 60px;
-    border-right:1px solid var(--border);
+    position:sticky; top:57px; align-self:start;
+    height:calc(100vh - 57px); overflow-y:auto; padding:18px 10px 60px 14px;
+    border-right:1px solid var(--border); background:var(--surface);
   }
-  .sidebar .grp{margin-bottom:20px;}
-  .sidebar .grp-title{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); padding:0 10px; margin-bottom:6px;}
-  .sidebar a{display:block; padding:6px 10px; border-radius:7px; color:var(--ink-soft); text-decoration:none; font-size:13.5px;}
-  .sidebar a:hover{background:var(--surface-alt); color:var(--ink);}
-  .sidebar a.sub{padding-left:20px; font-size:12.8px; color:var(--ink-faint);}
-  .sidebar a.sub:hover{color:var(--ink-soft);}
+  .sidebar .grp{margin-bottom:4px;}
+  .sidebar .grp-title{display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; font-family:"IBM Plex Sans",sans-serif; font-size:13.5px; font-weight:600; color:var(--ink); padding:7px 10px; border-radius:7px;}
+  .sidebar .grp-title:hover{background:var(--surface-alt);}
+  .sidebar .grp-title::before{content:""; width:0; height:0; border-left:5px solid currentColor; border-top:4px solid transparent; border-bottom:4px solid transparent; transition:transform .15s ease; transform:rotate(90deg); opacity:.6; flex:none;}
+  .sidebar .grp.collapsed .grp-title::before{transform:rotate(0deg);}
+  .sidebar .grp.collapsed a{display:none;}
+  .sidebar a{display:block; padding:5px 10px 5px 16px; border-left:2px solid var(--border); margin-left:14px; color:var(--ink-soft); text-decoration:none; font-size:13.3px; line-height:1.45;}
+  .sidebar a:hover{color:var(--sapphire);}
+  .sidebar a.sub{font-size:13px;}
+  .sidebar a.active{color:var(--sapphire); border-left-color:var(--sapphire); background:var(--sapphire-tint); font-weight:600; border-radius:0 6px 6px 0;}
 
-  main.content{flex:1; min-width:0; padding:36px 40px 100px; max-width:900px;}
-  section{margin-bottom:58px; scroll-margin-top:74px;}
+  main.content{min-width:0; padding:26px 48px 100px;}
+  .crumbs{position:sticky; top:57px; z-index:10; background:var(--bg); margin:-26px -48px 18px; padding:10px 48px; border-bottom:1px solid var(--border); font-size:12.5px; color:var(--ink-faint); display:flex; flex-wrap:wrap; gap:6px; align-items:center;}
+  .crumbs a{color:var(--sapphire); text-decoration:none;}
+  .crumbs a:hover{text-decoration:underline;}
+  .crumbs .sep{opacity:.6;}
+
+  .toc{position:sticky; top:57px; align-self:start; height:calc(100vh - 57px); overflow-y:auto; padding:30px 16px 60px 18px; border-left:1px solid var(--border); font-size:12.8px;}
+  .toc-title{font-family:"IBM Plex Mono",monospace; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:10px;}
+  .toc a{display:block; padding:4px 0 4px 10px; border-left:2px solid var(--border); color:var(--ink-soft); text-decoration:none; line-height:1.4;}
+  .toc a:hover{color:var(--sapphire);}
+  .toc a.active{color:var(--sapphire); border-left-color:var(--sapphire); font-weight:600;}
+  .toc-empty{color:var(--ink-faint);}
+
+  section{margin-bottom:44px; padding-bottom:36px; border-bottom:1px solid var(--border); scroll-margin-top:104px;}
+  section:last-child{border-bottom:none;}
+  h3[id], details.tech-ref, .doc-section{scroll-margin-top:104px;}
   section > .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--sapphire); display:block; margin-bottom:8px;}
   section > h2{font-size:1.65rem; margin-bottom:10px;}
-  section > .lede{font-size:1.02rem; color:var(--ink-soft); max-width:66ch; margin-bottom:24px;}
+  section > .lede{font-size:1.02rem; color:var(--ink-soft); max-width:none; margin-bottom:24px;}
   h3.sub-h{font-size:1.18rem; margin-top:30px; padding-top:22px; border-top:1px solid var(--border); display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
   h3.sub-h:first-of-type{border-top:none; padding-top:0; margin-top:16px;}
   h4{font-size:.98rem; margin-top:18px;}
@@ -133,7 +152,7 @@
 
   .quote{font-family:"Fraunces",serif; font-style:italic; font-size:1.1rem; color:var(--ink); border-left:3px solid var(--sapphire); padding:4px 0 4px 18px; margin:14px 0;}
   .codeblock{background:var(--code-bg); color:#D7E1F5; border-radius:10px; padding:14px 16px; font-family:"IBM Plex Mono",monospace; font-size:.82rem; overflow-x:auto; margin-bottom:16px; white-space:pre;}
-  .callout{border-radius:12px; padding:14px 18px; margin-bottom:16px; font-size:.9rem;}
+  .callout{border-radius:6px; padding:12px 16px; margin-bottom:16px; font-size:.9rem; border-left:4px solid currentColor;}
   .callout p{margin:0; color:inherit;}
   .callout p + p{margin-top:8px;}
   .callout.warn{background:var(--turmeric-tint); color:var(--turmeric);}
@@ -145,7 +164,7 @@
 
   /* ---- product-guide components (DOCS-HELP-1) ---- */
   .doc-meta{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:18px;}
-  .doc-section{scroll-margin-top:74px;}
+  .doc-section{scroll-margin-top:104px;}
   .doc-section > h3{font-size:1.1rem; margin-top:26px; padding-top:20px; border-top:1px solid var(--border);}
   .doc-section:first-of-type > h3{border-top:none; padding-top:0; margin-top:14px;}
 
@@ -174,18 +193,25 @@
   details.tech-ref .tech-ref-body table{color:#D7E1F5;}
   details.tech-ref .tech-ref-body th,details.tech-ref .tech-ref-body td{border-color:#2A3142;}
 
-  footer{padding:30px 40px 60px; color:var(--ink-faint); font-size:.8rem; border-top:1px solid var(--border); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;}
+  footer{padding:24px 48px 50px; color:var(--ink-faint); font-size:.8rem; border-top:1px solid var(--border); display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px;}
 
   @media (max-width:640px){
     .topbar .tag{display:none;}
     .search-box input{width:130px;}
   }
+  @media (max-width:1200px){
+    .shell{grid-template-columns:260px minmax(0,1fr);}
+    .toc{display:none;}
+  }
   @media (max-width:900px){
+    .shell{display:block;}
     .menu-btn{display:inline-block;}
     .mode-tabs{order:3; width:100%; margin-left:0;}
-    .sidebar{position:fixed; top:53px; left:0; bottom:0; z-index:30; background:var(--bg); transform:translateX(-102%); transition:transform .18s ease; width:80vw; max-width:320px; box-shadow:var(--shadow);}
+    .sidebar{position:fixed; top:53px; left:0; bottom:0; height:auto; z-index:30; background:var(--surface); transform:translateX(-102%); transition:transform .18s ease; width:80vw; max-width:320px; box-shadow:var(--shadow);}
     .sidebar.open{transform:translateX(0);}
-    main.content{padding:26px 20px 80px;}
+    main.content{padding:20px 16px 80px;}
+    .crumbs{top:53px; margin:-20px -16px 16px; padding:8px 16px;}
+    footer{padding:24px 16px 40px;}
   }
 
   /* mode filtering — only affects .doc-section blocks emitted from docs/product/*.md;
@@ -225,8 +251,14 @@
   </nav>
 
   <main class="content">
+    <div class="crumbs" id="crumbs"><a href="#">Documentation</a></div>
 <!--MAIN-->
   </main>
+
+  <aside class="toc" id="toc" aria-label="On this page">
+    <div class="toc-title">On this page</div>
+    <div id="tocLinks"><span class="toc-empty">—</span></div>
+  </aside>
 </div>
 
 <footer>
@@ -246,12 +278,103 @@ window.CEYLON_SEARCH_INDEX = <!--SEARCH_INDEX_JSON-->;
     });
   }
 
+  // ---- Odoo-style navigation: collapsible nav tree, scroll-spy, breadcrumbs, "On this page" ----
+  var groups = Array.prototype.slice.call(document.querySelectorAll('.sidebar .grp'));
+  groups.forEach(function(g){
+    var t = g.querySelector('.grp-title');
+    if(t) t.addEventListener('click', function(){ g.classList.toggle('collapsed'); });
+  });
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll('.sidebar a[href^="#"]'));
+  var sections = Array.prototype.slice.call(document.querySelectorAll('main.content > section[id]'));
+  var crumbs = document.getElementById('crumbs');
+  var tocLinks = document.getElementById('tocLinks');
+  var currentId = null, tocItems = [];
+
+  function slug(s){ return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
+  function visible(el){ return el.offsetParent !== null; }
+  // first text node only, so status badges inside headings are left out of labels
+  function headText(h){
+    if(h.tagName === 'DETAILS'){ var sm = h.querySelector('summary'); return sm ? sm.textContent.trim() : ''; }
+    var t = h.childNodes.length && h.childNodes[0].nodeType === 3 ? h.childNodes[0].textContent : h.textContent;
+    return (t.trim() || h.textContent.trim());
+  }
+
+  function buildToc(sec){
+    tocItems = [];
+    tocLinks.innerHTML = '';
+    Array.prototype.slice.call(sec.querySelectorAll('h3, details.tech-ref')).filter(visible).forEach(function(h, i){
+      var target = h.tagName === 'H3' && h.parentElement.classList.contains('doc-section') ? h.parentElement : h;
+      if(!target.id) target.id = sec.id + '-' + (slug(headText(h)) || i);
+      var a = document.createElement('a');
+      a.href = '#' + target.id;
+      a.textContent = headText(h);
+      tocLinks.appendChild(a);
+      tocItems.push({el: target, link: a});
+    });
+    if(!tocItems.length) tocLinks.innerHTML = '<span class="toc-empty">—</span>';
+  }
+
+  function setCurrent(sec){
+    if(!sec || sec.id === currentId) return;
+    currentId = sec.id;
+    var active = null;
+    navLinks.forEach(function(a){
+      var on = a.getAttribute('href') === '#' + sec.id;
+      a.classList.toggle('active', on);
+      if(on) active = a;
+    });
+    var grp = active ? active.closest('.grp') : null;
+    if(grp){
+      grp.classList.remove('collapsed');
+      var sb = document.getElementById('sidebar');
+      var r = active.getBoundingClientRect(), sr = sb.getBoundingClientRect();
+      if(r.top < sr.top || r.bottom > sr.bottom) active.scrollIntoView({block: 'nearest'});
+    }
+    if(crumbs){
+      var gt = grp ? grp.querySelector('.grp-title').textContent.trim() : '';
+      var h2 = sec.querySelector('h2');
+      crumbs.innerHTML = '';
+      var home = document.createElement('a'); home.href = '#'; home.textContent = 'Documentation';
+      crumbs.appendChild(home);
+      [gt, h2 ? headText(h2) : ''].filter(Boolean).forEach(function(txt){
+        var sp = document.createElement('span'); sp.className = 'sep'; sp.textContent = '›'; crumbs.appendChild(sp);
+        var s = document.createElement('span'); s.textContent = txt; crumbs.appendChild(s);
+      });
+    }
+    buildToc(sec);
+  }
+
+  var ticking = false;
+  function onScroll(){
+    if(ticking) return;
+    ticking = true;
+    setTimeout(function(){
+      ticking = false;
+      var y = 130, cur = null;
+      for(var i = 0; i < sections.length; i++){
+        if(!visible(sections[i])) continue;
+        if(!cur || sections[i].getBoundingClientRect().top <= y) cur = sections[i]; else break;
+      }
+      setCurrent(cur);
+      var curItem = null;
+      tocItems.forEach(function(it){ if(it.el.getBoundingClientRect().top <= y + 30) curItem = it; });
+      tocItems.forEach(function(it){ it.link.classList.toggle('active', it === curItem); });
+    }, 60);
+  }
+  window.addEventListener('scroll', onScroll, {passive: true});
+  window.addEventListener('hashchange', onScroll);
+
+  // start with only the active group expanded, as the Odoo nav tree does
+  groups.forEach(function(g){ g.classList.add('collapsed'); });
+  onScroll();
+
   var tabs = document.querySelectorAll('.mode-tab');
   tabs.forEach(function(tab){
     tab.addEventListener('click', function(){
       tabs.forEach(function(t){ t.classList.remove('active'); });
       tab.classList.add('active');
       document.body.setAttribute('data-mode', tab.getAttribute('data-mode'));
+      var s = document.getElementById(currentId); currentId = null; setCurrent(s);
     });
   });
 
