@@ -1,8 +1,19 @@
 import { notFound } from "next/navigation";
 import { ItemForm } from "@/components/ItemForm";
+import { DocTabs } from "@/components/DocTabs";
+import { AccountingDefaultsPanel } from "@/components/AccountingDefaultsPanel";
 import { ErpNextError, getDoc } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
-import { updateItemAction } from "../actions";
+import {
+  findCompanyRow,
+  getCompanyOptions,
+  getScopedAccountOptions,
+  getScopedCostCenterOptions,
+  getScopedWarehouseOptions,
+  itemDefaultFieldSpecs,
+  type ItemDefaultRow,
+} from "@/lib/financeDefaults";
+import { updateItemAction, updateItemAccountingDefaultsAction } from "../actions";
 
 type ItemDoc = {
   name: string;
@@ -19,10 +30,18 @@ type ItemDoc = {
   has_expiry_date?: 0 | 1;
   batch_number_series?: string;
   serial_no_series?: string;
+  item_defaults?: ItemDefaultRow[];
 };
 
-export default async function EditItemPage({ params }: { params: Promise<{ name: string }> }) {
+export default async function EditItemPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ name: string }>;
+  searchParams: Promise<{ tab?: string; company?: string; saved?: string }>;
+}) {
   const { name } = await params;
+  const { tab, company: requestedCompany, saved } = await searchParams;
 
   let item: ItemDoc;
   try {
@@ -32,13 +51,52 @@ export default async function EditItemPage({ params }: { params: Promise<{ name:
     throw e;
   }
 
-  const [groups, uoms] = await Promise.all([fetchLinkOptions("Item Group"), fetchLinkOptions("UOM")]);
+  const [groups, uoms, { companies, company }] = await Promise.all([
+    fetchLinkOptions("Item Group"),
+    fetchLinkOptions("UOM"),
+    getCompanyOptions(requestedCompany),
+  ]);
+
+  const [accountOptions, costCenterOptions, warehouseOptions, priceListOptions, supplierOptions] = await Promise.all([
+    getScopedAccountOptions(company),
+    getScopedCostCenterOptions(company),
+    getScopedWarehouseOptions(company),
+    fetchLinkOptions("Price List"),
+    fetchLinkOptions("Supplier"),
+  ]);
+
+  const accountingRow = findCompanyRow(item.item_defaults, company) ?? { company };
 
   return (
     <div>
       <h1 className="mb-1 text-2xl font-medium text-graphite-900">{item.item_name}</h1>
       <p className="mb-4 font-mono text-xs text-graphite-500">{item.name}</p>
-      <ItemForm action={updateItemAction.bind(null, item.name)} groups={groups} uoms={uoms} initial={item} />
+      <DocTabs
+        initialTabId={tab === "accounting" ? "accounting" : undefined}
+        tabs={[
+          {
+            id: "details",
+            label: "Details",
+            content: <ItemForm action={updateItemAction.bind(null, item.name)} groups={groups} uoms={uoms} initial={item} />,
+          },
+          {
+            id: "accounting",
+            label: "Accounting",
+            content: (
+              <AccountingDefaultsPanel
+                basePath={`/master-data/items/${encodeURIComponent(item.name)}`}
+                company={company}
+                companies={companies}
+                saved={saved === "1"}
+                fields={itemDefaultFieldSpecs({ accountOptions, costCenterOptions, warehouseOptions, priceListOptions, supplierOptions })}
+                initial={accountingRow}
+                action={updateItemAccountingDefaultsAction.bind(null, item.name, company)}
+                note="Per-company G/L account and warehouse defaults for this Item — override Item Group/Brand/Company defaults for Sales, Buying, and Inventory transactions (FIN-1G-D)."
+              />
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

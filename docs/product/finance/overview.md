@@ -4,7 +4,7 @@ module: Finance
 type: module-overview
 status: PARTIAL
 backend_doc: docs/backend/06-accounting/finance-architecture.md
-last_verified: 2026-09-24
+last_verified: 2026-09-25
 ---
 
 ## Purpose
@@ -24,6 +24,12 @@ top, purely presentational — no new DocType fields.
 
 Bank Account  
 Full CRUD for ERPNext's `Bank Account` doctype, with account number/IBAN masked on the list view.
+
+Account Determination  
+Company-level G/L account/warehouse/cost-center defaults (`/accounting/account-determination`),
+plus per-record overrides on an "Accounting" tab on Item, Item Group, Customer, Customer Group,
+and Supplier — see `docs/product/finance/account-determination.md`. Brand and Supplier Group
+overrides are not yet built (no frontend page exists for either yet).
 
 Payment Entry, AR/AP visibility, Journal Entry, GL/financial reports  
 **Planned, not built.** `FIN-2` (Payment Entry + AR/AP visibility) is the recommended next Finance

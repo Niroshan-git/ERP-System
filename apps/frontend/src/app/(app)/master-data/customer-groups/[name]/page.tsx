@@ -1,8 +1,17 @@
 import { notFound } from "next/navigation";
 import { MasterForm, type FieldSpec } from "@/components/MasterForm";
+import { DocTabs } from "@/components/DocTabs";
+import { AccountingDefaultsPanel } from "@/components/AccountingDefaultsPanel";
 import { ErpNextError, getDoc } from "@/lib/erpnext";
 import { fetchLinkOptions } from "@/lib/linkOptions";
-import { updateCustomerGroupAction } from "../actions";
+import {
+  findCompanyRow,
+  getCompanyOptions,
+  getScopedAccountOptions,
+  partyAccountFieldSpecs,
+  type PartyAccountRow,
+} from "@/lib/financeDefaults";
+import { updateCustomerGroupAction, updateCustomerGroupAccountingDefaultsAction } from "../actions";
 
 type CustomerGroupDoc = {
   name: string;
@@ -10,10 +19,18 @@ type CustomerGroupDoc = {
   parent_customer_group?: string;
   is_group?: 0 | 1;
   default_price_list?: string;
+  accounts?: PartyAccountRow[];
 };
 
-export default async function EditCustomerGroupPage({ params }: { params: Promise<{ name: string }> }) {
+export default async function EditCustomerGroupPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ name: string }>;
+  searchParams: Promise<{ tab?: string; company?: string; saved?: string }>;
+}) {
   const { name } = await params;
+  const { tab, company: requestedCompany, saved } = await searchParams;
 
   let doc: CustomerGroupDoc;
   try {
@@ -23,9 +40,10 @@ export default async function EditCustomerGroupPage({ params }: { params: Promis
     throw e;
   }
 
-  const [groups, priceLists] = await Promise.all([
+  const [groups, priceLists, { companies, company }] = await Promise.all([
     fetchLinkOptions("Customer Group"),
     fetchLinkOptions("Price List"),
+    getCompanyOptions(requestedCompany),
   ]);
 
   const fields: FieldSpec[] = [
@@ -35,11 +53,39 @@ export default async function EditCustomerGroupPage({ params }: { params: Promis
     { kind: "link", id: "default_price_list", label: "Default price list", options: priceLists },
   ];
 
+  const accountOptions = await getScopedAccountOptions(company);
+  const accountingRow = findCompanyRow(doc.accounts, company) ?? { company };
+
   return (
     <div>
       <h1 className="mb-1 text-2xl font-medium text-graphite-900">{doc.customer_group_name}</h1>
       <p className="mb-4 font-mono text-xs text-graphite-500">{doc.name}</p>
-      <MasterForm action={updateCustomerGroupAction.bind(null, doc.name)} fields={fields} initial={doc} />
+      <DocTabs
+        initialTabId={tab === "accounting" ? "accounting" : undefined}
+        tabs={[
+          {
+            id: "details",
+            label: "Details",
+            content: <MasterForm action={updateCustomerGroupAction.bind(null, doc.name)} fields={fields} initial={doc} />,
+          },
+          {
+            id: "accounting",
+            label: "Accounting",
+            content: (
+              <AccountingDefaultsPanel
+                basePath={`/master-data/customer-groups/${encodeURIComponent(doc.name)}`}
+                company={company}
+                companies={companies}
+                saved={saved === "1"}
+                fields={partyAccountFieldSpecs({ accountOptions, receivableLabel: "Receivable Account" })}
+                initial={accountingRow}
+                action={updateCustomerGroupAccountingDefaultsAction.bind(null, doc.name, company)}
+                note="Per-company Receivable/Advance account for this Customer Group — used when a Customer in this group has no override of its own, falling back to the Company default after (FIN-1G-D)."
+              />
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }

@@ -4,9 +4,14 @@ import { useState } from "react";
 
 export type DocTab = { id: string; label: string; content: React.ReactNode };
 
-/** Tab content is server-rendered ahead of time and passed in as `content` — this component only switches visibility. */
-export function DocTabs({ tabs }: { tabs: DocTab[] }) {
-  const [activeId, setActiveId] = useState(tabs[0]?.id);
+/**
+ * Tab content is server-rendered ahead of time and passed in as `content` — this component only
+ * switches visibility. `initialTabId` lets a caller land on a specific tab (e.g. after a
+ * `?company=` switch on a settings-style page reloads the page and would otherwise reset back to
+ * the first tab) — optional and defaults to the first tab, so every existing caller is unaffected.
+ */
+export function DocTabs({ tabs, initialTabId }: { tabs: DocTab[]; initialTabId?: string }) {
+  const [activeId, setActiveId] = useState(initialTabId ?? tabs[0]?.id);
 
   return (
     <div>

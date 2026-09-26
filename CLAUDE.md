@@ -202,6 +202,20 @@ exist) is the recommended first step of `LP-3`/`LP-4A`, not assumed to already b
 **separate, not-yet-authorized future packages** — this note does not authorize either. `FIN-2`
 remains **not authorized** and this note does not touch or reorder Finance V1 or CRM.
 
+**Updated 2026-09-25 (package `FIN-1G-D`):** Niroshan explicitly authorized `FIN-1G-D — Item/Item
+Group/Brand and Customer/Customer Group/Supplier/Supplier Group Inheritance UX`, per
+`docs/backend/06-accounting/account-determination.md` §14's own definition of this package
+(surface + edit `Item Default`/`Party Account` rows, using a standardized Account selector
+component reused rather than forked). This is layered on top of the already-`ACCEPTED` `FIN-1G-C`
+Company-level Account Determination workspace, under the same `FIN-1G-A`/`FIN-1G-B` control gate
+(`SAFE TO START FIN-1G-C: YES`, which covers the documented `FIN-1G-C`..`FIN-1G-G` split) — not a
+reordering of the Finance V1 sequence below. This note is written **before** implementation
+starts, per the standing instruction `CRM-2`'s/`CRM-3`'s own notes issued and the pattern
+`CRM-4`/`CRM-5`/`LP-0`/`LP-2` already followed correctly. `FIN-1G-E` (Effective Account/"Why This
+Account?"), `FIN-1G-F` (configuration health engine), and `FIN-1G-G` (cross-module GL
+verification) remain separate, not-yet-authorized future packages — this note does not authorize
+them. `FIN-2` remains **not authorized** and `FIN-1G-D` does not unblock it.
+
 **Updated 2026-09-26 (package `MFG-JC-EXEC-1`):** Niroshan issued a dedicated `MFG-JC-EXEC-1 —
 Job Card Execution` mission brief — a narrow, explicit exception to the Manufacturing V1 freeze
 (item 3 below), authorized specifically to resolve a P0 blocker (`D7`) found by this repo's own

@@ -3113,6 +3113,59 @@ about how QA was conducted that Codex's reconciliation pass should be aware of.
   for Codex's eventual §16 reconciliation audit. Foreign, concurrent `LP-2` work-in-progress was
   present throughout this session (disclosed above) — none of it touched, staged, or committed.
 
+## 2026-09-25 — Finance module — `FIN-1G-D` (Item/Item Group/Customer/Customer Group/Supplier
+Inheritance UX) — implementation + code review PASS, QA PARTIALLY VERIFIED (no live/browser access)
+
+Package: new "Accounting" tab on the Item, Item Group, Customer, Customer Group, and Supplier
+detail pages, surfacing + editing one Company's `Item Default`/`Party Account` child-table row per
+`docs/backend/06-accounting/account-determination.md` §14's `FIN-1G-D` definition. Brand and
+Supplier Group deferred (no existing frontend page to attach the UX to — confirmed with Niroshan
+before implementation; see `CLAUDE.md`'s dated `FIN-1G-D` note).
+
+**Foreign WIP disclosure**: an unrelated, unauthorized Financial Reports package (General
+Ledger/Trial Balance/P&L/Balance Sheet/AR-AP ageing — squarely `FIN-2`/`FIN-4` territory, neither
+authorized) was found uncommitted in the same working tree during this session, touching
+`Sidebar.tsx`, `ReportTable.tsx`, plus new `financeReports.ts` and `accounting/reports/`. Not
+touched, read, staged, tested, or committed by this package's implementation, review, or QA passes.
+Flagged to Niroshan; still sitting in the working tree, not resolved by this entry.
+
+- **Live schema verification** (main session, `ceylon-stack` MCP tools, direct `get_doctype_fields`
+  reads against the real Hetzner tenant): confirmed `Item Default` (`item_defaults` on Item,
+  `item_group_defaults` on Item Group) and `Party Account` (`accounts` on Customer/Customer
+  Group/Supplier) field names, types, and parent-doctype table fieldnames all match exactly what
+  the code assumes — no corrections needed. This is the strongest verification this package got:
+  real, live, read-only, against the actual tenant.
+- **Code review** (fresh `code-reviewer` subagent) — verdict: FIN-1G-D itself clean, no blocking
+  correctness/security/scope issues. Verified `upsertCompanyRow`'s merge logic preserves every
+  other company's row untouched, the never-clobber-with-blank contract holds in both directions,
+  company scoping is consistent end-to-end across all 5 pages, redirect/query-param wiring
+  (`?tab=accounting&company=...&saved=1` + `DocTabs`' new `initialTabId` prop) is correct, and
+  Brand/Supplier Group are genuinely left unstubbed. Independently flagged the same foreign
+  Financial Reports WIP disclosed above and refused to let it be folded into this commit. One minor
+  non-blocking note: `findCompanyRow` was imported but unused in all 5 `actions.ts` files (fixed
+  same session, re-verified `tsc --noEmit` clean after).
+- **QA** (fresh `qa-tester` subagent) — verdict: **PARTIALLY VERIFIED, not ACCEPTED off this pass
+  alone.** This subagent's environment had no `ceylon-stack` MCP tools and no browser tool
+  registered despite the brief expecting both — disclosed explicitly rather than fabricating a
+  passing live result. What it did establish: `npm run build`/`lint`/`tsc` all clean (the same
+  unused-`findCompanyRow`-import warning code review also caught); full field-list cross-check
+  against the canonical schema doc, matching exactly; and a from-scratch, then-deleted pure-logic
+  unit test (11/11 assertions) of `upsertCompanyRow`/`fieldsFromFormData` proving multi-row safety,
+  the no-clobber-with-blank contract, and new-row creation all hold in isolation. **Not exercised at
+  all**: the real ERPNext PUT round-trip (does replacing the whole `item_defaults`/`accounts` array
+  actually behave as expected against live Frappe), the actual browser UI flow, and restore
+  discipline (nothing was mutated, so nothing needed restoring). Access-denied path: confirmed
+  code-level only that these 5 pages have no 403 handling (`getDoc`'s catch only handles 404) — a
+  **pre-existing gap, not introduced by this package** — and flagged that this package adds several
+  new doctype reads (`Company`/`Account`/`Warehouse`/`Cost Center`/`Price List`/`Supplier`) to every
+  load of these 5 pages, which would newly hard-fail if the service account ever lost access to any
+  of them (untested live; the same account already reads these successfully for `FIN-1G-C`).
+- **Disposition (main session, after presenting the gap to Niroshan)**: Niroshan chose to test the
+  live UI/write round-trip personally rather than have a further subagent attempt it — see
+  `PROGRESS.md`'s `FIN-1G-D` entry for the exact hand-off. **Status: NOT YET ACCEPTED** pending that
+  manual click-test. Implementation, code review, and the two automated verification layers above
+  are complete; do not treat this as fully closed until Niroshan reports back.
+
 ## 2026-09-25/26 — E2E-1 full business workflow test — two live defects found and fixed (CRM Log Call, Work Order company/warehouse mismatch)
 
 - **Package tested**: not a single module package — a full CRM→Sales→Procurement→Manufacturing

@@ -2,9 +2,32 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createDoc, ErpNextError, updateDoc } from "@/lib/erpnext";
+import { createDoc, ErpNextError, getDoc, updateDoc } from "@/lib/erpnext";
+import { fieldsFromFormData } from "@/lib/masterActions";
+import { upsertCompanyRow, type ItemDefaultRow } from "@/lib/financeDefaults";
 
 export type FormState = { error?: string } | undefined;
+
+// FIN-1G-D: every field on one company's `Item Default` row (docs/backend/06-accounting/
+// account-determination.md §1) — excludes the gated purchase_expense_account/_contra_account
+// pair, same exclusion FIN-1G-C already applied at the Company level.
+const ITEM_DEFAULT_KEYS = [
+  "income_account",
+  "expense_account",
+  "default_cogs_account",
+  "default_inventory_account",
+  "buying_cost_center",
+  "selling_cost_center",
+  "default_discount_account",
+  "default_provisional_account",
+  "deferred_revenue_account",
+  "deferred_expense_account",
+  "expenses_added_to_stock_account",
+  "expenses_added_to_stock_contra_account",
+  "default_warehouse",
+  "default_price_list",
+  "default_supplier",
+];
 
 function humanizeError(e: unknown): string {
   if (e instanceof ErpNextError) {
@@ -85,4 +108,31 @@ export async function updateItemAction(
   revalidatePath("/master-data/items");
   revalidatePath(`/master-data/items/${encodeURIComponent(name)}`);
   redirect(`/master-data/items/${encodeURIComponent(name)}`);
+}
+
+/**
+ * `FIN-1G-D`. Re-fetches the Item fresh (rather than trusting a hidden-field snapshot) so this
+ * read-modify-write only ever touches the one row for `company` — every other company's
+ * `Item Default` row passes through `upsertCompanyRow` untouched.
+ */
+export async function updateItemAccountingDefaultsAction(
+  name: string,
+  company: string,
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const fields = fieldsFromFormData(formData, ITEM_DEFAULT_KEYS);
+
+  try {
+    const item = await getDoc<{ item_defaults?: ItemDefaultRow[] }>("Item", name);
+    const item_defaults = upsertCompanyRow(item.item_defaults, company, fields);
+    await updateDoc("Item", name, { item_defaults }, "update item accounting defaults");
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+
+  revalidatePath(`/master-data/items/${encodeURIComponent(name)}`);
+  redirect(
+    `/master-data/items/${encodeURIComponent(name)}?tab=accounting&company=${encodeURIComponent(company)}&saved=1`,
+  );
 }

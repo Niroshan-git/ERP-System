@@ -2,9 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createDoc, ErpNextError, updateDoc } from "@/lib/erpnext";
+import { createDoc, ErpNextError, getDoc, updateDoc } from "@/lib/erpnext";
+import { fieldsFromFormData } from "@/lib/masterActions";
+import { upsertCompanyRow, type PartyAccountRow } from "@/lib/financeDefaults";
 
 export type FormState = { error?: string } | undefined;
+
+// FIN-1G-D: `Party Account` row fields (docs/backend/06-accounting/account-determination.md §1/§6).
+const PARTY_ACCOUNT_KEYS = ["account", "advance_account"];
 
 function humanizeError(e: unknown): string {
   if (e instanceof ErpNextError) {
@@ -58,4 +63,27 @@ export async function updateCustomerAction(
   revalidatePath("/master-data/customers");
   revalidatePath(`/master-data/customers/${encodeURIComponent(name)}`);
   redirect(`/master-data/customers/${encodeURIComponent(name)}`);
+}
+
+/** `FIN-1G-D`. Same re-fetch-then-upsert-one-row pattern as `items/actions.ts`. */
+export async function updateCustomerAccountingDefaultsAction(
+  name: string,
+  company: string,
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const fields = fieldsFromFormData(formData, PARTY_ACCOUNT_KEYS);
+
+  try {
+    const customer = await getDoc<{ accounts?: PartyAccountRow[] }>("Customer", name);
+    const accounts = upsertCompanyRow(customer.accounts, company, fields);
+    await updateDoc("Customer", name, { accounts }, "update customer accounting defaults");
+  } catch (e) {
+    return { error: humanizeError(e) };
+  }
+
+  revalidatePath(`/master-data/customers/${encodeURIComponent(name)}`);
+  redirect(
+    `/master-data/customers/${encodeURIComponent(name)}?tab=accounting&company=${encodeURIComponent(company)}&saved=1`,
+  );
 }

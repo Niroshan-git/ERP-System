@@ -2,14 +2,22 @@
 
 **Domain:** Finance — Accounting Configuration.
 **Package:** `FIN-1G-A` (ERPNext discovery) + `FIN-1G-B` (canonical determination matrix), 2026-09-25.
-**Status:** `DOCUMENTED` + **`FIN-1G-C` SHIPPED** (2026-09-25) — `FIN-1G-A`/`FIN-1G-B` discovery/
-architecture below, plus the Company-level Account Determination workspace at
-`/accounting/account-determination` (read/edit for every §2 field, grouped by domain, company-
-switchable; see `PROGRESS.md`'s `FIN-1G-C` entry and `QA_LOG.md`'s 2026-09-25 entries for the full
-build/review/QA account, including a security incident resolved during QA). `FIN-1G-D` (master-data
-inheritance UX), `FIN-1G-E` (Effective Account/"Why This Account?" explainer), `FIN-1G-F`
-(configuration health check), and `FIN-1G-G` (cross-module GL verification) remain unimplemented —
-see "Recommended next steps" below, still accurate for what's left.
+**Status:** `DOCUMENTED` + **`FIN-1G-C` SHIPPED** (2026-09-25) + **`FIN-1G-D` SHIPPED** (2026-09-25)
+— `FIN-1G-A`/`FIN-1G-B` discovery/architecture below, plus the Company-level Account Determination
+workspace at `/accounting/account-determination` (read/edit for every §2 field, grouped by domain,
+company-switchable; see `PROGRESS.md`'s `FIN-1G-C` entry and `QA_LOG.md`'s 2026-09-25 entries for
+the full build/review/QA account, including a security incident resolved during QA), plus the
+Item/Item Group/Customer/Customer Group/Supplier inheritance UX from `FIN-1G-D` — a new
+"Accounting" tab on each of those five master-data detail pages, surfacing + editing that record's
+one `Item Default`/`Party Account` row for the selected company (see `PROGRESS.md`'s `FIN-1G-D`
+entry for the full build account). **Disclosed gap, not silently closed**: Brand and Supplier
+Group are part of the same resolution chains (§3/§6) but were deferred — neither has any existing
+frontend page in this app to attach the inheritance UX to, and building one from scratch was judged
+out of this package's scope (confirmed with Niroshan before implementation). `FIN-1G-E` (Effective
+Account/"Why This Account?" explainer), `FIN-1G-F` (configuration health check), and `FIN-1G-G`
+(cross-module GL verification) remain unimplemented — see "Recommended next steps" below, still
+accurate for what's left (its `FIN-1G-D` line should now be read as "shipped for Item/Item
+Group/Customer/Customer Group/Supplier; Brand/Supplier Group still open").
 
 This document answers, for every accounting role a Ceylon Stack transaction depends on (revenue,
 COGS, receivable, payable, inventory, cost center, tax, manufacturing WIP/FG/operating-cost): where

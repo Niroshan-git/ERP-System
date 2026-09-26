@@ -6395,6 +6395,80 @@ real page and the deferred live-credential verification) are separate, not-yet-a
 packages. `FIN-2`/`FIN-3` remain not authorized; nothing in this package touches Finance V1 or any
 CRM package's priority.
 
+## `FIN-1G-D` — Item/Item Group/Customer/Customer Group/Supplier Inheritance UX (Finance /
+Accounting) — 2026-09-25
+
+**Authorization:** Niroshan explicitly authorized `FIN-1G-D` per `account-determination.md` §14's
+own definition of the package. The dated `CLAUDE.md` Current Mission note was written **before**
+implementation started, following the pattern `CRM-4`/`CRM-5`/`LP-0`/`LP-2` already established
+after the earlier `CRM-2`/`CRM-3` write-back-timing lapse.
+
+**Scope decision, confirmed with Niroshan before implementation**: `FIN-1G-D`'s definition includes
+Brand and Supplier Group inheritance UX, but neither has any existing frontend page in this app to
+attach it to (Supplier Group is only a field *on* the Supplier form; Brand has zero frontend
+references anywhere). Building new Brand/Supplier Group master-data CRUD pages from scratch was
+judged out of scope — a Master-Data-owned addition bigger than "surface + edit inheritance rows,"
+the same shape of scope-creep `FIN-1G-C`'s own session flagged and narrowed. Niroshan chose to defer
+both rather than expand the package. This does not resolve `docs/ceylon-stack-master-backlog.md`'s
+open decisions and does not authorize a future Brand/Supplier Group package on its own.
+
+**Implementation**: a new "Accounting" tab (via the existing `DocTabs` component, which gained a
+small optional `initialTabId` prop so a `?company=` switch reloads back onto the same tab) on five
+existing master-data detail pages — Item, Item Group, Customer, Customer Group, Supplier. Each
+surfaces + edits **one Company's row** in that record's `Item Default` (`item_defaults` on Item,
+`item_group_defaults` on Item Group — 15 fields: Income/Expense/COGS/Inventory/Discount/Provisional/
+Deferred Revenue/Deferred Expense/Expenses-Added-To-Stock(+contra) accounts, Buying/Selling Cost
+Center, Default Warehouse, Default Price List, Default Supplier; `purchase_expense_account`/
+`_contra_account` deliberately excluded, same gated-field exclusion `FIN-1G-C` already applied at
+the Company level) or `Party Account` (`accounts` on Customer/Customer Group/Supplier — Receivable/
+Payable Account + Advance Account) child table. New `lib/financeDefaults.ts` additions:
+`ItemDefaultRow`/`PartyAccountRow` types, `findCompanyRow`, `upsertCompanyRow` (the read-modify-
+write helper — re-fetches the parent doc fresh, replaces only the target company's row, preserves
+every other company's row byte-identical, never clobbers a field left blank in the form), and the
+`itemDefaultFieldSpecs`/`partyAccountFieldSpecs` builders feeding `MasterForm`'s existing `kind:
+"link"` rendering as the standardized Account/Cost Center/Warehouse selector (reused, not forked).
+New shared `AccountingDefaultsPanel.tsx` component (company switcher + `MasterForm`) used
+identically by all five pages. All field names, types, and parent-doctype table fieldnames were
+live-verified against the real Hetzner tenant (`ceylon-stack` MCP server's `get_doctype_fields`) —
+exact match, no corrections needed.
+
+**Foreign WIP disclosure**: an unrelated, unauthorized Financial Reports package (General Ledger,
+Trial Balance, Profit and Loss, Balance Sheet, Accounts Receivable/Payable ageing — `FIN-2`/`FIN-4`
+territory, neither authorized per `CLAUDE.md`'s Current Mission lock) was found sitting uncommitted
+in the same working tree during this session — `Sidebar.tsx`, `ReportTable.tsx` diffs plus new
+`lib/financeReports.ts` and `app/(app)/accounting/reports/`. Independently confirmed by the main
+session and by the `code-reviewer` subagent. Not touched, read, staged, tested, or committed by any
+part of this package. Flagged to Niroshan; remains unresolved in the working tree as of this entry.
+
+**Code review**: PASS, no blocking issues within `FIN-1G-D`'s own scope (full detail in
+`QA_LOG.md`'s 2026-09-25 `FIN-1G-D` entry). One minor fix applied: `findCompanyRow` was imported
+but unused in all five `actions.ts` files (each only needs it from the corresponding `page.tsx`) —
+removed, `tsc --noEmit` re-verified clean.
+
+**QA**: PARTIALLY VERIFIED, not ACCEPTED off the automated pass alone — the QA subagent's
+environment had no MCP or browser tools this run, so it verified build/lint/types clean, the exact
+schema match, and unit-tested (11/11 assertions, then deleted) the core `upsertCompanyRow` merge
+logic for multi-row safety and the no-clobber-with-blank contract, but could not exercise the real
+ERPNext write round-trip or the actual browser UI. Full detail and the pre-existing (not introduced
+by this package) missing-403-handling observation: `QA_LOG.md`'s 2026-09-25 `FIN-1G-D` entry.
+
+**Documentation**: `docs/backend/06-accounting/account-determination.md` status line updated
+(`FIN-1G-D SHIPPED` for Item/Item Group/Customer/Customer Group/Supplier; Brand/Supplier Group
+still open). New `docs/product/finance/account-determination.md` (Documentation Impact: Module
+Overview/Configuration — `UPDATED`); `docs/product/finance/overview.md` updated to list Account
+Determination as a shipped Main Function. `docs/ceylon-stack-documentation.html` regenerated
+(`node docs/tools/generate-docs.js`) and validated (`node docs/tools/validate-docs.js` — 0 errors,
+0 warnings).
+
+**Status: NOT YET ACCEPTED.** Presented the live-verification gap to Niroshan directly; Niroshan
+chose to personally click-test the real Accounting tab (Item/Item Group/Customer/Customer
+Group/Supplier, a real Company, a real save) rather than have a further subagent attempt it with
+the same tool limitations. Implementation, code review, and the two completed automated
+verification layers are done — this package is held open pending that manual test result before
+being marked `ACCEPTED` or before `release-tracker` is invoked. `FIN-1G-E`/`FIN-1G-F`/`FIN-1G-G`
+remain separate, not-yet-authorized future packages. `FIN-2` remains **not authorized** and
+`FIN-1G-D` does not unblock it.
+
 ## `E2E-1` — Full Business Workflow Test (2026-09-25/26)
 
 **What this was:** not a build package — a live, full CRM→Sales→Procurement→Manufacturing
